@@ -6,21 +6,22 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 
+from .buildable import Buildable
 from .meta import SnowFlake
 
 
 if TYPE_CHECKING:
-    from .model import Model
-    from .view import View
+    from .model import PartialModel
+    from .. import View
 
 
 __all__ = (
-    'ViewModel',
+    'PartialViewModel',
 )
 
 
-class ViewModel(SnowFlake):
-    """A view-model for logical interchange of ui/backend in an application.
+class PartialViewModel(SnowFlake, Buildable):
+    """A partial view-model for logical interchange of ui/backend in an application.
 
     .. ------------------------------------------------------------
 
@@ -30,11 +31,41 @@ class ViewModel(SnowFlake):
 
     Attributes
     -----------
-    model: :class:`Model`
-        The parent :class:`Model` this :class:`ViewModel`.
+    model: :class:`PartialModel`
+        The parent :class:`Model` this :class:`PartialViewModel`.
 
     view: :class:`View`
-        The child :class:`View` this :class:`ViewModel`.
+        The child :class:`View` this :class:`PartialViewModel`.
     """
-    model: Model
-    view: View
+
+    def __init__(self,
+                 model: PartialModel,
+                 view: View):
+        SnowFlake.__init__(self)
+        Buildable.__init__(self)
+        self._model = model
+        self._view = view
+
+    @property
+    def model(self) -> PartialModel:
+        """The parent :class:`Model` this :class:`PartialViewModel`.
+
+        .. ------------------------------------------------------------
+
+        Returns
+        -----------
+            model: :class:`PartialModel`
+        """
+        return self._model
+
+    @property
+    def view(self) -> View:
+        """The child :class:`View` this :class:`PartialViewModel`.
+
+        .. ------------------------------------------------------------
+
+        Returns
+        -----------
+            view: :class:`View`
+        """
+        return self._view

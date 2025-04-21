@@ -3,7 +3,7 @@ import unittest
 
 
 from .application import (
-    ApplicationTask,
+    PartialApplicationTask,
     BaseMenu,
     PartialApplication,
     PartialApplicationConfiguration
@@ -20,7 +20,7 @@ from .meta import (
 )
 
 
-from .model import Model
+from .model import PartialModel
 
 
 __all__ = (
@@ -106,12 +106,25 @@ class TestMeta(unittest.TestCase):
         self.assertTrue(isinstance(x.frame, Frame))
         self.assertTrue(isinstance(x.view_type, int))
 
+        # add some children to the view's frame
+        a = Frame(x.frame)
+        b = Frame(x.frame)
+        c = Frame(x.frame)
+
+        a.pack()
+        b.pack()
+        c.pack()
+
+        self.assertTrue(len(x.frame.children) == 3)
+        x.clear()
+        self.assertTrue(len(x.frame.children) == 0)
+
         x.close()
         self.assertEqual(x.parent.children, {})
 
         # test an invalid view type can't be built
         with self.assertRaises(ValueError) as context:
-            PartialView(None, 3)
+            PartialView(None, 4)
         self.assertTrue(isinstance(context.exception, ValueError))
 
         # test a non-dict object can't be passed for config
@@ -143,12 +156,12 @@ class TestApplication(unittest.TestCase):
         """test application builds
         """
         # build a good app
-        model = Model()
+        model = PartialModel()
         app = PartialApplication(model,
                                  PartialApplicationConfiguration.generic_root())
         self.assertIsNotNone(app)
 
-        self.assertTrue(isinstance(app.model, Model))
+        self.assertTrue(isinstance(app.main_model, PartialModel))
         self.assertTrue(isinstance(app.config, dict))
 
         app.close()
@@ -168,7 +181,7 @@ class TestApplication(unittest.TestCase):
         # build a bad app with invalid view type
         with self.assertRaises(ValueError) as context:
             config = PartialApplicationConfiguration.generic_root()
-            config['type'] = 3
+            config['type'] = 4
             PartialApplication(None,
                                config)
         self.assertTrue(isinstance(context.exception, ValueError))
@@ -184,13 +197,13 @@ class TestApplication(unittest.TestCase):
     def test_application_task(self):
         """test application task builds
         """
-        model = Model()
+        model = PartialModel()
         app = PartialApplication(model, PartialApplicationConfiguration.generic_root())
-        task = ApplicationTask(app, model)
+        task = PartialApplicationTask(app, model)
         self.assertIsNotNone(task)
 
         self.assertTrue(isinstance(task.application, PartialApplication))
-        self.assertTrue(isinstance(task.model, Model))
+        self.assertTrue(isinstance(task.model, PartialModel))
 
         app.close()
 

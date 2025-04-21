@@ -4,17 +4,18 @@ from __future__ import annotations
 
 
 import os
-from typing import Literal, TYPE_CHECKING, TypedDict, Union
+from typing import Literal, Optional, TYPE_CHECKING, TypedDict, Union
 
 
 from tkinter import Menu, Tk, Toplevel
 
 
 from .meta import PartialView, PartialViewConfiguration, SnowFlake
+from .list import HashList
 
 
 if TYPE_CHECKING:
-    from .model import Model
+    from .model import PartialModel
 
 
 DEF_TYPE = 1
@@ -26,7 +27,7 @@ DEF_ICON = f'{os.path.dirname(os.path.abspath(__file__))}\\..\\..\\ui\\icons\\_d
 
 __all__ = (
     'BaseMenu',
-    'ApplicationTask',
+    'PartialApplicationTask',
     'PartialApplicationConfiguration',
     'PartialApplication',
 )
@@ -50,8 +51,6 @@ class BaseMenu(SnowFlake):
         The parent root item of this menu.
 
     """
-    menu: Menu
-    root: Union[Tk, Toplevel]
 
     def __init__(self,
                  root: Union[Tk, Toplevel]):
@@ -84,7 +83,7 @@ class BaseMenu(SnowFlake):
         return self._root
 
 
-class ApplicationTask(SnowFlake):
+class PartialApplicationTask(SnowFlake):
     """model task for injecting functionality into an existing model.
 
     .. ------------------------------------------------------------
@@ -98,18 +97,16 @@ class ApplicationTask(SnowFlake):
     application: :class:`PartialApplication`
         The parent application of this task.
 
-    model: :class:`Model`
+    model: :class:`PartialModel`
         The model this task reflects.
     """
-    application: 'PartialApplication'
-    model: Model
 
     def __init__(self,
                  application: 'PartialApplication',
-                 model: Model):
+                 model: PartialModel):
         super().__init__()
         self._application: 'PartialApplication' = application
-        self._model: Model = model
+        self._model: PartialModel = model
 
     @property
     def application(self) -> 'PartialApplication':
@@ -124,14 +121,14 @@ class ApplicationTask(SnowFlake):
         return self._application
 
     @property
-    def model(self) -> Model:
+    def model(self) -> PartialModel:
         """The model this task reflects.
 
         .. ------------------------------------------------------------
 
         Returns
         -----------
-            model: :class:`Model`
+            model: :class:`PartialModel`
         """
         return self._model
 
@@ -142,40 +139,36 @@ class PartialApplicationConfiguration(TypedDict):
     .. ------------------------------------------------------------
 
     .. package:: types.abc.application
+
+    .. ------------------------------------------------------------
+
+    Attributes
+    --------
+
+    name: :type:`str`
+
+    type: :type:`int`
+
+    view_config: :class:`TypedDict`
+
     """
     name: str
     type: Literal[1, 2]
     view_config: PartialViewConfiguration
 
     @classmethod
-    def generic_toplevel(cls) -> dict:
+    def generic_toplevel(cls,
+                         name: Optional[str] = 'Default Application') -> dict:
         """get a generic version of an application configuration
 
         for a toplevel application
 
         .. ------------------------------------------------------------
 
-        Returns
-        --------
-        ::
-
-            cls({
-            'name': 'Default Application',
-            'type': 2,
-            'view_config': PartialViewConfiguration(),
-            }
-        """
-        return cls({
-            'name': 'Default Application',
-            'type': 2,
-            'view_config': PartialViewConfiguration.generic()
-        })
-
-    @classmethod
-    def generic_root(cls) -> dict:
-        """get a generic version of an application configuration
-
-        for a root level application
+        Arguments
+        ----------
+        name: Optional[:type:`str`]
+            Name of the application to create.
 
         .. ------------------------------------------------------------
 
@@ -184,13 +177,45 @@ class PartialApplicationConfiguration(TypedDict):
         ::
 
             cls({
-            'name': 'Default Application',
+            'name': {name},
+            'type': 2,
+            'view_config': PartialViewConfiguration(),
+            }
+        """
+        return cls({
+            'name': name,
+            'type': 2,
+            'view_config': PartialViewConfiguration.generic()
+        })
+
+    @classmethod
+    def generic_root(cls,
+                     name: Optional[str] = 'Default Application') -> dict:
+        """get a generic version of an application configuration
+
+        for a root level application
+
+        .. ------------------------------------------------------------
+
+        Arguments
+        ----------
+        name: Optional[:type:`str`]
+            Name of the application to create.
+
+        .. ------------------------------------------------------------
+
+        Returns
+        --------
+        ::
+
+            cls({
+            'name': {name},
             'type': 1,
             'view_config': PartialViewConfiguration(),
             }
         """
         return cls({
-            'name': 'Default Application',
+            'name': name,
             'type': 1,
             'view_config': PartialViewConfiguration.generic(),
         })
@@ -215,29 +240,45 @@ class PartialApplication(PartialView):
         Configuration for this :class:`PartialApplication`.
 
     """
-    model: Model
-    config: PartialApplicationConfiguration
 
     def __init__(self,
-                 model: Model,
+                 model: PartialModel,
                  config: PartialApplicationConfiguration):
         super().__init__(name=config['name'],
                          view_type=config['type'],
                          config=config['view_config'])
-        self._model: Model = model
+        self._model_hash = HashList(SnowFlake.id.__name__)
         self._config: PartialApplicationConfiguration = config
 
+        if model:
+            self._main_model_id: int = model.id
+            self._model_hash.append(model)
+        else:
+            self._main_model_id = None
+
     @property
-    def model(self) -> Model:
-        """Model the application was built with.
+    def main_model(self) -> Optional[PartialModel]:
+        """The current main :class:`Model` of the :class:`Application`.
 
         .. ------------------------------------------------------------
 
         Returns
         --------
-            model :class:`Model`
+            model :class:`Model` | None
         """
-        return self._model
+        return self._model_hash.by_key(self._main_model_id)
+
+    @property
+    def parent(self) -> Union[Tk, Toplevel]:
+        """The parent of this partial application.
+
+        .. ------------------------------------------------------------
+
+        Returns
+        -----------
+            parent: :class:`Union[Tk, Toplevel]`
+        """
+        return self._parent
 
     @property
     def config(self) -> PartialApplicationConfiguration:

@@ -1,0 +1,40 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "Pyrox"
+version = "1.0.0"
+authors = [
+  { name="Brian LaFond", email="Brian.L.LaFond@gmail.com" },
+]
+description = "irox implimentation of tkinter in the form of a modifiable application with models."
+readme = "README.md"
+requires-python = ">=3.11"
+classifiers = [
+  # How mature is this project? Common values are
+  #   3 - Alpha
+  #   4 - Beta
+  #   5 - Production/Stable
+  "Development Status :: 3 - Alpha",
+
+  # Indicate who your project is intended for
+  "Intended Audience :: Developers",
+  "Topic :: Software Development :: Build Tools",
+
+  # Pick your license as you wish (see also "license" above)
+  "License :: OSI Approved :: GNU General Public License v3 (GPLv3)",
+
+  # Specify the Python versions you support here.
+  "Programming Language :: Python :: 3.11",
+]
+dependencies = [
+    "ttkthemes",
+]
+
+license = {file = "LICENSE"}
+keywords = ["python", "tkinter", "api"]
+
+[project.urls]
+Homepage = "https://github.com/iroxusux/Pyrox"
+Issues = "https://github.com/iroxusux/Pyrox/issues"
