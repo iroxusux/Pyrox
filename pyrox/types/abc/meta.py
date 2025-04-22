@@ -332,6 +332,7 @@ class Buildable(Loggable):
     def refresh(self):
         """Refresh this object.
         """
+        ...  # pylint: disable=unnecessary_ellipsis
 
 
 class PartialViewConfiguration(TypedDict):
@@ -362,7 +363,7 @@ class PartialViewConfiguration(TypedDict):
     icon: Optional[str] = DEF_ICON
     win_size: Optional[str] = DEF_WIN_SIZE
     theme: Optional[str] = DEF_THEME
-    parent: Optional[Union[Tk, Toplevel, Frame, LabelFrame]]
+    parent: Optional[Union[Tk, Toplevel, Frame, LabelFrame]] = None
 
     @classmethod
     def generic(cls,

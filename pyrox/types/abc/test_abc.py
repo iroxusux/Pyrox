@@ -1,4 +1,7 @@
+"""testing module for abc classes
+    """
 import copy
+import os
 from tkinter import Tk, Toplevel, Frame, LabelFrame, Menu, TclError
 from typing import Callable
 import unittest
@@ -311,11 +314,16 @@ class TestApplication(unittest.TestCase):
         })
 
         self.assertIsNotNone(config)
+        self.assertIsInstance(config, dict)
 
-        self.assertTrue(isinstance(config, dict))
+        root = PartialApplicationConfiguration.generic_root()
+        self.assertEqual(root['type'], 1)
 
-    def test_application_builds(self):
-        """test application builds
+        toplevel = PartialApplicationConfiguration.generic_toplevel()
+        self.assertEqual(toplevel['type'], 2)
+
+    def test_application(self):
+        """test application
         """
         # build a good app
         model = PartialModel()
@@ -323,8 +331,9 @@ class TestApplication(unittest.TestCase):
                                  PartialApplicationConfiguration.generic_root())
         self.assertIsNotNone(app)
 
-        self.assertTrue(isinstance(app.main_model, PartialModel))
-        self.assertTrue(isinstance(app.config, dict))
+        self.assertTrue(os.path.isdir(app.appdata_dir))
+        self.assertIsInstance(app.main_model, PartialModel)
+        self.assertIsInstance(app.config, dict)
 
         app.close()
 
@@ -376,8 +385,8 @@ class TestApplication(unittest.TestCase):
         menu = BaseMenu(app.parent)
         self.assertIsNotNone(menu)
 
-        self.assertTrue(isinstance(menu.root, (Tk, Toplevel)))
-        self.assertTrue(isinstance(menu.menu, Menu))
+        self.assertIsInstance(menu.root, (Tk, Toplevel))
+        self.assertIsInstance(menu.menu, Menu)
 
         app.close()
 

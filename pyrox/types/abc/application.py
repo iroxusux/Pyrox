@@ -189,7 +189,7 @@ class PartialApplicationConfiguration(TypedDict):
         return cls({
             'name': name,
             'type': 2,
-            'view_config': PartialViewConfiguration.generic()
+            'view_config': PartialViewConfiguration.generic(name=name)
         })
 
     @classmethod
@@ -221,7 +221,7 @@ class PartialApplicationConfiguration(TypedDict):
         return cls({
             'name': name,
             'type': 1,
-            'view_config': PartialViewConfiguration.generic(),
+            'view_config': PartialViewConfiguration.generic(name=name),
         })
 
 
@@ -254,6 +254,10 @@ class PartialApplication(PartialView):
         super().__init__(name=config['name'],
                          view_type=config['type'],
                          config=config['view_config'])
+
+        if not os.path.isdir(self.appdata_dir):
+            os.mkdir(self.appdata_dir)
+
         self._model_hash = HashList(SnowFlake.id.__name__)
         self._config: PartialApplicationConfiguration = config
 

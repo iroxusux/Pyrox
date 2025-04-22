@@ -21,6 +21,7 @@ from .list import (
 
 from .meta import (
     Buildable,
+    ConsolePanelHandler,
     Loggable,
     SnowFlake,
     PartialView,
@@ -42,6 +43,7 @@ __all__ = (
     'PartialApplicationTask',
     'BaseMenu',
     'Buildable',
+    'ConsolePanelHandler',
     'Factory',
     'HashList',
     'Loggable',

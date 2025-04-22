@@ -7,7 +7,7 @@ from . import (
 )
 
 
-from .abc import Buildable, HashList, Loggable, SafeList, SnowFlake
+from .abc import Buildable, ConsolePanelHandler, HashList, Loggable, SafeList, SnowFlake
 from .application import Application, ApplicationTask
 from .application import PartialApplicationConfiguration as ApplicationConfiguration
 from .model import Model
@@ -24,6 +24,7 @@ __all__ = (
     'ApplicationTask',
     'ApplicationConfiguration',
     'Buildable',
+    'ConsolePanelHandler',
     'HashList',
     'Loggable',
     'Model',
