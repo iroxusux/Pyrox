@@ -7,7 +7,6 @@ from typing import Optional, TYPE_CHECKING
 
 
 from .abc import PartialModel
-from .loggable import Loggable
 from .viewmodel import ViewModel
 
 
@@ -21,7 +20,7 @@ __all__ = (
 )
 
 
-class Model(PartialModel, Loggable):
+class Model(PartialModel):
     """A model for use in an application.
 
     .. ------------------------------------------------------------
@@ -51,10 +50,8 @@ class Model(PartialModel, Loggable):
     def __init__(self,
                  app: Optional[Application] = None,
                  view_model: Optional[ViewModel] = None):
-        PartialModel.__init__(self,
-                              application=app,
-                              view_model=view_model)
-        Loggable.__init__(self)
+        super().__init__(application=app,
+                         view_model=view_model)
 
     @property
     def application(self) -> Application:
@@ -67,6 +64,10 @@ class Model(PartialModel, Loggable):
             app: Optional[:class:`Application`]
         """
         return self._application
+
+    @application.setter
+    def application(self, value: Application) -> None:
+        self._application = value
 
     @property
     def view_model(self) -> ViewModel:

@@ -6,8 +6,7 @@ from __future__ import annotations
 from typing import Optional, TYPE_CHECKING
 
 
-from .buildable import Buildable
-from .meta import SnowFlake
+from .meta import Buildable
 
 
 if TYPE_CHECKING:
@@ -20,7 +19,7 @@ __all__ = (
 )
 
 
-class PartialModel(SnowFlake, Buildable):
+class PartialModel(Buildable):
     """A partial model for use in an application.
 
     .. ------------------------------------------------------------
@@ -38,11 +37,12 @@ class PartialModel(SnowFlake, Buildable):
         The :class:`PartialViewModel` this :class:`Model` is associated with, if any.
     """
 
+    __slots__ = ('_application', '_view_model')
+
     def __init__(self,
                  application: Optional[PartialApplication] = None,
                  view_model: Optional[PartialViewModel] = None):
-        SnowFlake.__init__(self)
-        Buildable.__init__(self)
+        super().__init__()
         self._application: Optional[PartialApplication] = application
         self._view_model: Optional[PartialViewModel] = view_model
 
@@ -69,3 +69,17 @@ class PartialModel(SnowFlake, Buildable):
             view_model: Optional[:class:`PartialViewModel`]
         """
         return self._view_model
+
+    def set_application(self,
+                        application: PartialApplication) -> bool:
+        """Set the :class:`Application` for this :class:`Model`
+
+        Returns
+        ----------
+            :class:`bool`: Status of success
+        """
+        if self.application:
+            return False
+
+        self._application = application
+        return True

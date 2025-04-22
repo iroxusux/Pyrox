@@ -12,6 +12,7 @@ T = TypeVar('T')
 __all__ = (
     'HashList',
     'SafeList',
+    'TrackedList',
 )
 
 
@@ -36,12 +37,23 @@ class HashList:
     hash_key: :type:`str`
         Key used for hashing objects into this list.
 
+    hashes: :type:`dict`
+        A hashed dictionary (by key) of all items in this object.
+
     """
+
+    __slots__ = ('_hash_key', '_hashes')
 
     def __init__(self,
                  hash_key: str):
         self._hash_key: str = hash_key
         self._hashes: dict = {}
+
+    def __contains__(self, item: dict):
+        return self.by_key(getattr(item, self._hash_key, None))
+
+    def __iter__(self):
+        return iter(self._hashes)
 
     def __len__(self):
         return len(self._hashes)
@@ -57,6 +69,16 @@ class HashList:
             hash_key: :type:`str`
         """
         return self._hash_key
+
+    @property
+    def hashes(self) -> dict:
+        """A hashed dictionary (by key) of all items in this object.
+
+        Returns
+        --------
+            hashes: :type:`dict`
+        """
+        return self._hashes
 
     def append(self,
                value: T):

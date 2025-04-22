@@ -32,7 +32,7 @@ class TestTypes(unittest.TestCase):
         app = Application(None, PartialApplicationConfiguration.generic_root())
 
         frm = DecoratedListboxFrame(app.frame,
-                               text='Decorated Frame')
+                                    text='Decorated Frame')
 
         self.assertIsInstance(frm, LabelFrame)
         self.assertIsInstance(frm.listbox, UserListbox)

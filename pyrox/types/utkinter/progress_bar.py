@@ -7,7 +7,7 @@ import tkinter
 from tkinter import ttk
 
 
-from .abc import PartialApplication, PartialApplicationConfiguration
+from ..abc import PartialApplication, PartialApplicationConfiguration
 
 
 __all__ = (
@@ -37,6 +37,8 @@ class ProgressBar(PartialApplication):
 
 
     """
+
+    __slots__ = ('_prog_var', '_text_var')
 
     def __init__(self,
                  title: str,

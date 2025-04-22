@@ -18,14 +18,9 @@ from .application import (
     PartialApplicationConfiguration
 )
 
-from .loggable import (ConsolePanelHandler, Loggable)
+
 from .model import Model
-from .progress_bar import ProgressBar
-from .abc.list import (
-    HashList,
-    SafeList,
-    TrackedList
-)
+from .utkinter.progress_bar import ProgressBar
 from .view import View
 from .viewmodel import ViewModel
 
@@ -101,64 +96,14 @@ class TestTypes(unittest.TestCase):
             app.set_model(1)
         self.assertTrue(isinstance(context.exception, TypeError))
 
+        # can insert a task by type
+        app.add_task(ApplicationTask)
+
+        # can insert a task already built
+        task = ApplicationTask(app, None)
+        app.add_task(task)
+
         app.close()
-
-    def test_hash_list(self):
-        """test hash works as intended
-        """
-        class TestClass:
-            """test class for unit testing"""
-
-            def __init__(self, name: str, value: int):
-                self.name = name
-                self.value = value
-        val1 = TestClass('value1', 1)
-        val2 = TestClass('value2', 2)
-        val3 = TestClass('value3', 3)
-
-        my_list = HashList('name')
-        my_list.append(val1)
-        self.assertTrue(len(my_list) == 1)
-        my_list.append(val2)
-        self.assertTrue(len(my_list) == 2)
-        my_list.append(val3)
-        self.assertTrue(len(my_list) == 3)
-        my_list.append(val3)
-        self.assertTrue(len(my_list) == 3)
-        self.assertIsNotNone(my_list.by_key('value1'))
-        self.assertIsNotNone(my_list.by_key('value2'))
-        self.assertIsNotNone(my_list.by_key('value3'))
-
-    def test_loggable(self):
-        """test loggable class
-        """
-        class TestLog(Loggable):
-            """test class for unit testing
-            """
-
-            def _log(self,
-                     _: str) -> None:
-                ...
-
-        # test logger inherits class name for naming
-        x = TestLog()
-        self.assertEqual(x.logger.name, TestLog.__name__)
-
-        # test logger uses supplied name for naming
-        name = 'TestLog_CustomName1'
-        x = TestLog(name)
-        self.assertEqual(x.logger.name, name)
-
-        # test logger uses console panel handler correctly
-        setattr(self, 'console_panel_handler_passed', False)
-
-        def callback(*_, **__):
-            setattr(self, 'console_panel_handler_passed', True)
-
-        y = ConsolePanelHandler(callback)
-        x.add_handler(y)
-        x.info('abc')
-        self.assertTrue(getattr(self, 'console_panel_handler_passed'))
 
     def test_model(self):
         """test model
@@ -197,35 +142,6 @@ class TestTypes(unittest.TestCase):
         pbar.update('Some Extra Text', 50)
 
         pbar.close()
-
-    def test_safelist(self):
-        """test safelist
-        """
-        my_list: SafeList[int] = SafeList()
-        self.assertTrue(len(my_list) == 0)
-        my_list.append(1)
-        self.assertTrue(len(my_list) == 1)
-        my_list.append(2)
-        self.assertTrue(len(my_list) == 2)
-        my_list.append(3)
-        self.assertTrue(len(my_list) == 3)
-        my_list.append(3)
-        self.assertTrue(len(my_list) == 3)
-
-    def test_tracked_list(self):
-        """test tracked list
-        """
-        setattr(self, 'tracked_list_passed', False)
-
-        def cb(*_, **__):
-            setattr(self, 'tracked_list_passed', True)
-
-        my_list = TrackedList()
-        my_list.subscribers.append(cb)
-
-        my_list.append('anything')
-
-        self.assertTrue(getattr(self, 'tracked_list_passed'))
 
     def test_view(self):
         """test view

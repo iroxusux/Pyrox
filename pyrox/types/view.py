@@ -8,7 +8,6 @@ from typing import Optional, TYPE_CHECKING, Union
 
 
 from .abc.meta import PartialView
-from .loggable import Loggable
 
 
 if TYPE_CHECKING:
@@ -20,7 +19,7 @@ __all__ = (
 )
 
 
-class View(PartialView, Loggable):
+class View(PartialView):
     """A view for use in an application.
 
     .. ------------------------------------------------------------
@@ -39,10 +38,9 @@ class View(PartialView, Loggable):
     def __init__(self,
                  view_model: Optional[ViewModel] = None,
                  parent: Optional[Union[Tk, Toplevel, Frame, LabelFrame]] = None):
-        PartialView.__init__(self,
-                             view_type=3,
-                             config={'parent': parent})
-        Loggable.__init__(self)
+        super().__init__(view_type=3,
+                         config={'parent': parent})
+
         self._view_model: Optional[ViewModel] = view_model
 
     @property

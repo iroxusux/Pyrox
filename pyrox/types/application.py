@@ -12,7 +12,6 @@ from tkinter import Menu, Tk, Toplevel, Event
 from .abc import PartialApplication, PartialApplicationTask
 from .abc import BaseMenu, PartialModel, PartialApplicationConfiguration
 from .abc.list import HashList
-from .loggable import Loggable
 
 
 if TYPE_CHECKING:
@@ -61,6 +60,8 @@ class MainApplicationMenu(BaseMenu):
     view: :class:`Menu`
         The View :class:`Menu` for this :class:`MainApplicationMenu`
     """
+
+    __slots__ = ('_file', '_edit', '_tools', '_view', '_help')
 
     def __init__(self,
                  root: Union[Tk, Toplevel]):
@@ -170,7 +171,7 @@ class MainApplicationMenu(BaseMenu):
         return cmds
 
 
-class ApplicationTask(PartialApplicationTask, Loggable):
+class ApplicationTask(PartialApplicationTask):
     """model task for injecting functionality into an existing model.
 
     .. ------------------------------------------------------------
@@ -188,13 +189,13 @@ class ApplicationTask(PartialApplicationTask, Loggable):
         The model this task reflects.
     """
 
+    __slots__ = ()
+
     def __init__(self,
                  application: 'Application',
                  model: Model):
-        PartialApplicationTask.__init__(self,
-                                        application=application,
-                                        model=model)
-        Loggable.__init__(self)
+        super().__init__(application=application,
+                         model=model)
 
     @property
     def application(self) -> 'Application':
@@ -208,6 +209,10 @@ class ApplicationTask(PartialApplicationTask, Loggable):
         """
         return self._application
 
+    @application.setter
+    def application(self, value: 'Application'):
+        self._application = value
+
     @property
     def model(self) -> Model:
         """The model this task reflects.
@@ -220,8 +225,12 @@ class ApplicationTask(PartialApplicationTask, Loggable):
         """
         return self._model
 
+    def inject(self) -> None:
+        """Inject this task into the hosting application
+        """
 
-class Application(PartialApplication, Loggable):
+
+class Application(PartialApplication):
     """Represents a :class:`PartialApplication` in the form of an :class:`Application`.
 
     .. ------------------------------------------------------------
@@ -253,6 +262,8 @@ class Application(PartialApplication, Loggable):
 
     """
 
+    __slots__ = ('_running', '_menu', '_tasks')
+
     def __init__(self,
                  model: Optional[PartialModel] = None,
                  config: Optional[PartialApplicationConfiguration] = None):
@@ -260,18 +271,16 @@ class Application(PartialApplication, Loggable):
         if not config:
             config = PartialApplicationConfiguration.generic_root()
 
-        PartialApplication.__init__(self,
-                                    model=model,
-                                    config=config)
-        Loggable.__init__(self)
+        super().__init__(model=model,
+                         config=config)
+
         # setup running status and closing callback
         self._running: bool = False
-        self._parent.protocol('WM_DELETE_WINDOW', self.on_closing)
-
         self._menu = MainApplicationMenu(self.parent)
         self._tasks: HashList[PartialApplicationTask] = HashList('id')
         self.frame.grid(column=0, row=0, sticky=('n', 'e', 's', 'w'))
 
+        self.parent.protocol('WM_DELETE_WINDOW', self.on_closing)
         self.parent.columnconfigure(0, weight=1)
         self.parent.rowconfigure(0, weight=1)
 
@@ -312,6 +321,42 @@ class Application(PartialApplication, Loggable):
         """
         return self._tasks
 
+    def add_task(self,
+                 task: Union[ApplicationTask, type[ApplicationTask]],
+                 model: Optional[Model] = None) -> Optional[ApplicationTask]:
+        """Add an :class:`ApplicationTask` to this `Application`.
+
+        This method calls the task's `inject` method.
+
+        .. ---------------------------------------------------------------------
+
+        Arguments
+        ----------
+        task: Union[:class:`ApplicationTask`, type[:class:`ApplicationTask`]]
+            :class:`ApplicationTask` to add.
+
+        .. ---------------------------------------------------------------------
+
+        Returns
+        ----------
+        task: :class:`ApplicationTask` | `None`
+            The built / injected task
+
+
+        """
+        if isinstance(task, ApplicationTask):
+            self._tasks.append(task)
+            task.inject()
+            return task
+
+        if isinstance(task, type):
+            tsk = task(self, model if model else self.main_model)
+            self._tasks.append(tsk)
+            tsk.inject()
+            return tsk
+
+        return None
+
     def on_closing(self) -> None:
         """method called when the tk interpreter intends on closing.
         """
@@ -339,38 +384,6 @@ class Application(PartialApplication, Loggable):
         self._running = True
         self.parent.focus()
         self.parent.mainloop()
-
-    def set_model(self,
-                  model: PartialModel):
-        """Set a new model for this :class:`Application`.
-
-        Will trigger a `build` event if a model is given (Not `None`).
-
-        .. ------------------------------------------------------------
-
-        Arguments
-        -----------
-
-        model: :class:`Model`
-            Model to set as application main model.
-
-        .. ------------------------------------------------------------
-
-        Raises
-        -----------
-        :class:`ValueError`
-            Incorrect model type was passed to application
-
-
-        """
-        if model is not None and not isinstance(model, PartialModel):
-            raise TypeError(f'Model must be of type `Model`, not {type(model)}...')
-
-        self._model_hash.append(model)
-        self._main_model_id = model.id
-
-        if self.main_model:
-            self.build()
 
     def toggle_fullscreen(self, event: Optional[Event] = None) -> None:
         """Toggle full-screen for this :class:`Application`.

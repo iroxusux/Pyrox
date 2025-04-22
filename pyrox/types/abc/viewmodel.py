@@ -6,8 +6,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 
-from .buildable import Buildable
-from .meta import SnowFlake
+from .meta import Buildable
 
 
 if TYPE_CHECKING:
@@ -20,7 +19,7 @@ __all__ = (
 )
 
 
-class PartialViewModel(SnowFlake, Buildable):
+class PartialViewModel(Buildable):
     """A partial view-model for logical interchange of ui/backend in an application.
 
     .. ------------------------------------------------------------
@@ -38,11 +37,12 @@ class PartialViewModel(SnowFlake, Buildable):
         The child :class:`View` this :class:`PartialViewModel`.
     """
 
+    __slots__ = ('_model', '_view')
+
     def __init__(self,
                  model: PartialModel,
                  view: View):
-        SnowFlake.__init__(self)
-        Buildable.__init__(self)
+        super().__init__()
         self._model = model
         self._view = view
 

@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 
-from tkinter import BOTTOM, END, Event, HORIZONTAL, LEFT, Listbox, Scrollbar, VERTICAL, X, Y
+from tkinter import END, Event, Listbox
 from typing import Optional
 
 
@@ -43,10 +43,8 @@ class UserListbox(Listbox):
                  **kwargs):
         super().__init__(*args,
                          **kwargs)
-        self._build_scrollbar()
 
         self.bind('<Button-3>', self._select_item)
-
         self._context_menu = context_menu
 
     def __len__(self) -> int:
@@ -72,19 +70,6 @@ class UserListbox(Listbox):
         self.unbind_all('<Button-3>')
         if self._context_menu:
             self.bind('<Button-3>', self._select_and_send)
-
-    def _build_scrollbar(self):
-        # create a vertical scroll bar for listbox
-        vscrollbar = Scrollbar(self, orient=VERTICAL, command=self.yview)
-
-        # create a horizontal scroll bar for listbox
-        hscrollbar = Scrollbar(self, orient=HORIZONTAL, command=self.xview)
-
-        # configure the list box to work with scroll bar
-        self['yscrollcommand'] = vscrollbar.set
-        self['xscrollcommand'] = hscrollbar.set
-        hscrollbar.pack(fill=X, side=BOTTOM)
-        vscrollbar.pack(fill=Y, side=LEFT)
 
     def _select_and_send(self,
                          event: Event):
@@ -112,7 +97,7 @@ class UserListbox(Listbox):
         Arguments
         -----------
 
-        data: list[:class:`ViewModel`]
+        data: list[:class:`str`]
             Data to set into the listbox.
 
         """

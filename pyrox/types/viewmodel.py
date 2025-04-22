@@ -7,7 +7,6 @@ from typing import Optional, TYPE_CHECKING
 
 
 from .abc import PartialViewModel
-from .loggable import Loggable
 
 
 if TYPE_CHECKING:
@@ -20,7 +19,7 @@ __all__ = (
 )
 
 
-class ViewModel(PartialViewModel, Loggable):
+class ViewModel(PartialViewModel):
     """A view-model for logical interchange of ui/backend in an application.
 
     .. ------------------------------------------------------------
@@ -41,10 +40,8 @@ class ViewModel(PartialViewModel, Loggable):
     def __init__(self,
                  model: Optional[Model] = None,
                  view: Optional[View] = None):
-        PartialViewModel.__init__(self,
-                                  model=model,
-                                  view=view)
-        Loggable.__init__(self)
+        super().__init__(model=model,
+                         view=view)
 
     @property
     def model(self) -> Optional[Model]:

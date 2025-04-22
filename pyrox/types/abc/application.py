@@ -4,18 +4,18 @@ from __future__ import annotations
 
 
 import os
-from typing import Literal, Optional, TYPE_CHECKING, TypedDict, Union
+from typing import Literal, Optional, TypedDict, Union
 
 
 from tkinter import Menu, Tk, Toplevel
 
 
-from .meta import PartialView, PartialViewConfiguration, SnowFlake
+from .meta import Buildable, PartialView, PartialViewConfiguration, SnowFlake
+from .model import PartialModel
 from .list import HashList
 
 
-if TYPE_CHECKING:
-    from .model import PartialModel
+from ...services.dir_services import get_appdata
 
 
 DEF_TYPE = 1
@@ -33,7 +33,7 @@ __all__ = (
 )
 
 
-class BaseMenu(SnowFlake):
+class BaseMenu(Buildable):
     """Base menu for use in a ui :class:`Application`.
 
     .. ------------------------------------------------------------
@@ -51,6 +51,8 @@ class BaseMenu(SnowFlake):
         The parent root item of this menu.
 
     """
+
+    __slots__ = ('_root', '_menu')
 
     def __init__(self,
                  root: Union[Tk, Toplevel]):
@@ -83,7 +85,7 @@ class BaseMenu(SnowFlake):
         return self._root
 
 
-class PartialApplicationTask(SnowFlake):
+class PartialApplicationTask(Buildable):
     """model task for injecting functionality into an existing model.
 
     .. ------------------------------------------------------------
@@ -100,6 +102,8 @@ class PartialApplicationTask(SnowFlake):
     model: :class:`PartialModel`
         The model this task reflects.
     """
+
+    __slots__ = ('_application', '_model')
 
     def __init__(self,
                  application: 'PartialApplication',
@@ -233,8 +237,11 @@ class PartialApplication(PartialView):
 
     Attributes
     --------
-    model :class:`Model`
-        Model the application was built with.
+    main_model :class:`Model`
+        Model the application was built with / main associated model.
+
+    model_hash :class:`HashList`
+        Hashed list of all models associated with this application.
 
     config :class:`PartialApplicationConfiguration`
         Configuration for this :class:`PartialApplication`.
@@ -253,8 +260,21 @@ class PartialApplication(PartialView):
         if model:
             self._main_model_id: int = model.id
             self._model_hash.append(model)
+            model.set_application(self)
         else:
             self._main_model_id = None
+
+    @property
+    def appdata_dir(self) -> str:
+        """Get the application data directory for this :class:`Application`.
+
+        .. ---------------------------------------------------------------------
+
+        Returns
+        ----------
+            :class:`str` `ApplicationDataDirectory`
+        """
+        return get_appdata() + f'/{self.name}'
 
     @property
     def main_model(self) -> Optional[PartialModel]:
@@ -267,6 +287,16 @@ class PartialApplication(PartialView):
             model :class:`Model` | None
         """
         return self._model_hash.by_key(self._main_model_id)
+
+    @property
+    def model_hash(self) -> HashList[PartialModel]:
+        """Hashed list of all models associated with this application.
+
+        Returns
+        ----------
+            model_hash :class:`HashList`
+        """
+        return self._model_hash
 
     @property
     def parent(self) -> Union[Tk, Toplevel]:
@@ -292,7 +322,51 @@ class PartialApplication(PartialView):
         """
         return self._config
 
+    def add_model(self,
+                  model: PartialModel) -> None:
+        """Add a :class:`Model` to this :class:`Application`.
+
+        Arguments
+        ----------
+        model :class:`PartialModel`
+            Model to add to this application.
+        """
+        self._model_hash.append(model)
+        model.application = self
+        model.build()
+
     def build(self) -> None:
         """build the application around the model
         """
-        ...
+
+    def set_model(self,
+                  model: PartialModel):
+        """Set a new model for this :class:`Application`.
+
+        Will trigger a `build` event if a model is given (Not `None`).
+
+        .. ------------------------------------------------------------
+
+        Arguments
+        -----------
+
+        model: :class:`Model`
+            Model to set as application main model.
+
+        .. ------------------------------------------------------------
+
+        Raises
+        -----------
+        :class:`ValueError`
+            Incorrect model type was passed to application
+
+
+        """
+        if model is not None and not isinstance(model, PartialModel):
+            raise TypeError(f'Model must be of type `Model`, not {type(model)}...')
+
+        self._model_hash.append(model)
+        self._main_model_id = model.id
+
+        if self.main_model:
+            self.build()
