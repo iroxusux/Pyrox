@@ -1,3 +1,6 @@
+"""File services module
+    """
+
 import tkinter as tk
 from tkinter import filedialog
 
@@ -10,7 +13,9 @@ def get_open_file(filetypes: list[tuple]) -> str:
     """
     root = tk.Tk()
     root.withdraw()
-    return filedialog.askopenfilename(filetypes=filetypes)
+    filename = filedialog.askopenfilename(filetypes=filetypes)
+    root.update()
+    return filename
 
 
 def get_save_file(filetypes: list[tuple]) -> str:
@@ -24,8 +29,10 @@ def get_save_file(filetypes: list[tuple]) -> str:
     """
     root = tk.Tk()
     root.withdraw()
-    return filedialog.asksaveasfilename(confirmoverwrite=True,
-                                        filetypes=filetypes)
+    filename = filedialog.asksaveasfilename(confirmoverwrite=True,
+                                            filetypes=filetypes)
+    root.update()
+    return filename
 
 
 def get_save_location() -> str:
@@ -36,7 +43,9 @@ def get_save_location() -> str:
     """
     root = tk.Tk()
     root.withdraw()
-    return filedialog.askdirectory()
+    directory = filedialog.askdirectory()
+    root.update()
+    return directory
 
 
 def save_file(file_path: str,
@@ -54,9 +63,10 @@ def save_file(file_path: str,
     Returns:
         bool: bool of success
     """
-    if save_mode != 'w' and save_mode != 'wb':
+    if ('w', 'wb') not in save_mode:
         print('no save mode!')
         return False
+
     if not file_extension.startswith('.'):
         file_extension = f'.{file_extension}'
 
@@ -67,7 +77,7 @@ def save_file(file_path: str,
         with open(file_path, save_mode, encoding='utf-8') as f:
             f.write(file_data)
             f.close()
-    except (FileNotFoundError):
+    except FileNotFoundError:
         print('file not found error thrown!')
         return False
     return True

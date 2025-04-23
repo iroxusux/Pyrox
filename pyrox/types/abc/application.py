@@ -264,7 +264,6 @@ class PartialApplication(PartialView):
         if model:
             self._main_model_id: int = model.id
             self._model_hash.append(model)
-            model.set_application(self)
         else:
             self._main_model_id = None
 
@@ -336,7 +335,6 @@ class PartialApplication(PartialView):
             Model to add to this application.
         """
         self._model_hash.append(model)
-        model.application = self
         model.build()
 
     def build(self) -> None:
