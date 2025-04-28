@@ -23,6 +23,7 @@ from .meta import (
     Buildable,
     ConsolePanelHandler,
     Loggable,
+    LoggableUnitTest,
     SnowFlake,
     PartialView,
     PartialViewConfiguration
@@ -47,6 +48,7 @@ __all__ = (
     'Factory',
     'HashList',
     'Loggable',
+    'LoggableUnitTest',
     'PartialModel',
     'PartialApplication',
     'PartialApplicationConfiguration',

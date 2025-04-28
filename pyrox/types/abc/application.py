@@ -16,7 +16,7 @@ from .model import PartialModel
 from .list import HashList
 
 
-from ...services.dir_services import get_appdata
+from ...services.directory import get_appdata
 
 
 DEF_TYPE = 1

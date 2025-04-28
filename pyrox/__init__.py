@@ -20,8 +20,8 @@ from .types import (
 )
 
 from .services import (
-    dir_services,
-    file_services
+    directory,
+    file
 )
 
 from .types.utkinter import (
@@ -40,8 +40,8 @@ __all__ = (
     'ApplicationTask',
     'ApplicationConfiguration',
     'ContextMenu',
-    'dir_services',
-    'file_services',
+    'directory',
+    'file',
     'HashList',
     'LaunchableModel',
     'Loggable',

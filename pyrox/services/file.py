@@ -1,6 +1,7 @@
 """File services module
     """
-
+import os
+import shutil
 import tkinter as tk
 from tkinter import filedialog
 
@@ -46,6 +47,17 @@ def get_save_location() -> str:
     directory = filedialog.askdirectory()
     root.update()
     return directory
+
+
+def remove_all_files(directory: str):
+    """Removes all files within a specified directory, including files in subdirectories.
+    """
+    for filename in os.listdir(directory):
+        file_path = os.path.join(directory, filename)
+        if os.path.isfile(file_path) or os.path.islink(file_path):
+            os.unlink(file_path)
+        elif os.path.isdir(file_path):
+            shutil.rmtree(file_path)
 
 
 def save_file(file_path: str,

@@ -8,6 +8,7 @@ import logging
 import os
 from typing import Optional, Literal, Union
 from tkinter import Tk, Toplevel, Frame, LabelFrame, Widget
+import unittest
 
 
 from ttkthemes import ThemedTk
@@ -245,7 +246,8 @@ class Loggable(SnowFlake):
             Handler to add to this logging object.
 
         """
-        self._logger.addHandler(handler)
+        if handler not in self._logger.handlers:
+            self._logger.addHandler(handler)
 
         # re-assign the hashed local list of loggers
         Loggable._curr_loggers[self._logger.name] = self._logger
@@ -291,6 +293,15 @@ class Loggable(SnowFlake):
 
         """
         self._logger.warning(msg)
+
+
+class LoggableUnitTest(unittest.TestCase, Loggable):
+    """Loggable Unit Test TestCase
+    """
+
+    def __init__(self, methodName="runTest"):
+        unittest.TestCase.__init__(self, methodName)
+        Loggable.__init__(self)
 
 
 class Buildable(Loggable):

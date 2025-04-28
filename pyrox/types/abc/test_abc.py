@@ -29,6 +29,7 @@ from .meta import (
     Buildable,
     ConsolePanelHandler,
     Loggable,
+    LoggableUnitTest,
     PartialViewConfiguration,
     Runnable,
     SnowFlake,
@@ -239,6 +240,19 @@ class TestMeta(unittest.TestCase):
         y.set_callback(new_callback)
         self.assertIsInstance(y._callback, Callable)  # pylint: disable=protected-access
         self.assertEqual(new_callback, y._callback)  # pylint: disable=protected-access
+
+    def test_loggable_unittest(self):
+        """test loggable unittest class
+        """
+        x = LoggableUnitTest()
+        self.assertEqual(x.logger.name, 'LoggableUnitTest')
+
+        class _MyTestLogger(LoggableUnitTest):
+            ...
+
+        y = _MyTestLogger()
+
+        self.assertEqual(y.logger.name, '_MyTestLogger')
 
     def test_buildable(self):
         """test buildable class
