@@ -6,7 +6,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 import logging
 import os
-from typing import Optional, Literal, Union
+from typing import Callable, Optional, Literal, Union
 from tkinter import Tk, Toplevel, Frame, LabelFrame, Widget
 import unittest
 
@@ -134,22 +134,23 @@ class ConsolePanelHandler(logging.Handler):
     Arguments
     -----------
 
-    callback: :class:`callable`
+    callback: :class:`Callable`
         Callback to call when emitting a message
 
     """
 
     __slots__ = ('_callback',)
 
-    def __init__(self, callback: callable):
+    def __init__(self, callback: Callable):
         super().__init__()
-        self._callback = callback
-        self.formatter = logging.Formatter(fmt=DEF_FORMATTER, datefmt=DEF_DATE_FMT)
+        self._callback: Callable = callback
+        self.formatter: logging.Formatter = logging.Formatter(fmt=DEF_FORMATTER, datefmt=DEF_DATE_FMT)
 
-    def emit(self, record):
-        self._callback(self.format(record))
+    def emit(self, record) -> None:
+        if self._callback:
+            self._callback(self.format(record))
 
-    def set_callback(self, callback: callable):
+    def set_callback(self, callback: Callable) -> None:
         """Set the callback for this handler's emit method
 
         Arguments
@@ -182,18 +183,42 @@ class Loggable(SnowFlake):
     logger: :class:`logging.Logger`
         `Logger` for this loggable object.
 
+    log_handler: :class:`logging.Handler`
+        User 'Handler' for this loggable object.
+
+        Meant for user to modify with their own callbacks, for easy log displaying.
+
 
     """
 
     global_handlers: list[logging.Handler] = []
     _curr_loggers = {}
 
-    __slots__ = ('_logger',)
+    __slots__ = ('_logger', '_log_handler')
 
     def __init__(self,
                  name: Optional[str] = None):
         super().__init__()
         self._logger: logging.Logger = self._get(name=name if name else self.__class__.__name__)
+        self._log_handler: logging.Handler = ConsolePanelHandler(None)
+
+        # check in case we got a hashed logger with the handler already attached (somehow?)
+        if self._log_handler not in self._logger.handlers:
+            self._logger.addHandler(self._log_handler)  # add handler for user to create custom callbacks with
+
+    @property
+    def log_handler(self) -> logging.Handler:
+        """User 'Handler' for this loggable object.
+
+        Meant for user to modify with their own callbacks, for easy log displaying.
+
+        .. -------------------------------------------------------------------------
+
+        Returns
+        ----------
+        log_handler: :class:`logging.Handler`
+        """
+        return self._log_handler
 
     @property
     def logger(self) -> logging.Logger:

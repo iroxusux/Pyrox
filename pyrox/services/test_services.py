@@ -21,6 +21,7 @@ class TestServices(LoggableUnitTest):
     def test_directory_service_class(self):
         """test id generator generates unique ids
         """
+        self.logger.info('Testing directory service class...')
         author_name = 'IndiconLLC'
         app_name = 'TestingDirectory'   # create common name for testing
 
@@ -39,7 +40,6 @@ class TestServices(LoggableUnitTest):
         self.assertTrue(os.path.isdir(dir_class.user_documents))
         self.assertTrue(os.path.isdir(dir_class.user_downloads))
         self.logger.info('Available Directories...')
-        self.logger.info('........................')
         self.logger.info(dir_class.user_cache)
         self.logger.info(dir_class.user_config)
         self.logger.info(dir_class.user_data)

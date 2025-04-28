@@ -331,11 +331,17 @@ class TestApplication(unittest.TestCase):
         """
         config = PartialApplicationConfiguration(False,
                                                  'Test Application',
+                                                 [],
                                                  1,
                                                  PartialViewConfiguration())
 
         self.assertIsNotNone(config)
         self.assertIsInstance(config, PartialApplicationConfiguration)
+        self.assertIsInstance(config.headless, bool)
+        self.assertIsInstance(config.name, str)
+        self.assertIsInstance(config.tasks, list)
+        self.assertIsInstance(config.type, int)
+        self.assertIsInstance(config.view_config, PartialViewConfiguration)
 
         root = PartialApplicationConfiguration.generic_root()
         self.assertEqual(root.type, 1)

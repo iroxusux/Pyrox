@@ -10,7 +10,7 @@ from tkinter import Menu, Tk, Toplevel
 
 
 from .abc import PartialApplication, PartialApplicationTask
-from .abc import BaseMenu, PartialModel, PartialApplicationConfiguration
+from .abc import BaseMenu, PartialModel, PartialApplicationConfiguration, Loggable
 from .abc.list import HashList
 
 
@@ -280,6 +280,10 @@ class Application(PartialApplication):
 
         self._menu = None if config.headless else MainApplicationMenu(self.parent)
         self._tasks: HashList[PartialApplicationTask] = HashList('id')
+
+        # when building a 'main' application, insert the app's handler into the global pool
+        # a full application should be able to manage all child loggers
+        Loggable.global_handlers.append(self._log_handler)
 
     @property
     def menu(self) -> MainApplicationMenu:

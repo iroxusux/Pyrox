@@ -162,6 +162,7 @@ class PartialApplicationConfiguration:
     """
     headless: bool = False
     name: str = 'Default Application'
+    tasks: list[PartialApplicationTask] = field(default_factory=[])
     type: Literal[1, 2] = 2
     view_config: PartialViewConfiguration = field(default_factory=PartialViewConfiguration())
 
@@ -191,7 +192,7 @@ class PartialApplicationConfiguration:
             'view_config': PartialViewConfiguration(),
             }
         """
-        return cls(True, name, 2, PartialViewConfiguration(name))
+        return cls(True, name, [], 2, PartialViewConfiguration(name))
 
     @classmethod
     def generic_root(cls,
@@ -219,7 +220,7 @@ class PartialApplicationConfiguration:
             'view_config': PartialViewConfiguration(),
             }
         """
-        return cls(False, name, 1, PartialViewConfiguration(name))
+        return cls(False, name, [], 1, PartialViewConfiguration(name))
 
 
 class PartialApplication(PartialView):
@@ -347,7 +348,7 @@ class PartialApplication(PartialView):
         model :class:`PartialModel`
             Model to add to this application.
         """
-        if not isinstance(model, PartialModel):
+        if not issubclass(type(model), PartialModel):
             raise TypeError(f'Model must be of type `Model`, not {type(model)}...')
 
         self._model_hash.append(model)
@@ -370,6 +371,7 @@ class PartialApplication(PartialView):
 
     def start(self) -> None:
         self.on_pre_run()
+        self.frame.after(100, lambda: self.logger.info('Ready...'))
         self.parent.focus()
         super().start()
         if isinstance(self.parent, Tk):
