@@ -343,10 +343,10 @@ class TestApplication(unittest.TestCase):
         self.assertIsInstance(config.type, int)
         self.assertIsInstance(config.view_config, PartialViewConfiguration)
 
-        root = PartialApplicationConfiguration.generic_root()
+        root = PartialApplicationConfiguration.root()
         self.assertEqual(root.type, 1)
 
-        toplevel = PartialApplicationConfiguration.generic_toplevel()
+        toplevel = PartialApplicationConfiguration.toplevel()
         self.assertEqual(toplevel.type, 2)
 
     def test_application(self):
@@ -355,7 +355,7 @@ class TestApplication(unittest.TestCase):
         # build a good app
         model = PartialModel()
         app = PartialApplication(model,
-                                 PartialApplicationConfiguration.generic_root())
+                                 PartialApplicationConfiguration.root())
         self.assertIsNotNone(app)
 
         # check attributes
@@ -390,15 +390,15 @@ class TestApplication(unittest.TestCase):
 
         # build a bad app with invalid view type
         with self.assertRaises(ValueError) as context:
-            config = PartialApplicationConfiguration.generic_root()
+            config = PartialApplicationConfiguration.root()
             config.type = 4
             PartialApplication(None,
                                config)
         self.assertTrue(isinstance(context.exception, ValueError))
 
         # build a root app and toplevel app with generic configs
-        app = PartialApplication(None, PartialApplicationConfiguration.generic_root())
-        ext = PartialApplication(None, PartialApplicationConfiguration.generic_toplevel())
+        app = PartialApplication(None, PartialApplicationConfiguration.root())
+        ext = PartialApplication(None, PartialApplicationConfiguration.toplevel())
 
         # then close in proper order
         ext.close()
@@ -408,7 +408,7 @@ class TestApplication(unittest.TestCase):
         """test application task builds
         """
         model = PartialModel()
-        app = PartialApplication(model, PartialApplicationConfiguration.generic_root())
+        app = PartialApplication(model, PartialApplicationConfiguration.root())
         task = PartialApplicationTask(app, model)
         self.assertIsNotNone(task)
 
@@ -426,7 +426,7 @@ class TestApplication(unittest.TestCase):
     def test_base_menu(self):
         """test base menu builds
         """
-        app = PartialApplication(None, PartialApplicationConfiguration.generic_root())
+        app = PartialApplication(None, PartialApplicationConfiguration.root())
         menu = BaseMenu(app.parent)
         self.assertIsNotNone(menu)
 

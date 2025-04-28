@@ -24,7 +24,7 @@ class TestTasks(unittest.TestCase):
     def test_builtins(self):
         """test builtin tasks
         """
-        app = Application(config=ApplicationConfiguration.generic_root())
+        app = Application(config=ApplicationConfiguration.root())
         mdl = Model(app=app)
 
         app.set_model(mdl)

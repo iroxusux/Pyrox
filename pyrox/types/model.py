@@ -326,7 +326,7 @@ class LaunchableModel(SupportsAssembly):
                 return  # this app is already running!
 
         # create the sub-application configuration
-        cfg: PartialApplicationConfiguration = PartialApplicationConfiguration.generic_toplevel(self.sub_app_name)
+        cfg: PartialApplicationConfiguration = PartialApplicationConfiguration.toplevel(self.sub_app_name)
         cfg.view_config.win_size = self.sub_app_size
 
         # create the objects (sub-app, viewmodel, view)

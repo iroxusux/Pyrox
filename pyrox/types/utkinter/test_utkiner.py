@@ -29,7 +29,7 @@ class TestTypes(unittest.TestCase):
     def test_frames(self):
         """test utkinter frames
         """
-        app = Application(None, PartialApplicationConfiguration.generic_root())
+        app = Application(None, PartialApplicationConfiguration.root())
 
         frm = DecoratedListboxFrame(app.frame,
                                     text='Decorated Frame')

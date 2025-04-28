@@ -167,8 +167,21 @@ class PartialApplicationConfiguration:
     view_config: PartialViewConfiguration = field(default_factory=PartialViewConfiguration())
 
     @classmethod
-    def generic_toplevel(cls,
-                         name: Optional[str] = 'Default Application') -> Self:
+    def _common_assembly(cls,
+                         name: str,
+                         view_type: int) -> Self:
+        from ...tasks.builtin import ALL_TASKS  # pylint: disable=C0415
+        return cls(
+            headless=False,
+            name=name,
+            tasks=ALL_TASKS,
+            type=view_type,
+            view_config=PartialViewConfiguration(title=name)
+        )
+
+    @classmethod
+    def toplevel(cls,
+                 name: Optional[str] = 'Default Application') -> Self:
         """get a generic version of an application configuration
 
         for a toplevel application
@@ -192,11 +205,11 @@ class PartialApplicationConfiguration:
             'view_config': PartialViewConfiguration(),
             }
         """
-        return cls(True, name, [], 2, PartialViewConfiguration(name))
+        return PartialApplicationConfiguration._common_assembly(name=name, view_type=2)
 
     @classmethod
-    def generic_root(cls,
-                     name: Optional[str] = 'Default Application') -> Self:
+    def root(cls,
+             name: Optional[str] = 'Default Application') -> Self:
         """get a generic version of an application configuration
 
         for a root level application
@@ -220,7 +233,7 @@ class PartialApplicationConfiguration:
             'view_config': PartialViewConfiguration(),
             }
         """
-        return cls(False, name, [], 1, PartialViewConfiguration(name))
+        return PartialApplicationConfiguration._common_assembly(name=name, view_type=1)
 
 
 class PartialApplication(PartialView):

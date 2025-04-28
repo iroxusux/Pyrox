@@ -273,7 +273,7 @@ class Application(PartialApplication):
                  config: Optional[PartialApplicationConfiguration] = None):
 
         if not config:
-            config = PartialApplicationConfiguration.generic_root()
+            config = PartialApplicationConfiguration.root()
 
         super().__init__(model=model,
                          config=config)
@@ -284,6 +284,9 @@ class Application(PartialApplication):
         # when building a 'main' application, insert the app's handler into the global pool
         # a full application should be able to manage all child loggers
         Loggable.global_handlers.append(self._log_handler)
+
+        # append all tasks from config into this application
+        self.add_tasks(config.tasks)
 
     @property
     def menu(self) -> MainApplicationMenu:
