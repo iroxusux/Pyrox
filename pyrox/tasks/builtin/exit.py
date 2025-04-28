@@ -1,4 +1,4 @@
-"""built-in menu task for applications
+"""built-in exit task.
     """
 from __future__ import annotations
 
@@ -14,5 +14,5 @@ class ExitTask(ApplicationTask):
     """
 
     def inject(self) -> None:
-        self.logger.info('Exiting...')
+        self.application.menu.file.add_separator()
         self.application.menu.file.add_command(label='Exit', command=lambda: sys.exit(0))
