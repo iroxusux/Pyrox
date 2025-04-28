@@ -3,14 +3,15 @@
 from __future__ import annotations
 
 
+from dataclasses import dataclass, field
 import os
-from typing import Literal, Optional, TypedDict, Union
+from typing import Literal, Optional, Self, Union
 
 
-from tkinter import Menu, Tk, Toplevel
+from tkinter import Event, Menu, Tk, Toplevel
 
 
-from .meta import Buildable, PartialView, PartialViewConfiguration, SnowFlake
+from .meta import Buildable, PartialView, PartialViewConfiguration, SnowFlake, Runnable
 from .model import PartialModel
 from .list import HashList
 
@@ -85,7 +86,7 @@ class BaseMenu(Buildable):
         return self._root
 
 
-class PartialApplicationTask(Buildable):
+class PartialApplicationTask(Runnable):
     """model task for injecting functionality into an existing model.
 
     .. ------------------------------------------------------------
@@ -137,7 +138,8 @@ class PartialApplicationTask(Buildable):
         return self._model
 
 
-class PartialApplicationConfiguration(TypedDict):
+@dataclass
+class PartialApplicationConfiguration:
     """application configuration
 
     .. ------------------------------------------------------------
@@ -149,6 +151,8 @@ class PartialApplicationConfiguration(TypedDict):
     Attributes
     --------
 
+    headless: :type:`bool`
+
     name: :type:`str`
 
     type: :type:`int`
@@ -156,13 +160,14 @@ class PartialApplicationConfiguration(TypedDict):
     view_config: :class:`TypedDict`
 
     """
-    name: str
-    type: Literal[1, 2]
-    view_config: PartialViewConfiguration
+    headless: bool = False
+    name: str = 'Default Application'
+    type: Literal[1, 2] = 2
+    view_config: PartialViewConfiguration = field(default_factory=PartialViewConfiguration())
 
     @classmethod
     def generic_toplevel(cls,
-                         name: Optional[str] = 'Default Application') -> dict:
+                         name: Optional[str] = 'Default Application') -> Self:
         """get a generic version of an application configuration
 
         for a toplevel application
@@ -186,15 +191,11 @@ class PartialApplicationConfiguration(TypedDict):
             'view_config': PartialViewConfiguration(),
             }
         """
-        return cls({
-            'name': name,
-            'type': 2,
-            'view_config': PartialViewConfiguration.generic(name=name)
-        })
+        return cls(True, name, 2, PartialViewConfiguration(name))
 
     @classmethod
     def generic_root(cls,
-                     name: Optional[str] = 'Default Application') -> dict:
+                     name: Optional[str] = 'Default Application') -> Self:
         """get a generic version of an application configuration
 
         for a root level application
@@ -218,11 +219,7 @@ class PartialApplicationConfiguration(TypedDict):
             'view_config': PartialViewConfiguration(),
             }
         """
-        return cls({
-            'name': name,
-            'type': 1,
-            'view_config': PartialViewConfiguration.generic(name=name),
-        })
+        return cls(False, name, 1, PartialViewConfiguration(name))
 
 
 class PartialApplication(PartialView):
@@ -251,21 +248,23 @@ class PartialApplication(PartialView):
     def __init__(self,
                  model: PartialModel,
                  config: PartialApplicationConfiguration):
-        super().__init__(name=config['name'],
-                         view_type=config['type'],
-                         config=config['view_config'])
+        super().__init__(name=config.name,
+                         view_type=config.type,
+                         config=config.view_config)
+
+        self._running: bool = False
+        self._model_hash = HashList(SnowFlake.id.__name__)
+        self._config: PartialApplicationConfiguration = config
 
         if not os.path.isdir(self.appdata_dir):
             os.mkdir(self.appdata_dir)
 
-        self._model_hash = HashList(SnowFlake.id.__name__)
-        self._config: PartialApplicationConfiguration = config
+        self.frame.grid(column=0, row=0, sticky=('n', 'e', 's', 'w'))
+        self.parent.columnconfigure(0, weight=1)
+        self.parent.rowconfigure(0, weight=1)
 
-        if model:
-            self._main_model_id: int = model.id
-            self._model_hash.append(model)
-        else:
-            self._main_model_id = None
+        self._main_model_id = None
+        _ = self.set_model(model) if model else None
 
     @property
     def appdata_dir(self) -> str:
@@ -278,6 +277,18 @@ class PartialApplication(PartialView):
             :class:`str` `ApplicationDataDirectory`
         """
         return get_appdata() + f'/{self.name}'
+
+    @property
+    def config(self) -> PartialApplicationConfiguration:
+        """Configuration for this :class:`PartialApplication`.
+
+        .. ------------------------------------------------------------
+
+        Returns
+        --------
+            config :class:`PartialApplicationConfiguration`
+        """
+        return self._config
 
     @property
     def main_model(self) -> Optional[PartialModel]:
@@ -313,33 +324,56 @@ class PartialApplication(PartialView):
         """
         return self._parent
 
-    @property
-    def config(self) -> PartialApplicationConfiguration:
-        """Configuration for this :class:`PartialApplication`.
-
-        .. ------------------------------------------------------------
-
-        Returns
-        --------
-            config :class:`PartialApplicationConfiguration`
-        """
-        return self._config
-
     def add_model(self,
-                  model: PartialModel) -> None:
+                  model: PartialModel) -> PartialModel:
         """Add a :class:`Model` to this :class:`Application`.
 
         Arguments
         ----------
         model :class:`PartialModel`
             Model to add to this application.
+
+        .. ------------------------------------------------------------
+
+        Raises
+        -----------
+        :class:`ValueError`
+            Incorrect model type was passed to application
+
+        .. ------------------------------------------------------------
+
+        Returns
+        ----------
+        model :class:`PartialModel`
+            Model to add to this application.
         """
+        if not isinstance(model, PartialModel):
+            raise TypeError(f'Model must be of type `Model`, not {type(model)}...')
+
         self._model_hash.append(model)
+
         model.build()
 
-    def build(self) -> None:
-        """build the application around the model
+        return model
+
+    def on_pre_run(self) -> None:
+        """Method that is called directly before calling parent Tk `mainloop`.
+
+        By this point, all models, view models and views should be created.
+
+        This allows some extra logic to occur before our app begins.
+
+        .. ------------------------------------------------------------
+
+        Note: it is recommenbed to override this method to create your own functionality.
         """
+
+    def start(self) -> None:
+        self.on_pre_run()
+        self.parent.focus()
+        super().start()
+        if isinstance(self.parent, Tk):
+            self.parent.mainloop()
 
     def set_model(self,
                   model: PartialModel):
@@ -355,20 +389,28 @@ class PartialApplication(PartialView):
         model: :class:`Model`
             Model to set as application main model.
 
-        .. ------------------------------------------------------------
-
-        Raises
-        -----------
-        :class:`ValueError`
-            Incorrect model type was passed to application
-
 
         """
-        if model is not None and not isinstance(model, PartialModel):
-            raise TypeError(f'Model must be of type `Model`, not {type(model)}...')
 
-        self._model_hash.append(model)
-        self._main_model_id = model.id
+        self._main_model_id = self.add_model(model).id
 
         if self.main_model:
             self.build()
+
+    def toggle_fullscreen(self, event: Optional[Event] = None) -> None:
+        """Toggle full-screen for this :class:`Application`.
+
+        .. ------------------------------------------------------------
+
+        Arguments
+        -----------
+
+        event: Optional[:class:`Event`]
+            Optional key event passed to this method.
+
+        """
+        if event.keysym == 'F11':
+            state = not self.parent.attributes('-fullscreen')
+            self.parent.attributes('-fullscreen', state)
+        elif self.parent.attributes('-fullscreen'):
+            self.parent.attributes('-fullscreen', False)

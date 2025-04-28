@@ -3,9 +3,10 @@
 from __future__ import annotations
 
 
+from dataclasses import dataclass
 import logging
 import os
-from typing import Optional, Literal, TypedDict, Union
+from typing import Optional, Literal, Union
 from tkinter import Tk, Toplevel, Frame, LabelFrame, Widget
 
 
@@ -22,6 +23,8 @@ __all__ = (
     'DEF_WIN_TITLE',
     'DEF_WIN_SIZE',
     'DEF_ICON',
+    'DEF_FORMATTER',
+    'DEF_DATE_FMT',
 )
 
 
@@ -77,8 +80,6 @@ class _IdGenerator:
 
 class SnowFlake:
     """A meta class for all classes to derive from.
-
-    Hosts a unique identifier `id`.
 
     .. ------------------------------------------------------------
 
@@ -335,7 +336,56 @@ class Buildable(Loggable):
         ...  # pylint: disable=unnecessary_ellipsis
 
 
-class PartialViewConfiguration(TypedDict):
+class Runnable(Buildable):
+    """Denotes object is 'runnable' and supports `run` method.
+
+    Also, supports `running` property.
+
+    .. ------------------------------------------------------------
+
+    .. package:: types.abc.meta
+
+    .. ------------------------------------------------------------
+
+    Attributes
+    -----------
+    running: :type:`bool`
+        The object is currently in a `running` state.
+    """
+
+    __slots__ = ('_running', )
+
+    def __init__(self):
+        super().__init__()
+        self._running: bool = False
+
+    @property
+    def running(self) -> bool:
+        """The object is currently in a `running` state.
+
+        Returns
+        ----------
+            running: :type:`bool`
+        """
+        return self._running
+
+    def run(self) -> None:
+        """Run this object.
+        """
+
+    def start(self) -> None:
+        """Start this object.
+        """
+        self._running = True
+
+    def stop(self) -> None:
+        """Stop this object.
+        """
+        self._running = False
+
+
+@dataclass
+class PartialViewConfiguration:
     """Partial View Configuration
 
     .. ------------------------------------------------------------
@@ -358,50 +408,14 @@ class PartialViewConfiguration(TypedDict):
     parent: Optional[Union[:type:`Tk`, :type:`Toplevel`, :type:`Frame`, :type:`LabelFrame`]]
 
     """
-
     title: Optional[str] = DEF_WIN_TITLE
     icon: Optional[str] = DEF_ICON
     win_size: Optional[str] = DEF_WIN_SIZE
     theme: Optional[str] = DEF_THEME
     parent: Optional[Union[Tk, Toplevel, Frame, LabelFrame]] = None
 
-    @classmethod
-    def generic(cls,
-                name: Optional[str] = DEF_WIN_TITLE) -> dict:
-        """get a generic version of a partial view
 
-        .. ------------------------------------------------------------
-
-        Arguments
-        ----------
-        name: Optional[:type:`str`]
-            Name of the frame to create.
-
-        .. ------------------------------------------------------------
-
-
-        Returns
-        --------
-        ::
-
-            cls({
-            'title': {name},
-            'icon': DEF_ICON,
-            'win_size': DEF_WIN_SIZE,
-            'theme': DEF_THEME,
-            'parent': None
-            })
-        """
-        return cls({
-            'title': name,
-            'icon': DEF_ICON,
-            'win_size': DEF_WIN_SIZE,
-            'theme': DEF_THEME,
-            'parent': None
-        })
-
-
-class PartialView(Buildable):
+class PartialView(Runnable):
     """A partial meta view for mounting :class:`Application` and :class:`View` to.
 
     .. ------------------------------------------------------------
@@ -446,15 +460,15 @@ class PartialView(Buildable):
     def __init__(self,
                  name: Optional[str] = DEF_WIN_TITLE,
                  view_type: Literal[1, 2, 3] = DEF_TYPE,
-                 config: Optional[PartialViewConfiguration] = PartialViewConfiguration.generic()):
+                 config: Optional[PartialViewConfiguration] = PartialViewConfiguration()):
         super().__init__()
         self._name: str = name
         self._view_type: Literal[1, 2, 3] = int(view_type)
         self._config: PartialViewConfiguration = config
 
         if self._view_type == 1:
-            if config['theme']:
-                self._parent = ThemedTk(theme=config['theme'])
+            if config.theme:
+                self._parent = ThemedTk(theme=config.theme)
             else:
                 self._parent = Tk()
 
@@ -462,7 +476,7 @@ class PartialView(Buildable):
             self._parent = Toplevel()
 
         elif self._view_type == 3:
-            self._parent = config['parent']
+            self._parent = config.parent
 
         else:
             raise ValueError(f'Could not create a partial view from type {self._view_type}')
@@ -476,14 +490,16 @@ class PartialView(Buildable):
         if self._view_type == 3:
             return
 
-        if config['title']:
-            self._parent.title(config['title'])
+        self._parent.protocol('WM_DELETE_WINDOW', self.close)
 
-        if config['icon']:
-            self._parent.iconbitmap(config['icon'])
+        if config.title:
+            self._parent.title(config.title)
 
-        if config['win_size']:
-            self._parent.geometry(config['win_size'])
+        if config.icon:
+            self._parent.iconbitmap(config.icon)
+
+        if config.win_size:
+            self._parent.geometry(config.win_size)
 
     @property
     def config(self) -> PartialViewConfiguration:
@@ -555,7 +571,7 @@ class PartialView(Buildable):
 
     def clear(self,
               widget: Optional[Widget] = None) -> None:
-        """Clear a particular widget of all children.
+        """Clear a widget of all children.
 
         Defaults to all children under this :class:`Frame`.
 
@@ -575,4 +591,5 @@ class PartialView(Buildable):
         """Close this partial view.
 
         """
+        self.stop()
         self.parent.destroy()

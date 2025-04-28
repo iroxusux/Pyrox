@@ -6,7 +6,7 @@ from __future__ import annotations
 from typing import Optional, TYPE_CHECKING
 
 
-from .meta import Buildable
+from .meta import Runnable
 
 
 if TYPE_CHECKING:
@@ -19,7 +19,7 @@ __all__ = (
 )
 
 
-class PartialModel(Buildable):
+class PartialModel(Runnable):
     """A partial model for use in an application.
 
     .. ------------------------------------------------------------

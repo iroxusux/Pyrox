@@ -10,7 +10,7 @@ from . import (
 from .abc import Buildable, ConsolePanelHandler, HashList, Loggable, SafeList, SnowFlake
 from .application import Application, ApplicationTask
 from .application import PartialApplicationConfiguration as ApplicationConfiguration
-from .model import Model
+from .model import Model, LaunchableModel, SupportsAssembly
 from .utkinter import ProgressBar
 from .view import View
 from .viewmodel import ViewModel
@@ -26,11 +26,13 @@ __all__ = (
     'Buildable',
     'ConsolePanelHandler',
     'HashList',
+    'LaunchableModel',
     'Loggable',
     'Model',
     'ProgressBar',
     'SafeList',
     'SnowFlake',
+    'SupportsAssembly',
     'test_types',
     'utkinter',
     'View',

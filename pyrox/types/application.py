@@ -6,7 +6,7 @@ from __future__ import annotations
 from typing import Optional, TYPE_CHECKING, Union
 
 
-from tkinter import Menu, Tk, Toplevel, Event
+from tkinter import Menu, Tk, Toplevel
 
 
 from .abc import PartialApplication, PartialApplicationTask
@@ -229,6 +229,10 @@ class ApplicationTask(PartialApplicationTask):
         """Inject this task into the hosting application
         """
 
+    def start(self) -> None:
+        """Run this task
+        """
+
 
 class Application(PartialApplication):
     """Represents a :class:`PartialApplication` in the form of an :class:`Application`.
@@ -262,7 +266,7 @@ class Application(PartialApplication):
 
     """
 
-    __slots__ = ('_running', '_menu', '_tasks')
+    __slots__ = ('_menu', '_tasks')
 
     def __init__(self,
                  model: Optional[PartialModel] = None,
@@ -274,18 +278,8 @@ class Application(PartialApplication):
         super().__init__(model=model,
                          config=config)
 
-        # setup running status and closing callback
-        self._running: bool = False
-        self._menu = MainApplicationMenu(self.parent)
+        self._menu = None if config.headless else MainApplicationMenu(self.parent)
         self._tasks: HashList[PartialApplicationTask] = HashList('id')
-        self.frame.grid(column=0, row=0, sticky=('n', 'e', 's', 'w'))
-
-        self.parent.protocol('WM_DELETE_WINDOW', self.on_closing)
-        self.parent.columnconfigure(0, weight=1)
-        self.parent.rowconfigure(0, weight=1)
-
-        if self.main_model:
-            self.build()
 
     @property
     def menu(self) -> MainApplicationMenu:
@@ -298,16 +292,6 @@ class Application(PartialApplication):
             menu: :class:`MainApplicationMenu`
         """
         return self._menu
-
-    @property
-    def running(self) -> bool:
-        """Running status of this :class:`Application`'s `Tk` interpreter.
-
-        Returns
-        ----------
-            running: :type:`bool`
-        """
-        return self._running
 
     @property
     def tasks(self) -> HashList[PartialApplicationTask]:
@@ -357,48 +341,27 @@ class Application(PartialApplication):
 
         return None
 
-    def on_closing(self) -> None:
-        """method called when the tk interpreter intends on closing.
-        """
-        self._running = False
-        self.parent.destroy()
+    def add_tasks(self,
+                  tasks: Union[list[ApplicationTask], list[type[ApplicationTask]]],
+                  model: Optional[Model] = None) -> Optional[ApplicationTask]:
+        """Add a list of :class:`ApplicationTask`s to this `Application`.
 
-    def on_pre_run(self) -> None:
-        """Method that is called directly before calling parent Tk `mainloop`.
+        This method calls the task's `inject` method.
 
-        By this point, all models, view models and views should be created.
-
-        This allows some extra logic to occur before our app begins.
-
-        .. ------------------------------------------------------------
-
-        Note: it is recommenbed to override this method to create your own functionality.
-        """
-
-    def run(self) -> None:
-        """run this main :class:`Application`.
-
-        this hands the pointer off to tkinter mainloop.
-        """
-        self.on_pre_run()
-        self._running = True
-        self.parent.focus()
-        self.parent.mainloop()
-
-    def toggle_fullscreen(self, event: Optional[Event] = None) -> None:
-        """Toggle full-screen for this :class:`Application`.
-
-        .. ------------------------------------------------------------
+        .. ---------------------------------------------------------------------
 
         Arguments
-        -----------
+        ----------
+        task: Union[:class:`ApplicationTask`, type[:class:`ApplicationTask`]]
+            :class:`ApplicationTask` to add.
 
-        event: Optional[:class:`Event`]
-            Optional key event passed to this method.
+        .. ---------------------------------------------------------------------
+
+        Returns
+        ----------
+        task: :class:`ApplicationTask` | `None`
+            The built / injected task
+
 
         """
-        if event.keysym == 'F11':
-            state = not self.parent.attributes('-fullscreen')
-            self.parent.attributes('-fullscreen', state)
-        elif self.parent.attributes('-fullscreen'):
-            self.parent.attributes('-fullscreen', False)
+        _ = [self.add_task(x, model) for x in tasks]

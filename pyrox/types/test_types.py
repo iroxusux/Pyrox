@@ -4,6 +4,7 @@ from __future__ import annotations
 
 
 from tkinter import Tk
+from typing import Type
 import unittest
 
 
@@ -19,7 +20,7 @@ from .application import (
 )
 
 
-from .model import Model
+from .model import Model, LaunchableModel, SupportsAssembly
 from .utkinter.progress_bar import ProgressBar
 from .view import View
 from .viewmodel import ViewModel
@@ -86,16 +87,6 @@ class TestTypes(unittest.TestCase):
         self.assertIsNotNone(app.menu.view)
         self.assertIsNotNone(app.menu.help)
 
-        # can set a good model
-        new_model = PartialModel()
-        app.set_model(new_model)
-        self.assertEqual(new_model, app.main_model)
-
-        # can't set a bad model
-        with self.assertRaises(TypeError) as context:
-            app.set_model(1)
-        self.assertTrue(isinstance(context.exception, TypeError))
-
         # can insert a task by type
         app.add_task(ApplicationTask)
 
@@ -114,11 +105,49 @@ class TestTypes(unittest.TestCase):
         self.assertIsNotNone(model.id)
         self.assertIsNotNone(model.logger)
 
+    def test_launchable_model(self):
+        """test launchable model class
+        """
+
+        class _TestModel(LaunchableModel):
+            @property
+            def sub_app_name(self) -> str:
+                return 'MyTestApp'
+
+            @property
+            def sub_app_size(self) -> str:
+                return '69x420'
+
+            def get_application_class(self) -> type:
+                return Application
+
+            def get_view_class(self) -> type:
+                return View
+
+            def get_view_model_class(self) -> type:
+                return ViewModel
+
         app = Application(None, PartialApplicationConfiguration.generic_root())
 
-        asmbl_mdl = Model.as_assembled(app,
-                                       ViewModel,
-                                       View)
+        mdl = _TestModel(app, None)
+
+        mdl.launch()
+
+        app.close()
+
+    def test_supports_assembly(self):
+        """test supports assembly class
+        """
+        class _TestClass(SupportsAssembly):
+            def get_view_class(self) -> Type:
+                return View
+
+            def get_view_model_class(self) -> Type:
+                return ViewModel
+
+        app = Application(None, PartialApplicationConfiguration.generic_root())
+
+        asmbl_mdl = _TestClass.as_assembled(app)
 
         app.set_model(asmbl_mdl)
 
@@ -132,6 +161,8 @@ class TestTypes(unittest.TestCase):
         self.assertEqual(asmbl_mdl, asmbl_mdl.view_model.model)
         self.assertEqual(asmbl_mdl.view_model, asmbl_mdl.view_model.view.view_model)
         self.assertEqual(asmbl_mdl.view_model.view.parent, asmbl_mdl.application.frame)
+
+        app.close()
 
     def test_progressbar(self):
         """test progress-bar

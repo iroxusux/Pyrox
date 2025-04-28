@@ -29,6 +29,8 @@ from .meta import (
     Buildable,
     ConsolePanelHandler,
     Loggable,
+    PartialViewConfiguration,
+    Runnable,
     SnowFlake,
     PartialView
 )
@@ -111,7 +113,7 @@ class TestMeta(unittest.TestCase):
         self.assertIsInstance(x.parent, (Tk, Toplevel, Frame, LabelFrame))
         self.assertIsInstance(x.frame, Frame)
         self.assertIsInstance(x.view_type, int)
-        self.assertIsInstance(x.config, dict)
+        self.assertIsInstance(x.config, PartialViewConfiguration)
 
         x.close()
         self.assertEqual(x.parent.children, {})
@@ -131,7 +133,7 @@ class TestMeta(unittest.TestCase):
         self.assertIsInstance(x.parent, (Tk, Toplevel, Frame, LabelFrame))
         self.assertIsInstance(x.frame, Frame)
         self.assertIsInstance(x.view_type, int)
-        self.assertIsInstance(x.config, dict)
+        self.assertIsInstance(x.config, PartialViewConfiguration)
 
         # add some children to the view's frame
         a = Frame(x.frame)
@@ -241,10 +243,7 @@ class TestMeta(unittest.TestCase):
     def test_buildable(self):
         """test buildable class
         """
-        setattr(self, 'refresh_good', False)
-        setattr(self, 'build_good', False)
-
-        class TestClass(Buildable):
+        class _TestClass(Buildable):
 
             def __init__(self):
                 super().__init__()
@@ -257,7 +256,7 @@ class TestMeta(unittest.TestCase):
             def refresh(self):
                 self.refresh_good = True
 
-        x = TestClass()
+        x = _TestClass()
 
         self.assertFalse(x.build_good)
         self.assertFalse(x.refresh_good)
@@ -267,6 +266,17 @@ class TestMeta(unittest.TestCase):
         x.refresh()
         self.assertTrue(x.build_good)
         self.assertTrue(x.refresh_good)
+
+    def test_runnable(self):
+        """test runnable
+        """
+        x = Runnable()
+
+        self.assertFalse(x.running)
+        x.start()
+        self.assertTrue(x.running)
+        x.stop()
+        self.assertFalse(x.running)
 
     def test_safelist(self):
         """test safelist
@@ -305,22 +315,19 @@ class TestApplication(unittest.TestCase):
     def test_app_configuration(self):
         """test application configurations
         """
-        config = PartialApplicationConfiguration({
-            'icon': 'icon.bmp',
-            'theme': 'black',
-            'title': 'Test Application',
-            'type': 1,
-            'win_size': '400x400',
-        })
+        config = PartialApplicationConfiguration(False,
+                                                 'Test Application',
+                                                 1,
+                                                 PartialViewConfiguration())
 
         self.assertIsNotNone(config)
-        self.assertIsInstance(config, dict)
+        self.assertIsInstance(config, PartialApplicationConfiguration)
 
         root = PartialApplicationConfiguration.generic_root()
-        self.assertEqual(root['type'], 1)
+        self.assertEqual(root.type, 1)
 
         toplevel = PartialApplicationConfiguration.generic_toplevel()
-        self.assertEqual(toplevel['type'], 2)
+        self.assertEqual(toplevel.type, 2)
 
     def test_application(self):
         """test application
@@ -331,28 +338,40 @@ class TestApplication(unittest.TestCase):
                                  PartialApplicationConfiguration.generic_root())
         self.assertIsNotNone(app)
 
+        # check attributes
         self.assertTrue(os.path.isdir(app.appdata_dir))
         self.assertIsInstance(app.main_model, PartialModel)
-        self.assertIsInstance(app.config, dict)
+        self.assertIsInstance(app.config, PartialApplicationConfiguration)
+        self.assertIsInstance(app.model_hash, HashList)
+        self.assertFalse(app.running)
 
-        app.close()
+        # test bad add model
+        with self.assertRaises(TypeError) as context:
+            app.add_model(None)
+        self.assertIsInstance(context.exception, TypeError)
 
-        # build bad app with shit dict
-        with self.assertRaises(KeyError) as context:
-            PartialApplication(None, {})
+        # test add good model
+        self.assertIsInstance(app.add_model(PartialModel()), PartialModel)
 
-        self.assertTrue(isinstance(context.exception, KeyError))
+        # test bad set model
+        with self.assertRaises(TypeError) as context:
+            app.set_model(None)
+        self.assertIsInstance(context.exception, TypeError)
+
+        # test good set model
+        my_mdl = app.add_model(PartialModel())
+        app.set_model(my_mdl)
+        self.assertEqual(app.main_model, my_mdl)
 
         # build bad app with None as dict
-        with self.assertRaises(TypeError) as context:
+        with self.assertRaises(AttributeError) as context:
             PartialApplication(None, None)
-
-        self.assertTrue(isinstance(context.exception, TypeError))
+        self.assertTrue(isinstance(context.exception, AttributeError))
 
         # build a bad app with invalid view type
         with self.assertRaises(ValueError) as context:
             config = PartialApplicationConfiguration.generic_root()
-            config['type'] = 4
+            config.type = 4
             PartialApplication(None,
                                config)
         self.assertTrue(isinstance(context.exception, ValueError))
@@ -375,6 +394,12 @@ class TestApplication(unittest.TestCase):
 
         self.assertTrue(isinstance(task.application, PartialApplication))
         self.assertTrue(isinstance(task.model, PartialModel))
+
+        self.assertFalse(task.running)
+        task.start()
+        self.assertTrue(task.running)
+        task.stop()
+        self.assertFalse(task.running)
 
         app.close()
 

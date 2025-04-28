@@ -8,7 +8,7 @@ def main():
 
     app = Application(None,
                       app_cgf)
-    app.run()
+    app.start()
 
 
 if __name__ == '__main__':
