@@ -2,64 +2,158 @@
     """
 
 
+class SliceableInt(object):
+    """Extension of integer class that supports bit-wise operations
+    """
+
+    def __add__(self, other):
+        return self._value + other
+
+    def __eq__(self, other):
+        return self._value == other
+
+    def __index__(self):
+        return self._value
+
+    def __init__(self, value=0):
+        self._value = value
+
+    def __int__(self):
+        return self._value
+
+    def __radd__(self, other):  # handles cases like 5 + SliceableInt(3)
+        return self.__add__(other)
+
+    def __repr__(self):
+        return str(self._value)
+
+    def __sub__(self, other):
+        return self._value - other
+
+    def clear(self):
+        """Clear this `SliceableInt's` value.
+        """
+        self._value = 0
+
+    def clear_bit(self,
+                  bit_position: int) -> int:
+        """Binary slicing operation to clear a bit of an integer.
+
+        .. -------------------------------------------------------
+
+        Arguments
+        ----------
+        bit_position: :class:`int`
+            Bit position of the word to clear to bit of.
+
+        Returns
+        ----------
+            :class:`int`
+        """
+        self._value = self._value & ~(1 << bit_position)
+
+    def read_bit(self,
+                 bit_position: int) -> bool:
+        """Binary slicing operation to read a bit of an integer.
+
+        .. -------------------------------------------------------
+
+        Arguments
+        ----------
+        bit_position: :class:`int`
+            Bit position of the word to read the bit from.
+
+        Returns
+        ----------
+            :class:`bool`
+        """
+        return (self._value & (1 << bit_position)) >> bit_position
+
+    def set_bit(self,
+                bit_position: int) -> int:
+        """Binary slicing operation to set a bit of an integer.
+
+        .. -------------------------------------------------------
+
+        Arguments
+        ----------
+        bit_position: :class:`int`
+            Bit position of the word to set to bit of.
+
+        Returns
+        ----------
+            :class:`int`
+        """
+        self._value = self._value | (1 << bit_position)
+
+    def set_value(self, value: int) -> None:
+        """Set a value for this sliceable int without changing it's base type (`SliceableInt`).
+
+        .. -------------------------------------------------------
+
+        Arguments
+        ----------
+        value: :class:`int`
+            Value to set in this object.
+        """
+        self._value = value
+
+
 def clear_bit(word: int,
               bit_position: int) -> int:
     """Binary slicing operation to clear a bit of an integer.
 
-    .. -------------------------------------------------------
+        .. -------------------------------------------------------
 
-    Arguments
-    ----------
-    word: :class:`int`
-        Integer word to clear bit from
-    bit_position: :class:`int`
-        Bit position of the word to clear to bit of.
+        Arguments
+        ----------
+        word: :class:`int`
+            Integer word to clear bit from
+        bit_position: :class:`int`
+            Bit position of the word to clear to bit of.
 
-    Returns
-    ----------
-        :class:`int`
-    """
-    return word & ~(1 << bit_position)
+        Returns
+        ----------
+            :class:`int`
+        """
+    return SliceableInt(word).clear_bit(bit_position)
 
 
 def set_bit(word: int,
             bit_position: int) -> int:
     """Binary slicing operation to set a bit of an integer.
 
-    .. -------------------------------------------------------
+        .. -------------------------------------------------------
 
-    Arguments
-    ----------
-    word: :class:`int`
-        Integer word to set bit in
-    bit_position: :class:`int`
-        Bit position of the word to set to bit of.
+        Arguments
+        ----------
+        word: :class:`int`
+            Integer word to set bit in
+        bit_position: :class:`int`
+            Bit position of the word to set to bit of.
 
-    Returns
-    ----------
-        :class:`int`
-    """
-    return word | (1 << bit_position)
+        Returns
+        ----------
+            :class:`int`
+        """
+    return SliceableInt(word).set_bit(bit_position)
 
 
 def read_bit(word: int,
              bit_position: int) -> bool:
     """Binary slicing operation to read a bit of an integer.
 
-    .. -------------------------------------------------------
+        .. -------------------------------------------------------
 
-    Arguments
-    ----------
-    word: :class:`int`
-        Integer word to set read from
-    bit_position: :class:`int`
-        Bit position of the word to read the bit from.
+        Arguments
+        ----------
+        word: :class:`int`
+            Integer word to set read from
+        bit_position: :class:`int`
+            Bit position of the word to read the bit from.
 
-    Returns
-    ----------
-        :class:`bool`
-    """
-    if not word:
-        return False
-
-    return (word & (1 << bit_position)) >> bit_position
+        Returns
+        ----------
+            :class:`bool`
+        """
+    return SliceableInt(word).read_bit(bit_position)
