@@ -5,13 +5,16 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 import os
-from typing import Literal, Optional, Self, Union
+from typing import Optional, Self, Union
 
 
 from tkinter import Event, Menu, Tk, Toplevel
 
 
-from .meta import Buildable, PartialView, PartialViewConfiguration, SnowFlake, Runnable
+from .meta import Buildable, SnowFlake, Runnable
+from .meta import PartialView as View
+from .meta import PartialViewConfiguration as ViewConfiguration
+from .meta import PartialViewType as ViewType
 from .model import PartialModel
 from .list import HashList
 
@@ -155,33 +158,33 @@ class PartialApplicationConfiguration:
 
     name: :type:`str`
 
-    type: :type:`int`
-
     view_config: :class:`TypedDict`
 
     """
     headless: bool = False
-    name: str = 'Default Application'
-    tasks: list[PartialApplicationTask] = field(default_factory=[])
-    type: Literal[1, 2] = 2
-    view_config: PartialViewConfiguration = field(default_factory=PartialViewConfiguration())
+    inc_log_window: bool = False
+    tasks: list[PartialApplicationTask] = field(default_factory=list)
+    view_config: ViewConfiguration = field(default_factory=ViewConfiguration)
 
     @classmethod
     def _common_assembly(cls,
-                         name: str,
-                         view_type: int) -> Self:
-        from ...tasks.builtin import ALL_TASKS  # pylint: disable=C0415
+                         headless: bool,
+                         inc_log_window: bool,
+                         tasks: list[PartialApplicationTask],
+                         view_config: ViewConfiguration) -> Self:
         return cls(
-            headless=False,
-            name=name,
-            tasks=ALL_TASKS,
-            type=view_type,
-            view_config=PartialViewConfiguration(title=name)
+            headless=headless,
+            inc_log_window=inc_log_window,
+            tasks=tasks,
+            view_config=view_config
         )
 
     @classmethod
     def toplevel(cls,
-                 name: Optional[str] = 'Default Application') -> Self:
+                 headless: bool = True,
+                 inc_log_window: bool = False,
+                 tasks: list[PartialApplicationTask] = None,
+                 view_config: ViewConfiguration = None) -> Self:
         """get a generic version of an application configuration
 
         for a toplevel application
@@ -205,11 +208,19 @@ class PartialApplicationConfiguration:
             'view_config': PartialViewConfiguration(),
             }
         """
-        return PartialApplicationConfiguration._common_assembly(name=name, view_type=2)
+        if not view_config:
+            view_config = ViewConfiguration(view_type=ViewType.TOPLEVEL)
+        return PartialApplicationConfiguration._common_assembly(headless=headless,
+                                                                inc_log_window=inc_log_window,
+                                                                tasks=tasks,
+                                                                view_config=view_config)
 
     @classmethod
     def root(cls,
-             name: Optional[str] = 'Default Application') -> Self:
+             headless: bool = False,
+             inc_log_window: bool = True,
+             tasks: list[PartialApplicationTask] = None,
+             view_config: ViewConfiguration = None) -> Self:
         """get a generic version of an application configuration
 
         for a root level application
@@ -233,10 +244,15 @@ class PartialApplicationConfiguration:
             'view_config': PartialViewConfiguration(),
             }
         """
-        return PartialApplicationConfiguration._common_assembly(name=name, view_type=1)
+        if not view_config:
+            view_config = ViewConfiguration(view_type=ViewType.ROOT)
+        return PartialApplicationConfiguration._common_assembly(headless=headless,
+                                                                inc_log_window=inc_log_window,
+                                                                tasks=tasks,
+                                                                view_config=view_config)
 
 
-class PartialApplication(PartialView):
+class PartialApplication(View):
     """Represents a :class:`PartialView` in the form of a Partial Application.
 
     .. ------------------------------------------------------------
@@ -260,18 +276,16 @@ class PartialApplication(PartialView):
     """
 
     def __init__(self,
-                 model: PartialModel,
-                 config: PartialApplicationConfiguration):
-        super().__init__(name=config.name,
-                         view_type=config.type,
-                         config=config.view_config)
+                 model: PartialModel = None,
+                 config: PartialApplicationConfiguration = None):
+        if not config:
+            raise ValueError('Cannot create an application without a configuration!')
+
+        super().__init__(config=config.view_config)
 
         self._running: bool = False
         self._model_hash = HashList(SnowFlake.id.__name__)
         self._config: PartialApplicationConfiguration = config
-
-        if not os.path.isdir(self.appdata_dir):
-            os.mkdir(self.appdata_dir)
 
         self.frame.grid(column=0, row=0, sticky=('n', 'e', 's', 'w'))
         self.parent.columnconfigure(0, weight=1)
@@ -279,18 +293,6 @@ class PartialApplication(PartialView):
 
         self._main_model_id = None
         _ = self.set_model(model) if model else None
-
-    @property
-    def appdata_dir(self) -> str:
-        """Get the application data directory for this :class:`Application`.
-
-        .. ---------------------------------------------------------------------
-
-        Returns
-        ----------
-            :class:`str` `ApplicationDataDirectory`
-        """
-        return get_appdata() + f'/{self.name}'
 
     @property
     def config(self) -> PartialApplicationConfiguration:

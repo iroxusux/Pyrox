@@ -45,7 +45,7 @@ class ProgressBar(PartialApplication):
                  header_text: str):
 
         config = PartialApplicationConfiguration.toplevel()
-        config.view_config.title = title
+        config.view_config.name = title
         config.view_config.win_size = '300x100'
 
         PartialApplication.__init__(self,

@@ -145,7 +145,7 @@ class TestTypes(unittest.TestCase):
             def get_view_model_class(self) -> Type:
                 return ViewModel
 
-        app = Application(None, PartialApplicationConfiguration.root())
+        app = Application(config=PartialApplicationConfiguration.root())
 
         asmbl_mdl = _TestClass.as_assembled(app)
 
@@ -177,10 +177,11 @@ class TestTypes(unittest.TestCase):
     def test_view(self):
         """test view
         """
-        view = View(None)
+        view = View()
         self.assertIsNotNone(view)
         self.assertIsNotNone(view.name)
-        self.assertIsNotNone(view.view_type)
+        self.assertIsNotNone(view.config)
+        self.assertIsNotNone(view.config.view_type)
         self.assertIsNone(view.view_model)
         self.assertIsNotNone(view.logger)
 

@@ -7,7 +7,7 @@ from tkinter import Tk, Toplevel, Frame, LabelFrame
 from typing import Optional, TYPE_CHECKING, Union
 
 
-from .abc.meta import PartialView, PartialViewConfiguration
+from .abc.meta import PartialView, PartialViewType, PartialViewConfiguration
 
 
 if TYPE_CHECKING:
@@ -38,8 +38,8 @@ class View(PartialView):
     def __init__(self,
                  view_model: Optional[ViewModel] = None,
                  parent: Optional[Union[Tk, Toplevel, Frame, LabelFrame]] = None):
-        super().__init__(view_type=3,
-                         config=PartialViewConfiguration(parent=parent))
+        super().__init__(config=PartialViewConfiguration(parent=parent,
+                                                         view_type=PartialViewType.EMBED))
 
         self._view_model: Optional[ViewModel] = view_model
 

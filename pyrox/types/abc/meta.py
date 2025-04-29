@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 
+from enum import Enum
 from dataclasses import dataclass
 import logging
 import os
@@ -19,7 +20,7 @@ __all__ = (
     'SnowFlake',
     'PartialView',
     'PartialViewConfiguration',
-    'DEF_TYPE',
+    'DEF_VIEW_TYPE',
     'DEF_THEME',
     'DEF_WIN_TITLE',
     'DEF_WIN_SIZE',
@@ -29,7 +30,7 @@ __all__ = (
 )
 
 
-DEF_TYPE = 1
+DEF_VIEW_TYPE = 1
 DEF_THEME = 'black'
 DEF_WIN_TITLE = 'Pyrox Default Frame'
 DEF_WIN_SIZE = '1024x768'
@@ -420,6 +421,19 @@ class Runnable(Buildable):
         self._running = False
 
 
+class PartialViewType(Enum):
+    """Partial View Type Enumaration
+
+    .. ------------------------------------------------------------
+
+    .. package:: types.abc.meta
+    """
+    NA = 0
+    ROOT = 1
+    TOPLEVEL = 2
+    EMBED = 3
+
+
 @dataclass
 class PartialViewConfiguration:
     """Partial View Configuration
@@ -433,7 +447,7 @@ class PartialViewConfiguration:
     Attributes
     --------
 
-    title: :type:`str`
+    name: :type:`str`
 
     icon: :type:`str`
 
@@ -443,12 +457,15 @@ class PartialViewConfiguration:
 
     parent: Optional[Union[:type:`Tk`, :type:`Toplevel`, :type:`Frame`, :type:`LabelFrame`]]
 
+    view_type: :class:`PartialViewType`
+
     """
-    title: Optional[str] = DEF_WIN_TITLE
+    name: Optional[str] = DEF_WIN_TITLE
     icon: Optional[str] = DEF_ICON
     win_size: Optional[str] = DEF_WIN_SIZE
     theme: Optional[str] = DEF_THEME
     parent: Optional[Union[Tk, Toplevel, Frame, LabelFrame]] = None
+    view_type: PartialViewType = PartialViewType.NA
 
 
 class PartialView(Runnable):
@@ -464,9 +481,6 @@ class PartialView(Runnable):
     -----------
     name: Optional[:type:`str`]
         Name of this partial view.
-
-    view_type: Literal[`1`, `2`, `3`]
-        Type of view to create. (Root, TopLevel or Embeded).
 
     config: :class:`PartialViewConfiguration`
         Configuration class for a :class:`PartialView`.
@@ -491,31 +505,29 @@ class PartialView(Runnable):
         The configuration this view was built with.
     """
 
-    __slots__ = ('_frame', '_name', '_parent', '_view_type', '_config')
+    __slots__ = ('_frame', '_name', '_parent', '_config')
 
     def __init__(self,
-                 name: Optional[str] = DEF_WIN_TITLE,
-                 view_type: Literal[1, 2, 3] = DEF_TYPE,
                  config: Optional[PartialViewConfiguration] = PartialViewConfiguration()):
         super().__init__()
-        self._name: str = name
-        self._view_type: Literal[1, 2, 3] = int(view_type)
-        self._config: PartialViewConfiguration = config
 
-        if self._view_type == 1:
-            if config.theme:
-                self._parent = ThemedTk(theme=config.theme)
+        self._config: PartialViewConfiguration = config
+        self._name: str = self._config.name
+
+        if self._config.view_type is PartialViewType.ROOT:
+            if self._config.theme:
+                self._parent = ThemedTk(theme=self._config.theme)
             else:
                 self._parent = Tk()
 
-        elif self._view_type == 2:
+        elif self._config.view_type is PartialViewType.TOPLEVEL:
             self._parent = Toplevel()
 
-        elif self._view_type == 3:
-            self._parent = config.parent
+        elif self._config.view_type is PartialViewType.EMBED:
+            self._parent = self._config.parent
 
         else:
-            raise ValueError(f'Could not create a partial view from type {self._view_type}')
+            raise ValueError(f'Could not create a partial view from type {self._config.view_type}')
 
         if not self._parent:
             return
@@ -523,19 +535,19 @@ class PartialView(Runnable):
         self._frame = Frame(master=self._parent, padx=2, pady=2)
         self._frame.pack(fill='both', expand=True)
 
-        if self._view_type == 3:
+        if self._config.view_type is PartialViewType.EMBED:
             return
 
         self._parent.protocol('WM_DELETE_WINDOW', self.close)
 
-        if config.title:
-            self._parent.title(config.title)
+        if self._config.name:
+            self._parent.title(self._config.name)
 
-        if config.icon:
-            self._parent.iconbitmap(config.icon)
+        if self._config.icon:
+            self._parent.iconbitmap(self._config.icon)
 
-        if config.win_size:
-            self._parent.geometry(config.win_size)
+        if self._config.win_size:
+            self._parent.geometry(self._config.win_size)
 
     @property
     def config(self) -> PartialViewConfiguration:
@@ -584,18 +596,6 @@ class PartialView(Runnable):
             parent: :class:`Union[Tk, Toplevel, Frame, LabelFrame]`
         """
         return self._parent
-
-    @property
-    def view_type(self) -> Literal[1, 2, 3]:
-        """Type of view this view was created as (Root or TopLevel).
-
-        .. ------------------------------------------------------------
-
-        Returns
-        -----------
-            view_type: Literal[`1`, `2`, `3`]
-        """
-        return self._view_type
 
     def center(self) -> None:
         """center this partial view in the window it resides in.

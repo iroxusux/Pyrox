@@ -371,4 +371,7 @@ class Application(PartialApplication):
 
 
         """
+        if not tasks:
+            return
+
         _ = [self.add_task(x, model) for x in tasks]

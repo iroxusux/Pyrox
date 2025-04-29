@@ -31,6 +31,7 @@ from .meta import (
     Loggable,
     LoggableUnitTest,
     PartialViewConfiguration,
+    PartialViewType,
     Runnable,
     SnowFlake,
     PartialView
@@ -105,7 +106,7 @@ class TestMeta(unittest.TestCase):
         """
 
         # test root build
-        x = PartialView('', 1)
+        x = PartialView(config=PartialViewConfiguration(view_type=PartialViewType.ROOT))
         self.assertTrue(x.parent.winfo_exists())
         self.assertNotEqual(x.parent.children, {})
 
@@ -113,7 +114,6 @@ class TestMeta(unittest.TestCase):
         self.assertIsInstance(x.name, str)
         self.assertIsInstance(x.parent, (Tk, Toplevel, Frame, LabelFrame))
         self.assertIsInstance(x.frame, Frame)
-        self.assertIsInstance(x.view_type, int)
         self.assertIsInstance(x.config, PartialViewConfiguration)
 
         x.close()
@@ -125,7 +125,7 @@ class TestMeta(unittest.TestCase):
         self.assertTrue(isinstance(context.exception, TclError))
 
         # test top level build
-        x = PartialView('', 2)
+        x = PartialView(config=PartialViewConfiguration(view_type=PartialViewType.TOPLEVEL))
         self.assertTrue(x.parent.winfo_exists())
         self.assertNotEqual(x.parent.children, {})
 
@@ -133,7 +133,6 @@ class TestMeta(unittest.TestCase):
         self.assertIsInstance(x.name, str)
         self.assertIsInstance(x.parent, (Tk, Toplevel, Frame, LabelFrame))
         self.assertIsInstance(x.frame, Frame)
-        self.assertIsInstance(x.view_type, int)
         self.assertIsInstance(x.config, PartialViewConfiguration)
 
         # add some children to the view's frame
@@ -154,13 +153,13 @@ class TestMeta(unittest.TestCase):
 
         # test an invalid view type can't be built
         with self.assertRaises(ValueError) as context:
-            PartialView(None, 4)
+            x = PartialView(config=PartialViewConfiguration(view_type=PartialViewType.NA))
         self.assertTrue(isinstance(context.exception, ValueError))
 
         # test a non-dict object can't be passed for config
-        with self.assertRaises(TypeError) as context:
-            PartialView(None, None)
-        self.assertTrue(isinstance(context.exception, TypeError))
+        with self.assertRaises(AttributeError) as context:
+            PartialView(config=None)
+        self.assertTrue(isinstance(context.exception, AttributeError))
 
     def test_hash_list(self):
         """test hash works as intended
@@ -329,25 +328,20 @@ class TestApplication(unittest.TestCase):
     def test_app_configuration(self):
         """test application configurations
         """
-        config = PartialApplicationConfiguration(False,
-                                                 'Test Application',
-                                                 [],
-                                                 1,
-                                                 PartialViewConfiguration())
+        config = PartialApplicationConfiguration()
 
         self.assertIsNotNone(config)
         self.assertIsInstance(config, PartialApplicationConfiguration)
         self.assertIsInstance(config.headless, bool)
-        self.assertIsInstance(config.name, str)
+        self.assertIsInstance(config.inc_log_window, bool)
         self.assertIsInstance(config.tasks, list)
-        self.assertIsInstance(config.type, int)
         self.assertIsInstance(config.view_config, PartialViewConfiguration)
 
         root = PartialApplicationConfiguration.root()
-        self.assertEqual(root.type, 1)
+        self.assertEqual(root.view_config.view_type, PartialViewType.ROOT)
 
         toplevel = PartialApplicationConfiguration.toplevel()
-        self.assertEqual(toplevel.type, 2)
+        self.assertEqual(toplevel.view_config.view_type, PartialViewType.TOPLEVEL)
 
     def test_application(self):
         """test application
@@ -359,7 +353,6 @@ class TestApplication(unittest.TestCase):
         self.assertIsNotNone(app)
 
         # check attributes
-        self.assertTrue(os.path.isdir(app.appdata_dir))
         self.assertIsInstance(app.main_model, PartialModel)
         self.assertIsInstance(app.config, PartialApplicationConfiguration)
         self.assertIsInstance(app.model_hash, HashList)
@@ -384,21 +377,24 @@ class TestApplication(unittest.TestCase):
         self.assertEqual(app.main_model, my_mdl)
 
         # build bad app with None as dict
-        with self.assertRaises(AttributeError) as context:
-            PartialApplication(None, None)
-        self.assertTrue(isinstance(context.exception, AttributeError))
+        with self.assertRaises(ValueError) as context:
+            PartialApplication(config=None)
+        self.assertTrue(isinstance(context.exception, ValueError))
 
         # build a bad app with invalid view type
         with self.assertRaises(ValueError) as context:
             config = PartialApplicationConfiguration.root()
-            config.type = 4
+            config.view_config.view_type = PartialViewType.NA
             PartialApplication(None,
                                config)
         self.assertTrue(isinstance(context.exception, ValueError))
 
+        # close the first app before continuing
+        app.close()
+
         # build a root app and toplevel app with generic configs
-        app = PartialApplication(None, PartialApplicationConfiguration.root())
-        ext = PartialApplication(None, PartialApplicationConfiguration.toplevel())
+        app = PartialApplication(config=PartialApplicationConfiguration.root())
+        ext = PartialApplication(config=PartialApplicationConfiguration.toplevel())
 
         # then close in proper order
         ext.close()
