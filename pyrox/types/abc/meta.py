@@ -7,7 +7,8 @@ from enum import Enum
 from dataclasses import dataclass
 import logging
 import os
-from typing import Callable, Optional, Literal, Union
+import re
+from typing import Callable, Optional, Union
 from tkinter import Tk, Toplevel, Frame, LabelFrame, Widget
 import unittest
 
@@ -17,6 +18,7 @@ from ttkthemes import ThemedTk
 
 __all__ = (
     'Buildable',
+    'EnforcesNaming',
     'SnowFlake',
     'PartialView',
     'PartialViewConfiguration',
@@ -29,7 +31,8 @@ __all__ = (
     'DEF_DATE_FMT',
 )
 
-
+ALLOWED_CHARS = r'a-zA-Z0-9_'
+ALLOWED_CHARS_COMPILED = re.compile(f'[^{ALLOWED_CHARS}]')
 DEF_VIEW_TYPE = 1
 DEF_THEME = 'black'
 DEF_WIN_TITLE = 'Pyrox Default Frame'
@@ -78,6 +81,20 @@ class _IdGenerator:
             :class:`int` current value
         """
         return _IdGenerator._ctr
+
+
+class EnforcesNaming:
+
+    class InvalidNamingException(Exception):
+        def __init__(self, message='Invalid naming scheme! Allowed chars are %s' % ALLOWED_CHARS_COMPILED):
+            self.message = message
+            super().__init__(self.message)
+
+    @staticmethod
+    def is_valid_string(text):
+        if ALLOWED_CHARS_COMPILED.search(text):
+            return False
+        return True
 
 
 class SnowFlake:
@@ -201,14 +218,14 @@ class Loggable(SnowFlake):
                  name: Optional[str] = None):
         super().__init__()
         self._logger: logging.Logger = self._get(name=name if name else self.__class__.__name__)
-        self._log_handler: logging.Handler = ConsolePanelHandler(None)
+        self._log_handler: ConsolePanelHandler = ConsolePanelHandler(None)
 
         # check in case we got a hashed logger with the handler already attached (somehow?)
         if self._log_handler not in self._logger.handlers:
             self._logger.addHandler(self._log_handler)  # add handler for user to create custom callbacks with
 
     @property
-    def log_handler(self) -> logging.Handler:
+    def log_handler(self) -> ConsolePanelHandler:
         """User 'Handler' for this loggable object.
 
         Meant for user to modify with their own callbacks, for easy log displaying.

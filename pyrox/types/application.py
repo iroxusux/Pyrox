@@ -6,12 +6,22 @@ from __future__ import annotations
 from typing import Optional, TYPE_CHECKING, Union
 
 
-from tkinter import Menu, Tk, Toplevel
+from tkinter import (
+    BOTH,
+    BOTTOM,
+    END,
+    Menu,
+    Tk,
+    Toplevel,
+)
 
 
 from .abc import PartialApplication, PartialApplicationTask
 from .abc import BaseMenu, PartialModel, PartialApplicationConfiguration, Loggable
 from .abc.list import HashList
+
+
+from .utkinter.frames import LogWindow
 
 
 if TYPE_CHECKING:
@@ -270,11 +280,7 @@ class Application(PartialApplication):
 
     def __init__(self,
                  model: Optional[PartialModel] = None,
-                 config: Optional[PartialApplicationConfiguration] = None):
-
-        if not config:
-            config = PartialApplicationConfiguration.root()
-
+                 config: PartialApplicationConfiguration = None):
         super().__init__(model=model,
                          config=config)
 
@@ -284,6 +290,16 @@ class Application(PartialApplication):
         # when building a 'main' application, insert the app's handler into the global pool
         # a full application should be able to manage all child loggers
         Loggable.global_handlers.append(self._log_handler)
+
+        # if configuration has log window flag set, create the window
+        # set it to the parent of this app, and set the callback for logging
+        # (Built-in logger for any app)
+        if self._config.inc_log_window:
+            self._log_window = LogWindow(self._parent)
+            self._log_window.pack(side=BOTTOM, fill=BOTH, expand=True)
+            self._log_handler.set_callback(self.log)
+        else:
+            self._log_window = None
 
         # append all tasks from config into this application
         self.add_tasks(config.tasks)
@@ -375,3 +391,20 @@ class Application(PartialApplication):
             return
 
         _ = [self.add_task(x, model) for x in tasks]
+
+    def log(self,
+            message: str):
+        """Post a message to this :class:`Application`'s logger frame.
+
+        Arguments
+        ----------
+        message: :type:`str`
+            Message to be sent to this :class:`Application`'s log frame.
+        """
+        if not self._log_window:
+            return
+
+        self._log_window.log_text.config(state='normal')
+        self._log_window.log_text.insert(END, f'{message}\n')
+        self._log_window.log_text.see(END)
+        self._log_window.log_text.config(state='disabled')

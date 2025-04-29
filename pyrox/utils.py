@@ -157,3 +157,44 @@ def read_bit(word: int,
             :class:`bool`
         """
     return SliceableInt(word).read_bit(bit_position)
+
+
+def replace_strings_in_dict(data, old_string, new_string) -> dict:
+    """
+    Recursively searches and replaces all occurrences of a string in a dictionary,
+    including nested dictionaries and lists.
+
+    .. ---------------------------------------------------------------------------
+
+    Arguments
+    ----------
+    data :class:`dict`
+        The dictionary to search and replace within.
+
+    old_string :class:`str`
+        The string to be replaced.
+
+
+    new_string :class:`str`
+        The string to replace with.
+
+    .. ---------------------------------------------------------------------------
+
+    Returns
+    ----------
+        :class:`dict` A new dictionary with the strings replaced.
+    """
+    if isinstance(data, dict):
+        new_dict = {}
+        for key, value in data.items():
+            new_key = key.replace(
+                old_string, new_string) if isinstance(key, str) else key
+            new_dict[new_key] = replace_strings_in_dict(
+                value, old_string, new_string)
+        return new_dict
+    elif isinstance(data, list):
+        return [replace_strings_in_dict(item, old_string, new_string) for item in data]
+    elif isinstance(data, str):
+        return data.replace(old_string, new_string)
+    else:
+        return data

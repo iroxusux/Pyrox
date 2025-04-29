@@ -1,7 +1,6 @@
 """testing module for abc classes
     """
 import copy
-import os
 from tkinter import Tk, Toplevel, Frame, LabelFrame, Menu, TclError
 from typing import Callable
 import unittest
@@ -28,13 +27,15 @@ from .meta import (
     _IdGenerator,
     Buildable,
     ConsolePanelHandler,
+    EnforcesNaming,
     Loggable,
     LoggableUnitTest,
     PartialViewConfiguration,
     PartialViewType,
     Runnable,
     SnowFlake,
-    PartialView
+    PartialView,
+    DEF_WIN_TITLE
 )
 
 
@@ -115,6 +116,7 @@ class TestMeta(unittest.TestCase):
         self.assertIsInstance(x.parent, (Tk, Toplevel, Frame, LabelFrame))
         self.assertIsInstance(x.frame, Frame)
         self.assertIsInstance(x.config, PartialViewConfiguration)
+        self.assertEqual(x.name, x.parent.title())
 
         x.close()
         self.assertEqual(x.parent.children, {})
@@ -160,6 +162,15 @@ class TestMeta(unittest.TestCase):
         with self.assertRaises(AttributeError) as context:
             PartialView(config=None)
         self.assertTrue(isinstance(context.exception, AttributeError))
+
+    def test_enforces_naming(self):
+        '''test enforces naming class
+        '''
+        x = EnforcesNaming()
+        
+        self.assertTrue(x.is_valid_string('This_is_a_valid_string'))
+        self.assertFalse(x.is_valid_string('This-is_not_a_valid_string'))
+        self.assertFalse(x.is_valid_string('This_is_not_a_valid_string!'))
 
     def test_hash_list(self):
         """test hash works as intended
@@ -339,9 +350,11 @@ class TestApplication(unittest.TestCase):
 
         root = PartialApplicationConfiguration.root()
         self.assertEqual(root.view_config.view_type, PartialViewType.ROOT)
+        self.assertEqual(DEF_WIN_TITLE, root.view_config.name)
 
         toplevel = PartialApplicationConfiguration.toplevel()
         self.assertEqual(toplevel.view_config.view_type, PartialViewType.TOPLEVEL)
+        self.assertEqual(DEF_WIN_TITLE, root.view_config.name)
 
     def test_application(self):
         """test application

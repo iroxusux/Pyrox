@@ -8,10 +8,15 @@ import os
 from typing import Optional, Self, Union
 
 
-from tkinter import Event, Menu, Tk, Toplevel
+from tkinter import (
+    Event,
+    Menu,
+    Tk,
+    Toplevel,
+)
 
 
-from .meta import Buildable, SnowFlake, Runnable
+from .meta import Buildable, SnowFlake, Runnable, DEF_WIN_TITLE
 from .meta import PartialView as View
 from .meta import PartialViewConfiguration as ViewConfiguration
 from .meta import PartialViewType as ViewType
@@ -19,12 +24,8 @@ from .model import PartialModel
 from .list import HashList
 
 
-from ...services.directory import get_appdata
-
-
 DEF_TYPE = 1
 DEF_THEME = 'black'
-DEF_WIN_TITLE = 'Indicon LLC Emulation Manager Frame'
 DEF_WIN_SIZE = '1024x768'
 DEF_ICON = f'{os.path.dirname(os.path.abspath(__file__))}\\..\\..\\ui\\icons\\_def.ico'
 
@@ -209,7 +210,8 @@ class PartialApplicationConfiguration:
             }
         """
         if not view_config:
-            view_config = ViewConfiguration(view_type=ViewType.TOPLEVEL)
+            view_config = ViewConfiguration(name=DEF_WIN_TITLE,
+                                            view_type=ViewType.TOPLEVEL)
         return PartialApplicationConfiguration._common_assembly(headless=headless,
                                                                 inc_log_window=inc_log_window,
                                                                 tasks=tasks,
@@ -244,8 +246,10 @@ class PartialApplicationConfiguration:
             'view_config': PartialViewConfiguration(),
             }
         """
+
         if not view_config:
-            view_config = ViewConfiguration(view_type=ViewType.ROOT)
+            view_config = ViewConfiguration(name=DEF_WIN_TITLE,
+                                            view_type=ViewType.ROOT)
         return PartialApplicationConfiguration._common_assembly(headless=headless,
                                                                 inc_log_window=inc_log_window,
                                                                 tasks=tasks,
@@ -278,6 +282,7 @@ class PartialApplication(View):
     def __init__(self,
                  model: PartialModel = None,
                  config: PartialApplicationConfiguration = None):
+
         if not config:
             raise ValueError('Cannot create an application without a configuration!')
 
@@ -287,7 +292,6 @@ class PartialApplication(View):
         self._model_hash = HashList(SnowFlake.id.__name__)
         self._config: PartialApplicationConfiguration = config
 
-        self.frame.grid(column=0, row=0, sticky=('n', 'e', 's', 'w'))
         self.parent.columnconfigure(0, weight=1)
         self.parent.rowconfigure(0, weight=1)
 

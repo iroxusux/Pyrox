@@ -3,7 +3,20 @@
 from __future__ import annotations
 
 
-from tkinter import BOTH, BOTTOM, HORIZONTAL, LabelFrame, LEFT, Scrollbar, Tk, VERTICAL, X, Y
+from typing import Optional
+from tkinter import (
+    BOTH,
+    BOTTOM,
+    HORIZONTAL,
+    LabelFrame,
+    LEFT,
+    Scrollbar,
+    Text,
+    Tk,
+    VERTICAL,
+    X,
+    Y
+)
 
 if __name__ == '__main__':
     from pyrox import UserListbox
@@ -53,6 +66,41 @@ class DecoratedListboxFrame(LabelFrame):
             listbox: :class:`UserListbox`
         """
         return self._listbox
+
+
+class LogWindow(LabelFrame):
+    """tkinter :class:`LabelFrame` with user logic and attributes packed on top.
+
+    Intended for use as a log window
+
+    .. ------------------------------------------------------------
+
+    .. package:: types.utkinter.frames
+
+    .. ------------------------------------------------------------
+
+    Attributes
+    -----------
+    xxx
+
+    """
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args,
+                         text='Logger',
+                         **kwargs)
+
+        self._logtext = Text(self, state='disabled')
+        self._logtext.pack(side=BOTTOM, fill=BOTH, expand=True)
+
+    @property
+    def log_text(self) -> Optional[Text]:
+        """get the log entry text attr
+
+        Returns:
+            Text | None: text
+        """
+        return self._logtext
 
 
 if __name__ == '__main__':

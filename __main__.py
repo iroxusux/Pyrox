@@ -6,7 +6,9 @@ from pyrox import Application, ApplicationConfiguration
 def main():
     """test this engine environment with a default application
     """
-    Application(config=ApplicationConfiguration.root('Pyrox Application')).start()
+    app_config = ApplicationConfiguration.root()
+    app_config.view_config.name = 'Pyrox Application'
+    Application(config=app_config).start()
 
 
 if __name__ == '__main__':
