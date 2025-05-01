@@ -1,0 +1,34 @@
+{
+    "find_replace_args": {
+        "Tags": [
+
+        ],
+        "DataTypes": [
+
+        ],
+        "Aois": [
+
+        ],
+        "Modules": [
+
+        ],
+        "Programs": [
+
+        ],
+        "Routines": [
+
+        ],
+        "ProgramTags": [
+
+        ],
+        "Rungs": [
+
+        ],
+        "All": [
+            {"Carrier01": "Carrier02", "EMSC1": "EMSC2"},
+            {"Carrier01": "Carrier03", "EMSC1": "EMSC3"},
+            {"Carrier01": "Carrier04", "EMSC1": "EMSC4"},
+            {"Carrier01": "Carrier05", "EMSC1": "EMSC5"}
+        ]
+    }
+}

@@ -23,15 +23,14 @@ Build - :construction: alpha
 
 Version - 1.0.0
 
-### Requirements
-- ttkthemes
+## This document outlines the flow of the folder structure for a customer's job(s)
 
-## :soccer: Join MLE Today! :soccer:
-:sparkler: Main Site:
-  - https://mlesports.gg/
-    
-:postbox: Apply Today!:
-  - https://mlesports.gg/apply
-    
-:camera: Check out our twitter!:
-  - https://twitter.com/mlesportsgg
+$/
+  artifacts/ "build" outputs go here
+  build/ - House scripts that would be used to perform build operations on the project
+  docs/ - Documentation files
+  packages/ - Contains external packages used in this/these project(s)
+  samples/ - Examples of code/drawings/etc
+  src/ - Source code/drawings/files for customer application
+  tests/ - Project unit tests
+  ...

@@ -1,10 +1,7 @@
 {
-    "python.testing.unittestArgs": [
-        "-v",
-        ".",
-        "-p",
-        "test_*.py"
+    "python.testing.pytestArgs": [
+        "src"
     ],
-    "python.testing.pytestEnabled": true,
-    "python.testing.unittestEnabled": false
+    "python.testing.unittestEnabled": false,
+    "python.testing.pytestEnabled": true
 }

@@ -1,0 +1,193 @@
+"""irox list module
+    """
+from __future__ import annotations
+
+
+from typing import Optional, TypeVar
+
+
+T = TypeVar('T')
+
+
+__all__ = (
+    'HashList',
+    'SafeList',
+    'TrackedList',
+)
+
+
+class HashList:
+    """Dictionary 'list' that support hashing.
+
+    .. ------------------------------------------------------------
+
+    .. package:: types.list
+
+    .. ------------------------------------------------------------
+
+    Arguments
+    -----------
+    hash_key: :type:`str`
+        Key to use for hashing objects into this list.
+
+    .. ------------------------------------------------------------
+
+    Attributes
+    -----------
+    hash_key: :type:`str`
+        Key used for hashing objects into this list.
+
+    hashes: :type:`dict`
+        A hashed dictionary (by key) of all items in this object.
+
+    """
+
+    __slots__ = ('_hash_key', '_hashes')
+
+    def __init__(self,
+                 hash_key: str):
+        self._hash_key: str = hash_key
+        self._hashes: dict = {}
+
+    def __contains__(self, item: dict):
+        return self.by_key(getattr(item, self._hash_key, None))
+
+    def __iter__(self):
+        return iter(self._hashes)
+
+    def __len__(self):
+        return len(self._hashes)
+
+    @property
+    def hash_key(self) -> str:
+        """get the hash key this list uses to store and retrieve data.
+
+        .. ------------------------------------------------------------
+
+        Returns
+        --------
+            hash_key: :type:`str`
+        """
+        return self._hash_key
+
+    @property
+    def hashes(self) -> dict:
+        """A hashed dictionary (by key) of all items in this object.
+
+        Returns
+        --------
+            hashes: :type:`dict`
+        """
+        return self._hashes
+
+    def append(self,
+               value: T):
+        """Append value to this hash.
+
+        If the object exists, its' entity is updated in this hash list
+
+        """
+        self._hashes[getattr(value, self._hash_key)] = value
+
+    def by_key(self,
+               key: str) -> Optional[T]:
+        """Get hashed object by its' given `key`.
+
+        .. ------------------------------------------------------------
+
+        Returns
+        --------
+            T: :class:`T`
+        """
+        return self._hashes.get(key, None)
+
+
+class SafeList(list[T]):
+    """List used to prevent duplicates from being appended.
+
+    .. ------------------------------------------------------------
+
+    .. package:: types.list
+
+    """
+
+    def append(self,
+               value: T) -> None:
+        """Append value to this list `safely`.
+
+        .. ------------------------------------------------------------
+
+        Arguments
+        --------
+        value: :type:`T`
+            Value to safely add to this list.
+        """
+        if value not in self:
+            super().append(value)
+
+
+class TrackedList(list[T]):
+    """A list to emit events when it's contents are updated.
+
+    .. ------------------------------------------------------------
+
+    .. package:: types.list
+
+    .. ------------------------------------------------------------
+
+    Attributes
+    -----------
+    subscribers: Iterable[:type:`str`]
+        Iterable list of subscribers who are called when this list is updated.
+
+    """
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._subscribers: SafeList[callable] = SafeList()
+
+    @property
+    def subscribers(self) -> list[T]:
+        """Iterable list of subscribers who are called when this list is updated.
+
+        Returns:
+            subscribers: Iterable[:type:`str`]
+        """
+        return self._subscribers
+
+    @subscribers.setter
+    def subscribers(self, value) -> None:
+        self._subscribers = value
+
+    def emit(self) -> None:
+        """Emit to all delegates that an update has occured.
+        """
+        _ = [x() for x in self._subscribers]
+
+    def append(self,
+               value: T) -> None:
+        """Append value to this list and call delegates.
+
+        .. ------------------------------------------------------------
+
+        Arguments
+        --------
+        value: :type:`T`
+            Value to add to this list.
+        """
+        super().append(value)
+        self.emit()
+
+    def remove(self,
+               value: T) -> None:
+        """Remove value from this list and call delegates.
+
+        .. ------------------------------------------------------------
+
+        Arguments
+        --------
+        value: :type:`T`
+            Value to remove from this list.
+        """
+        super().remove(value)
+        self.emit()
