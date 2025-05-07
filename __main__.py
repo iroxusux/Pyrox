@@ -1,6 +1,7 @@
 """run this engine locally (for debugging or demonstration purposes)
     """
 from pyrox import Application, ApplicationConfiguration
+from pyrox.types.model import TestModelA, TestModelB, TestModelC
 
 
 def main():
@@ -8,7 +9,13 @@ def main():
     """
     app_config = ApplicationConfiguration.root()
     app_config.view_config.name = 'Pyrox Application'
-    Application(config=app_config).start()
+    app = Application(config=app_config)
+    main_model = app.add_model(TestModelA(app))
+    app.add_model(TestModelB(app))
+    app.add_model(TestModelC(app))
+    app.set_model(main_model)
+
+    app.start()
 
 
 if __name__ == '__main__':
