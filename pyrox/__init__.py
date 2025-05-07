@@ -1,7 +1,7 @@
 """
 abc
 """
-from . import types, services, utils
+from . import models, types, services, utils
 
 from .types import (
     Application,
@@ -46,6 +46,7 @@ __all__ = (
     'LaunchableModel',
     'Loggable',
     'Model',
+    'models',
     'ProgressBar',
     'SafeList',
     'SnowFlake',

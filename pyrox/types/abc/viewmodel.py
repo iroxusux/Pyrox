@@ -53,7 +53,8 @@ class PartialViewModel(Buildable):
         # if a bogus value was passed, raise a value error.
         self._view: Optional[PartialView] = None
         if isinstance(view, type):
-            self._view = view(config=cfg)
+            self._view = view(view_model=self,
+                              config=cfg)
         elif isinstance(view, PartialView):
             self._view = view
         elif view is not None:

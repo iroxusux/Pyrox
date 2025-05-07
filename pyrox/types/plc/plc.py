@@ -1009,7 +1009,7 @@ class Controller(PlcObject, Loggable):
 
     @property
     def plc_module_icp_port(self) -> dict:
-        """ICP Port for the physical controller. Contains connection parameter information.        
+        """ICP Port for the physical controller. Contains connection parameter information.
 
         .. ------------------------------------------------------------
 
@@ -1023,7 +1023,7 @@ class Controller(PlcObject, Loggable):
 
     @property
     def plc_module_ports(self) -> list[dict]:
-        """Ports of the physical controller. Contains connection parameter information.        
+        """Ports of the physical controller. Contains connection parameter information.
 
         .. ------------------------------------------------------------
 

@@ -49,7 +49,7 @@ class TestTypes(unittest.TestCase):
                 self.application.menu.file.add_command(label='Test2', command=lambda: print('this is a test...'))
                 self.application.menu.file.add_command(label='Test3', command=lambda: print('this is a test...'))
 
-        app = Application(None, PartialApplicationConfiguration.root())
+        app = Application(config=PartialApplicationConfiguration.root())
 
         task = TestTask(app, None)
         task.inject()
@@ -66,7 +66,7 @@ class TestTypes(unittest.TestCase):
         """test application builds
         """
         # test generic build with no model
-        app = Application(None, PartialApplicationConfiguration.root())
+        app = Application(config=PartialApplicationConfiguration.root())
         self.assertIsNotNone(app)
         self.assertIsNotNone(app.logger)
         self.assertTrue(isinstance(app.parent, Tk))
@@ -74,7 +74,7 @@ class TestTypes(unittest.TestCase):
 
         # test generic build with basic model
         model = PartialModel()
-        app = Application(model, PartialApplicationConfiguration.root())
+        app = Application(model=model, config=PartialApplicationConfiguration.root())
         self.assertIsNotNone(app)
         self.assertTrue(isinstance(app.parent, Tk))
         self.assertEqual(model, app.main_model)
@@ -128,9 +128,9 @@ class TestTypes(unittest.TestCase):
             def get_view_model_class(self) -> type:
                 return ViewModel
 
-        app = Application(None, PartialApplicationConfiguration.root())
+        app = Application(config=PartialApplicationConfiguration.root())
 
-        mdl = _TestModel(app, None)
+        mdl = _TestModel(application=app)
 
         mdl.launch()
 
@@ -148,7 +148,7 @@ class TestTypes(unittest.TestCase):
 
         app = Application(config=PartialApplicationConfiguration.root())
 
-        asmbl_mdl = _TestClass.as_assembled(app)
+        asmbl_mdl = _TestClass.as_assembled(application=app)
 
         app.set_model(asmbl_mdl)
 
@@ -185,6 +185,7 @@ class TestTypes(unittest.TestCase):
         self.assertIsNotNone(view.config.view_type)
         self.assertIsNone(view.view_model)
         self.assertIsNotNone(view.logger)
+        view.close()
 
     def test_view_model(self):
         """test view model

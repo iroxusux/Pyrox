@@ -219,7 +219,8 @@ class Loggable(SnowFlake):
     __slots__ = ('_logger', '_log_handler')
 
     def __init__(self,
-                 name: Optional[str] = None):
+                 name: Optional[str] = None,
+                 add_to_globals: bool = False):
         super().__init__()
         self._logger: logging.Logger = self._get(name=name if name else self.__class__.__name__)
         self._log_handler: ConsolePanelHandler = ConsolePanelHandler(None)
@@ -227,6 +228,9 @@ class Loggable(SnowFlake):
         # check in case we got a hashed logger with the handler already attached (somehow?)
         if self._log_handler not in self._logger.handlers:
             self._logger.addHandler(self._log_handler)  # add handler for user to create custom callbacks with
+
+        if add_to_globals is True and self._log_handler not in Loggable.global_handlers:
+            Loggable.global_handlers.append(self._log_handler)
 
     @property
     def log_handler(self) -> ConsolePanelHandler:
@@ -655,7 +659,8 @@ class PartialView(Runnable):
 
         """
         self.stop()
-        self.parent.destroy()
+        if self.parent:
+            self.parent.destroy()
         gc.collect()  # process garbage collection for tk/tcl elements
 
 

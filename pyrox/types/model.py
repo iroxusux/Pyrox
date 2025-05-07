@@ -46,10 +46,12 @@ class Model(PartialModel):
     """
 
     def __init__(self,
-                 app: Optional[PartialApplication] = None,
-                 view_model: Optional[ViewModel] = None):
-        super().__init__(application=app,
-                         view_model=view_model)
+                 application: Optional[PartialApplication] = None,
+                 view_model: Optional[ViewModel] = None,
+                 view: Optional[type[View]] = None):
+        super().__init__(application=application,
+                         view_model=view_model,
+                         view=view)
 
     @property
     def application(self) -> PartialApplication:
@@ -186,7 +188,7 @@ class SupportsAssembly(Model):
         """
 
         # create the model, view model, and view
-        mdl = cls(app=application, view_model=None)
+        mdl = cls(application=application, view_model=None)
         v = cls.get_view_class(cls)(view_model=None, config=PartialViewConfiguration(parent=application.frame))
         vm = cls.get_view_model_class(cls)(model=mdl, view=v)
 
@@ -236,9 +238,9 @@ class LaunchableModel(SupportsAssembly):
     __slots__ = ('_sub_app',)
 
     def __init__(self,
-                 app: Optional[PartialApplication] = None,
+                 application: Optional[PartialApplication] = None,
                  view_model: Optional[ViewModel] = None):
-        super().__init__(app=app,
+        super().__init__(application=application,
                          view_model=view_model)
         self._sub_app: PartialApplication = None
 

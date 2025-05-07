@@ -11,13 +11,14 @@ from tkinter import (
     BOTTOM,
     END,
     Menu,
+    TclError,
     Tk,
     Toplevel,
 )
 
 
 from .abc import PartialApplication, PartialApplicationTask
-from .abc import BaseMenu, PartialModel, PartialApplicationConfiguration, Loggable
+from .abc import BaseMenu, PartialModel, PartialApplicationConfiguration, Loggable, PartialViewModel, PartialView
 from .abc.list import HashList
 
 
@@ -316,13 +317,23 @@ class Application(PartialApplication):
 
     def __init__(self,
                  model: Optional[PartialModel] = None,
+                 view_model: Optional[PartialViewModel] = None,
+                 view: Optional[PartialView] = None,
                  config: PartialApplicationConfiguration = None):
         super().__init__(model=model,
+                         view_model=view_model,
+                         view=view,
                          config=config)
 
         # when building a 'main' application, insert the app's handler into the global pool
         # a full application should be able to manage all child loggers
         Loggable.global_handlers.append(self._log_handler)
+        if self.main_model:                                         # additionally
+            self.main_model.logger.addHandler(self._log_handler)    # set up all models, view models, and view
+            if self.main_model.view_model:                          # with the global logger
+                self.main_model.view_model.logger.addHandler(self._log_handler)     # this ties everything together
+                if self.main_model.view_model.view:
+                    self.main_model.view_model.view.logger.addHandler(self._log_handler)
 
         self._menu = None if config.headless is True else MainApplicationMenu(self.parent)
         self._menu.on_new_model.append(self.set_model)
@@ -349,7 +360,7 @@ class Application(PartialApplication):
 
         # append builtin tasks
         from ..tasks.builtin import ALL_TASKS
-        self.add_tasks(ALL_TASKS)
+        self.add_tasks(tasks=ALL_TASKS, model=self.main_model)
 
     @property
     def menu(self) -> MainApplicationMenu:
@@ -457,7 +468,10 @@ class Application(PartialApplication):
         if not self._log_window or not self._log_window.log_text:
             return
 
-        self._log_window.log_text.config(state='normal')
-        self._log_window.log_text.insert(END, f'{message}\n')
-        self._log_window.log_text.see(END)
-        self._log_window.log_text.config(state='disabled')
+        try:
+            self._log_window.log_text.config(state='normal')
+            self._log_window.log_text.insert(END, f'{message}\n')
+            self._log_window.log_text.see(END)
+            self._log_window.log_text.config(state='disabled')
+        except TclError as e:
+            print('Tcl error, original msg -> %s' % e)

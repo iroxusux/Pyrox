@@ -9,12 +9,31 @@ import xml.etree.ElementTree as ET
 
 import xmltodict
 import lxml.etree
+from xml.sax.saxutils import unescape
 
 
+from ..services.file import save_file
 from ..types.plc import Controller
 
 
 OTE_OPERAND_RE_PATTERN = r"(?:OTE\()(.*)(?:\))"
+KEEP_CDATA_SECTION = [
+    'AdditionalHelpText',
+    'Comment',
+    'Data',
+    'DefaultData',
+    'Description',
+    'Line',
+    'RevisionNote',
+    'Text',
+]
+
+
+def cdata(s):
+    """get cdata of string
+    """
+    if isinstance(s, str):
+        return '<![CDATA[' + s + ']]>'
 
 
 def controller_dict_from_file(file_location: str) -> Optional[dict]:
@@ -39,6 +58,22 @@ def controller_dict_from_file(file_location: str) -> Optional[dict]:
         return xmltodict.parse(xml_str)
     except KeyError:
         return None
+
+
+def dict_to_controller_file(controller: dict,
+                            file_location: str) -> None:
+    """save a dictionary "xml" controller back to .L5X
+
+    Args:
+        controller (dict): dictionary of parsed xml controller
+        file_location (str): location to save controller .l5x to
+    """
+    save_file(file_location,
+              '.L5X',
+              'w',
+              unescape(xmltodict.unparse(controller,
+                                         preprocessor=preprocessor,
+                                         pretty=True)))
 
 
 def get_rung_text(rung):
@@ -114,3 +149,22 @@ def get_xml_string_from_file(file_path):
     except Exception as e:
         print(f"An unexpected error occurred: {e}")
         return None
+
+
+def preprocessor(key, value):
+    '''Unneccessary if you've manually wrapped the values. For example,
+
+    xmltodict.unparse({
+        'node1': {'node2': '<![CDATA[test]]>', 'node3': 'test'}
+    })
+    '''
+
+    if key in KEEP_CDATA_SECTION:
+        if isinstance(value, dict) and '#text' in value:
+            value['#text'] = cdata(value['#text'])
+        elif isinstance(value, list):
+            for v in value:
+                preprocessor(key, v)
+        elif isinstance(value, str):
+            value = cdata(value)
+    return key, value

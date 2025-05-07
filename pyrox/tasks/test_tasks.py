@@ -25,7 +25,7 @@ class TestTasks(unittest.TestCase):
         """test builtin tasks
         """
         app = Application(config=ApplicationConfiguration.root())
-        mdl = Model(app=app)
+        mdl = Model(application=app)
 
         app.set_model(mdl)
 
@@ -37,3 +37,5 @@ class TestTasks(unittest.TestCase):
 
         help_task = HelpTask(app, mdl)
         help_task.inject()
+
+        app.close()

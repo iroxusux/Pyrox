@@ -2,12 +2,14 @@
 
 from . import (
     abc,
+    plc,
     test_types,
     utkinter
 )
 
 
 from .abc import Buildable, ConsolePanelHandler, HashList, Loggable, SafeList, SnowFlake
+from .abc import PartialViewConfiguration as ViewConfiguration
 from .application import Application, ApplicationTask
 from .application import PartialApplicationConfiguration as ApplicationConfiguration
 from .model import Model, LaunchableModel, SupportsAssembly
@@ -29,6 +31,7 @@ __all__ = (
     'LaunchableModel',
     'Loggable',
     'Model',
+    'plc',
     'ProgressBar',
     'SafeList',
     'SnowFlake',
@@ -36,6 +39,7 @@ __all__ = (
     'test_types',
     'utkinter',
     'View',
+    'ViewConfiguration',
     'ViewModel',
     'utkinter'
 )

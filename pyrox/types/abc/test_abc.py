@@ -378,8 +378,8 @@ class TestApplication(unittest.TestCase):
         """
         # build a good app
         model = PartialModel()
-        app = PartialApplication(model,
-                                 PartialApplicationConfiguration.root())
+        app = PartialApplication(model=model,
+                                 config=PartialApplicationConfiguration.root())
         self.assertIsNotNone(app)
 
         # check attributes
@@ -434,7 +434,7 @@ class TestApplication(unittest.TestCase):
         """test application task builds
         """
         model = PartialModel()
-        app = PartialApplication(model, PartialApplicationConfiguration.root())
+        app = PartialApplication(model=model, config=PartialApplicationConfiguration.root())
         task = PartialApplicationTask(app, model)
         self.assertIsNotNone(task)
 
@@ -452,7 +452,7 @@ class TestApplication(unittest.TestCase):
     def test_base_menu(self):
         """test base menu builds
         """
-        app = PartialApplication(None, PartialApplicationConfiguration.root())
+        app = PartialApplication(config=PartialApplicationConfiguration.root())
         menu = BaseMenu(app.parent)
         self.assertIsNotNone(menu)
 

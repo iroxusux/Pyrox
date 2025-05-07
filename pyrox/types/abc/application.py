@@ -20,6 +20,7 @@ from .meta import Buildable, SnowFlake, Runnable, DEF_WIN_TITLE
 from .meta import PartialView as View
 from .meta import PartialViewConfiguration as ViewConfiguration
 from .meta import PartialViewType as ViewType
+from .viewmodel import PartialViewModel as ViewModel
 from .model import PartialModel
 from .list import HashList
 
@@ -281,6 +282,8 @@ class PartialApplication(View):
 
     def __init__(self,
                  model: PartialModel = None,
+                 view_model: ViewModel = None,
+                 view: View = None,
                  config: PartialApplicationConfiguration = None):
 
         if not config:
@@ -296,7 +299,14 @@ class PartialApplication(View):
         self.parent.rowconfigure(0, weight=1)
 
         self._main_model_id = None
-        _ = self.set_model(model) if model else None
+
+        if model:
+            if isinstance(model, type):
+                _ = self.set_model(model(application=self,
+                                         view_model=view_model,
+                                         view=view))
+            elif isinstance(model, PartialModel):
+                _ = self.set_model(model)
 
     @property
     def config(self) -> PartialApplicationConfiguration:

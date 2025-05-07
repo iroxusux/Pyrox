@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 
-from typing import Callable, Optional, TypeVar
+from typing import Any, Callable, Optional, TypeVar
 
 
 T = TypeVar('T')
@@ -163,6 +163,25 @@ class HashList(Subscribable):
         """
         self._hashes[getattr(value, self._hash_key)] = value
         self.emit()
+
+    def by_attr(self,
+                attr_name: str,
+                attr_value: Any) -> Optional[T]:
+        """Get object by custom attribute value
+
+        i.e. attr_name: 'Name' == attr_value: 'Foo'
+
+        .. ------------------------------------------------------------
+
+        Returns
+        --------
+            T: :class:`T`
+        """
+        for x in self._hashes:
+            if getattr(self._hashes[x], attr_name, None) == attr_value:
+                return x
+
+        return None
 
     def by_key(self,
                key: str) -> Optional[T]:
