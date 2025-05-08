@@ -31,13 +31,13 @@ class TestTypes(unittest.TestCase):
         """
         app = Application(config=PartialApplicationConfiguration.root())
 
-        frm = DecoratedListboxFrame(app.frame,
+        frm = DecoratedListboxFrame(app.view.frame,
                                     text='Decorated Frame')
 
         self.assertIsInstance(frm, LabelFrame)
         self.assertIsInstance(frm.listbox, UserListbox)
 
-        app.close()
+        app.stop()
 
     def test_userlistbox(self):
         """test userlistbox

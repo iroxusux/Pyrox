@@ -38,4 +38,4 @@ class TestTasks(unittest.TestCase):
         help_task = HelpTask(app, mdl)
         help_task.inject()
 
-        app.close()
+        app.stop()

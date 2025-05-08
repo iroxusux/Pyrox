@@ -75,7 +75,7 @@ def save_file(file_path: str,
     Returns:
         bool: bool of success
     """
-    if ('w', 'wb') not in save_mode:
+    if 'w' not in save_mode and 'a' not in save_mode:
         print('no save mode!')
         return False
 

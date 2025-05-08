@@ -45,36 +45,29 @@ class ProgressBar(PartialApplication):
                  header_text: str):
 
         config = PartialApplicationConfiguration.toplevel()
-        config.view_config.name = title
-        config.view_config.win_size = '300x100'
+        config.app_config.name = title
+        config.app_config.size_ = '300x100'
 
-        PartialApplication.__init__(self,
-                                    model=None,
-                                    config=config)
+        super().__init__(config=config)
 
-        self.parent.overrideredirect(True)
+        self.view.parent.overrideredirect(True)
 
         # create header label
-        lbl = tkinter.Label(self.frame, text=header_text)
+        lbl = tkinter.Label(self.view.frame, text=header_text)
         lbl.pack(side='top', fill='x', padx=5, pady=5)
 
         # create updateable file string
         self._text_var = tkinter.StringVar()
-        lbl2 = tkinter.Label(self.frame, textvariable=self._text_var)
+        lbl2 = tkinter.Label(self.view.frame, textvariable=self._text_var)
         lbl2.pack(side='top', fill='x', padx=5, pady=5)
 
         # create progress bar variable
         self._prog_var = tkinter.DoubleVar()
-        prog_bar = ttk.Progressbar(self.frame,
+        prog_bar = ttk.Progressbar(self.view.frame,
                                    variable=self._prog_var,
                                    maximum=100)
         prog_bar.pack(side='top', fill='x', padx=5, pady=5)
-        self.center()
-
-    def close(self) -> None:
-        """close this progress bar
-        """
-        self.parent.destroy()
+        self.view.center()
 
     def update(self,
                text: str,
@@ -87,5 +80,5 @@ class ProgressBar(PartialApplication):
         """
         self._text_var.set(text)
         self._prog_var.set(perc_comp)
-        self.parent.focus()
-        self.parent.update()
+        self.view.parent.focus()
+        self.view.parent.update()

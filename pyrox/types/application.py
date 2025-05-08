@@ -18,7 +18,7 @@ from tkinter import (
 
 
 from .abc import PartialApplication, PartialApplicationTask
-from .abc import BaseMenu, PartialModel, PartialApplicationConfiguration, Loggable, PartialViewModel, PartialView
+from .abc import BaseMenu, PartialModel, PartialApplicationConfiguration, PartialViewModel, PartialView
 from .abc.list import HashList
 
 
@@ -240,7 +240,7 @@ class ApplicationTask(PartialApplicationTask):
 
     def __init__(self,
                  application: 'Application',
-                 model: Model):
+                 model: Model = None):
         super().__init__(application=application,
                          model=model)
 
@@ -325,23 +325,13 @@ class Application(PartialApplication):
                          view=view,
                          config=config)
 
-        # when building a 'main' application, insert the app's handler into the global pool
-        # a full application should be able to manage all child loggers
-        Loggable.global_handlers.append(self._log_handler)
-        if self.main_model:                                         # additionally
-            self.main_model.logger.addHandler(self._log_handler)    # set up all models, view models, and view
-            if self.main_model.view_model:                          # with the global logger
-                self.main_model.view_model.logger.addHandler(self._log_handler)     # this ties everything together
-                if self.main_model.view_model.view:
-                    self.main_model.view_model.view.logger.addHandler(self._log_handler)
-
-        self._menu = None if config.headless is True else MainApplicationMenu(self.parent)
-        self._menu.on_new_model.append(self.set_model)
         self._tasks: HashList[PartialApplicationTask] = HashList('id')
 
+        self._menu = None if config.headless is True else MainApplicationMenu(self.view.parent)
         # set up subcribers for models to reflect within the app's menu
         # force the first update since we may have been built with a model already
         if self._menu:
+            self._menu.on_new_model.append(self.set_model)
             self.model_hash.subscribe(self._menu.socket_update_models)
             self.model_hash.emit()
 
@@ -349,7 +339,7 @@ class Application(PartialApplication):
         # set it to the parent of this app, and set the callback for logging
         # (Built-in logger for any app)
         if self._config.inc_log_window is True:
-            self._log_window = LogWindow(self._parent)
+            self._log_window = LogWindow(self.view.parent)
             self._log_window.pack(side=BOTTOM, fill=BOTH, expand=True)
             self._log_handler.set_callback(self.log)
         else:
@@ -451,7 +441,7 @@ class Application(PartialApplication):
         _ = [self.add_task(x, model) for x in tasks]
 
     def build(self):
-        self.clear()
+        self.view.clear()
         super().build()
         if self.main_model:
             self.main_model.build()

@@ -32,7 +32,7 @@ from .meta import (
     Loggable,
     LoggableUnitTest,
     PartialViewConfiguration,
-    PartialViewType,
+    ViewType,
     Runnable,
     SnowFlake,
     PartialView,
@@ -41,6 +41,7 @@ from .meta import (
 
 
 from .model import PartialModel
+from .viewmodel import PartialViewModel
 
 
 __all__ = (
@@ -108,7 +109,7 @@ class TestMeta(unittest.TestCase):
         """
 
         # test root build
-        x = PartialView(config=PartialViewConfiguration(view_type=PartialViewType.ROOT))
+        x = PartialView(config=PartialViewConfiguration(type_=ViewType.ROOT))
         self.assertTrue(x.parent.winfo_exists())
         self.assertNotEqual(x.parent.children, {})
 
@@ -128,7 +129,7 @@ class TestMeta(unittest.TestCase):
         self.assertTrue(isinstance(context.exception, TclError))
 
         # test top level build
-        x = PartialView(config=PartialViewConfiguration(view_type=PartialViewType.TOPLEVEL))
+        x = PartialView(config=PartialViewConfiguration(type_=ViewType.TOPLEVEL))
         self.assertTrue(x.parent.winfo_exists())
         self.assertNotEqual(x.parent.children, {})
 
@@ -156,7 +157,7 @@ class TestMeta(unittest.TestCase):
 
         # test an invalid view type can't be built
         with self.assertRaises(ValueError) as context:
-            x = PartialView(config=PartialViewConfiguration(view_type=PartialViewType.NA))
+            x = PartialView(config=PartialViewConfiguration(type_=ViewType.NA))
         self.assertTrue(isinstance(context.exception, ValueError))
 
         # test a non-dict object can't be passed for config
@@ -343,7 +344,7 @@ class TestMeta(unittest.TestCase):
 
         cm = ExceptionContextManager(_log)
 
-        with cm as manager:
+        with cm as manager:  # noqa: F841
             raise ValueError('This is a value error')
 
         self.assertEqual(_log[0], 'This is a value error')
@@ -363,27 +364,30 @@ class TestApplication(unittest.TestCase):
         self.assertIsInstance(config.headless, bool)
         self.assertIsInstance(config.inc_log_window, bool)
         self.assertIsInstance(config.tasks, list)
-        self.assertIsInstance(config.view_config, PartialViewConfiguration)
+        self.assertIsInstance(config.app_config, PartialViewConfiguration)
 
         root = PartialApplicationConfiguration.root()
-        self.assertEqual(root.view_config.view_type, PartialViewType.ROOT)
-        self.assertEqual(DEF_WIN_TITLE, root.view_config.name)
+        self.assertEqual(root.app_config.type_, ViewType.ROOT)
+        self.assertEqual(DEF_WIN_TITLE, root.app_config.name)
 
         toplevel = PartialApplicationConfiguration.toplevel()
-        self.assertEqual(toplevel.view_config.view_type, PartialViewType.TOPLEVEL)
-        self.assertEqual(DEF_WIN_TITLE, root.view_config.name)
+        self.assertEqual(toplevel.app_config.type_, ViewType.TOPLEVEL)
+        self.assertEqual(DEF_WIN_TITLE, root.app_config.name)
 
     def test_application(self):
         """test application
         """
         # build a good app
-        model = PartialModel()
-        app = PartialApplication(model=model,
+        app = PartialApplication(model=PartialModel,
+                                 view_model=PartialViewModel,
+                                 view=PartialView,
                                  config=PartialApplicationConfiguration.root())
         self.assertIsNotNone(app)
 
         # check attributes
         self.assertIsInstance(app.main_model, PartialModel)
+        self.assertIsInstance(app.main_model.view_model, PartialViewModel)
+        self.assertIsInstance(app.main_model.view_model.view, PartialView)
         self.assertIsInstance(app.config, PartialApplicationConfiguration)
         self.assertIsInstance(app.model_hash, HashList)
         self.assertFalse(app.running)
@@ -414,21 +418,21 @@ class TestApplication(unittest.TestCase):
         # build a bad app with invalid view type
         with self.assertRaises(ValueError) as context:
             config = PartialApplicationConfiguration.root()
-            config.view_config.view_type = PartialViewType.NA
+            config.app_config.type_ = ViewType.NA
             PartialApplication(None,
                                config)
         self.assertTrue(isinstance(context.exception, ValueError))
 
         # close the first app before continuing
-        app.close()
+        app.stop()
 
         # build a root app and toplevel app with generic configs
         app = PartialApplication(config=PartialApplicationConfiguration.root())
         ext = PartialApplication(config=PartialApplicationConfiguration.toplevel())
 
         # then close in proper order
-        ext.close()
-        app.close()
+        ext.stop()
+        app.stop()
 
     def test_application_task(self):
         """test application task builds
@@ -447,19 +451,19 @@ class TestApplication(unittest.TestCase):
         task.stop()
         self.assertFalse(task.running)
 
-        app.close()
+        app.stop()
 
     def test_base_menu(self):
         """test base menu builds
         """
         app = PartialApplication(config=PartialApplicationConfiguration.root())
-        menu = BaseMenu(app.parent)
+        menu = BaseMenu(app.view.parent)
         self.assertIsNotNone(menu)
 
         self.assertIsInstance(menu.root, (Tk, Toplevel))
         self.assertIsInstance(menu.menu, Menu)
 
-        app.close()
+        app.stop()
 
 
 class TestFactory(unittest.TestCase):

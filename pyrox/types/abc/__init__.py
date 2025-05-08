@@ -26,7 +26,8 @@ from .meta import (
     LoggableUnitTest,
     SnowFlake,
     PartialView,
-    PartialViewConfiguration
+    PartialViewConfiguration,
+    ViewType,
 )
 
 from .model import (
@@ -55,6 +56,7 @@ __all__ = (
     'PartialView',
     'PartialViewConfiguration',
     'PartialViewModel',
+    'ViewType',
     'SafeList',
     'SnowFlake',
     'test_abc',

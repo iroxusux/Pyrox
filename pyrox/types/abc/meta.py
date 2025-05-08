@@ -23,6 +23,7 @@ __all__ = (
     'SnowFlake',
     'PartialView',
     'PartialViewConfiguration',
+    'ViewType',
     'DEF_VIEW_TYPE',
     'DEF_THEME',
     'DEF_WIN_TITLE',
@@ -389,6 +390,7 @@ class Buildable(Loggable):
         -----------
             built: :type:`bool`
         """
+        return self._built
 
     def build(self):
         """Build this object
@@ -441,7 +443,7 @@ class Runnable(Buildable):
     def start(self) -> None:
         """Start this object.
         """
-        if not self.built:
+        if self.built is False:
             self.build()
         self._running = True
 
@@ -451,7 +453,7 @@ class Runnable(Buildable):
         self._running = False
 
 
-class PartialViewType(Enum):
+class ViewType(Enum):
     """Partial View Type Enumaration
 
     .. ------------------------------------------------------------
@@ -492,10 +494,10 @@ class PartialViewConfiguration:
     """
     name: Optional[str] = DEF_WIN_TITLE
     icon: Optional[str] = DEF_ICON
-    win_size: Optional[str] = DEF_WIN_SIZE
+    size_: Optional[str] = DEF_WIN_SIZE
     theme: Optional[str] = DEF_THEME
     parent: Optional[Union[Tk, Toplevel, Frame, LabelFrame]] = None
-    view_type: PartialViewType = PartialViewType.EMBED
+    type_: ViewType = ViewType.EMBED
 
 
 class PartialView(Runnable):
@@ -544,20 +546,20 @@ class PartialView(Runnable):
         self._config: PartialViewConfiguration = config
         self._name: str = self._config.name
 
-        if self._config.view_type is PartialViewType.ROOT:
+        if self._config.type_ is ViewType.ROOT:
             if self._config.theme:
                 self._parent = ThemedTk(theme=self._config.theme)
             else:
                 self._parent = Tk()
 
-        elif self._config.view_type is PartialViewType.TOPLEVEL:
+        elif self._config.type_ is ViewType.TOPLEVEL:
             self._parent = Toplevel()
 
-        elif self._config.view_type is PartialViewType.EMBED:
+        elif self._config.type_ is ViewType.EMBED:
             self._parent = self._config.parent
 
         else:
-            raise ValueError(f'Could not create a partial view from type {self._config.view_type}')
+            raise ValueError(f'Could not create a partial view from type {self._config.type_}')
 
         if self._parent:
             self._frame = Frame(master=self._parent, padx=2, pady=2)
@@ -566,7 +568,7 @@ class PartialView(Runnable):
             self._frame = None
             return
 
-        if self._config.view_type is PartialViewType.EMBED:
+        if self._config.type_ is ViewType.EMBED:
             return
 
         self._parent.protocol('WM_DELETE_WINDOW', self.close)
@@ -577,8 +579,8 @@ class PartialView(Runnable):
         if self._config.icon:
             self._parent.iconbitmap(self._config.icon)
 
-        if self._config.win_size:
-            self._parent.geometry(self._config.win_size)
+        if self._config.size_:
+            self._parent.geometry(self._config.size_)
 
     @property
     def config(self) -> PartialViewConfiguration:

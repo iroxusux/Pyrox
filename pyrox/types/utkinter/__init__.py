@@ -1,5 +1,6 @@
 from .frames import (
-    DecoratedListboxFrame
+    DecoratedListboxFrame,
+    TreeViewGridFrame
 )
 from .listbox import UserListbox
 from .menu import ContextMenu
@@ -12,4 +13,5 @@ __all__ = (
     'UserListbox',
     'ContextMenu',
     'ProgressBar',
+    'TreeViewGridFrame',
 )

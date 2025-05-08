@@ -3,10 +3,15 @@
 from __future__ import annotations
 
 
+import gc
 from typing import Optional, Type
 
 
-from .abc import PartialModel, PartialApplication, PartialApplicationConfiguration, PartialViewConfiguration
+from .abc import (
+    PartialModel,
+    PartialApplication,
+    PartialViewConfiguration,
+)
 from .viewmodel import ViewModel
 from .view import View
 
@@ -44,14 +49,6 @@ class Model(PartialModel):
     view_model: Optional[:class:`ViewModel`]
         Child `ViewModel` of this :class:`Model`.
     """
-
-    def __init__(self,
-                 application: Optional[PartialApplication] = None,
-                 view_model: Optional[ViewModel] = None,
-                 view: Optional[type[View]] = None):
-        super().__init__(application=application,
-                         view_model=view_model,
-                         view=view)
 
     @property
     def application(self) -> PartialApplication:
@@ -238,11 +235,16 @@ class LaunchableModel(SupportsAssembly):
     __slots__ = ('_sub_app',)
 
     def __init__(self,
-                 application: Optional[PartialApplication] = None,
-                 view_model: Optional[ViewModel] = None):
-        super().__init__(application=application,
-                         view_model=view_model)
-        self._sub_app: PartialApplication = None
+                 application: Optional[PartialApplication],
+                 view_model: type[ViewModel],
+                 view: type[View],
+                 view_config: PartialViewConfiguration):
+
+        self._view_model_type: type[ViewModel] = view_model
+        self._view_type: type[View] = view
+        self._view_config: PartialViewConfiguration = view_config
+
+        super().__init__(application=application)
 
     @property
     def loop_time(self) -> int:
@@ -250,101 +252,28 @@ class LaunchableModel(SupportsAssembly):
         """
         return 100  # default 1/10th of a second
 
-    @property
-    def sub_app(self) -> PartialApplication:
-        """The sub-application of this `LaunchableModel`.
-
-        .. ------------------------------------------------------------
-
-        Returns
-        ----------
-        sub_app: :class:`Application`
-        """
-        return self._sub_app
-
-    @property
-    def sub_app_name(self) -> str:
-        """Name for the sub-application this model will launch with.
-
-        .. ------------------------------------------------------------
-
-        Raises
-        ----------
-        NotImplimentedError:
-            Inheriting class did not override this method
-
-        .. ------------------------------------------------------------
-
-        Returns
-        ----------
-            sub_app_name: :class:`str`
-        """
-        raise NotImplementedError()
-
-    @property
-    def sub_app_size(self) -> str:
-        """Size for the sub-application window this model will launch with.
-
-        (e.g. '400x400')
-
-        .. ------------------------------------------------------------
-
-        Raises
-        ----------
-        NotImplimentedError:
-            Inheriting class did not override this method
-
-        .. ------------------------------------------------------------
-
-        Returns
-        ----------
-            sub_app_size: :class:`str`
-        """
-        raise NotImplementedError()
-
-    def get_application_class(self) -> Type:
-        """Get class constructor for the `Application` of this model.
-
-        .. ------------------------------------------------------------
-
-        Raises
-        ----------
-        NotImplimentedError:
-            Inheriting class did not override this method
-
-        .. ------------------------------------------------------------
-
-        Returns
-        ----------
-            application_class: :class:`Application`
-        """
-        raise NotImplementedError()
-
     def launch(self):
         """Launch Sub-Application Window.
         """
-        if self._sub_app:
-            if self._sub_app.parent.winfo_exists():
-                self._sub_app.parent.focus()  # at least bring it into focus
+        if self.view_model:
+            if self.view_model.view.parent.winfo_exists():
+                self.view_model.view.parent.focus()  # bring it into focus
                 return  # this app is already running!
+            else:
+                self.view_model.view.close()
 
-        # create the sub-application configuration
-        cfg: PartialApplicationConfiguration = PartialApplicationConfiguration.toplevel(self.sub_app_name)
-        cfg.view_config.win_size = self.sub_app_size
+        del self._view_model
+        gc.collect()
 
-        # create the objects (sub-app, viewmodel, view)
-        self._sub_app = self.get_application_class()(model=None, config=cfg)
-        view = self.get_view_class()(view_model=None, config=PartialViewConfiguration(parent=self.sub_app.frame))
-        self._view_model = self.get_view_model_class()(model=self, view=view)
+        self._view_model = self._view_model_type(self, self._view_type, self._view_config)
 
         # build
         self.build()
 
         # start
-        self._sub_app.start()
         self.start()
 
-        # send to loop
+        # loop
         self.loop()
 
     def loop(self):
@@ -353,82 +282,4 @@ class LaunchableModel(SupportsAssembly):
         if self.running:
             self.run()
 
-        self.application.parent.after(self.loop_time, self.loop)
-
-
-class TestModelA(Model):
-    """Testing Model (Type A)
-    """
-
-    def __init__(self, app=None):
-        super().__init__(app, self._ViewModel)
-
-    class _ViewModel(ViewModel):
-        """testing view model
-        """
-
-        def __init__(self, model, view):
-            super().__init__(model, self._View)
-
-        class _View(View):
-            """testing view
-            """
-
-            def build(self):
-                from tkinter import LabelFrame, BOTH, TOP
-                self.clear()
-                self.my_frame = LabelFrame(self.parent, text='Test Class A')
-                self.my_frame.pack(fill=BOTH, side=TOP, expand=True)
-                super().build()
-
-
-class TestModelB(Model):
-    """Testing Model (Type B)
-    """
-
-    def __init__(self, app=None):
-        super().__init__(app, self._ViewModel)
-
-    class _ViewModel(ViewModel):
-        """testing view model
-        """
-
-        def __init__(self, model, view):
-            super().__init__(model, self._View)
-
-        class _View(View):
-            """testing view
-            """
-
-            def build(self):
-                from tkinter import LabelFrame, BOTH, TOP
-                self.clear()
-                self.my_frame = LabelFrame(self.parent, text='Test Class B')
-                self.my_frame.pack(fill=BOTH, side=TOP, expand=True)
-                super().build()
-
-
-class TestModelC(Model):
-    """Testing Model (Type C)
-    """
-
-    def __init__(self, app=None):
-        super().__init__(app, self._ViewModel)
-
-    class _ViewModel(ViewModel):
-        """testing view model
-        """
-
-        def __init__(self, model, view):
-            super().__init__(model, self._View)
-
-        class _View(View):
-            """testing view
-            """
-
-            def build(self):
-                from tkinter import LabelFrame, BOTH, TOP
-                self.clear()
-                self.my_frame = LabelFrame(self.parent, text='Test Class C')
-                self.my_frame.pack(fill=BOTH, side=TOP, expand=True)
-                super().build()
+        self.view_model.view.parent.after(self.loop_time, self.loop)

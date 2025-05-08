@@ -40,21 +40,22 @@ class PartialViewModel(Buildable):
 
     def __init__(self,
                  model: PartialModel,
-                 view: Optional[Union[PartialView, type[PartialView]]]):
+                 view: Optional[Union[PartialView, type[PartialView]]] = None,
+                 view_config: Optional[PartialViewConfiguration] = None):
         super().__init__()
         self._model = model
 
-        try:
-            cfg = PartialViewConfiguration(parent=model.application.frame)
-        except AttributeError:
-            cfg = PartialViewConfiguration()
+        if not view_config:
+            try:
+                view_config = PartialViewConfiguration(parent=model.application.frame)
+            except AttributeError:
+                view_config = PartialViewConfiguration()
 
         # either construct from a constructor, or set the already constructed value
         # if a bogus value was passed, raise a value error.
         self._view: Optional[PartialView] = None
         if isinstance(view, type):
-            self._view = view(view_model=self,
-                              config=cfg)
+            self._view = view(config=view_config)
         elif isinstance(view, PartialView):
             self._view = view
         elif view is not None:
@@ -83,3 +84,7 @@ class PartialViewModel(Buildable):
             view: :class:`View`
         """
         return self._view
+
+    @view.deleter
+    def view(self):
+        self._view = None

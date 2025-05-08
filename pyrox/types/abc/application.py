@@ -19,10 +19,12 @@ from tkinter import (
 from .meta import Buildable, SnowFlake, Runnable, DEF_WIN_TITLE
 from .meta import PartialView as View
 from .meta import PartialViewConfiguration as ViewConfiguration
-from .meta import PartialViewType as ViewType
+from .meta import ViewType as ViewType
 from .viewmodel import PartialViewModel as ViewModel
 from .model import PartialModel
 from .list import HashList
+
+from ..abc.meta import Loggable
 
 
 DEF_TYPE = 1
@@ -142,6 +144,10 @@ class PartialApplicationTask(Runnable):
         """
         return self._model
 
+    @model.setter
+    def model(self, value):
+        self._model = value
+
 
 @dataclass
 class PartialApplicationConfiguration:
@@ -166,19 +172,19 @@ class PartialApplicationConfiguration:
     headless: bool = False
     inc_log_window: bool = False
     tasks: list[PartialApplicationTask] = field(default_factory=list)
-    view_config: ViewConfiguration = field(default_factory=ViewConfiguration)
+    app_config: ViewConfiguration = field(default_factory=ViewConfiguration)
 
     @classmethod
     def _common_assembly(cls,
                          headless: bool,
                          inc_log_window: bool,
                          tasks: list[PartialApplicationTask],
-                         view_config: ViewConfiguration) -> Self:
+                         app_config: ViewConfiguration) -> Self:
         return cls(
             headless=headless,
             inc_log_window=inc_log_window,
             tasks=tasks,
-            view_config=view_config
+            app_config=app_config
         )
 
     @classmethod
@@ -186,7 +192,7 @@ class PartialApplicationConfiguration:
                  headless: bool = True,
                  inc_log_window: bool = False,
                  tasks: list[PartialApplicationTask] = None,
-                 view_config: ViewConfiguration = None) -> Self:
+                 app_config: ViewConfiguration = None) -> Self:
         """get a generic version of an application configuration
 
         for a toplevel application
@@ -210,13 +216,13 @@ class PartialApplicationConfiguration:
             'view_config': PartialViewConfiguration(),
             }
         """
-        if not view_config:
-            view_config = ViewConfiguration(name=DEF_WIN_TITLE,
-                                            view_type=ViewType.TOPLEVEL)
+        if not app_config:
+            app_config = ViewConfiguration(name=DEF_WIN_TITLE,
+                                           type_=ViewType.TOPLEVEL)
         return PartialApplicationConfiguration._common_assembly(headless=headless,
                                                                 inc_log_window=inc_log_window,
                                                                 tasks=tasks,
-                                                                view_config=view_config)
+                                                                app_config=app_config)
 
     @classmethod
     def root(cls,
@@ -250,14 +256,14 @@ class PartialApplicationConfiguration:
 
         if not view_config:
             view_config = ViewConfiguration(name=DEF_WIN_TITLE,
-                                            view_type=ViewType.ROOT)
+                                            type_=ViewType.ROOT)
         return PartialApplicationConfiguration._common_assembly(headless=headless,
                                                                 inc_log_window=inc_log_window,
                                                                 tasks=tasks,
-                                                                view_config=view_config)
+                                                                app_config=view_config)
 
 
-class PartialApplication(View):
+class PartialApplication(Runnable):
     """Represents a :class:`PartialView` in the form of a Partial Application.
 
     .. ------------------------------------------------------------
@@ -289,22 +295,30 @@ class PartialApplication(View):
         if not config:
             raise ValueError('Cannot create an application without a configuration!')
 
-        super().__init__(config=config.view_config)
+        super().__init__()
+
+        # when building a 'main' application, insert the app's handler into the global pool
+        # a full application should be able to manage all child loggers
+        Loggable.global_handlers.append(self._log_handler)
 
         self._running: bool = False
         self._model_hash = HashList(SnowFlake.id.__name__)
+
         self._config: PartialApplicationConfiguration = config
+        self._config.app_config.parent = self
 
-        self.parent.columnconfigure(0, weight=1)
-        self.parent.rowconfigure(0, weight=1)
+        self._view: View = View(config=self._config.app_config)
+        self._view.parent.columnconfigure(0, weight=1)
+        self._view.parent.rowconfigure(0, weight=1)
 
-        self._main_model_id = None
+        self._main_model_id: int = -1
 
         if model:
             if isinstance(model, type):
                 _ = self.set_model(model(application=self,
                                          view_model=view_model,
-                                         view=view))
+                                         view=view,
+                                         view_config=ViewConfiguration(parent=self._view.frame)))
             elif isinstance(model, PartialModel):
                 _ = self.set_model(model)
 
@@ -343,16 +357,16 @@ class PartialApplication(View):
         return self._model_hash
 
     @property
-    def parent(self) -> Union[Tk, Toplevel]:
-        """The parent of this partial application.
+    def view(self) -> View:
+        """The view for this application.
 
         .. ------------------------------------------------------------
 
         Returns
         -----------
-            parent: :class:`Union[Tk, Toplevel]`
+            parent: :class:`View`
         """
-        return self._parent
+        return self._view
 
     def add_model(self,
                   model: PartialModel) -> PartialModel:
@@ -398,11 +412,15 @@ class PartialApplication(View):
 
     def start(self) -> None:
         self.on_pre_run()
-        self.frame.after(100, lambda: self.logger.info('Ready...'))
-        self.parent.focus()
+        self.view.parent.after(100, lambda: self.logger.info('Ready...'))
+        self.view.parent.focus()
         super().start()
-        if isinstance(self.parent, Tk):
-            self.parent.mainloop()
+        if isinstance(self.view.parent, Tk):
+            self.view.parent.mainloop()
+
+    def stop(self) -> None:
+        self.view.close()
+        super().stop()
 
     def set_model(self,
                   model: PartialModel):
@@ -421,7 +439,7 @@ class PartialApplication(View):
 
         """
         # undo packing for all child widgets. This will allow us to rebuild a model in our frame
-        self.clear()
+        self.view.clear()
 
         self._main_model_id = self.add_model(model).id
 
@@ -440,7 +458,7 @@ class PartialApplication(View):
 
         """
         if event.keysym == 'F11':
-            state = not self.parent.attributes('-fullscreen')
-            self.parent.attributes('-fullscreen', state)
-        elif self.parent.attributes('-fullscreen'):
-            self.parent.attributes('-fullscreen', False)
+            state = not self.view.parent.attributes('-fullscreen')
+            self.view.parent.attributes('-fullscreen', state)
+        elif self.view.parent.attributes('-fullscreen'):
+            self.view.parent.attributes('-fullscreen', False)

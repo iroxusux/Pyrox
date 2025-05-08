@@ -4,12 +4,12 @@ from __future__ import annotations
 
 
 from tkinter import Tk
-from typing import Type
 import unittest
 
 
 from .abc import (
-    PartialModel,
+    PartialViewConfiguration,
+    ViewType
 )
 
 
@@ -20,7 +20,7 @@ from .application import (
 )
 
 
-from .model import Model, LaunchableModel, SupportsAssembly
+from .model import Model, LaunchableModel
 from .utkinter.progress_bar import ProgressBar
 from .view import View
 from .viewmodel import ViewModel
@@ -60,7 +60,7 @@ class TestTypes(unittest.TestCase):
         self.assertIsNotNone(cmds.get('Test2', None))
         self.assertIsNotNone(cmds.get('Test3', None))
 
-        app.close()
+        app.stop()
 
     def test_application(self):
         """test application builds
@@ -69,15 +69,7 @@ class TestTypes(unittest.TestCase):
         app = Application(config=PartialApplicationConfiguration.root())
         self.assertIsNotNone(app)
         self.assertIsNotNone(app.logger)
-        self.assertTrue(isinstance(app.parent, Tk))
-        app.close()
-
-        # test generic build with basic model
-        model = PartialModel()
-        app = Application(model=model, config=PartialApplicationConfiguration.root())
-        self.assertIsNotNone(app)
-        self.assertTrue(isinstance(app.parent, Tk))
-        self.assertEqual(model, app.main_model)
+        self.assertTrue(isinstance(app.view.parent, Tk))
 
         # check menu is built
         self.assertIsNotNone(app.menu)
@@ -95,7 +87,7 @@ class TestTypes(unittest.TestCase):
         task = ApplicationTask(app, None)
         app.add_task(task)
 
-        app.close()
+        app.stop()
 
     def test_model(self):
         """test model
@@ -110,60 +102,15 @@ class TestTypes(unittest.TestCase):
         """test launchable model class
         """
 
-        class _TestModel(LaunchableModel):
-            @property
-            def sub_app_name(self) -> str:
-                return 'MyTestApp'
-
-            @property
-            def sub_app_size(self) -> str:
-                return '69x420'
-
-            def get_application_class(self) -> type:
-                return Application
-
-            def get_view_class(self) -> type:
-                return View
-
-            def get_view_model_class(self) -> type:
-                return ViewModel
-
         app = Application(config=PartialApplicationConfiguration.root())
+        app.set_model(LaunchableModel(application=app,
+                                      view_model=ViewModel,
+                                      view=View,
+                                      view_config=PartialViewConfiguration(type_=ViewType.TOPLEVEL)))
 
-        mdl = _TestModel(application=app)
+        app.main_model.launch()
 
-        mdl.launch()
-
-        app.close()
-
-    def test_supports_assembly(self):
-        """test supports assembly class
-        """
-        class _TestClass(SupportsAssembly):
-            def get_view_class(self) -> Type:
-                return View
-
-            def get_view_model_class(self) -> Type:
-                return ViewModel
-
-        app = Application(config=PartialApplicationConfiguration.root())
-
-        asmbl_mdl = _TestClass.as_assembled(application=app)
-
-        app.set_model(asmbl_mdl)
-
-        self.assertIsNotNone(asmbl_mdl)
-        self.assertIsNotNone(asmbl_mdl.application)
-        self.assertIsNotNone(asmbl_mdl.view_model)
-        self.assertIsNotNone(asmbl_mdl.view_model.view)
-
-        self.assertEqual(asmbl_mdl.application, app)
-        self.assertEqual(asmbl_mdl.application.main_model, asmbl_mdl)
-        self.assertEqual(asmbl_mdl, asmbl_mdl.view_model.model)
-        self.assertEqual(asmbl_mdl.view_model, asmbl_mdl.view_model.view.view_model)
-        self.assertEqual(asmbl_mdl.view_model.view.parent, asmbl_mdl.application.frame)
-
-        app.close()
+        app.stop()
 
     def test_progressbar(self):
         """test progress-bar
@@ -173,7 +120,7 @@ class TestTypes(unittest.TestCase):
 
         pbar.update('Some Extra Text', 50)
 
-        pbar.close()
+        pbar.stop()
 
     def test_view(self):
         """test view
@@ -182,7 +129,7 @@ class TestTypes(unittest.TestCase):
         self.assertIsNotNone(view)
         self.assertIsNotNone(view.name)
         self.assertIsNotNone(view.config)
-        self.assertIsNotNone(view.config.view_type)
+        self.assertIsNotNone(view.config.type_)
         self.assertIsNone(view.view_model)
         self.assertIsNotNone(view.logger)
         view.close()

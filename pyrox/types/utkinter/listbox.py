@@ -108,5 +108,3 @@ class UserListbox(Listbox):
 
         for index, value in enumerate(data):
             self.insert(END, value)
-            # if index % 2 == 1:
-            #     self.itemconfigure(index, background='#f0f0f0')

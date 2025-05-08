@@ -37,12 +37,6 @@ class ViewModel(PartialViewModel):
         The child :class:`View` this :class:`ViewModel`. Defaults to `None`.
     """
 
-    def __init__(self,
-                 model: Optional[Model] = None,
-                 view: Optional[View] = None):
-        super().__init__(model=model,
-                         view=view)
-
     @property
     def model(self) -> Optional[Model]:
         """The parent :class:`Model` this :class:`ViewModel`.

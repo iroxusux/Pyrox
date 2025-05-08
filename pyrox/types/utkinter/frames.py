@@ -13,6 +13,7 @@ from tkinter import (
     Scrollbar,
     Text,
     Tk,
+    ttk,
     VERTICAL,
     X,
     Y
@@ -22,6 +23,28 @@ if __name__ == '__main__':
     from pyrox import UserListbox
 else:
     from .listbox import UserListbox
+
+
+def create_tree_view(data_dict, parent):
+    # Create a Treeview widget
+    columns = set()
+    for key, value_list in data_dict.items():
+        for item in value_list:
+            columns.update(item.keys())
+    columns = list(columns)
+    tree = ttk.Treeview(parent, columns=columns, show='headings')
+
+    # Define the column headings
+    for col in columns:
+        tree.heading(col, text=col)
+
+    # Insert the data into the tree
+    for key, value_list in data_dict.items():
+        for item in value_list:
+            tree.insert('', 'end', values=[item.get(col, '') for col in columns])
+
+    # Return the Treeview object
+    return tree
 
 
 class DecoratedListboxFrame(LabelFrame):
@@ -101,6 +124,40 @@ class LogWindow(LabelFrame):
             Text | None: text
         """
         return self._logtext
+
+
+class TreeViewGridFrame(LabelFrame):
+    """...
+
+    """
+
+    def __init__(self, *args,
+                 data_dict: dict,
+                 **kwargs):
+        super().__init__(*args, **kwargs)
+
+        self._tree: ttk.Treeview = create_tree_view(data_dict=data_dict,
+                                                    parent=self)
+
+        vscrollbar = Scrollbar(self, orient=VERTICAL, command=self._tree.yview)
+        hscrollbar = Scrollbar(self, orient=HORIZONTAL, command=self._tree.xview)
+
+        self._tree['yscrollcommand'] = vscrollbar.set
+        self._tree['xscrollcommand'] = hscrollbar.set
+
+        hscrollbar.pack(fill=X, side=BOTTOM)
+        vscrollbar.pack(fill=Y, side=LEFT)
+        self._tree.pack(fill=BOTH, side=LEFT, expand=True)
+
+    @property
+    def listbox(self) -> UserListbox:
+        """The :class:`UserListbox` owned by this :class:`DecoratedListbox` frame.
+
+        Returns
+        ----------
+            listbox: :class:`UserListbox`
+        """
+        return self._listbox
 
 
 if __name__ == '__main__':

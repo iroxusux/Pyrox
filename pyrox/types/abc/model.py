@@ -6,7 +6,7 @@ from __future__ import annotations
 from typing import Optional, TYPE_CHECKING, Union
 
 
-from .meta import Runnable
+from .meta import Runnable, PartialViewConfiguration
 from .viewmodel import PartialViewModel
 
 
@@ -42,7 +42,8 @@ class PartialModel(Runnable):
     def __init__(self,
                  application: Optional[PartialApplication] = None,
                  view_model: Optional[Union[PartialViewModel, type[PartialViewModel]]] = None,
-                 view: Optional[type[View]] = None):
+                 view: Optional[type[View]] = None,
+                 view_config: Optional[PartialViewConfiguration] = None):
         super().__init__()
 
         self._application: Optional[PartialApplication] = application
@@ -51,7 +52,7 @@ class PartialModel(Runnable):
         # if a bogus value was passed, raise a value error.
         self._view_model: Optional[PartialViewModel] = None
         if isinstance(view_model, type):
-            self._view_model = view_model(model=self, view=view)
+            self._view_model = view_model(model=self, view=view, view_config=view_config)
         elif isinstance(view_model, PartialViewModel):
             self._view_model = view_model
         elif view_model is not None:
@@ -83,6 +84,14 @@ class PartialModel(Runnable):
             view_model: Optional[:class:`PartialViewModel`]
         """
         return self._view_model
+
+    @view_model.deleter
+    def view_model(self):
+        if self._view_model:
+            if self._view_model.view:
+                del self._view_model.view
+
+        self._view_model = None
 
     def set_application(self,
                         application: PartialApplication) -> bool:
