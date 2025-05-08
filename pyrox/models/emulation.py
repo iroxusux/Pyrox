@@ -14,13 +14,13 @@ from tkinter import (
     NORMAL,
     TOP,
 )
-from typing import Optional, Type
+from typing import Optional
 
 
 from ..services.plc_services import controller_dict_from_file, dict_to_controller_file, find_redundant_otes
-from ..types import Application, Model, ProgressBar, ViewModel, View
+from ..types import Application, Model, ProgressBar, ViewModel, View, ViewConfiguration, ViewType
 from ..types.plc import Controller, ConnectionParameters
-from ..types.utkinter import DecoratedListboxFrame
+from ..types.utkinter import DecoratedListboxFrame, TreeViewGridFrame
 
 
 DEF_WIN_TITLE = 'Indicon LLC Emulation Manager Frame'
@@ -31,11 +31,9 @@ class EmulationView(View):
     """
 
     def __init__(self,
-                 view_model,
-                 config):
-
-        super().__init__(view_model=view_model,
-                         config=config)
+                 view_model=None,
+                 config=None):
+        super().__init__(view_model, config)
 
         self._plccfgframe: Optional[Frame] = None
 
@@ -158,18 +156,6 @@ class EmulationViewModel(ViewModel):
     """emulation manager viewmodel
     """
 
-    def __init__(self,
-                 model: Optional[EmulationModel] = None,
-                 view: Optional[EmulationView] = None):
-
-        super().__init__(model=model, view=view)
-
-        if not self.model:
-            raise RuntimeError('No model for this viewmodel! Cannot run!')
-
-        if not self.view:
-            raise RuntimeError('No view for this viewmodel! Cannot run!')
-
     @property
     def controller(self) -> Optional[Controller]:
         return self.model.controller
@@ -220,9 +206,6 @@ class EmulationViewModel(ViewModel):
             return
 
         self.model.application.connection_model.disconnect()
-
-    def build(self):
-        super().build()
 
     def log(self,
             message: str):
@@ -276,7 +259,7 @@ class EmulationViewModel(ViewModel):
 
         prog_bar.update('Compiling...', 100)
         time.sleep(0.5)  # sneaky to make people think stuff is happening kek
-        prog_bar.close()
+        prog_bar.stop()
         del prog_bar
 
 
@@ -298,8 +281,9 @@ class EmulationModel(Model):
 
     def __init__(self,
                  application: Application = None,
-                 view_model: ViewModel = None,
-                 view: View = None):
+                 view_model: ViewModel = EmulationViewModel,
+                 view: View = EmulationView,
+                 view_config: ViewConfiguration = ViewConfiguration()):
 
         if not view_model:
             view_model = EmulationViewModel
@@ -307,15 +291,15 @@ class EmulationModel(Model):
         if not view:
             view = EmulationView
 
+        view_config.name = 'Emulation Model'
+        view_config.parent = application.view.frame
+
         super().__init__(application=application,
                          view_model=view_model,
-                         view=view)
+                         view=view,
+                         view_config=view_config)
 
         self._controller: Optional[Controller] = None
-
-    @property
-    def application(self) -> Application:
-        return self._application
 
     @property
     def controller(self) -> Optional[Controller]:
@@ -344,12 +328,6 @@ class EmulationModel(Model):
         super().build()
         if self.controller:    # after being built, if we've previously had a controller...
             super().refresh()  # set the refresh request to rebuild the page properly.
-
-    def get_view_class(self) -> Type:
-        return EmulationView
-
-    def get_view_model_class(self) -> Type:
-        return EmulationViewModel
 
     def load_controller(self,
                         file_location: str) -> None:
@@ -408,3 +386,15 @@ class EmulationModel(Model):
         dups, coils = find_redundant_otes(self.controller, True)
         self.logger.info('Found %s duplicates' % len(dups))
         self.logger.info('Found %s coils in total' % len(coils))
+
+        class _ReportView(View):
+            def __init__(self,
+                         data_dict: dict):
+                super().__init__(config=ViewConfiguration(name='Controller Verify',
+                                                          type_=ViewType.TOPLEVEL))
+
+                x = TreeViewGridFrame(self.frame, data_dict=data_dict)
+                x.pack(fill=BOTH, expand=True)
+
+        x = _ReportView(dups)
+        x.parent.focus()

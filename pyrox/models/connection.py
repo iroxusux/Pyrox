@@ -5,14 +5,14 @@ from __future__ import annotations
 
 from enum import Enum
 from tkinter import BOTH, Button, DISABLED, Entry, LabelFrame, LEFT, NORMAL, StringVar, TOP, X
-from typing import Callable, Optional, Type
+from typing import Callable, Optional
 
 
 from pylogix import PLC
 from pylogix.lgx_response import Response
 
 
-from ..types import Application, ApplicationTask, LaunchableModel, ViewConfiguration, View, ViewModel
+from ..types import Application, ApplicationTask, LaunchableModel, ViewConfiguration, View, ViewModel, ViewType
 
 from pyrox.types.plc import ConnectionParameters
 
@@ -55,28 +55,6 @@ class ConnectionCommand:
     @property
     def response_cb(self) -> Callable:
         return self._response_cb
-
-
-class ConnectionTask(ApplicationTask):
-    """Connection task for PLC.
-    """
-
-    def __init__(self,
-                 application: Application,
-                 model: 'ConnectionModel'):
-        super().__init__(application=application,
-                         model=model)
-
-    @property
-    def model(self) -> 'ConnectionModel':
-        return self._model
-
-    def _get_connection_params(self):
-        self.logger.info('Launching connection window...')
-        self.model.launch()
-
-    def inject(self) -> None:
-        self.application.menu.tools.add_command(label='Connection Parameters', command=self._get_connection_params)
 
 
 class ConnectionView(View):
@@ -205,13 +183,13 @@ class ConnectionModel(LaunchableModel):
     """
 
     def __init__(self,
-                 app: Application,
-                 *_,
-                 **__):
-        super().__init__(application=app)
-        self._connection_task = self.application.add_task(ConnectionTask(app, self), self)
-
-        self._sub_app: Optional[Application] = None
+                 app: Application):
+        super().__init__(application=app,
+                         view_model=ConnectionViewModel,
+                         view=ConnectionView,
+                         view_config=ViewConfiguration(name='PLC Connection',
+                                                       parent=app.view.frame,
+                                                       type_=ViewType))
         self._connected: bool = False
         self._connecting: bool = False
         self._params: ConnectionParameters = None
@@ -226,16 +204,6 @@ class ConnectionModel(LaunchableModel):
             bool: _description_
         """
         return self._connected
-
-    @property
-    def connection_task(self) -> ConnectionTask:
-        """Get this model's connection task
-
-        Returns
-        ----------
-        :class:`ConnectionTask`
-        """
-        return self._connection_task
 
     @property
     def on_connection(self) -> list[callable]:
@@ -253,23 +221,6 @@ class ConnectionModel(LaunchableModel):
     @property
     def view_model(self) -> ConnectionViewModel:
         return self._view_model
-
-    @property
-    def sub_app_name(self) -> str:
-        return 'Connection Manager'
-
-    @property
-    def sub_app_size(self) -> str:
-        return '400x400'
-
-    def get_application_class(self) -> Type:
-        return Application
-
-    def get_view_class(self) -> Type:
-        return ConnectionView
-
-    def get_view_model_class(self) -> Type:
-        return ConnectionViewModel
 
     def run(self):
         if self.connected is False:  # first check if there was a request to disconnect
@@ -354,3 +305,25 @@ class ConnectionModel(LaunchableModel):
         """
         self.logger.info('Disconnecting...')
         self._set_connected(False)
+
+
+class ConnectionTask(ApplicationTask):
+    """Connection task for PLC.
+    """
+
+    def __init__(self,
+                 application: Application):
+        super().__init__(application=application)
+
+    @property
+    def model(self) -> ConnectionModel:
+        return self._model
+
+    def run(self):
+        if not self.model:
+            self._model = ConnectionModel(self.application)
+            self.logger.info('Launching connection window...')
+        self.model.launch()
+
+    def inject(self) -> None:
+        self.application.menu.tools.add_command(label='Connection Parameters', command=self.run)

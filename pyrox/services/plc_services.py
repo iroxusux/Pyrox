@@ -121,7 +121,7 @@ def find_redundant_otes(ctrl: Controller,
                         'program': program_name,
                         'routine': routine_name,
                         'rung': rung_idx,
-                        'text': operand
+                        'operand': operand
                     }
                     ote_operands[operand].append(location)
 
