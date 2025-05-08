@@ -10,7 +10,7 @@ from ..types import Application, ApplicationConfiguration
 from ..types.plc import ConnectionParameters
 
 
-from .connection import ConnectionModel
+from .connection import ConnectionTask, ConnectionModel
 
 
 __all__ = (
@@ -28,19 +28,17 @@ class TestModels(unittest.TestCase):
         # test generic build with no model
 
         app = Application(config=ApplicationConfiguration.root())
-        model = ConnectionModel(app)
 
-        task = model.connection_task
+        task = app.add_task(ConnectionTask(app))
         self.assertTrue(task in app.tasks)
-
+        self.assertIsNone(task.model)
+        task.run()
+        model: ConnectionModel = task.model
+        self.assertIsInstance(model, ConnectionModel)
         params = ConnectionParameters('120.15.35.4', 3, 500)
-
         model.connect(params)
-
         self.assertTrue(model.connected)
-
         model.disconnect()
-
         self.assertFalse(model.connected)
 
-        app.close()
+        app.stop()

@@ -130,9 +130,10 @@ class ConnectionViewModel(ViewModel):
 
     """
 
-    def __init__(self, model: Optional['ConnectionModel'] = None,
-                 view: Optional[ConnectionView] = None):
-        super().__init__(model, view)
+    def __init__(self, model: Optional['ConnectionModel'],
+                 view: Optional[ConnectionView],
+                 view_config: ViewConfiguration):
+        super().__init__(model=model, view=view, view_config=view_config)
 
     @property
     def model(self) -> 'ConnectionModel':
@@ -189,7 +190,7 @@ class ConnectionModel(LaunchableModel):
                          view=ConnectionView,
                          view_config=ViewConfiguration(name='PLC Connection',
                                                        parent=app.view.frame,
-                                                       type_=ViewType))
+                                                       type_=ViewType.TOPLEVEL))
         self._connected: bool = False
         self._connecting: bool = False
         self._params: ConnectionParameters = None
