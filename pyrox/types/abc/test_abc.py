@@ -1,6 +1,7 @@
 """testing module for abc classes
     """
 import copy
+import logging
 from tkinter import Tk, Toplevel, Frame, LabelFrame, Menu, TclError
 from typing import Callable
 import unittest
@@ -232,6 +233,8 @@ class TestMeta(unittest.TestCase):
         # test logger inherits class name for naming
         x = TestLog()
         self.assertEqual(x.logger.name, TestLog.__name__)
+        self.assertIsInstance(x.logger, logging.Logger)
+        self.assertIsInstance(x.log_handler, ConsolePanelHandler)
 
         # test logger uses supplied name for naming
         name = 'TestLog_CustomName1'
@@ -281,16 +284,20 @@ class TestMeta(unittest.TestCase):
                 self.refresh_good = False
 
             def build(self):
+                super().build()
                 self.build_good = True
 
             def refresh(self):
                 self.refresh_good = True
 
         x = _TestClass()
+        self.assertIsInstance(x.built, bool)
 
         self.assertFalse(x.build_good)
+        self.assertFalse(x.built)
         self.assertFalse(x.refresh_good)
         x.build()
+        self.assertTrue(x.built)
         self.assertTrue(x.build_good)
         self.assertFalse(x.refresh_good)
         x.refresh()
@@ -301,6 +308,7 @@ class TestMeta(unittest.TestCase):
         """test runnable
         """
         x = Runnable()
+        self.assertIsInstance(x.running, bool)
 
         self.assertFalse(x.running)
         x.start()
@@ -359,6 +367,7 @@ class TestApplication(unittest.TestCase):
         """
         config = PartialApplicationConfiguration()
 
+        # test attributes
         self.assertIsNotNone(config)
         self.assertIsInstance(config, PartialApplicationConfiguration)
         self.assertIsInstance(config.headless, bool)
@@ -366,6 +375,7 @@ class TestApplication(unittest.TestCase):
         self.assertIsInstance(config.tasks, list)
         self.assertIsInstance(config.app_config, PartialViewConfiguration)
 
+        # test class methods
         root = PartialApplicationConfiguration.root()
         self.assertEqual(root.app_config.type_, ViewType.ROOT)
         self.assertEqual(DEF_WIN_TITLE, root.app_config.name)
