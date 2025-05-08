@@ -5,23 +5,28 @@ from __future__ import annotations
 
 from enum import Enum
 
-from tkinter import BOTH, Button, DISABLED, Entry, Frame, Label, LabelFrame, LEFT, StringVar, Tk, TOP, Toplevel, W, X
+from tkinter import BOTH, Button, DISABLED, Entry, Frame, Label, LabelFrame, LEFT, StringVar, TOP, W, X
 from tkinter.font import Font
-from typing import Callable, Optional, TYPE_CHECKING, Union
+from typing import Callable, Optional, TYPE_CHECKING
 
 
 from pylogix.lgx_response import Response
-from pyrox import Application, View, ViewModel, LaunchableModel
-from pyrox.utils import read_bit, set_bit, clear_bit
-
-
-if __name__ != '__main__':
-    from .connection import ConnectionCommand, ConnectionCommandType
-    from ..types.pylogx_udt import AB_1734_IB8S_Safety5_O_0
+from .connection import ConnectionCommand, ConnectionCommandType
+from ..services.notify_services import notify_warning
+from ..types import (
+    Application,
+    ApplicationTask,
+    LaunchableModel,
+    ViewConfiguration,
+    View,
+    ViewModel,
+    ViewType
+)
+from ..utils import read_bit, set_bit, clear_bit
 
 
 if TYPE_CHECKING:
-    from .emulation import EmulationApplication
+    from .connection import ConnectionModel
 
 
 CIPTypes = {0x00: (1, "UNKNOWN", '<B'),
@@ -78,12 +83,11 @@ class GmHmiView(View):
 
     def __init__(self,
                  view_model: Optional['GmHmiViewModel'] = None,
-                 parent: Optional[Union[Tk, Toplevel, Frame, LabelFrame]] = None,
-                 title: Optional[str] = 'HMI?',):
+                 config: ViewConfiguration = ViewConfiguration()):
         super().__init__(view_model=view_model,
-                         parent=parent)
+                         config=config)
 
-        self._title: str = title
+        self._title: str = config.name
         self._std_input_entry: Optional[Entry] = None
         self._std_output_entry: Optional[Entry] = None
         self._saf_input_entry: Optional[Entry] = None
@@ -353,10 +357,6 @@ class GmHmiViewModel(ViewModel):
 
     """
 
-    def __init__(self, model: Optional['GmHmiModel'] = None,
-                 view: Optional[GmHmiView] = None):
-        super().__init__(model, view)
-
     @property
     def model(self) -> 'GmHmiModel':
         return self._model
@@ -367,7 +367,7 @@ class GmHmiViewModel(ViewModel):
 
     def _on_read(self,
                  output_status: int):
-        if not self.model._sub_app.running:
+        if not self.model._connection_model.running:
             return
 
         self.logger.info('HMI Output Status -> %s', output_status)
@@ -422,12 +422,20 @@ class GmHmiModel(LaunchableModel):
     """
 
     def __init__(self,
-                 app: EmulationApplication,
-                 *_,
-                 **__):
-        super().__init__(application=app)
-        self._main_model = app.main_model
-        self._sub_app: Optional[Application] = None
+                 app: Application,
+                 connection_model: ConnectionModel):
+        super().__init__(application=app,
+                         view_model=GmHmiViewModel,
+                         view=GmHmiView,
+                         view_config=ViewConfiguration(name='Gm HMI Emulate',
+                                                       parent=app.view.frame,
+                                                       type_=ViewType.TOPLEVEL))
+
+        if not connection_model:
+            raise RuntimeError('Must have a connection model to continue!')
+
+        self._connection_model: ConnectionModel = connection_model
+
         self._std_input_value = 0
         self._last_std_input_value = 0
         self._std_output_value = 0
@@ -441,33 +449,12 @@ class GmHmiModel(LaunchableModel):
         self.on_read: list[Callable] = []
 
     @property
-    def sub_app_name(self) -> str:
-        return 'General Motors ECS-5022 HMI'
-
-    @property
-    def sub_app_size(self) -> str:
-        return '700x600'
-
-    @property
-    def application(self) -> EmulationApplication:
-        return self._application
-
-    @property
     def view_model(self) -> GmHmiViewModel:
         return self._view_model
 
-    def get_application_class(self) -> type:
-        return Application
-
-    def get_view_class(self) -> type:
-        return GmHmiView
-
-    def get_view_model_class(self) -> type:
-        return GmHmiViewModel
-
     def _read_outputs(self,
                       response: Response):
-        if self._std_output_value == response.Value:
+        if self._std_output_value == response.Value or response.Value is None:
             return  # return early if there's no new data value
 
         self._std_output_value = response.Value
@@ -477,14 +464,13 @@ class GmHmiModel(LaunchableModel):
                            response: Response):
         if not response.Value:
             return
-        _card = AB_1734_IB8S_Safety5_O_0(response.Value)
-        self.logger.info('data -> %s', _card._output_status)
+        # _card = AB_1734_IB8S_Safety5_O_0(response.Value)
 
     def run(self):
-        if not self._sub_app.running:
+        if not self.running:
             return
 
-        if self.application.connection_model.connected is False:
+        if self._connection_model.connected is False:
             return
 
         if self._last_std_input_value != self._std_input_value:
@@ -495,7 +481,7 @@ class GmHmiModel(LaunchableModel):
                                       0xc2,
                                       lambda sts: self.logger.info('Response -> %s | %s',
                                                                    sts.Status, sts.Value))
-            self.application.connection_model.add_command(w_cmd)
+            self._connection_model.add_command(w_cmd)
             self._last_std_input_value = self._std_input_value
 
         # register a standard read command to the connection model
@@ -504,7 +490,7 @@ class GmHmiModel(LaunchableModel):
                                   self._std_output_value,
                                   0xc2,
                                   self._read_outputs)
-        self.application.connection_model.add_command(r_cmd)
+        self._connection_model.add_command(r_cmd)
 
         # register a safety read command to the connection model
         r_cmd = ConnectionCommand(ConnectionCommandType.READ,
@@ -512,25 +498,29 @@ class GmHmiModel(LaunchableModel):
                                   self._saf_output_value,
                                   None,
                                   self._read_safe_outputs)
-        self.application.connection_model.add_command(r_cmd)
+        self._connection_model.add_command(r_cmd)
 
 
-if __name__ == '__main__':
-    from emulation_preparation import EmulationApplication  # noqa: F811
-    from emulation_preparation.types.pylogx_udt import AB_1734_IB8S_Safety5_O_0  # noqa: F811
-    from emulation_preparation.models.connection import (  # noqa: F811
-        ConnectionCommand,
-        ConnectionCommandType,
-        ConnectionParameters
-        )
-    from emulation_preparation.tasks.gm import GmHmiTask
-    app = EmulationApplication()
-    task = GmHmiTask(app, None)
+class GmHmiTask(ApplicationTask):
+    """General Motors Human-Machine Interface task.
+    """
 
-    conn_mdl = app.connection_model
+    def __init__(self,
+                 application: Application,
+                 connection_task: ApplicationTask):
+        super().__init__(application=application)
+        self._connection_task = connection_task
 
-    params = ConnectionParameters('120.15.35.60', 1, 250)
+    @property
+    def model(self) -> 'GmHmiModel':
+        return self._model
 
-    app.parent.after(100, task._launch)
-    app.parent.after(500, lambda: conn_mdl.connect(params))
-    app.run()
+    def run(self):
+        try:
+            GmHmiModel(app=self.application, connection_model=self._connection_task.model).launch()
+        except RuntimeError:
+            notify_warning('No Connection Module Running!',
+                           'You must set up a connection before launching the HMI module!')
+
+    def inject(self) -> None:
+        self.application.menu.tools.add_command(label='GM HMI Simulate', command=self.run)

@@ -105,10 +105,10 @@ class ConnectionView(View):
 
     def build(self):
         self._liveframe = LabelFrame(self.frame, text='Live View')
-        self._liveframe.pack(fill=BOTH, side=TOP)
+        self._liveframe.pack(fill=BOTH, expand=True)
 
         self._plccfgframe = LabelFrame(self._liveframe, text='PLC Configuration')
-        self._plccfgframe.pack(side=LEFT)
+        self._plccfgframe.pack(side=TOP)
 
         _ip_addr = StringVar(self._plccfgframe, '120.15.35.60', 'PLC IP Address')
         self._ip_addr_entry = Entry(self._plccfgframe, textvariable=_ip_addr)
@@ -190,6 +190,7 @@ class ConnectionModel(LaunchableModel):
                          view=ConnectionView,
                          view_config=ViewConfiguration(name='PLC Connection',
                                                        parent=app.view.frame,
+                                                       size_='400x100',
                                                        type_=ViewType.TOPLEVEL))
         self._connected: bool = False
         self._connecting: bool = False
