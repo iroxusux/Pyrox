@@ -392,15 +392,16 @@ class Buildable(Loggable):
         """
         return self._built
 
-    def build(self):
+    def build(self,
+              **_):
         """Build this object
         """
         self._built = True
 
-    def refresh(self):
+    def refresh(self,
+                **_):
         """Refresh this object.
         """
-        ...  # pylint: disable=unnecessary_ellipsis
 
 
 class Runnable(Buildable):

@@ -200,3 +200,20 @@ def replace_strings_in_dict(data, old_string, new_string) -> dict:
         return data.replace(old_string, new_string)
     else:
         return data
+
+
+def find_duplicates(input_list,
+                    include_orig: bool = False):
+    seen = set()
+    duplicates = []
+
+    for item in input_list:
+        if item in seen:
+            if not include_orig:
+                duplicates.append(item)
+            else:
+                duplicates.append((item, next((y for y in seen if y == item), None)))
+        else:
+            seen.add(item)
+
+    return duplicates

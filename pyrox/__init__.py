@@ -14,7 +14,6 @@ from .types import (
     Model,
     SafeList,
     SnowFlake,
-    SupportsAssembly,
     View,
     ViewModel
 )
@@ -50,7 +49,6 @@ __all__ = (
     'ProgressBar',
     'SafeList',
     'SnowFlake',
-    'SupportsAssembly',
     'UserListbox',
     'utils',
     'View',

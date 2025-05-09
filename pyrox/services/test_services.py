@@ -16,7 +16,8 @@ __all__ = (
 )
 
 
-TESTING_FILE = r'docs\controls\_test_duplicate_coils.L5X'
+DUPS_TEST_FILE = r'docs\controls\_test_duplicate_coils.L5X'
+GM_TEST_FILE = r'docs\controls\_test_gm.L5X'
 
 
 class TestServices(LoggableUnitTest):
@@ -54,11 +55,15 @@ class TestServices(LoggableUnitTest):
     def test_plc_services(self):
         """test plc services
         """
-        ctrl_dict: dict = plc_services.controller_dict_from_file(TESTING_FILE)
+        ctrl_dict: dict = plc_services.controller_dict_from_file(DUPS_TEST_FILE)
         self.assertIsInstance(ctrl_dict, dict)
 
-        ctrl: Controller = Controller.from_file(TESTING_FILE)
+        ctrl: Controller = Controller.from_file(DUPS_TEST_FILE)
 
         duplicates, all_coils = plc_services.find_redundant_otes(ctrl, True)
         self.assertTrue(len(all_coils) > 0)
         self.assertTrue(len(duplicates) > 0)
+
+        gm_ctrl: Controller = Controller.from_file(GM_TEST_FILE)
+        diag_rungs = plc_services.find_diagnostic_rungs(gm_ctrl)
+        self.assertTrue(len(diag_rungs) > 0)

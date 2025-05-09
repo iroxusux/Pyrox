@@ -20,6 +20,9 @@ from .plc import (
 )
 
 
+from ...utils import find_duplicates
+
+
 GM_CHAR = 'z'
 USER_CHAR = 'u'
 ALARM_PATTERN:   str = '*<Alarm[[]*[]]:*>'
@@ -44,7 +47,8 @@ class KDiag:
     def __init__(self,
                  diag_type: KDiagType,
                  text: str,
-                 parent_offset: Optional[Union[str, int]] = 0):
+                 parent_offset: Optional[Union[str, int]],
+                 rung: 'GmRung'):
         if diag_type is KDiagType.NA:
             raise ValueError('Cannot be NA!')
 
@@ -53,6 +57,15 @@ class KDiag:
         self.col_location:    str = self._get_col_location()
         self.number:          int = self._get_diag_number()
         self.parent_offset:   int = int(parent_offset)
+        self.rung:       'GmRung' = rung
+
+    def __eq__(self, other):
+        if isinstance(other, KDiag):
+            return self.global_number == other.global_number
+        return False
+
+    def __hash__(self):
+        return hash((self.text, self.diag_type.value, self.col_location, self.number, self.parent_offset))
 
     def __repr__(self) -> str:
         return (
@@ -60,7 +73,8 @@ class KDiag:
             f'diag_type={self.diag_type}, '
             f'col_location={self.col_location}, '
             f'number={self.number}, '
-            f'parent_offset={self.parent_offset})'
+            f'parent_offset={self.parent_offset}), '
+            f'rung={self.rung}'
         )
 
     def __str__(self):
@@ -127,17 +141,14 @@ class GmRung(SupportsGmNaming, Rung):
     """
 
     @property
-    def kdiags(self) -> list[KDiag]:
-        return self._get_comment_diags()
-
-    @property
     def has_kdiag(self) -> bool:
         if not self.comment:
             return False
 
         return True if '<@DIAG>' in self.comment else False
 
-    def _get_comment_diags(self) -> list[KDiag]:
+    @property
+    def kdiags(self) -> list[KDiag]:
         if not self.comment:
             return []
 
@@ -148,12 +159,14 @@ class GmRung(SupportsGmNaming, Rung):
             if fnmatch.fnmatch(line, ALARM_PATTERN):
                 ret_list.append(KDiag(KDiagType.ALARM,
                                       line,
-                                      self.routine.program.parameter_offset))
+                                      self.routine.program.parameter_offset,
+                                      self))
 
             elif fnmatch.fnmatch(line, PROMPT_PATTERN):
                 ret_list.append(KDiag(KDiagType.PROMPT,
                                       line,
-                                      self.routine.program.parameter_offset))
+                                      self.routine.program.parameter_offset,
+                                      self))
 
         return ret_list
 
@@ -274,3 +287,10 @@ class GmController(SupportsGmNaming, Controller):
     @property
     def user_program(self) -> list[GmProgram]:
         return [x for x in self.programs if x.is_user_owned]
+
+    def validate_text_lists(self):
+        """validate all text lists within controller
+        """
+        duplicate_diags = find_duplicates(self.kdiags, True)
+
+        return duplicate_diags

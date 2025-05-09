@@ -61,15 +61,17 @@ class ViewModel(PartialViewModel):
         """
         return self._view
 
-    def build(self):
+    def build(self,
+              **kwargs):
         if self.view:
-            self.view.build()
-        super().build()
+            self.view.build(**kwargs)
+        super().build(**kwargs)
 
-    def refresh(self):
+    def refresh(self,
+                **kwargs):
         if self.view:
-            self.view.refresh()
-        super().refresh()
+            self.view.refresh(**kwargs)
+        super().refresh(**kwargs)
 
     def set_view(self,
                  view: View) -> None:
