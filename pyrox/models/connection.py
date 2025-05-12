@@ -103,18 +103,26 @@ class ConnectionView(View):
         """
         return self._slot_entry
 
-    def build(self):
+    def build(self,
+              **kwargs):
+        try:
+            conn_params: ConnectionParameters = kwargs['connection_params']
+        except KeyError:
+            conn_params = None
+        if not conn_params:
+            conn_params = ConnectionParameters('120.15.35.2', '1')
+
         self._liveframe = LabelFrame(self.frame, text='Live View')
-        self._liveframe.pack(fill=BOTH, side=TOP)
+        self._liveframe.pack(fill=BOTH, expand=True)
 
         self._plccfgframe = LabelFrame(self._liveframe, text='PLC Configuration')
-        self._plccfgframe.pack(side=LEFT)
+        self._plccfgframe.pack(side=TOP)
 
-        _ip_addr = StringVar(self._plccfgframe, '120.15.35.60', 'PLC IP Address')
+        _ip_addr = StringVar(self._plccfgframe, conn_params.ip_address, 'PLC IP Address')
         self._ip_addr_entry = Entry(self._plccfgframe, textvariable=_ip_addr)
         self._ip_addr_entry.pack(side=LEFT)
 
-        _slot = StringVar(self._plccfgframe, '1', 'PLC Slot Number')
+        _slot = StringVar(self._plccfgframe, conn_params.slot, 'PLC Slot Number')
         self._slot_entry = Entry(self._plccfgframe, textvariable=_slot)
         self._slot_entry.pack(side=LEFT)
 
@@ -156,8 +164,9 @@ class ConnectionViewModel(ViewModel):
         slot = self.view.slot_entry.get()
         self.model.connect(ConnectionParameters(ip_addr, slot, 500))
 
-    def build(self):
-        super().build()
+    def build(self,
+              **kwargs):
+        super().build(**kwargs)
         self.view.connect_pb.config(command=self._on_connect)
         self.view.disconnect_pb.config(command=self.model.disconnect)
 
@@ -190,6 +199,7 @@ class ConnectionModel(LaunchableModel):
                          view=ConnectionView,
                          view_config=ViewConfiguration(name='PLC Connection',
                                                        parent=app.view.frame,
+                                                       size_='400x100',
                                                        type_=ViewType.TOPLEVEL))
         self._connected: bool = False
         self._connecting: bool = False
@@ -222,6 +232,10 @@ class ConnectionModel(LaunchableModel):
     @property
     def view_model(self) -> ConnectionViewModel:
         return self._view_model
+
+    def build(self,
+              **kwargs):
+        super().build(connection_params=self.params)
 
     def run(self):
         if self.connected is False:  # first check if there was a request to disconnect

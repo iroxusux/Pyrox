@@ -4,7 +4,7 @@ from __future__ import annotations
 
 
 import gc
-from typing import Optional, Type
+from typing import Optional
 
 
 from .abc import (
@@ -18,7 +18,6 @@ from .view import View
 
 __all__ = (
     'Model',
-    'SupportsAssembly',
     'LaunchableModel',
 )
 
@@ -78,15 +77,17 @@ class Model(PartialModel):
         """
         return self._view_model
 
-    def build(self):
+    def build(self,
+              **kwargs):
         if self.view_model:
-            self.view_model.build()
-        super().build()
+            self.view_model.build(**kwargs)
+        super().build(**kwargs)
 
-    def refresh(self):
+    def refresh(self,
+                **kwargs):
         if self.view_model:
-            self.view_model.refresh()
-        super().refresh()
+            self.view_model.refresh(**kwargs)
+        super().refresh(**kwargs)
 
     def set_view_model(self,
                        view_model: ViewModel) -> None:
@@ -103,100 +104,7 @@ class Model(PartialModel):
         self._view_model = view_model
 
 
-class SupportsAssembly(Model):
-    """A model for use in an application that can support classmethod `as_assembled`.
-
-        This class exposes inherited view and view-model types from custom classes
-
-        .. ------------------------------------------------------------
-
-        .. package:: types.model
-
-        .. ------------------------------------------------------------
-
-        Attributes
-        -----------
-        view_class: :class:`Type`
-            Class constructor for the `View` of this model.
-
-        view_model_class: :class:`Type`
-            Class constructor for the `ViewModel` of this model.
-        """
-
-    def get_view_class(self) -> Type:
-        """Get class constructor for the `View` of this model.
-
-        .. ------------------------------------------------------------
-
-        Raises
-        ----------
-        NotImplimentedError:
-            Inheriting class did not override this method
-
-        .. ------------------------------------------------------------
-
-        Returns
-        ----------
-            view_class: :class:`type`
-        """
-        raise NotImplementedError()
-
-    def get_view_model_class(self) -> Type:
-        """Get class constructor for the `ViewModel` of this model.
-
-        .. ------------------------------------------------------------
-
-        Raises
-        ----------
-        NotImplimentedError:
-            Inheriting class did not override this method
-
-        .. ------------------------------------------------------------
-
-        Returns
-        ----------
-            view_model_class: :class:`type`
-        """
-        raise NotImplementedError()
-
-    @classmethod
-    def as_assembled(cls,
-                     application: PartialApplication):
-        """Build this model and automatically link the relationship
-
-        for the mvvm workflow
-
-        .. ------------------------------------------------------------
-
-        Arguments
-        ----------
-        viewmodel: :class:`Type`
-            :class:`ViewModel` to create this model with.
-
-        view: :class:`Type`
-            :class:`View` to create the :class:`ViewModel` with.
-
-        .. ------------------------------------------------------------
-
-        Returns
-        --------
-        A :class:`Model` with an assmebled :class:`ViewModel` and :class:`View`.
-
-        """
-
-        # create the model, view model, and view
-        mdl = cls(application=application, view_model=None)
-        v = cls.get_view_class(cls)(view_model=None, config=PartialViewConfiguration(parent=application.frame))
-        vm = cls.get_view_model_class(cls)(model=mdl, view=v)
-
-        # set relationships
-        mdl.set_view_model(vm)
-        v.set_view_model(vm)
-
-        return mdl
-
-
-class LaunchableModel(SupportsAssembly):
+class LaunchableModel(Model):
     """A model for use in an application that can launch a sub-application.
 
     This sub application exists as a top-level window with a separate 'alive' status.

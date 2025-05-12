@@ -36,7 +36,8 @@ from ..abc.meta import LoggableUnitTest
 
 
 TESTING_FILE = r'docs\controls\_test.L5X'
-TESTING_GM_FILE = TESTING_FILE.replace('_test.L5X', '_test_gm.L5X')
+TESTING_GM_FILE = r'docs\controls\_test_gm.L5X'
+TESTING_GM_DUP_ALARMS_FILE = r'docs\controls\_test_gm_dup_alarms.L5X'
 TESTING_DATA = {
     '@Name': 'Test Object',
     'Description': 'Test Description'
@@ -416,3 +417,10 @@ class TestGM(LoggableUnitTest):
         self.logger.info('Global Number -> %s', kdiag.global_number)
         self.assertTrue(kdiag.global_number > 0)
         self.assertEqual(kdiag.global_number, (kdiag.number + kdiag.parent_offset))
+
+        dups = ctrl.validate_text_lists()
+        self.assertTrue(len(dups) == 0)
+
+        dup_ctrl: GmController = GmController.from_file(TESTING_GM_DUP_ALARMS_FILE)
+        dups = dup_ctrl.validate_text_lists()
+        self.assertTrue(len(dups) > 0)

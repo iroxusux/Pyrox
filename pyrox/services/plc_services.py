@@ -88,6 +88,24 @@ def get_rung_text(rung):
     return "No description available"
 
 
+def find_diagnostic_rungs(ctrl: Controller):
+
+    diagnostic_rungs = []
+
+    for program in ctrl.programs:
+        for routine in program.routines:
+            for rung in routine.rungs:
+                if rung.comment is not None and '<@DIAG>' in rung.comment:
+                    diagnostic_rungs.append(rung)
+                else:
+                    for instruction in rung.instructions:
+                        if 'JSR' in instruction and 'zZ999_Diagnostics' in instruction:
+                            diagnostic_rungs.append(rung)
+                            break
+
+    return diagnostic_rungs
+
+
 def find_redundant_otes(ctrl: Controller,
                         include_all_coils=False):
     """Find redundant OTE instructions in the L5X file"""
