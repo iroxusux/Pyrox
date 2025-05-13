@@ -7,7 +7,7 @@ from dataclasses import dataclass
 from enum import Enum
 import os
 import re
-from typing import Generic, get_args, Optional, Self, TypeVar, Tuple
+from typing import Generic, get_args, Optional, Self, TypeVar
 import xml.etree.ElementTree as ET
 
 
@@ -184,6 +184,12 @@ class PlcObject(EnforcesNaming, SnowFlake):
     def meta_data(self) -> dict:
         return self._meta_data
 
+    def validate(self) -> 'ControllerReportItem':
+        return ControllerReportItem(self,
+                                    'N/A',
+                                    False,
+                                    'Testing to be implimented...')
+
 
 class SupportsMeta(Generic[T], PlcObject):
     """meta type for 'supports' structuring
@@ -332,6 +338,14 @@ class AddOnInstruction(SupportsClass):
             return [self['Routines']['Routine']]
         return self['Routines']['Routine']
 
+    def validate(self):
+        test_notes = []
+
+        return ControllerReportItem(self,
+                                    'Testing aoi attributes...',
+                                    True,
+                                    '\n'.join(test_notes))
+
 
 class ConnectionParameters:
     """connection parameters for connecting to a plc
@@ -426,6 +440,14 @@ class Datatype(SupportsClass):
         else:
             return self['Members']['Member']
 
+    def validate(self):
+        test_notes = []
+
+        return ControllerReportItem(self,
+                                    'Testing datatype attributes...',
+                                    True,
+                                    '\n'.join(test_notes))
+
 
 class Module(PlcObject):
     def __init__(self,
@@ -501,6 +523,78 @@ class Module(PlcObject):
 
         return self['Communications']
 
+    def validate(self) -> ControllerReportItem:
+
+        conns = None
+        std_conn_ok = True
+        safe_conn_ok = True
+        test_notes = []
+
+        while True:
+            if self.communications is not None:
+                if self.communications['Connections'] is not None:
+                    conns = self.communications['Connections']['Connection']
+                    if not isinstance(conns, list):
+                        conns = [conns]
+
+                if not conns:
+                    break
+
+                std_connection = next((x for x in conns if x['@Name'] == 'Standard'), None)
+                safe_in_connection = next((x for x in conns if x['@Name'] == 'SafetyInput'), None)
+                safe_out_connection = next((x for x in conns if x['@Name'] == 'SafetyOutput'), None)
+
+                # ------------- check standard connection --------------- #
+                if std_connection:
+                    # check unicast operations for module
+                    try:
+                        if std_connection['@Unicast'] != 'true':
+                            std_conn_ok = False
+                            test_notes.append('Module standard tag not set for unicast!')
+                    except KeyError:
+                        test_notes.append('Module does not have @Unicast option...')
+
+                    # check standard RPI (requested packet interval) settings for module
+                    try:
+                        if int(std_connection['@RPI']) > 50_000 or int(std_connection['@RPI']) < 10_000:
+                            std_conn_ok = False
+                            test_notes.append('Module RPI must be above 10ms and below 50ms! (ideally, about 20ms).')
+                    except KeyError:
+                        test_notes.append('Module does not support RPI setting...')
+
+                # ------------- check safety input connection --------------- #
+                if safe_in_connection:
+                    # check unicast operations for module
+                    if safe_in_connection['@InputConnectionType'] != 'Unicast':
+                        safe_conn_ok = False
+                        test_notes.append('Module Safety Input tag not set for unicast!')
+
+                    # check standard RPI (requested packet interval) settings for module
+                    # TODO -> Match the RPI of an input module to the RPI of the controller safety task
+                    elif int(safe_in_connection['@RPI']) > 50_000 or int(safe_in_connection['@RPI']) < 10_000:
+                        safe_conn_ok = False
+                        test_notes.append('Module RPI must be above 10ms and below 50ms! (ideally, about 20ms).')
+
+                # ------------- check safety output connection --------------- #
+                if safe_out_connection:
+                    # check unicast operations for module
+                    if safe_out_connection['@InputConnectionType'] != 'Unicast':
+                        safe_conn_ok = False
+                        test_notes.append('Module Safety Input tag not set for unicast!')
+
+                    # check standard RPI (requested packet interval) settings for module
+                    # TODO -> Match the RPI of an input module to the RPI of the controller safety task
+                    elif int(safe_out_connection['@RPI']) > 50_000 or int(safe_out_connection['@RPI']) < 10_000:
+                        safe_conn_ok = False
+                        test_notes.append('Module RPI must be above 10ms and below 50ms! (ideally, about 20ms).')
+
+                break
+
+        return ControllerReportItem(self,
+                                    'Testing module standard and safety i/o settings...',
+                                    std_conn_ok and safe_conn_ok,
+                                    '\n'.join(test_notes))
+
 
 class Program(SupportsClass):
     def __init__(self,
@@ -558,6 +652,14 @@ class Program(SupportsClass):
             return [self['Routines']['Routine']]
 
         return self['Routines']['Routine']
+
+    def validate(self):
+        test_notes = []
+
+        return ControllerReportItem(self,
+                                    'Testing program attributes...',
+                                    True,
+                                    '\n'.join(test_notes))
 
 
 class ProgramTag(PlcObject):
@@ -714,6 +816,14 @@ class Tag(SupportsClass, SupportsExternalAccess):
             return [self['Data']]
 
         return self['Data']
+
+    def validate(self):
+        test_notes = []
+
+        return ControllerReportItem(self,
+                                    'Testing tag attributes...',
+                                    True,
+                                    '\n'.join(test_notes))
 
 
 @dataclass
@@ -1169,105 +1279,44 @@ class Controller(PlcObject, Loggable):
             case _:
                 return
 
-
-class ModuleReportException(Exception):
-    """Base exception for module reporting.
-    """
-
-    def __init__(self, msg='My default message', *args, **kwargs):
-        super().__init__(msg, *args, **kwargs)
+    def validate(self) -> 'ControllerReport':
+        return ControllerReport(self).run()
 
 
-class DataTypeReportException(Exception):
-    """Base exception for datatype reporting.
-    """
-
-    def __init__(self, msg='My default message', *args, **kwargs):
-        super().__init__(msg, *args, **kwargs)
-
-
-class AddOnInstructionReportException(Exception):
-    """Base exception for addon instruction reporting.
-    """
-
-    def __init__(self, msg='My default message', *args, **kwargs):
-        super().__init__(msg, *args, **kwargs)
-
-
-class TagReportException(Exception):
-    """Base exception for tag reporting.
-    """
-
-    def __init__(self, msg='My default message', *args, **kwargs):
-        super().__init__(msg, *args, **kwargs)
-
-
-class ProgramReportException(Exception):
-    """Base exception for program reporting.
-    """
-
-    def __init__(self, msg='My default message', *args, **kwargs):
-        super().__init__(msg, *args, **kwargs)
-
-
-class ModuleInhibitedException(ModuleReportException):
-    """Module is inhibited!
-    """
-
-    def __init__(self, msg='Module should not be inhibted!', *args, **kwargs):
-        super().__init__(msg, *args, **kwargs)
-
-
-class ModuleNoCatalogException(ModuleReportException):
-    """Module has no catalog number!
-    """
-
-    def __init__(self, msg='Module has no catalog number!', *args, **kwargs):
-        super().__init__(msg, *args, **kwargs)
-
-
-class ModuleNoVendorException(ModuleReportException):
-    """Module has no vendor number!
-    """
-
-    def __init__(self, msg='Module has no vendor number!', *args, **kwargs):
-        super().__init__(msg, *args, **kwargs)
-
-
-class DataTypeNoFamilyException(DataTypeReportException):
-    """Datatype has no family type!
-    """
-
-    def __init__(self, msg='Datatype has no family type!', *args, **kwargs):
-        super().__init__(msg, *args, **kwargs)
-
-
-class DataTypeNoMembersException(DataTypeReportException):
-    """Datatype has no members!
-    """
-
-    def __init__(self, msg='Datatype has no members!', *args, **kwargs):
-        super().__init__(msg, *args, **kwargs)
-
-
-class ControllerReportContextManager:
-
+class ControllerReportItem:
     def __init__(self,
-                 report_items: list[list[str]]):
-        self._report_items = report_items
+                 plc_object: PlcObject,
+                 test_description: str,
+                 pass_fail: bool,
+                 report_description: str):
+        if plc_object is None or test_description is None or pass_fail is None or report_description is None:
+            raise ValueError('Cannot leave any fields empty/None!')
+        self._plc_object: PlcObject = plc_object
+        self._test_description: str = test_description
+        self._pass_fail: bool = pass_fail
+        self._report_description: str = report_description
 
-    def __enter__(self):
-        return self
+    def __repr__(self):
+        return f'ControllerReportItem(plc_object={self._plc_object},)'\
+            f'test_description={self._test_description}, '\
+            f'pass_fail={self._pass_fail}, '\
+            f'report_description={self._report_description})'
 
-    def __exit__(self, exc_type, exc_val, exc_tb):
-        if exc_type is not None:
-            self.log(exc_val)
+    @property
+    def plc_object(self) -> PlcObject:
+        return self._plc_object
 
-        return True
+    @property
+    def test_description(self) -> str:
+        return self._test_description
 
-    def log(self,
-            *messages: str) -> None:
-        self._report_items.append([*messages])
+    @property
+    def pass_fail(self) -> bool:
+        return self._pass_fail
+
+    @property
+    def report_description(self) -> str:
+        return self._report_description
 
 
 class ControllerReport(Loggable):
@@ -1280,43 +1329,15 @@ class ControllerReport(Loggable):
                  controller: Controller):
         super().__init__()
         self._controller: Controller = controller
-        self._report_items: list[list[str]] = []
-        self._health_counter:    int = 0
-        self._health_value:      int = 0
+        self._report_items: list[ControllerReportItem] = []
 
     @property
-    def health(self) -> Tuple[int, int]:
-        return (self._health_value, self._health_counter)
+    def report_items(self) -> list[ControllerReportItem]:
+        return self._report_items
 
-    def _log_health(self):
-        _log_char = '█'
-        _health = self.health
-        _log_chart = _log_char * int((self._health_counter * (_health[0]/_health[1])))
-        self.logger.info(f'Health -> {_log_chart}')
-
-    def _tick_health(self, health_good: bool):
-        """using boolean assignment, increment a health counter and health value.
-
-        This allows for a rolling counter, while tracking how much of the health was actually good.
-
-        In the end, is used to show health such as: 60/120, then be translated to a percentage (66% Healthy).
-        """
-        self._health_counter += 1
-        if health_good:
-            self._health_value += 1
-        # self._log_health()
-
-    def _check_aois(self):
-        self.logger.info('Checking addon instructions...')
-
-        for aoi in self._controller.aois:
-            try:
-                self.logger.info('AddOnInstruction: %s' % aoi.name)
-
-                self.logger.info('ok...')
-
-            except AddOnInstructionReportException as e:
-                self.logger.error('error -> %s' % e)
+    @property
+    def categorized_items(self) -> dict[list[ControllerReportItem]]:
+        return self._as_categorized()
 
     def _check_controller(self):
         self.logger.info('Checking controller...')
@@ -1328,7 +1349,6 @@ class ControllerReport(Loggable):
             self.logger.info('ok... -> %s' % str(self._controller.comm_path))
         else:
             self.logger.error('error!')
-        self._tick_health(good)
 
         # ip address
         self.logger.info('IP Address...')
@@ -1337,7 +1357,6 @@ class ControllerReport(Loggable):
             self.logger.info('ok... -> %s' % str(self._controller.ip_address))
         else:
             self.logger.error('error!')
-        self._tick_health(good)
 
         # slot
         self.logger.info('Slot...')
@@ -1346,7 +1365,6 @@ class ControllerReport(Loggable):
             self.logger.info('ok... -> %s' % str(self._controller.slot))
         else:
             self.logger.error('error!')
-        self._tick_health(good)
 
         # plc module
         self.logger.info('PLC Module...')
@@ -1355,73 +1373,35 @@ class ControllerReport(Loggable):
             self.logger.info('ok... -> %s' % str(self._controller.plc_module['@Name']))
         else:
             self.logger.error('error!')
-        self._tick_health(good)
 
-    def _check_datatypes(self):
-        self.logger.info('Checking datatypes...')
-        for datatype in self._controller.datatypes:
-            try:
-                self.logger.info('Datatype: %s' % datatype.name)
+    def _check_common(self, attr: list[PlcObject]):
 
-                if datatype.family is None:
-                    raise DataTypeNoFamilyException
+        if not isinstance(attr, list):
+            raise ValueError
 
-                if datatype.members is None:
-                    raise DataTypeNoMembersException
+        for x in attr:
+            self.logger.info('analyzing "%s"...', x.name)
+            self._report_items.append(x.validate())
+            if self._report_items[-1].pass_fail is True:
+                self.logger.info('validation ok...')
+            else:
+                self.logger.warning('validation error! -> %s', self._report_items[-1].report_description)
 
-                self.logger.info('ok...')
-
-            except DataTypeReportException as e:
-                self.logger.error('error -> %s' % e)
-
-    def _check_modules(self):
-        self.logger.info('Checking modules...')
-        for module in self._controller.modules:
-            try:
-                self.logger.info('Module: %s' % module.name)
-
-                if module.catalog_number is None:
-                    raise ModuleNoCatalogException
-
-                if module.vendor is None:
-                    raise ModuleNoVendorException
-
-                self.logger.info('ok...')
-
-            except ModuleReportException as e:
-                self.logger.error('error -> %s' % e)
-
-    def _check_programs(self):
-        self.logger.info('Checking programs...')
-
-        for program in self._controller.programs:
-            try:
-                self.logger.info('Program: %s' % program.name)
-
-                self.logger.info('ok...')
-
-            except ProgramReportException as e:
-                self.logger.error('error -> %s' % e)
-
-    def _check_tags(self):
-        self.logger.info('Checking tags...')
-
-        for tag in self._controller.tags:
-            try:
-                self.logger.info('Tag: %s' % tag.name)
-
-                self.logger.info('ok...')
-
-            except TagReportException as e:
-                self.logger.error('error -> %s' % e)
+    def _as_categorized(self) -> dict[list[ControllerReportItem]]:
+        categories = {}
+        for report in self._report_items:
+            if report.plc_object.__class__.__name__ not in categories:
+                categories[report.plc_object.__class__.__name__] = []
+            categories[report.plc_object.__class__.__name__].append(report)
+        return categories
 
     def run(self) -> Self:
         self.logger.info('Starting report...')
         self._check_controller()
-        self._check_modules()
-        self._check_datatypes()
-        self._check_aois()
-        self._check_tags()
-        self._check_programs()
+        self._check_common(self._controller.modules)
+        self._check_common(self._controller.datatypes)
+        self._check_common(self._controller.aois)
+        self._check_common(self._controller.tags)
+        self._check_common(self._controller.programs)
         self.logger.info('Finalizing report...')
         return self

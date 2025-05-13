@@ -29,8 +29,82 @@ ALARM_PATTERN:   str = '*<Alarm[[]*[]]:*>'
 PROMPT_PATTERN:  str = '*<Prompt[[]*[]]:*>'
 
 DIAG_RE_PATTERN:    str = r"(<.+\[\d*\].*>)"
+TL_RE_PATTERN:      str = r"(?:.*)(<.*\[\d*\]:.*>)(?:.*)"
+TL_ID_PATTERN:      str = r"(?:.*<)(.*)(?:\[\d*\]:.*>.*)"
 DIAG_NUM_RE_PATTERN: str = r"(?:<.*\[)(\d*)(?:\].*>)"
 COLUMN_RE_PATTERN:   str = r"(?:<.*\[\d+\]:\s)(@[a-zA-Z]+\d+)(?:.*)>"
+
+
+class TextListElement:
+    """General Motors Text List Generic Element
+    """
+
+    def __init__(self,
+                 text: str,
+                 rung: 'GmRung'):
+        self._text:      str = self._get_diag_text(text)
+        self._text_list_id: str = self._get_tl_id()
+        self._number:    int = self._get_diag_number()
+        self._rung: 'GmRung' = rung
+
+    def __eq__(self, other):
+        if isinstance(other, TextListElement):
+            return self.number == other.number
+        return False
+
+    def __hash__(self):
+        return hash((self.text, self.number, self.rung))
+
+    def __repr__(self) -> str:
+        return (
+            f'text={self.text}, '
+            f'text_list_id={self.text_list_id}'
+            f'number={self.number}, '
+            f'rung={self.rung}'
+        )
+
+    def __str__(self):
+        return self.text
+
+    @property
+    def number(self) -> int:
+        return self._number
+
+    @property
+    def rung(self) -> 'GmRung':
+        return self._rung
+
+    @property
+    def text(self) -> str:
+        return self._text
+
+    @property
+    def text_list_id(self) -> str:
+        return self._text_list_id
+
+    def _get_diag_number(self):
+        match = re.search(DIAG_NUM_RE_PATTERN, self._text)
+        if match:
+            return int(match.groups()[0])
+
+        raise ValueError('Could not find diag number in diag string! -> %s' % self._text)
+
+    def _get_diag_text(self, text: str):
+        match = re.search(DIAG_RE_PATTERN, text)
+        if match:
+            return match.groups()[0]
+
+        raise ValueError('Could not find diag text in diag string! -> %s' % self.text)
+
+    def _get_tl_id(self) -> str:
+        if not self.text:
+            return None
+
+        match = re.search(TL_ID_PATTERN, self.text)
+        if match:
+            return match.groups()[0].strip()
+        else:
+            return None
 
 
 class KDiagType(Enum):
@@ -40,7 +114,7 @@ class KDiagType(Enum):
     VALUE:  int = 3
 
 
-class KDiag:
+class KDiag(TextListElement):
     """General Motors "k" Diagnostic Object
     """
 
@@ -51,13 +125,12 @@ class KDiag:
                  rung: 'GmRung'):
         if diag_type is KDiagType.NA:
             raise ValueError('Cannot be NA!')
+        super().__init__(text=text,
+                         rung=rung)
 
-        self.text:            str = self._get_diag_text(text)
         self.diag_type: KDiagType = diag_type
         self.col_location:    str = self._get_col_location()
-        self.number:          int = self._get_diag_number()
         self.parent_offset:   int = int(parent_offset)
-        self.rung:       'GmRung' = rung
 
     def __eq__(self, other):
         if isinstance(other, KDiag):
@@ -77,9 +150,6 @@ class KDiag:
             f'rung={self.rung}'
         )
 
-    def __str__(self):
-        return self.text
-
     @property
     def global_number(self) -> int:
         return self.number + self.parent_offset
@@ -90,20 +160,6 @@ class KDiag:
             return col_match.groups()[0]
 
         return None
-
-    def _get_diag_number(self):
-        match = re.search(DIAG_NUM_RE_PATTERN, self.text)
-        if match:
-            return int(match.groups()[0])
-
-        raise ValueError('Could not find diag number in diag string! -> %s' % self.text)
-
-    def _get_diag_text(self, text: str):
-        match = re.search(DIAG_RE_PATTERN, text)
-        if match:
-            return match.groups()[0]
-
-        raise ValueError('Could not find diag text in diag string! -> %s' % self.text)
 
 
 class SupportsGmNaming(PlcObject):
@@ -174,6 +230,21 @@ class GmRung(SupportsGmNaming, Rung):
     def routine(self) -> "GmRoutine":
         return self._routine
 
+    @property
+    def text_list_items(self) -> list[TextListElement]:
+        if not self.comment:
+            return []
+
+        comment_lines = self.comment.splitlines()
+        ret_list = []
+
+        for line in comment_lines:
+            match = re.match(TL_RE_PATTERN, line)
+            if match:
+                ret_list.append(TextListElement(match.groups()[0], self))
+
+        return ret_list
+
 
 class GmRoutine(SupportsGmNaming, Routine):
     """General Motors Routine
@@ -193,6 +264,13 @@ class GmRoutine(SupportsGmNaming, Routine):
     @property
     def rungs(self) -> list[GmRung]:
         return super().rungs
+
+    @property
+    def text_list_items(self) -> list[TextListElement]:
+        x = []
+        for rung in self.rungs:
+            x.extend(rung.text_list_items)
+        return x
 
 
 class GmTag(SupportsGmNaming, Tag):
@@ -244,6 +322,13 @@ class GmProgram(SupportsGmNaming, Program):
         return super().routines
 
     @property
+    def text_list_items(self) -> list[TextListElement]:
+        x = []
+        for routine in self.routines:
+            x.extend(routine.text_list_items)
+        return x
+
+    @property
     def gm_routines(self) -> list[GmRoutine]:
         return [x for x in self.routines if x.is_gm_owned]
 
@@ -281,12 +366,34 @@ class GmController(SupportsGmNaming, Controller):
         return super().programs
 
     @property
+    def text_list_items(self) -> list[TextListElement]:
+        x = []
+        for program in self.programs:
+            x.extend(program.text_list_items)
+        return x
+
+    @property
     def gm_programs(self) -> list[GmProgram]:
         return [x for x in self.programs if x.is_gm_owned]
 
     @property
     def user_program(self) -> list[GmProgram]:
         return [x for x in self.programs if x.is_user_owned]
+
+    def extract_messages(self):
+        tl_items = self.text_list_items
+        filtered = {}
+
+        for item in tl_items:
+            if item.text_list_id not in filtered:
+                filtered[item.text_list_id] = []
+            filtered[item.text_list_id].append(item)
+
+        return {
+            'text_lists': tl_items,
+            'filtered': filtered,
+            'duplicates': find_duplicates(tl_items, True)
+        }
 
     def validate_text_lists(self):
         """validate all text lists within controller

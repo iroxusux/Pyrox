@@ -335,7 +335,7 @@ class TestPLC(LoggableUnitTest):
         """test controller report class
         """
         ctrl: Controller = Controller.from_file(TESTING_FILE)
-        report = ControllerReport(ctrl).run()
+        report = ctrl.validate()
         self.assertIsInstance(report, ControllerReport)
 
 
@@ -424,3 +424,16 @@ class TestGM(LoggableUnitTest):
         dup_ctrl: GmController = GmController.from_file(TESTING_GM_DUP_ALARMS_FILE)
         dups = dup_ctrl.validate_text_lists()
         self.assertTrue(len(dups) > 0)
+
+    def test_extract_messages(self):
+        """test extract messages functionality
+        """
+        ctrl: GmController = GmController.from_file(TESTING_GM_FILE)
+
+        tls = ctrl.extract_messages()
+        self.assertIsNotNone(tls)
+        self.assertTrue(len(tls['duplicates']) == 0)
+
+        ctrl = GmController.from_file(TESTING_GM_DUP_ALARMS_FILE)
+        tls = ctrl.extract_messages()
+        self.assertTrue(len(tls['duplicates']) > 0)
