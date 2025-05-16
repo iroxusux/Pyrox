@@ -562,14 +562,12 @@ class PartialView(Runnable):
         else:
             raise ValueError(f'Could not create a partial view from type {self._config.type_}')
 
-        if self._parent:
-            self._frame = Frame(master=self._parent, padx=2, pady=2)
-            self._frame.pack(fill='both', expand=True)
-        else:
-            self._frame = None
-            return
+        self._frame = Frame(master=self._parent, padx=2, pady=2)
 
-        if self._config.type_ is ViewType.EMBED:
+        if self._parent:
+            self._frame.pack(fill='both', expand=True)
+
+        if self._config.type_ is ViewType.EMBED or not self._parent:
             return
 
         self._parent.protocol('WM_DELETE_WINDOW', self.close)
@@ -662,9 +660,16 @@ class PartialView(Runnable):
 
         """
         self.stop()
-        if self.parent:
-            self.parent.destroy()
-        gc.collect()  # process garbage collection for tk/tcl elements
+        try:
+            if isinstance(self.parent, Tk):
+                self.parent.quit()
+                self.parent.destroy()
+            elif isinstance(self.parent, Toplevel):
+                self.parent.destroy()
+        except TclError:
+            self.logger.error('TclError: Could not destroy the parent window')
+        finally:
+            gc.collect()  # process garbage collection for tk/tcl elements
 
 
 class ExceptionContextManager:

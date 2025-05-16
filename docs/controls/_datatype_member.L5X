@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Member Name="Datatype_Member" DataType="DINT" Dimension="0" Radix="Decimal" Hidden="false"
+    ExternalAccess="Read/Write">
+    <Description><![CDATA[Datatype_Member_Description]]></Description>
+</Member>

@@ -24,7 +24,9 @@ from ...utils import find_duplicates
 
 
 GM_CHAR = 'z'
+GM_SAFE_CHAR = 's_z'
 USER_CHAR = 'u'
+USER_SAFE_CHAR = 's_u'
 ALARM_PATTERN:   str = '*<Alarm[[]*[]]:*>'
 PROMPT_PATTERN:  str = '*<Prompt[[]*[]]:*>'
 
@@ -33,6 +35,7 @@ TL_RE_PATTERN:      str = r"(?:.*)(<.*\[\d*\]:.*>)(?:.*)"
 TL_ID_PATTERN:      str = r"(?:.*<)(.*)(?:\[\d*\]:.*>.*)"
 DIAG_NUM_RE_PATTERN: str = r"(?:<.*\[)(\d*)(?:\].*>)"
 COLUMN_RE_PATTERN:   str = r"(?:<.*\[\d+\]:\s)(@[a-zA-Z]+\d+)(?:.*)>"
+DIAG_NAME_RE_PATTER: str = r"(?!MOV\(\d*,HMI\.Diag\.Pgm\.Name\.LEN\))(MOV\(.*?,HMI\.Diag\.Pgm\.Name\.DATA\[\d*?\])"
 
 
 class TextListElement:
@@ -53,7 +56,7 @@ class TextListElement:
         return False
 
     def __hash__(self):
-        return hash((self.text, self.number, self.rung))
+        return hash((self.text, self.number))
 
     def __repr__(self) -> str:
         return (
@@ -94,7 +97,7 @@ class TextListElement:
         if match:
             return match.groups()[0]
 
-        raise ValueError('Could not find diag text in diag string! -> %s' % self.text)
+        raise ValueError('Could not find diag text in diag string! -> %s' % text)
 
     def _get_tl_id(self) -> str:
         if not self.text:
@@ -114,6 +117,16 @@ class KDiagType(Enum):
     VALUE:  int = 3
 
 
+class KDiagProgramType(Enum):
+    NA:      int = 0
+    MCP:     int = 1
+    STATION: int = 2
+    DEVICE:  int = 3
+    ROBOT:   int = 4
+    HMI:     int = 5
+    PFE:     int = 6
+
+
 class KDiag(TextListElement):
     """General Motors "k" Diagnostic Object
     """
@@ -125,6 +138,8 @@ class KDiag(TextListElement):
                  rung: 'GmRung'):
         if diag_type is KDiagType.NA:
             raise ValueError('Cannot be NA!')
+        if parent_offset is None:
+            parent_offset = 0
         super().__init__(text=text,
                          rung=rung)
 
@@ -162,37 +177,47 @@ class KDiag(TextListElement):
         return None
 
 
-class SupportsGmNaming(PlcObject):
-    """This Plc object supports General Motors Stylized Naming Schemes
+class GmPlcObject(PlcObject):
 
-    e.g. 'za_Action' or 'zZ999_Diagnostics'.
-    """
+    @property
+    def config(self) -> ControllerConfiguration:
+        if not self._controller:
+            return ControllerConfiguration(aoi_type=GmAddOnInstruction,
+                                           datatype_type=GmDatatype,
+                                           module_type=GmModule,
+                                           program_type=GmProgram,
+                                           routine_type=GmRoutine,
+                                           rung_type=GmRung,
+                                           tag_type=GmTag)
+        return self._controller._config
 
     @property
     def is_gm_owned(self) -> bool:
-        return True if self.name.lower().startswith(GM_CHAR) else False
+        return True if (self.name.lower().startswith(GM_CHAR)
+                        or self.name.lower().startswith(GM_SAFE_CHAR)) else False
 
     @property
     def is_user_owned(self) -> bool:
-        return True if self.name.lower().startswith(USER_CHAR) else False
+        return True if (self.name.lower().startswith(USER_CHAR)
+                        or self.name.lower().startswith(USER_SAFE_CHAR)) else False
 
 
-class GmAddOnInstruction(SupportsGmNaming, AddOnInstruction):
+class GmAddOnInstruction(GmPlcObject, AddOnInstruction):
     """General Motors AddOn Instruction Definition
     """
 
 
-class GmDatatype(SupportsGmNaming, Datatype):
+class GmDatatype(GmPlcObject, Datatype):
     """General Motors Datatype
     """
 
 
-class GmModule(SupportsGmNaming, Module):
+class GmModule(GmPlcObject, Module):
     """General Motors Module
     """
 
 
-class GmRung(SupportsGmNaming, Rung):
+class GmRung(GmPlcObject, Rung):
     """General Motors Rung
     """
 
@@ -227,10 +252,6 @@ class GmRung(SupportsGmNaming, Rung):
         return ret_list
 
     @property
-    def routine(self) -> "GmRoutine":
-        return self._routine
-
-    @property
     def text_list_items(self) -> list[TextListElement]:
         if not self.comment:
             return []
@@ -246,12 +267,12 @@ class GmRung(SupportsGmNaming, Rung):
         return ret_list
 
 
-class GmRoutine(SupportsGmNaming, Routine):
+class GmRoutine(GmPlcObject, Routine):
     """General Motors Routine
     """
 
     @property
-    def kdiags(self) -> list[GmRung]:
+    def kdiag_rungs(self) -> list[KDiag]:
         x = []
         for rung in self.rungs:
             x.extend(rung.kdiags)
@@ -273,17 +294,19 @@ class GmRoutine(SupportsGmNaming, Routine):
         return x
 
 
-class GmTag(SupportsGmNaming, Tag):
+class GmTag(GmPlcObject, Tag):
     """General Motors Tag
     """
 
 
-class GmProgram(SupportsGmNaming, Program):
+class GmProgram(GmPlcObject, Program):
     """General Motors Program
     """
     PARAM_RTN_STR = 'B*_Parameters'
 
     PARAM_MATCH_STR = "MOV(*,HMI.Diag.Pgm.MsgOffset);"
+
+    PGM_NAME_STR = "MOV(*,HMI.Diag.Pgm.Name.LEN)*"
 
     @property
     def is_gm_owned(self) -> bool:
@@ -294,21 +317,136 @@ class GmProgram(SupportsGmNaming, Program):
         return len(self.user_routines) > 0
 
     @property
+    def diag_name(self) -> str:
+        if not self.parameter_routine:
+            return None
+
+        diag_rung = None
+        for rung in self.parameter_routine.rungs:
+            match = re.search(DIAG_NAME_RE_PATTER, rung.text)
+            if match:
+                diag_rung = rung
+                break
+        if not diag_rung:
+            return None
+
+        # Extract the length of the string
+        length_match = re.search(r'MOV\((\d+),HMI\.Diag\.Pgm\.Name\.LEN\)', diag_rung.text)
+        if length_match:
+            string_length = int(length_match.group(1))
+        else:
+            raise ValueError("String length not found in the PLC code")
+
+        # Extract the ASCII characters and their positions
+        data_matches = re.findall(r'MOV\((kAscii\.\w+),HMI\.Diag\.Pgm\.Name\.DATA\[(\d+)\]\)', diag_rung.text)
+        if not data_matches:
+            raise ValueError("No ASCII characters found in the PLC code")
+
+        # Create a dictionary to map ASCII positions to characters
+        ascii_map = {
+            'kAscii.A': 'A',
+            'kAscii.B': 'B',
+            'kAscii.C': 'C',
+            'kAscii.D': 'D',
+            'kAscii.E': 'E',
+            'kAscii.F': 'F',
+            'kAscii.G': 'G',
+            'kAscii.H': 'H',
+            'kAscii.I': 'I',
+            'kAscii.J': 'J',
+            'kAscii.K': 'K',
+            'kAscii.L': 'L',
+            'kAscii.M': 'M',
+            'kAscii.N': 'N',
+            'kAscii.O': 'O',
+            'kAscii.P': 'P',
+            'kAscii.Q': 'Q',
+            'kAscii.R': 'R',
+            'kAscii.S': 'S',
+            'kAscii.T': 'T',
+            'kAscii.U': 'U',
+            'kAscii.V': 'V',
+            'kAscii.W': 'W',
+            'kAscii.X': 'X',
+            'kAscii.Y': 'Y',
+            'kAscii.Z': 'Z',
+            'kAscii.a': 'a',
+            'kAscii.b': 'b',
+            'kAscii.c': 'c',
+            'kAscii.d': 'd',
+            'kAscii.e': 'e',
+            'kAscii.f': 'f',
+            'kAscii.g': 'g',
+            'kAscii.h': 'h',
+            'kAscii.i': 'i',
+            'kAscii.j': 'j',
+            'kAscii.k': 'k',
+            'kAscii.l': 'l',
+            'kAscii.m': 'm',
+            'kAscii.n': 'n',
+            'kAscii.o': 'o',
+            'kAscii.p': 'p',
+            'kAscii.q': 'q',
+            'kAscii.r': 'r',
+            'kAscii.s': 's',
+            'kAscii.t': 't',
+            'kAscii.u': 'u',
+            'kAscii.v': 'v',
+            'kAscii.w': 'w',
+            'kAscii.x': 'x',
+            'kAscii.y': 'y',
+            'kAscii.z': 'z',
+            'kAscii.n0': '0',
+            'kAscii.n1': '1',
+            'kAscii.n2': '2',
+            'kAscii.n3': '3',
+            'kAscii.n4': '4',
+            'kAscii.n5': '5',
+            'kAscii.n6': '6',
+            'kAscii.n7': '7',
+            'kAscii.n8': '8',
+            'kAscii.n9': '9',
+        }
+
+        # Initialize the string with placeholders
+        string_chars = [''] * string_length
+
+        # Fill the string with the extracted characters
+        for char, pos in data_matches:
+            string_chars[int(pos)] = ascii_map.get(char, '?')
+
+        # Join the characters to form the final string
+        final_string = ''.join(string_chars)
+
+        return final_string
+
+    @property
+    def diag_setup(self) -> dict:
+        return {
+            'program_name': self.name,
+            'diag_name': self.diag_name,
+            'msg_offset': self.parameter_offset,
+            'hmi_tag': 'TBD',
+            'program_type': self.program_type,
+            'tag_alias_refs': 'TBD'
+        }
+
+    @property
     def kdiags(self) -> list[KDiag]:
         x = []
         for routine in self.routines:
-            x.extend(routine.kdiags)
+            x.extend(routine.kdiag_rungs)
         return x
 
     @property
     def parameter_offset(self) -> int:
         if not self.parameter_routine:
-            return None
+            return 0
 
         for rung in self.parameter_routine.rungs:
             if fnmatch.fnmatch(rung.text, self.PARAM_MATCH_STR):
                 return int(rung.text.replace("MOV(", '').replace(',HMI.Diag.Pgm.MsgOffset);', ''))
-        return None
+        return 0
 
     @property
     def parameter_routine(self) -> GmRoutine:
@@ -316,6 +454,10 @@ class GmProgram(SupportsGmNaming, Program):
             if fnmatch.fnmatch(routine.name, self.PARAM_RTN_STR):
                 return routine
         return None
+
+    @property
+    def program_type(self) -> KDiagProgramType:
+        return KDiagProgramType.NA
 
     @property
     def routines(self) -> list[GmRoutine]:
@@ -337,7 +479,7 @@ class GmProgram(SupportsGmNaming, Program):
         return [x for x in self.routines if x.is_user_owned]
 
 
-class GmController(SupportsGmNaming, Controller):
+class GmController(GmPlcObject, Controller):
     """General Motors Plc Controller
     """
 
@@ -392,7 +534,8 @@ class GmController(SupportsGmNaming, Controller):
         return {
             'text_lists': tl_items,
             'filtered': filtered,
-            'duplicates': find_duplicates(tl_items, True)
+            'duplicates': find_duplicates(tl_items, True),
+            'programs': [x.diag_setup for x in self.programs]
         }
 
     def validate_text_lists(self):

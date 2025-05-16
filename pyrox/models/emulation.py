@@ -17,7 +17,7 @@ from tkinter import (
 from typing import Optional
 
 
-from ..services.plc_services import controller_dict_from_file, dict_to_controller_file, find_redundant_otes
+from ..services.plc_services import xml_dict_from_file, dict_to_xml_file
 from ..types import Application, Model, ProgressBar, ViewModel, View, ViewConfiguration, ViewType
 from ..types.plc import Controller, ConnectionParameters
 from ..types.utkinter import DecoratedListboxFrame, TreeViewGridFrame
@@ -341,11 +341,11 @@ class EmulationModel(Model):
             Location to open :class:`Controller` from.
 
         """
-        ctrl_dict = controller_dict_from_file(file_location)
+        ctrl_dict = xml_dict_from_file(file_location)
         if not ctrl_dict:
             self.error('no controller was parsable from passed file location: %s...', file_location)
             return
-        ctrl = Controller(controller_dict_from_file(file_location))
+        ctrl = Controller(xml_dict_from_file(file_location))
         if not ctrl:
             self.logger.error('no controller was passed...')
             return
@@ -373,8 +373,8 @@ class EmulationModel(Model):
         """
         if not file_location or not self.controller:
             return
-        dict_to_controller_file(self.controller.root_meta_data,
-                                file_location)
+        dict_to_xml_file(self.controller.root_meta_data,
+                         file_location)
 
     def verify_controller(self):
         """verify plc l5x controller
@@ -383,7 +383,7 @@ class EmulationModel(Model):
             self.logger.warning('No controller loaded...')
             return
 
-        dups, coils = find_redundant_otes(self.controller, True)
+        dups, coils = self.controller.find_redundant_otes(True)
         self.logger.info('Found %s duplicates' % len(dups))
         self.logger.info('Found %s coils in total' % len(coils))
 

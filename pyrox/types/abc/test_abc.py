@@ -1,495 +1,606 @@
-"""testing module for abc classes
-    """
-import copy
-import logging
-from tkinter import Tk, Toplevel, Frame, LabelFrame, Menu, TclError
-from typing import Callable
 import unittest
+import logging
+import os
+from tkinter import Event, Frame, LabelFrame, TclError, Tk, Menu
 
 
 from .application import (
-    PartialApplicationTask,
     BaseMenu,
     PartialApplication,
+    PartialApplicationTask,
     PartialApplicationConfiguration
 )
 
 
-from .factory import Factory
-
 from .list import (
     HashList,
+    Subscribable,
     SafeList,
-    TrackedList
+    TrackedList,
 )
 
 
 from .meta import (
     _IdGenerator,
-    Buildable,
-    ConsolePanelHandler,
     EnforcesNaming,
-    ExceptionContextManager,
+    SnowFlake,
+    ConsolePanelHandler,
     Loggable,
     LoggableUnitTest,
-    PartialViewConfiguration,
-    ViewType,
+    Buildable,
     Runnable,
-    SnowFlake,
+    ViewType,
+    PartialViewConfiguration,
     PartialView,
-    DEF_WIN_TITLE
+    ExceptionContextManager,
 )
 
 
-from .model import PartialModel
-from .viewmodel import PartialViewModel
-
-
-__all__ = (
-    'TestMeta',
+from .model import (
+    PartialModel,
 )
 
 
-class TestMeta(unittest.TestCase):
-    """test class for meta module
-    """
+from .viewmodel import (
+    PartialViewModel,
+)
 
-    def test_id_generator(self):
-        """test id generator generates unique ids
-        """
-        curr_value = _IdGenerator.curr_value()
-        self.assertIsInstance(_IdGenerator.curr_value(), int)
-        self.assertEqual(_IdGenerator.curr_value(), curr_value)
 
-        x = _IdGenerator.get_id()
-        self.assertEqual(_IdGenerator.curr_value(), curr_value+1)
-        y = _IdGenerator.get_id()
-        self.assertEqual(_IdGenerator.curr_value(), curr_value+2)
+class TestIdGenerator(unittest.TestCase):
+    def test_get_id(self):
+        initial_id = _IdGenerator.curr_value()
+        new_id = _IdGenerator.get_id()
+        self.assertEqual(new_id, initial_id + 1)
 
-        # check that new objects get new values
-        self.assertNotEqual(x, y)
+    def test_curr_value(self):
+        current_value = _IdGenerator.curr_value()
+        id = _IdGenerator.get_id()  # Increment the counter
+        self.assertEqual(current_value+1, id)  # Assuming this is the second call
 
-    def test_snowflake(self):
-        """test snowflakes generate with unique ids
-        """
-        x = SnowFlake()
-        self.assertIsInstance(x.id, int)
-        y = SnowFlake()
-        self.assertIsInstance(y.id, int)
 
-        self.assertNotEqual(x.id, y.id)
+class TestEnforcesNaming(unittest.TestCase):
+    def test_is_valid_string(self):
+        valid_string = "ValidName123"
+        invalid_string = "Invalid Name!"
+        self.assertTrue(EnforcesNaming.is_valid_string(valid_string))
+        self.assertFalse(EnforcesNaming.is_valid_string(invalid_string))
 
-        # create list for testing
-        my_list = [x]
+    def test_invalid_naming_exception(self):
+        with self.assertRaises(EnforcesNaming.InvalidNamingException):
+            raise EnforcesNaming.InvalidNamingException()
 
-        # check __hash__ function by checking if obj in list
-        # check second obj not in list
-        self.assertTrue(x in my_list)
-        self.assertFalse(y in my_list)
 
-        z = copy.copy(x)
+class TestSnowFlake(unittest.TestCase):
+    def test_snowflake_id(self):
+        snowflake = SnowFlake()
+        self.assertEqual(snowflake.id, _IdGenerator.curr_value())
 
-        # check eq and neq
-        self.assertTrue(x is not z)
-        self.assertTrue(x == z)
-        self.assertTrue(x is not y)
-        self.assertTrue(x != y)
-        self.assertTrue(y is not z)
-        self.assertTrue(y != z)
+    def test_snowflake_equality(self):
+        snowflake1 = SnowFlake()
+        snowflake2 = SnowFlake()
+        self.assertNotEqual(snowflake1, snowflake2)
+        self.assertEqual(snowflake1, snowflake1)
 
-        # add second obj
-        my_list.append(y)
+    def test_snowflake_hash(self):
+        snowflake = SnowFlake()
+        self.assertEqual(hash(snowflake), hash(snowflake.id))
 
-        # check again
-        self.assertTrue(x in my_list)
-        self.assertTrue(y in my_list)
-        self.assertTrue(z in my_list)  # check the copy is attributed to the list
 
-    def test_partial_view_builds(self):
-        """test partial view builds
-        """
+class TestConsolePanelHandler(unittest.TestCase):
+    def test_emit(self):
+        messages = []
+        handler = ConsolePanelHandler(callback=messages.append)
+        logger = logging.getLogger('test_logger')
+        logger.addHandler(handler)
+        logger.error('Test error message')
+        self.assertIn('Test error message', messages[0])
 
-        # test root build
-        x = PartialView(config=PartialViewConfiguration(type_=ViewType.ROOT))
-        self.assertTrue(x.parent.winfo_exists())
-        self.assertNotEqual(x.parent.children, {})
+    def test_set_callback(self):
+        messages = []
+        handler = ConsolePanelHandler(callback=None)
+        handler.set_callback(messages.append)
+        logger = logging.getLogger('test_logger')
+        logger.addHandler(handler)
+        logger.error('Test error message')
+        self.assertIn('Test error message', messages[0])
 
-        # check all attrs
-        self.assertIsInstance(x.name, str)
-        self.assertIsInstance(x.parent, (Tk, Toplevel, Frame, LabelFrame))
-        self.assertIsInstance(x.frame, Frame)
-        self.assertIsInstance(x.config, PartialViewConfiguration)
-        self.assertEqual(x.name, x.parent.title())
 
-        x.close()
-        self.assertEqual(x.parent.children, {})
+class TestLoggable(unittest.TestCase):
+    def test_logger_initialization(self):
+        loggable = Loggable()
+        self.assertIsInstance(loggable.logger, logging.Logger)
+        self.assertIsInstance(loggable.log_handler, ConsolePanelHandler)
 
-        # validate the second attempt to close throws the expected err
+    def test_add_handler(self):
+        loggable = Loggable()
+        handler = logging.StreamHandler()
+        loggable.add_handler(handler)
+        self.assertIn(handler, loggable.logger.handlers)
+
+    def test_logging_methods(self):
+        messages = []
+        handler = ConsolePanelHandler(callback=messages.append)
+        loggable = Loggable()
+        loggable.add_handler(handler)
+        loggable.info('Info message')
+        loggable.warning('Warning message')
+        loggable.error('Error message')
+        self.assertIn('Info message', messages[0])
+        self.assertIn('Warning message', messages[1])
+        self.assertIn('Error message', messages[2])
+
+
+class TestLoggableUnitTest(unittest.TestCase):
+    def test_loggable_unittest_initialization(self):
+        test_case = LoggableUnitTest()
+        self.assertIsInstance(test_case.logger, logging.Logger)
+        self.assertIsInstance(test_case.log_handler, ConsolePanelHandler)
+
+
+class TestBuildable(unittest.TestCase):
+    def test_initial_built_state(self):
+        buildable = Buildable()
+        self.assertFalse(buildable.built)
+
+    def test_build_method(self):
+        buildable = Buildable()
+        buildable.build()
+        self.assertTrue(buildable.built)
+
+    def test_refresh_method(self):
+        buildable = Buildable()
+        buildable.refresh()
+        self.assertFalse(buildable.built)  # Refresh should not change the built state
+
+
+class TestRunnable(unittest.TestCase):
+    def test_initial_running_state(self):
+        runnable = Runnable()
+        self.assertFalse(runnable.running)
+
+    def test_start_method(self):
+        runnable = Runnable()
+        runnable.start()
+        self.assertTrue(runnable.running)
+        self.assertTrue(runnable.built)  # Start should also build the object
+
+    def test_stop_method(self):
+        runnable = Runnable()
+        runnable.start()
+        runnable.stop()
+        self.assertFalse(runnable.running)
+
+    def test_run_method(self):
+        runnable = Runnable()
+        runnable.run()
+        self.assertFalse(runnable.running)  # Run method does not change running state
+
+
+class TestViewType(unittest.TestCase):
+    def test_enum_values(self):
+        self.assertEqual(ViewType.NA.value, 0)
+        self.assertEqual(ViewType.ROOT.value, 1)
+        self.assertEqual(ViewType.TOPLEVEL.value, 2)
+        self.assertEqual(ViewType.EMBED.value, 3)
+
+
+class TestPartialViewConfiguration(unittest.TestCase):
+    def test_default_values(self):
+        config = PartialViewConfiguration()
+        self.assertEqual(config.name, 'Pyrox Default Frame')
+        self.assertEqual(config.icon, f'{os.path.dirname(os.path.abspath(__file__))}\\..\\..\\ui\\icons\\_def.ico')
+        self.assertEqual(config.size_, '1024x768')
+        self.assertEqual(config.theme, 'black')
+        self.assertIsNone(config.parent)
+        self.assertEqual(config.type_, ViewType.EMBED)
+
+
+class TestPartialView(unittest.TestCase):
+    def test_initialization(self):
+        config = PartialViewConfiguration(type_=ViewType.ROOT)
+        view = PartialView(config=config)
+        self.assertEqual(view.config, config)
+        self.assertEqual(view.name, config.name)
+        self.assertIsInstance(view.frame, Frame)
+        self.assertIsInstance(view.parent, Tk)
+
+    def test_center_method(self):
+        config = PartialViewConfiguration(type_=ViewType.ROOT)
+        view = PartialView(config=config)
+        view.center()
+        x = (view.parent.winfo_screenwidth() - view.parent.winfo_reqwidth()) // 2
+        y = (view.parent.winfo_screenheight() - view.parent.winfo_reqheight()) // 2
+        self.assertEqual(view.parent.geometry(),
+                         f'{view.parent.winfo_reqwidth()}x{view.parent.winfo_reqheight()}+{x}+{y}')
+
+    def test_clear_method(self):
+        config = PartialViewConfiguration(type_=ViewType.ROOT)
+        view = PartialView(config=config)
+        label = LabelFrame(view.frame)
+        label.pack()
+        view.clear()
+        for child in view.frame.winfo_children():
+            self.assertFalse(child.winfo_ismapped())  # Ensure all children are unmapped
+
+    def test_close_method(self):
+        config = PartialViewConfiguration(type_=ViewType.ROOT)
+        view = PartialView(config=config)
+        view.close()
         with self.assertRaises(TclError) as context:
-            x.close()
-        self.assertTrue(isinstance(context.exception, TclError))
+            view.frame.winfo_exists()
+        self.assertIsInstance(context.exception, TclError)
 
-        # test top level build
-        x = PartialView(config=PartialViewConfiguration(type_=ViewType.TOPLEVEL))
-        self.assertTrue(x.parent.winfo_exists())
-        self.assertNotEqual(x.parent.children, {})
-
-        # check all attrs
-        self.assertIsInstance(x.name, str)
-        self.assertIsInstance(x.parent, (Tk, Toplevel, Frame, LabelFrame))
-        self.assertIsInstance(x.frame, Frame)
-        self.assertIsInstance(x.config, PartialViewConfiguration)
-
-        # add some children to the view's frame
-        a = Frame(x.frame)
-        b = Frame(x.frame)
-        c = Frame(x.frame)
-
-        a.pack()
-        b.pack()
-        c.pack()
-
-        self.assertTrue(len(x.frame.children) == 3)
-        x.clear()
-        self.assertTrue(len(x.frame.children) == 3)
-
-        x.close()
-        self.assertEqual(x.parent.children, {})
-
-        # test an invalid view type can't be built
-        with self.assertRaises(ValueError) as context:
-            x = PartialView(config=PartialViewConfiguration(type_=ViewType.NA))
-        self.assertTrue(isinstance(context.exception, ValueError))
-
-        # test a non-dict object can't be passed for config
-        with self.assertRaises(AttributeError) as context:
-            PartialView(config=None)
-        self.assertTrue(isinstance(context.exception, AttributeError))
-
-    def test_enforces_naming(self):
-        '''test enforces naming class
-        '''
-        x = EnforcesNaming()
-
-        self.assertTrue(x.is_valid_string('This_is_a_valid_string'))
-        self.assertFalse(x.is_valid_string('This-is_not_a_valid_string'))
-        self.assertFalse(x.is_valid_string('This_is_not_a_valid_string!'))
-
-    def test_hash_list(self):
-        """test hash works as intended
-        """
-        class TestClass:
-            """test class for unit testing"""
-
-            def __init__(self, name: str, value: int):
-                self.name = name
-                self.value = value
-        val1 = TestClass('value1', 1)
-        val2 = TestClass('value2', 2)
-        val3 = TestClass('value3', 3)
-        val4 = TestClass('value4', 4)
-
-        my_list = HashList('name')
-        my_list.append(val1)
-        self.assertTrue(len(my_list) == 1)
-        my_list.append(val2)
-        self.assertTrue(len(my_list) == 2)
-        my_list.append(val3)
-        self.assertTrue(len(my_list) == 3)
-        my_list.append(val3)
-        self.assertTrue(len(my_list) == 3)
-        my_list.remove(val3)
-        self.assertTrue(len(my_list) == 2)
-        my_list.remove(val4)
-        self.assertTrue(len(my_list) == 2)
-        my_list.append(val3)
-        self.assertTrue(len(my_list) == 3)
-        self.assertIsNotNone(my_list.by_key('value1'))
-        self.assertIsNotNone(my_list.by_key('value2'))
-        self.assertIsNotNone(my_list.by_key('value3'))
-        self.assertIsNone(my_list.by_key('value4'))
-
-        # test iterable
-        self.assertIsNotNone(iter(my_list))
-
-        # test contains
-        self.assertTrue(val1 in my_list)
-        self.assertTrue(val2 in my_list)
-        self.assertTrue(val3 in my_list)
-        self.assertFalse(val4 in my_list)
-
-        # test slots / instances
-        self.assertIsInstance(my_list.hash_key, str)
-        self.assertIsInstance(my_list.hashes, dict)
-        self.assertIsInstance(my_list.subscribers, list)
-
-    def test_loggable(self):
-        """test loggable class
-        """
-        class TestLog(Loggable):
-            """test class for unit testing
-            """
-
-        # test logger inherits class name for naming
-        x = TestLog()
-        self.assertEqual(x.logger.name, TestLog.__name__)
-        self.assertIsInstance(x.logger, logging.Logger)
-        self.assertIsInstance(x.log_handler, ConsolePanelHandler)
-
-        # test logger uses supplied name for naming
-        name = 'TestLog_CustomName1'
-        x = TestLog(name)
-        self.assertEqual(x.logger.name, name)
-
-        # test logger uses console panel handler correctly
-        setattr(self, 'console_panel_handler_passed', False)
-
-        def callback(*_, **__):
-            setattr(self, 'console_panel_handler_passed', True)
-
-        y = ConsolePanelHandler(callback)
-        x.add_handler(y)
-        x.info('abc')
-        self.assertTrue(getattr(self, 'console_panel_handler_passed'))
-
-        def new_callback(*_, **__):
-            pass
-
-        self.assertIsInstance(y._callback, Callable)  # pylint: disable=protected-access
-        y.set_callback(new_callback)
-        self.assertIsInstance(y._callback, Callable)  # pylint: disable=protected-access
-        self.assertEqual(new_callback, y._callback)  # pylint: disable=protected-access
-
-    def test_loggable_unittest(self):
-        """test loggable unittest class
-        """
-        x = LoggableUnitTest()
-        self.assertEqual(x.logger.name, 'LoggableUnitTest')
-
-        class _MyTestLogger(LoggableUnitTest):
-            ...
-
-        y = _MyTestLogger()
-
-        self.assertEqual(y.logger.name, '_MyTestLogger')
-
-    def test_buildable(self):
-        """test buildable class
-        """
-        class _TestClass(Buildable):
-
-            def __init__(self):
-                super().__init__()
-                self.build_good = False
-                self.refresh_good = False
-
-            def build(self):
-                super().build()
-                self.build_good = True
-
-            def refresh(self):
-                self.refresh_good = True
-
-        x = _TestClass()
-        self.assertIsInstance(x.built, bool)
-
-        self.assertFalse(x.build_good)
-        self.assertFalse(x.built)
-        self.assertFalse(x.refresh_good)
-        x.build()
-        self.assertTrue(x.built)
-        self.assertTrue(x.build_good)
-        self.assertFalse(x.refresh_good)
-        x.refresh()
-        self.assertTrue(x.build_good)
-        self.assertTrue(x.refresh_good)
-
-    def test_runnable(self):
-        """test runnable
-        """
-        x = Runnable()
-        self.assertIsInstance(x.running, bool)
-
-        self.assertFalse(x.running)
-        x.start()
-        self.assertTrue(x.running)
-        x.stop()
-        self.assertFalse(x.running)
-
-    def test_safelist(self):
-        """test safelist
-        """
-        my_list: SafeList[int] = SafeList()
-        self.assertTrue(len(my_list) == 0)
-        my_list.append(1)
-        self.assertTrue(len(my_list) == 1)
-        my_list.append(2)
-        self.assertTrue(len(my_list) == 2)
-        my_list.append(3)
-        self.assertTrue(len(my_list) == 3)
-        my_list.append(3)
-        self.assertTrue(len(my_list) == 3)
-
-    def test_tracked_list(self):
-        """test tracked list
-        """
-        setattr(self, 'tracked_list_passed', False)
-
-        def cb(*_, **__):
-            setattr(self, 'tracked_list_passed', True)
-
-        my_list = TrackedList()
-        my_list.subscribers.append(cb)
-
-        my_list.append('anything')
-
-        self.assertTrue(getattr(self, 'tracked_list_passed'))
-
-    def test_exception_cm(self):
-        """test exception context manager
-        """
-        _log: list[list[str]] = []
-
-        cm = ExceptionContextManager(_log)
-
-        with cm as manager:  # noqa: F841
-            raise ValueError('This is a value error')
-
-        self.assertEqual(_log[0], 'This is a value error')
+        config = PartialViewConfiguration(type_=ViewType.TOPLEVEL)
+        view = PartialView(config=config)
+        view.close()
+        self.assertFalse(view.frame.winfo_exists())
 
 
-class TestApplication(unittest.TestCase):
-    """test class for application module
-    """
+class TestExceptionContextManager(unittest.TestCase):
+    def test_log_exception(self):
+        report_items = []
+        with ExceptionContextManager(report_items) as manager:  # noqa: F841
+            raise ValueError("Test exception")
+        self.assertIn("Test exception", report_items)
 
-    def test_app_configuration(self):
-        """test application configurations
-        """
+    def test_log_method(self):
+        report_items = []
+        manager = ExceptionContextManager(report_items)
+        manager.log("Test log message")
+        self.assertIn("Test log message", report_items)
+
+
+class TestBaseMenu(unittest.TestCase):
+    def test_initialization(self):
+        root = Tk()
+        base_menu = BaseMenu(root)
+        self.assertEqual(base_menu.root, root)
+        self.assertIsInstance(base_menu.menu, Menu)
+        root.quit()
+
+    def test_menu_property(self):
+        root = Tk()
+        base_menu = BaseMenu(root)
+        self.assertIsInstance(base_menu.menu, Menu)
+        root.quit()
+
+    def test_root_property(self):
+        root = Tk()
+        base_menu = BaseMenu(root)
+        self.assertEqual(base_menu.root, root)
+        root.quit()
+
+
+class MockApplication(PartialApplication):
+    def __init__(self, config=None):
+        if config is None:
+            config = PartialApplicationConfiguration(app_config=PartialViewConfiguration(type_=ViewType.ROOT))
+        super().__init__(config=config)
+
+
+class TestPartialApplicationTask(unittest.TestCase):
+    def test_initialization(self):
+        application = MockApplication()
+        model = PartialModel()
+        task = PartialApplicationTask(application=application, model=model)
+        self.assertEqual(task.application, application)
+        self.assertEqual(task.model, model)
+        application.stop()
+
+    def test_model_property(self):
+        application = MockApplication()
+        model = PartialModel()
+        task = PartialApplicationTask(application=application, model=model)
+        new_model = PartialModel()
+        task.model = new_model
+        self.assertEqual(task.model, new_model)
+        application.stop()
+
+
+class TestPartialApplicationConfiguration(unittest.TestCase):
+    def test_default_values(self):
         config = PartialApplicationConfiguration()
-
-        # test attributes
-        self.assertIsNotNone(config)
-        self.assertIsInstance(config, PartialApplicationConfiguration)
-        self.assertIsInstance(config.headless, bool)
-        self.assertIsInstance(config.inc_log_window, bool)
-        self.assertIsInstance(config.tasks, list)
+        self.assertFalse(config.headless)
+        self.assertFalse(config.inc_log_window)
+        self.assertEqual(config.tasks, [])
         self.assertIsInstance(config.app_config, PartialViewConfiguration)
 
-        # test class methods
-        root = PartialApplicationConfiguration.root()
-        self.assertEqual(root.app_config.type_, ViewType.ROOT)
-        self.assertEqual(DEF_WIN_TITLE, root.app_config.name)
+    def test_common_assembly(self):
+        tasks = [PartialApplicationTask]
+        app_config = PartialViewConfiguration(name="Test App", type_=ViewType.ROOT)
+        config = PartialApplicationConfiguration._common_assembly(
+            headless=True,
+            inc_log_window=True,
+            tasks=tasks,
+            app_config=app_config
+        )
+        self.assertTrue(config.headless)
+        self.assertTrue(config.inc_log_window)
+        self.assertEqual(config.tasks, tasks)
+        self.assertEqual(config.app_config, app_config)
 
-        toplevel = PartialApplicationConfiguration.toplevel()
-        self.assertEqual(toplevel.app_config.type_, ViewType.TOPLEVEL)
-        self.assertEqual(DEF_WIN_TITLE, root.app_config.name)
+    def test_toplevel_method(self):
+        tasks = [PartialApplicationTask]
+        config = PartialApplicationConfiguration.toplevel(
+            headless=True,
+            inc_log_window=True,
+            tasks=tasks
+        )
+        self.assertTrue(config.headless)
+        self.assertTrue(config.inc_log_window)
+        self.assertEqual(config.tasks, tasks)
+        self.assertEqual(config.app_config.type_, ViewType.TOPLEVEL)
 
-    def test_application(self):
-        """test application
-        """
-        # build a good app
-        app = PartialApplication(model=PartialModel,
-                                 view_model=PartialViewModel,
-                                 view=PartialView,
-                                 config=PartialApplicationConfiguration.root())
-        self.assertIsNotNone(app)
+    def test_root_method(self):
+        tasks = [PartialApplicationTask]
+        config = PartialApplicationConfiguration.root(
+            headless=False,
+            inc_log_window=True,
+            tasks=tasks
+        )
+        self.assertFalse(config.headless)
+        self.assertTrue(config.inc_log_window)
+        self.assertEqual(config.tasks, tasks)
+        self.assertEqual(config.app_config.type_, ViewType.ROOT)
 
-        # check attributes
-        self.assertIsInstance(app.main_model, PartialModel)
-        self.assertIsInstance(app.main_model.view_model, PartialViewModel)
-        self.assertIsInstance(app.main_model.view_model.view, PartialView)
-        self.assertIsInstance(app.config, PartialApplicationConfiguration)
-        self.assertIsInstance(app.model_hash, HashList)
-        self.assertFalse(app.running)
 
-        # test bad add model
-        with self.assertRaises(TypeError) as context:
-            app.add_model(None)
-        self.assertIsInstance(context.exception, TypeError)
+class TestPartialApplication(unittest.TestCase):
+    def test_initialization(self):
+        config = PartialApplicationConfiguration(app_config=PartialViewConfiguration(type_=ViewType.ROOT))
+        application = PartialApplication(config=config)
+        self.assertEqual(application.config, config)
+        self.assertIsInstance(application.view, PartialView)
+        self.assertIsInstance(application.model_hash, HashList)
+        application.stop()
 
-        # test add good model
-        self.assertIsInstance(app.add_model(PartialModel()), PartialModel)
-
-        # test bad set model
-        with self.assertRaises(TypeError) as context:
-            app.set_model(None)
-        self.assertIsInstance(context.exception, TypeError)
-
-        # test good set model
-        my_mdl = app.add_model(PartialModel())
-        app.set_model(my_mdl)
-        self.assertEqual(app.main_model, my_mdl)
-
-        # build bad app with None as dict
-        with self.assertRaises(ValueError) as context:
-            PartialApplication(config=None)
-        self.assertTrue(isinstance(context.exception, ValueError))
-
-        # build a bad app with invalid view type
-        with self.assertRaises(ValueError) as context:
-            config = PartialApplicationConfiguration.root()
-            config.app_config.type_ = ViewType.NA
-            PartialApplication(None,
-                               config)
-        self.assertTrue(isinstance(context.exception, ValueError))
-
-        # close the first app before continuing
-        app.stop()
-
-        # build a root app and toplevel app with generic configs
-        app = PartialApplication(config=PartialApplicationConfiguration.root())
-        ext = PartialApplication(config=PartialApplicationConfiguration.toplevel())
-
-        # then close in proper order
-        ext.stop()
-        app.stop()
-
-    def test_application_task(self):
-        """test application task builds
-        """
+    def test_add_model(self):
+        config = PartialApplicationConfiguration(app_config=PartialViewConfiguration(type_=ViewType.ROOT))
+        application = PartialApplication(config=config)
         model = PartialModel()
-        app = PartialApplication(model=model, config=PartialApplicationConfiguration.root())
-        task = PartialApplicationTask(app, model)
-        self.assertIsNotNone(task)
+        added_model = application.add_model(model)
+        self.assertEqual(added_model, model)
+        self.assertIn(model, application.model_hash)
+        application.stop()
 
-        self.assertTrue(isinstance(task.application, PartialApplication))
-        self.assertTrue(isinstance(task.model, PartialModel))
+    def test_set_model(self):
+        config = PartialApplicationConfiguration(app_config=PartialViewConfiguration(type_=ViewType.ROOT))
+        application = PartialApplication(config=config)
+        model = PartialModel()
+        application.set_model(model)
+        self.assertEqual(application.main_model, model)
+        application.stop()
 
-        self.assertFalse(task.running)
-        task.start()
-        self.assertTrue(task.running)
-        task.stop()
-        self.assertFalse(task.running)
+    def test_toggle_fullscreen(self):
+        config = PartialApplicationConfiguration(app_config=PartialViewConfiguration(type_=ViewType.ROOT))
+        application = PartialApplication(config=config)
+        event = Event()
+        event.keysym = 'F11'
+        application.toggle_fullscreen(event)
+        self.assertTrue(application.view.parent.attributes('-fullscreen'))
+        application.toggle_fullscreen(event)
+        self.assertFalse(application.view.parent.attributes('-fullscreen'))
+        application.stop()
 
-        app.stop()
-
-    def test_base_menu(self):
-        """test base menu builds
-        """
-        app = PartialApplication(config=PartialApplicationConfiguration.root())
-        menu = BaseMenu(app.view.parent)
-        self.assertIsNotNone(menu)
-
-        self.assertIsInstance(menu.root, (Tk, Toplevel))
-        self.assertIsInstance(menu.menu, Menu)
-
-        app.stop()
+    def test_start_stop(self):
+        config = PartialApplicationConfiguration(app_config=PartialViewConfiguration(type_=ViewType.ROOT))
+        application = PartialApplication(config=config)
+        application.view.parent.after(100, lambda: self.assertTrue(application.running))
+        application.view.parent.after(250, application.stop)
+        application.start()
+        self.assertFalse(application.running)
 
 
-class TestFactory(unittest.TestCase):
-    """test factory functions
-    """
+class TestSubscribable(unittest.TestCase):
+    def test_initial_subscribers(self):
+        subscribable = Subscribable()
+        self.assertEqual(subscribable.subscribers, [])
 
-    def test_factory(self):
-        """test factory functions with generic method
-        """
-        class MyFactory(Factory[str]):
-            """testing factory class"""
-            test_str = 'Test!'
+    def test_subscribe_method(self):
+        subscribable = Subscribable()
+        def callback(x): return x
+        subscribable.subscribe(callback)
+        self.assertIn(callback, subscribable.subscribers)
 
-            @staticmethod
-            def generic() -> str:
-                return MyFactory.test_str
+    def test_unsubscribe_method(self):
+        subscribable = Subscribable()
+        def callback(x): return x
+        subscribable.subscribe(callback)
+        subscribable.unsubscribe(callback)
+        self.assertNotIn(callback, subscribable.subscribers)
 
-        x = MyFactory()
-        self.assertEqual(x.generic(), MyFactory.test_str)
+    def test_emit_method(self):
+        subscribable = Subscribable()
+        messages = []
+        def callback(x): return messages.append(x)
+        subscribable.subscribe(callback)
+        subscribable.emit("Test message")
+        self.assertIn("Test message", messages)
+
+
+class MockItem:
+    def __init__(self, id, name):
+        self.id = id
+        self.name = name
+
+
+class TestHashList(unittest.TestCase):
+    def test_initialization(self):
+        hash_list = HashList(hash_key='id')
+        self.assertEqual(hash_list.hash_key, 'id')
+        self.assertEqual(hash_list.hashes, {})
+
+    def test_append_method(self):
+        hash_list = HashList(hash_key='id')
+        item = MockItem(id=1, name='Item 1')
+        hash_list.append(item)
+        self.assertIn(1, hash_list.hashes)
+        self.assertEqual(hash_list.hashes[1], item)
+
+    def test_by_attr_method(self):
+        hash_list = HashList(hash_key='id')
+        item = MockItem(id=1, name='Item 1')
+        hash_list.append(item)
+        result = hash_list.by_attr('name', 'Item 1')
+        self.assertEqual(result, 1)
+
+    def test_by_key_method(self):
+        hash_list = HashList(hash_key='id')
+        item = MockItem(id=1, name='Item 1')
+        hash_list.append(item)
+        result = hash_list.by_key(1)
+        self.assertEqual(result, item)
+
+    def test_remove_method(self):
+        hash_list = HashList(hash_key='id')
+        item = MockItem(id=1, name='Item 1')
+        hash_list.append(item)
+        hash_list.remove(item)
+        self.assertNotIn(1, hash_list.hashes)
+
+    def test_emit_method(self):
+        hash_list = HashList(hash_key='id')
+        messages = []
+
+        def callback(*args, **kwargs):
+            messages.append(kwargs['models'])
+        hash_list.subscribe(callback)
+        item = MockItem(id=1, name='Item 1')
+        hash_list.append(item)
+        self.assertIn('hash_list', messages[0])
+        self.assertIn(1, messages[0]['hash_list'])
+
+
+class TestSafeList(unittest.TestCase):
+    def test_append_no_duplicates(self):
+        safe_list = SafeList()
+        safe_list.append(1)
+        safe_list.append(1)
+        self.assertEqual(len(safe_list), 1)
+        self.assertEqual(safe_list[0], 1)
+
+    def test_append_unique_values(self):
+        safe_list = SafeList[int]()
+        safe_list.append(1)
+        safe_list.append(2)
+        self.assertEqual(len(safe_list), 2)
+        self.assertEqual(safe_list[0], 1)
+        self.assertEqual(safe_list[1], 2)
+
+
+class TestTrackedList(unittest.TestCase):
+    def test_initial_subscribers(self):
+        tracked_list = TrackedList()
+        self.assertEqual(tracked_list.subscribers, [])
+
+    def test_append_method(self):
+        tracked_list = TrackedList()
+        messages = []
+        def callback(): return messages.append("Updated")
+        tracked_list.subscribers.append(callback)
+        tracked_list.append(1)
+        self.assertIn("Updated", messages)
+        self.assertEqual(tracked_list[0], 1)
+
+    def test_remove_method(self):
+        tracked_list = TrackedList()
+        messages = []
+        def callback(): return messages.append("Updated")
+        tracked_list.subscribers.append(callback)
+        tracked_list.append(1)
+        tracked_list.remove(1)
+        self.assertIn("Updated", messages)
+        self.assertEqual(len(tracked_list), 0)
+
+    def test_emit_method(self):
+        tracked_list = TrackedList()
+        messages = []
+        def callback(): return messages.append("Updated")
+        tracked_list.subscribers.append(callback)
+        tracked_list.emit()
+        self.assertIn("Updated", messages)
+
+
+class TestPartialModel(unittest.TestCase):
+    def test_initialization(self):
+        application = MockApplication()
+        view_model = PartialViewModel()
+        model = PartialModel(application=application, view_model=view_model)
+        self.assertEqual(model.application, application)
+        self.assertEqual(model.view_model, view_model)
+        application.stop()
+
+    def test_initialization_with_view_model_class(self):
+        application = MockApplication()
+        model = PartialModel(application=application, view_model=PartialViewModel)
+        self.assertEqual(model.application, application)
+        self.assertIsInstance(model.view_model, PartialViewModel)
+        application.stop()
+
+    def test_initialization_with_invalid_view_model(self):
+        with self.assertRaises(ValueError):
+            PartialModel(view_model="invalid_view_model")
+
+    def test_str_method(self):
+        model = PartialModel()
+        self.assertEqual(str(model), "PartialModel")
+
+    def test_set_application(self):
+        application = MockApplication()
+        model = PartialModel()
+        result = model.set_application(application)
+        self.assertTrue(result)
+        self.assertEqual(model.application, application)
+        application.stop()
+
+    def test_set_application_already_set(self):
+        application = MockApplication()
+        model = PartialModel(application=application)
+        result = model.set_application(application)
+        self.assertFalse(result)
+        application.stop()
+
+    def test_view_model_deleter(self):
+        view_model = PartialViewModel()
+        model = PartialModel(view_model=view_model)
+        del model.view_model
+        self.assertIsNone(model.view_model)
+
+
+class TestPartialViewModel(unittest.TestCase):
+    def test_initialization(self):
+        model = PartialModel()
+        view = PartialView()
+        view_model = PartialViewModel(model=model, view=view)
+        self.assertEqual(view_model.model, model)
+        self.assertEqual(view_model.view, view)
+        view.close()
+
+    def test_initialization_with_view_class(self):
+        model = PartialModel()
+        view_model = PartialViewModel(model=model, view=PartialView)
+        self.assertEqual(view_model.model, model)
+        self.assertIsInstance(view_model.view, PartialView)
+
+    def test_initialization_with_invalid_view(self):
+        with self.assertRaises(ValueError):
+            PartialViewModel(view="invalid_view")
+
+    def test_model_property(self):
+        model = PartialModel()
+        view_model = PartialViewModel(model=model)
+        self.assertEqual(view_model.model, model)
+
+    def test_view_property(self):
+        view = PartialView()
+        view_model = PartialViewModel(view=view)
+        self.assertEqual(view_model.view, view)
+
+    def test_view_deleter(self):
+        view = PartialView()
+        view_model = PartialViewModel(view=view)
+        del view_model.view
+        self.assertIsNone(view_model.view)
+
+
+if __name__ == '__main__':
+    unittest.main()

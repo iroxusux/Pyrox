@@ -3,11 +3,12 @@
 from __future__ import annotations
 
 
+from collections import defaultdict
 from dataclasses import dataclass
 from enum import Enum
 import os
 import re
-from typing import Generic, get_args, Optional, Self, TypeVar
+from typing import Generic, get_args, Optional, Self, TypeVar, Union
 import xml.etree.ElementTree as ET
 
 
@@ -18,6 +19,7 @@ import xmltodict
 from ..abc.meta import EnforcesNaming, Loggable, SnowFlake
 
 
+from ...services.plc_services import xml_dict_from_file
 from ...utils import replace_strings_in_dict
 
 
@@ -39,6 +41,16 @@ __all__ = (
 T = TypeVar('T')
 
 INST_RE_PATTERN: str = r'([A-Z]{3,4}\(\S+?\))'
+
+PLC_ROOT_FILE = r'docs\controls\root.L5X'
+PLC_PROG_FILE = r'docs\controls\_program.L5X'
+PLC_ROUT_FILE = r'docs\controls\_routine.L5X'
+PLC_DT_FILE = r'docs\controls\_datatype.L5X'
+PLC_AOI_FILE = r'docs\controls\_aoi.L5X'
+PLC_MOD_FILE = r'docs\controls\_module.L5X'
+PLC_RUNG_FILE = r'docs\controls\_rung.L5X'
+PLC_TAG_FILE = r'docs\controls\_tag.L5X'
+OTE_OPERAND_RE_PATTERN = r"(?:OTE\()(.*)(?:\))"
 
 
 def controller_dict_from_file(file_location: str) -> Optional[dict]:
@@ -111,26 +123,23 @@ class PlcObject(EnforcesNaming, SnowFlake):
     """
 
     def __getitem__(self, key):
-        return self._meta_data.get(key, None)
+        return self._l5x_meta_data.get(key, None)
 
     def __setitem__(self, key, value):
-        self._meta_data[key] = value
+        self._l5x_meta_data[key] = value
 
     def __init__(self,
-                 l5x_meta_data: dict,
-                 controller: 'Controller'):
+                 l5x_meta_data: dict = defaultdict(None),
+                 controller: 'Controller' = None):
         SnowFlake.__init__(self)
 
-        if not l5x_meta_data:
-            raise ValueError('Cannot create an object from nothing!')
-
-        self._meta_data = l5x_meta_data
+        self._l5x_meta_data = l5x_meta_data
         self._controller = controller
 
     @property
-    def config(self) -> 'ControllerConfiguration':
+    def config(self) -> ControllerConfiguration:
         if not self._controller:
-            return None
+            return ControllerConfiguration()
         return self._controller._config
 
     @property
@@ -182,7 +191,7 @@ class PlcObject(EnforcesNaming, SnowFlake):
 
     @property
     def meta_data(self) -> dict:
-        return self._meta_data
+        return self._l5x_meta_data
 
     def validate(self) -> 'ControllerReportItem':
         return ControllerReportItem(self,
@@ -200,7 +209,11 @@ class SupportsMeta(Generic[T], PlcObject):
         raise NotImplementedError()
 
     def __set__(self, value: T):
-        if not isinstance(value, get_args(self.__orig_bases__[0])[0]):
+        try:
+            base = get_args(self.__orig_bases__[0])[0]
+        except TypeError:
+            base = get_args(self.__orig_bases__[0])
+        if not isinstance(value, base):
             raise ValueError(f'Value must be of type {T}!')
         self[self.__key__] = value
 
@@ -260,16 +273,24 @@ class SupportsRadix(SupportsMeta[str]):
 
 class AddOnInstruction(SupportsClass):
     def __init__(self,
-                 l5x_meta_data: dict,
-                 controller: 'Controller'):
+                 name: str = None,
+                 l5x_meta_data: dict = None,
+                 controller: 'Controller' = None):
         """type class for plc AddOn Instruction Definition
 
         Args:
             l5x_meta_data (str): meta data
             controller (Self): controller dictionary
         """
+
+        if not l5x_meta_data:
+            l5x_meta_data = xml_dict_from_file(PLC_AOI_FILE)['AddOnInstructionDefinition']
+
         super().__init__(l5x_meta_data=l5x_meta_data,
                          controller=controller)
+
+        if name:
+            self.name = name
 
     @property
     def revision(self) -> str:
@@ -410,17 +431,23 @@ class DatatypeMember(SupportsRadix, SupportsExternalAccess):
 
 class Datatype(SupportsClass):
     def __init__(self,
-                 l5x_meta_data: dict,
-                 controller: Controller):
+                 name: str = None,
+                 l5x_meta_data: dict = None,
+                 controller: Controller = None):
         """type class for plc Datatype
 
         Args:
             l5x_meta_data (str): meta data
             controller (Self): controller dictionary
         """
+        if not l5x_meta_data:
+            l5x_meta_data = xml_dict_from_file(PLC_DT_FILE)['DataType']
+
         super().__init__(l5x_meta_data=l5x_meta_data,
                          controller=controller)
-        self._members = [DatatypeMember(x['@Name'], self, self._controller) for x in self.raw_members]
+
+        if name:
+            self.name = name
 
     @property
     def family(self) -> str:
@@ -428,7 +455,7 @@ class Datatype(SupportsClass):
 
     @property
     def members(self) -> list[DatatypeMember]:
-        return self._members
+        return [DatatypeMember(x['@Name'], self, self._controller) for x in self.raw_members]
 
     @property
     def raw_members(self) -> list[dict]:
@@ -451,16 +478,24 @@ class Datatype(SupportsClass):
 
 class Module(PlcObject):
     def __init__(self,
-                 l5x_meta_data: dict,
-                 controller: Controller):
+                 name: str = None,
+                 l5x_meta_data: dict = None,
+                 controller: Controller = None):
         """type class for plc Module
 
         Args:
             l5x_meta_data (str): meta data
             controller (Self): controller dictionary
         """
+
+        if not l5x_meta_data:
+            l5x_meta_data = xml_dict_from_file(PLC_MOD_FILE)['Module']
+
         super().__init__(l5x_meta_data=l5x_meta_data,
                          controller=controller)
+
+        if name:
+            self.name = name
 
     @property
     def catalog_number(self) -> str:
@@ -589,6 +624,7 @@ class Module(PlcObject):
                         test_notes.append('Module RPI must be above 10ms and below 50ms! (ideally, about 20ms).')
 
                 break
+            break
 
         return ControllerReportItem(self,
                                     'Testing module standard and safety i/o settings...',
@@ -598,20 +634,23 @@ class Module(PlcObject):
 
 class Program(SupportsClass):
     def __init__(self,
-                 l5x_meta_data: dict,
-                 controller: Controller):
+                 name: str = None,
+                 l5x_meta_data: dict = None,
+                 controller: Controller = None):
         """type class for plc Program
 
         Args:
             l5x_meta_data (str): meta data
             controller (Self): controller dictionary
         """
+        if not l5x_meta_data:
+            l5x_meta_data = xml_dict_from_file(PLC_PROG_FILE)['Program']
+
         super().__init__(l5x_meta_data=l5x_meta_data,
                          controller=controller)
-        self._routines = [self.config.routine_type(l5x_meta_data=routine,
-                                                   controller=self.controller,
-                                                   program=self)
-                          for routine in self.raw_routines]
+
+        if name:
+            self.name = name
 
     @property
     def test_edits(self) -> str:
@@ -641,7 +680,10 @@ class Program(SupportsClass):
 
     @property
     def routines(self) -> list[Routine]:
-        return self._routines
+        return [self.config.routine_type(l5x_meta_data=routine,
+                                         controller=self.controller,
+                                         program=self)
+                for routine in self.raw_routines]
 
     @property
     def raw_routines(self) -> list[dict]:
@@ -684,8 +726,9 @@ class ProgramTag(PlcObject):
 
 class Routine(PlcObject):
     def __init__(self,
-                 l5x_meta_data: dict,
-                 controller: Controller,
+                 name: str = None,
+                 l5x_meta_data: dict = None,
+                 controller: Controller = None,
                  program: Optional[Program] = None):
         """type class for plc Routine
 
@@ -693,14 +736,16 @@ class Routine(PlcObject):
             l5x_meta_data (str): meta data
             controller (Self): controller dictionary
         """
+        if not l5x_meta_data:
+            l5x_meta_data = xml_dict_from_file(PLC_ROUT_FILE)['Routine']
+
         super().__init__(l5x_meta_data=l5x_meta_data,
                          controller=controller)
 
+        if name:
+            self.name = name
+
         self._program: Optional[Program] = program
-        self._rungs = [self.config.rung_type(l5x_meta_data=x,
-                                             controller=self.controller,
-                                             routine=self)
-                       for x in self.raw_rungs]
 
     @property
     def program(self) -> Optional[Program]:
@@ -708,7 +753,10 @@ class Routine(PlcObject):
 
     @property
     def rungs(self) -> list[Rung]:
-        return self._rungs
+        return [self.config.rung_type(l5x_meta_data=x,
+                                      controller=self.controller,
+                                      routine=self)
+                for x in self.raw_rungs]
 
     @property
     def raw_rungs(self) -> list[dict]:
@@ -723,8 +771,8 @@ class Routine(PlcObject):
 
 class Rung(PlcObject):
     def __init__(self,
-                 l5x_meta_data: dict,
-                 controller: Controller,
+                 l5x_meta_data: dict = None,
+                 controller: Controller = None,
                  routine: Optional[Routine] = None):
         """type class for plc Rung
 
@@ -732,8 +780,13 @@ class Rung(PlcObject):
             l5x_meta_data (str): meta data
             controller (Self): controller dictionary
         """
+
+        if not l5x_meta_data:
+            l5x_meta_data = xml_dict_from_file(PLC_RUNG_FILE)['Rung']
+
         super().__init__(l5x_meta_data=l5x_meta_data,
                          controller=controller)
+
         self._routine: Optional[Routine] = routine
 
     def __repr__(self):
@@ -757,6 +810,10 @@ class Rung(PlcObject):
     def routine(self) -> Optional[Routine]:
         return self._routine
 
+    @routine.setter
+    def routine(self, value: Routine):
+        self._routine = value
+
     @property
     def type(self) -> str:
         return self['@Type']
@@ -765,9 +822,17 @@ class Rung(PlcObject):
     def comment(self) -> str:
         return self['Comment']
 
+    @comment.setter
+    def comment(self, value: str):
+        self['Comment'] = value
+
     @property
     def text(self) -> str:
         return self['Text']
+
+    @text.setter
+    def text(self, value: str):
+        self['Text'] = value
 
     @property
     def instructions(self) -> list[LogixInstruction]:
@@ -783,16 +848,24 @@ class Rung(PlcObject):
 
 class Tag(SupportsClass, SupportsExternalAccess):
     def __init__(self,
-                 l5x_meta_data: dict,
-                 controller: 'Controller'):
+                 name: str = None,
+                 l5x_meta_data: dict = None,
+                 controller: 'Controller' = None):
         """type class for plc Tag
 
         Args:
             l5x_meta_data (str): meta data
             controller (Self): controller dictionary
         """
+
+        if not l5x_meta_data:
+            l5x_meta_data = xml_dict_from_file(PLC_TAG_FILE)['Tag']
+
         super().__init__(l5x_meta_data=l5x_meta_data,
                          controller=controller)
+
+        if name:
+            self.name = name
 
     @property
     def tag_type(self) -> str:
@@ -908,9 +981,15 @@ class Controller(PlcObject, Loggable):
         """
 
     def __init__(self,
-                 root_meta_data: str,
+                 root_meta_data: str = None,
                  config: Optional[ControllerConfiguration] = ControllerConfiguration()):
-        self._root_meta_data = root_meta_data
+
+        # if no meta data is supplied, create a default, empty controller
+        if root_meta_data:
+            self._root_meta_data = root_meta_data
+        else:
+            self._root_meta_data = controller_dict_from_file(PLC_ROOT_FILE)
+
         self._file_location: str = ''
         self._ip_address: str = ''
         self._slot = 0
@@ -924,8 +1003,7 @@ class Controller(PlcObject, Loggable):
 
         try:
             self._assign_address(self.comm_path.split('\\')[-1])
-            self._slot = int(self.plc_module_icp_port['@Address'])
-        except (ValueError, TypeError) as e:
+        except (ValueError, TypeError, AttributeError) as e:
             self.logger.error('ip address assignment err -> %s', e)
 
         if not self._config:
@@ -933,9 +1011,9 @@ class Controller(PlcObject, Loggable):
 
         self._aois: list = [self._config.aoi_type(x, self) for x in self.raw_aois]
         self._datatypes: list = [self._config.datatype_type(x, self) for x in self.raw_datatypes]
-        self._modules: list = [self._config.module_type(x, self) for x in self.raw_modules]
-        self._programs: list = [self._config.program_type(x, self) for x in self.raw_programs]
-        self._tags: list = [self._config.tag_type(x, self) for x in self.raw_tags]
+        self._modules: list = [self._config.module_type(l5x_meta_data=x, controller=self) for x in self.raw_modules]
+        self._programs: list = [self._config.program_type(l5x_meta_data=x, controller=self) for x in self.raw_programs]
+        self._tags: list = [self._config.tag_type(jl5x_meta_data=x, controller=self) for x in self.raw_tags]
 
     @property
     def aois(self) -> list[AddOnInstruction]:
@@ -953,7 +1031,12 @@ class Controller(PlcObject, Loggable):
             aois: list[:class:`dict`]
 
         """
-        return self['AddOnInstructionDefinitions']['AddOnInstructionDefinition']
+        if not self['AddOnInstructionDefinitions']:
+            return []
+        if not isinstance(self['AddOnInstructionDefinitions']['AddOnInstructionDefinition'], list):
+            return [self['AddOnInstructionDefinitions']['AddOnInstructionDefinition']]
+        else:
+            return self['AddOnInstructionDefinitions']['AddOnInstructionDefinition']
 
     @property
     def comm_path(self) -> str:
@@ -985,7 +1068,12 @@ class Controller(PlcObject, Loggable):
             datatypes: list[:class:`dict`]
 
         """
-        return self['DataTypes']['DataType']
+        if not self['DataTypes']:
+            return []
+        if not isinstance(self['DataTypes']['DataType'], list):
+            return [self['DataTypes']['DataType']]
+        else:
+            return self['DataTypes']['DataType']
 
     @property
     def file_location(self) -> str:
@@ -1087,7 +1175,12 @@ class Controller(PlcObject, Loggable):
             modules: list[:class:`dict`]
 
         """
-        return self['Modules']['Module']
+        if not self['Modules']:
+            return []
+        if not isinstance(self['Modules']['Module'], list):
+            return [self['Modules']['Module']]
+        else:
+            return self['Modules']['Module']
 
     @property
     def name(self) -> str:
@@ -1143,6 +1236,11 @@ class Controller(PlcObject, Loggable):
             plc_module_ports: list[:class:`dict`]
 
         """
+        if not self.plc_module:
+            return []
+
+        if not isinstance(self.plc_module['Ports']['Port'], list):
+            return [self.plc_module['Ports']['Port']]
         return self.plc_module['Ports']['Port']
 
     @property
@@ -1161,7 +1259,12 @@ class Controller(PlcObject, Loggable):
             programs: list[:class:`dict`]
 
         """
-        return self['Programs']['Program']
+        if not self['Programs']:
+            return []
+        if not isinstance(self['Programs']['Program'], list):
+            return [self['Programs']['Program']]
+        else:
+            return self['Programs']['Program']
 
     @property
     def root_meta_data(self) -> dict:
@@ -1189,7 +1292,9 @@ class Controller(PlcObject, Loggable):
             slot: :type:`int`
 
         """
-        return int(self._slot)
+        if not self.plc_module_icp_port:
+            return None
+        return int(self.plc_module_icp_port['@Address'])
 
     @slot.setter
     def slot(self,
@@ -1212,7 +1317,33 @@ class Controller(PlcObject, Loggable):
             tags: list[:class:`dict`]
 
         """
-        return self['Tags']['Tag']
+        if not self._l5x_meta_data['Tags']:
+            return []
+        if not isinstance(self._l5x_meta_data['Tags'], dict):
+            raise ValueError('Tags must be a dictionary!')
+        if not isinstance(self._l5x_meta_data['Tags']['Tag'], list):
+            return [self._l5x_meta_data['Tags']['Tag']]
+        else:
+            return self._l5x_meta_data['Tags']['Tag']
+
+    @raw_tags.setter
+    def raw_tags(self,
+                 value: dict):
+        """Set the raw tags of the controller
+
+        Args:
+            value (list[dict]): list of tags
+        """
+        if value is None:
+            raise ValueError('Tags cannot be None!')
+
+        if not isinstance(value, dict) and not isinstance(value, list):
+            raise ValueError('Tags must be a dictionary or a list!')
+
+        if isinstance(value, dict):
+            self['Tags'] = value
+        elif isinstance(value, list):
+            self['Tags']['Tag'] = value
 
     @classmethod
     def from_file(cls: Self,
@@ -1252,6 +1383,87 @@ class Controller(PlcObject, Loggable):
                 raise ValueError(f'IP address octet range ivalid: {v}')
 
         self._ip_address = address
+
+    def add_program(self, program: Union[Program, dict, str]):
+        """add a program to the controller
+
+        Args:
+            program (Union[Program, dict, str]): program to add
+        """
+        if isinstance(program, Program):
+            self._programs.append(program)
+
+        elif isinstance(program, dict):
+            self._programs.append(self._config.program_type(l5x_meta_data=program, controller=self))
+
+        elif isinstance(program, str):
+            self._programs.append(self._config.program_type(name=program, controller=self))
+
+        else:
+            raise TypeError('Invalid type for program!')
+
+    def find_diagnostic_rungs(self) -> list[Rung]:
+        """Find diagnostic rungs in the L5X file"""
+
+        diagnostic_rungs = []
+
+        for program in self.programs:
+            for routine in program.routines:
+                for rung in routine.rungs:
+                    if rung.comment is not None and '<@DIAG>' in rung.comment:
+                        diagnostic_rungs.append(rung)
+                    else:
+                        for instruction in rung.instructions:
+                            if 'JSR' in instruction and 'zZ999_Diagnostics' in instruction:
+                                diagnostic_rungs.append(rung)
+                                break
+
+        return diagnostic_rungs
+
+    def find_redundant_otes(self,
+                            include_all_coils=False):
+        """Find redundant OTE instructions in the L5X file"""
+        # Dictionary to store OTE operands and their locations
+        ote_operands = defaultdict(list)
+
+        # Find all routines in the program
+        routines = []
+
+        # Look for Controller/Programs/Program/Routines/Routine
+        for program in self.programs:
+            for routine in program.routines:
+                routines.append((program.name, routine.name, routine))
+
+        # Process each routine
+        for program_name, routine_name, routine in routines:
+
+            # Process each rung
+            for rung_idx, rung in enumerate(routine.rungs, 1):
+                # Find OTE instructions
+                ote_elements = [x for x in rung.instructions if 'OTE(' in x]
+
+                # Process each OTE instruction
+                for ote in ote_elements:
+                    # Get the operand (tag name)
+                    operand = re.findall(OTE_OPERAND_RE_PATTERN, ote)[0]
+
+                    if operand:
+                        # Store the location information
+                        location = {
+                            'program': program_name,
+                            'routine': routine_name,
+                            'rung': rung_idx,
+                            'operand': operand
+                        }
+                        ote_operands[operand].append(location)
+
+        # Filter out operands that are used in only one OTE instruction
+        redundant_otes = {operand: locations for operand, locations in ote_operands.items() if len(locations) > 1}
+
+        if include_all_coils is False:
+            return redundant_otes
+        else:
+            return (redundant_otes, ote_operands)
 
     def rename_asset(self,
                      element_type: LogixElement,

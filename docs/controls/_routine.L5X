@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Routine Name="MainRoutine" Type="RLL">
+    <Description><![CDATA[Main Routine]]></Description>
+    <RLLContent>
+        <Rung Number="0" Type="N">
+            <Text><![CDATA[NOP();]]></Text>
+        </Rung>
+    </RLLContent>
+</Routine>
