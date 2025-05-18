@@ -29,8 +29,12 @@ classifiers = [
   "Programming Language :: Python :: 3.11",
 ]
 dependencies = [
-    "ttkthemes",
-    "platformdirs",
+  "lxml",
+  "ttkthemes",
+  "platformdirs",
+  "pytest",
+  "pylogix",
+  "xmltodict",
 ]
 
 license = {file = "LICENSE"}
