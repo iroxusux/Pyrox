@@ -918,80 +918,14 @@ class Controller(PlcObject, Loggable):
 
     .. ------------------------------------------------------------
 
-    Arguments
-    -----------
-    root_meta_data: :class:`str`
-        XML style data from .L5X data. Basically, the raw data.
-
-    .. ------------------------------------------------------------
-
-    Attributes
-    -----------
-    aois: list[:class:`dict`]
-        `AddOnInstructionDefintion` list from L5X.
-
-    comm_path: :type:`str`
-        Communication path for physical controller.
-
-    datatypes: list[:class:`dict`]
-        `Datatypes` list from L5X.
-
-    file_location: :type:`str`
-        File location of the .L5X the `Controller` was loaded from.
-
-    ip_address: :type:`str`
-        IP Address of the physical controller.
-
-    l5x_meta_data: :type:`dict`
-        The dictionary object parsed from .L5X (xml) format.
-
-    major_revision: :type:`int`
-        Major revision of the parsed controller.
-
-    minor_revision: :type:`int`
-        Minor revision of the parsed controller.
-
-    modules: list[:class:`dict`]
-        `Modules` list from L5X.
-
-    name: :type:`str`
-        Name of the parsed controller.
-
-    plc_module: :class:`dict`
-        Module from `ModuleList` that describes the controller itself. (@Local)
-
-    plc_module_icp_port: :class:`dict`
-        ICP Port for the physical controller. Contains connection parameter information.
-
-    plc_module_ports: list[:class:`dict`]
-        Ports of the physical controller. Contains connection parameter information.
-
-    programs: list[:class:`dict`]
-        `Programs` list from L5X.
-
-    root_meta_data: :type:`str`
-        Absolute root from the .L5X file. Required for compression back into a .L5X file.
-
-    slot: :type:`int`
-        The physical chassis slot for the controller.
-
-    tags: list[:class:`dict`]
-        `Tags` list from L5X.
-
         """
 
     def __init__(self,
                  root_meta_data: str = None,
                  config: Optional[ControllerConfiguration] = ControllerConfiguration()):
 
-        # if no meta data is supplied, create a default, empty controller
-        if root_meta_data:
-            self._root_meta_data = root_meta_data
-        else:
-            self._root_meta_data = controller_dict_from_file(PLC_ROOT_FILE)
-
-        self._file_location: str = ''
-        self._ip_address: str = ''
+        self._root_meta_data: dict = root_meta_data if root_meta_data else controller_dict_from_file(PLC_ROOT_FILE)
+        self._file_location, self._ip_address = '', ''
         self._slot = 0
         self._config = config
 
@@ -1021,16 +955,6 @@ class Controller(PlcObject, Loggable):
 
     @property
     def raw_aois(self) -> list[dict]:
-        """`AddOnInstructionDefintion` list from L5X.
-
-        .. ------------------------------------------------------------
-
-        Returns
-        ----------
-
-            aois: list[:class:`dict`]
-
-        """
         if not self['AddOnInstructionDefinitions']:
             return []
         if not isinstance(self['AddOnInstructionDefinitions']['AddOnInstructionDefinition'], list):
@@ -1040,16 +964,7 @@ class Controller(PlcObject, Loggable):
 
     @property
     def comm_path(self) -> str:
-        """Communication path for physical controller.
 
-        .. ------------------------------------------------------------
-
-        Returns
-        ----------
-
-            comm_path: :type:`str`
-
-        """
         return self['@CommPath']
 
     @property
@@ -1058,16 +973,7 @@ class Controller(PlcObject, Loggable):
 
     @property
     def raw_datatypes(self) -> list[dict]:
-        """`Datatypes` list from L5X.
 
-        .. ------------------------------------------------------------
-
-        Returns
-        ----------
-
-            datatypes: list[:class:`dict`]
-
-        """
         if not self['DataTypes']:
             return []
         if not isinstance(self['DataTypes']['DataType'], list):
@@ -1077,16 +983,7 @@ class Controller(PlcObject, Loggable):
 
     @property
     def file_location(self) -> str:
-        """File location of the .L5X the `Controller` was loaded from.
 
-        .. ------------------------------------------------------------
-
-        Returns
-        ----------
-
-            aois: list[:class:`dict`]
-
-        """
         return self._file_location
 
     @file_location.setter
@@ -1096,16 +993,7 @@ class Controller(PlcObject, Loggable):
 
     @property
     def ip_address(self) -> str:
-        """IP Address of the physical controller.
 
-        .. ------------------------------------------------------------
-
-        Returns
-        ----------
-
-            ip_address: :type:`str`
-
-        """
         return self._ip_address
 
     @ip_address.setter
@@ -1115,16 +1003,7 @@ class Controller(PlcObject, Loggable):
 
     @property
     def l5x_meta_data(self) -> dict:
-        """The dictionary object parsed from .L5X (xml) format.
 
-        .. ------------------------------------------------------------
-
-        Returns
-        ----------
-
-            l5x_meta_data: :type:`dict`
-
-        """
         return self._root_meta_data['RSLogix5000Content']['Controller']
 
     @l5x_meta_data.setter
@@ -1133,30 +1012,10 @@ class Controller(PlcObject, Loggable):
 
     @property
     def major_revision(self) -> int:
-        """Major revision of the parsed controller.
-
-        .. ------------------------------------------------------------
-
-        Returns
-        ----------
-
-            major_revision: :type:`int`
-
-        """
         return int(self['@MajorRev'])
 
     @property
     def minor_revision(self) -> int:
-        """Minor revision of the parsed controller.
-
-        .. ------------------------------------------------------------
-
-        Returns
-        ----------
-
-            minor_revision: :type:`int`
-
-        """
         return int(self['@MinorRev'])
 
     @property
@@ -1165,16 +1024,6 @@ class Controller(PlcObject, Loggable):
 
     @property
     def raw_modules(self) -> list[dict]:
-        """`Modules` list from L5X.
-
-        .. ------------------------------------------------------------
-
-        Returns
-        ----------
-
-            modules: list[:class:`dict`]
-
-        """
         if not self['Modules']:
             return []
         if not isinstance(self['Modules']['Module'], list):
@@ -1183,59 +1032,15 @@ class Controller(PlcObject, Loggable):
             return self['Modules']['Module']
 
     @property
-    def name(self) -> str:
-        """Name of the parsed controller.
-
-        .. ------------------------------------------------------------
-
-        Returns
-        ----------
-
-            name: :type:`str`
-
-        """
-        return self['@Name']
-
-    @property
     def plc_module(self) -> dict:
-        """Module from `ModuleList` that describes the controller itself. (@Local)
-
-        .. ------------------------------------------------------------
-
-        Returns
-        ----------
-
-            plc_module: :class:`dict`
-
-        """
         return next((x for x in self.raw_modules if x['@Name'] == 'Local'), None)
 
     @property
     def plc_module_icp_port(self) -> dict:
-        """ICP Port for the physical controller. Contains connection parameter information.
-
-        .. ------------------------------------------------------------
-
-        Returns
-        ----------
-
-            plc_module_icp_port: :class:`dict`
-
-        """
         return next((x for x in self.plc_module_ports if x['@Type'] == 'ICP' or x['@Type'] == '5069'), None)
 
     @property
     def plc_module_ports(self) -> list[dict]:
-        """Ports of the physical controller. Contains connection parameter information.
-
-        .. ------------------------------------------------------------
-
-        Returns
-        ----------
-
-            plc_module_ports: list[:class:`dict`]
-
-        """
         if not self.plc_module:
             return []
 
@@ -1249,16 +1054,6 @@ class Controller(PlcObject, Loggable):
 
     @property
     def raw_programs(self) -> list[dict]:
-        """`Programs` list from L5X.
-
-        .. ------------------------------------------------------------
-
-        Returns
-        ----------
-
-            programs: list[:class:`dict`]
-
-        """
         if not self['Programs']:
             return []
         if not isinstance(self['Programs']['Program'], list):
@@ -1268,30 +1063,10 @@ class Controller(PlcObject, Loggable):
 
     @property
     def root_meta_data(self) -> dict:
-        """Absolute root from the .L5X file. Required for compression back into a .L5X file.
-
-        .. ------------------------------------------------------------
-
-        Returns
-        ----------
-
-            root_meta_data: :type:`str`
-
-        """
         return self._root_meta_data
 
     @property
     def slot(self) -> int:
-        """The physical chassis slot for the controller.
-
-        .. ------------------------------------------------------------
-
-        Returns
-        ----------
-
-            slot: :type:`int`
-
-        """
         if not self.plc_module_icp_port:
             return None
         return int(self.plc_module_icp_port['@Address'])
@@ -1307,16 +1082,6 @@ class Controller(PlcObject, Loggable):
 
     @property
     def raw_tags(self) -> list[dict]:
-        """`Tags` list from L5X.
-
-        .. ------------------------------------------------------------
-
-        Returns
-        ----------
-
-            tags: list[:class:`dict`]
-
-        """
         if not self._l5x_meta_data['Tags']:
             return []
         if not isinstance(self._l5x_meta_data['Tags'], dict):
@@ -1329,14 +1094,8 @@ class Controller(PlcObject, Loggable):
     @raw_tags.setter
     def raw_tags(self,
                  value: dict):
-        """Set the raw tags of the controller
-
-        Args:
-            value (list[dict]): list of tags
-        """
         if value is None:
             raise ValueError('Tags cannot be None!')
-
         if not isinstance(value, dict) and not isinstance(value, list):
             raise ValueError('Tags must be a dictionary or a list!')
 
@@ -1348,24 +1107,6 @@ class Controller(PlcObject, Loggable):
     @classmethod
     def from_file(cls: Self,
                   file_location: str) -> Optional[Self]:
-        """Get an assembled controller from a given file location
-
-        .. ------------------------------------------------------------
-
-        Arguments
-        ----------
-        file_location: :type:`str`
-            File location to try to load a controller from.
-
-        .. Must be a .L5X file!
-
-        .. ------------------------------------------------------------
-
-        Returns
-        ----------
-            :class:`Controller`
-
-        """
         root_data = controller_dict_from_file(file_location)
         if not root_data:
             return None
@@ -1384,27 +1125,60 @@ class Controller(PlcObject, Loggable):
 
         self._ip_address = address
 
-    def add_program(self, program: Union[Program, dict, str]):
-        """add a program to the controller
+    def _add_common(self,
+                    plcobject: Union[PlcObject, str, dict],
+                    target_list: list,
+                    objecttype: type):
 
-        Args:
-            program (Union[Program, dict, str]): program to add
-        """
-        if isinstance(program, Program):
-            self._programs.append(program)
+        if isinstance(plcobject, PlcObject):
+            target_list.append(plcobject)
 
-        elif isinstance(program, dict):
-            self._programs.append(self._config.program_type(l5x_meta_data=program, controller=self))
+        elif isinstance(plcobject, dict):
+            target_list.append(objecttype(l5x_meta_data=plcobject, controller=self))
 
-        elif isinstance(program, str):
-            self._programs.append(self._config.program_type(name=program, controller=self))
+        elif isinstance(plcobject, str):
+            target_list.append(objecttype(name=plcobject, controller=self))
 
         else:
-            raise TypeError('Invalid type for program!')
+            raise TypeError('Invalid type for %s!' % objecttype.__name__)
+
+    def _remove_common(self,
+                       plcobject: PlcObject,
+                       target_list: list):
+        if plcobject in target_list:
+            target_list.remove(plcobject)
+
+    def add_aoi(self, aoi: Union[AddOnInstruction, dict, str]):
+        self._add_common(aoi, self._aois, self._config.aoi_type)
+
+    def add_datatype(self, datatype: Union[Program, dict, str]):
+        self._add_common(datatype, self._datatypes, self._config.datatype_type)
+
+    def add_module(self, module: Union[Module, dict, str]):
+        self._add_common(module, self._modules, self._config.module_type)
+
+    def add_program(self, program: Union[Program, dict, str]):
+        self._add_common(program, self._programs, self._config.program_type)
+
+    def add_tag(self, tag: Union[Tag, dict, str]):
+        self._add_common(tag, self._tags, self._config.tag_type)
+
+    def remove_aoi(self, aoi: AddOnInstruction):
+        self._remove_common(aoi, self._aois)
+
+    def remove_datatype(self, datatype: Datatype):
+        self._remove_common(datatype, self._datatypes)
+
+    def remove_module(self, module: Module):
+        self._remove_common(module, self._modules)
+
+    def remove_program(self, program: Program):
+        self._remove_common(program, self._programs)
+
+    def remove_tag(self, tag: Tag):
+        self._remove_common(tag, self._tags)
 
     def find_diagnostic_rungs(self) -> list[Rung]:
-        """Find diagnostic rungs in the L5X file"""
-
         diagnostic_rungs = []
 
         for program in self.programs:
@@ -1422,33 +1196,23 @@ class Controller(PlcObject, Loggable):
 
     def find_redundant_otes(self,
                             include_all_coils=False):
-        """Find redundant OTE instructions in the L5X file"""
-        # Dictionary to store OTE operands and their locations
         ote_operands = defaultdict(list)
 
-        # Find all routines in the program
         routines = []
 
-        # Look for Controller/Programs/Program/Routines/Routine
         for program in self.programs:
             for routine in program.routines:
                 routines.append((program.name, routine.name, routine))
 
-        # Process each routine
         for program_name, routine_name, routine in routines:
 
-            # Process each rung
             for rung_idx, rung in enumerate(routine.rungs, 1):
-                # Find OTE instructions
                 ote_elements = [x for x in rung.instructions if 'OTE(' in x]
 
-                # Process each OTE instruction
                 for ote in ote_elements:
-                    # Get the operand (tag name)
                     operand = re.findall(OTE_OPERAND_RE_PATTERN, ote)[0]
 
                     if operand:
-                        # Store the location information
                         location = {
                             'program': program_name,
                             'routine': routine_name,
@@ -1457,7 +1221,6 @@ class Controller(PlcObject, Loggable):
                         }
                         ote_operands[operand].append(location)
 
-        # Filter out operands that are used in only one OTE instruction
         redundant_otes = {operand: locations for operand, locations in ote_operands.items() if len(locations) > 1}
 
         if include_all_coils is False:
@@ -1469,13 +1232,6 @@ class Controller(PlcObject, Loggable):
                      element_type: LogixElement,
                      name: str,
                      replace_name: str):
-        """rename an asset of the controller
-
-        Args:
-            resolver (enums.Resolver): which asset(s) to rename
-            name (str): name to rename
-            replace_name (str): final name
-        """
         if not element_type or not name or not replace_name:
             return
 
