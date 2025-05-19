@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<DataType Name="DataType" Family="NoFamily" Class="User">
+    <Description><![CDATA[Datatype_Description]]></Description>
+    <Members></Members>
+</DataType>

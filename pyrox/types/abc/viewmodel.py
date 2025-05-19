@@ -39,7 +39,7 @@ class PartialViewModel(Buildable):
     __slots__ = ('_model', '_view')
 
     def __init__(self,
-                 model: PartialModel,
+                 model: Optional[PartialModel] = None,
                  view: Optional[Union[PartialView, type[PartialView]]] = None,
                  view_config: Optional[PartialViewConfiguration] = None):
         super().__init__()

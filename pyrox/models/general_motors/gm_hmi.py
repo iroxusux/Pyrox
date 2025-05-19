@@ -11,9 +11,9 @@ from typing import Callable, Optional, TYPE_CHECKING
 
 
 from pylogix.lgx_response import Response
-from .connection import ConnectionCommand, ConnectionCommandType
-from ..services.notify_services import notify_warning
-from ..types import (
+from ..connection import ConnectionCommand, ConnectionCommandType, ConnectionTask
+from ...services.notify_services import notify_warning
+from ...types import (
     Application,
     ApplicationTask,
     LaunchableModel,
@@ -22,11 +22,11 @@ from ..types import (
     ViewModel,
     ViewType
 )
-from ..utils import read_bit, set_bit, clear_bit
+from ...utils import read_bit, set_bit, clear_bit
 
 
 if TYPE_CHECKING:
-    from .connection import ConnectionModel
+    from ..connection import ConnectionModel
 
 
 CIPTypes = {0x00: (1, "UNKNOWN", '<B'),
@@ -506,10 +506,13 @@ class GmHmiTask(ApplicationTask):
     """
 
     def __init__(self,
-                 application: Application,
-                 connection_task: ApplicationTask):
+                 application: Application):
         super().__init__(application=application)
-        self._connection_task = connection_task
+
+        self._connection_task = next((application.tasks.hashes[x] for x in application.tasks.hashes if isinstance(
+            application.tasks.hashes[x], ConnectionTask)), None)
+        if not self._connection_task:
+            raise RuntimeError('Could not resolve connection task! This task is inoperable!')
 
     @property
     def model(self) -> 'GmHmiModel':

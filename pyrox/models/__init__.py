@@ -1,15 +1,13 @@
 from .connection import ConnectionModel, ConnectionTask
 from .emulation import EmulationModel
-from .gm_hmi import GmHmiModel, GmHmiTask
-from . import test_models
+from . import general_motors, test_models
 
 
 __all__ = (
     'ConnectionModel',
     'ConnectionTask',
     'EmulationModel',
-    'GmHmiModel',
-    'GmHmiTask',
+    'general_motors',
     'test_models',
 )
 

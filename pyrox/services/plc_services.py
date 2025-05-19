@@ -1,10 +1,12 @@
 """ plc_services
     Create and manage PLC specific l5x (xml) modules/services, etc.
     """
-from collections import defaultdict
-import re
+from __future__ import annotations
+
+
+import os
+
 from typing import Optional
-import xml.etree.ElementTree as ET
 
 
 import xmltodict
@@ -13,10 +15,8 @@ from xml.sax.saxutils import unescape
 
 
 from ..services.file import save_file
-from ..types.plc import Controller
 
 
-OTE_OPERAND_RE_PATTERN = r"(?:OTE\()(.*)(?:\))"
 KEEP_CDATA_SECTION = [
     'AdditionalHelpText',
     'Comment',
@@ -36,7 +36,7 @@ def cdata(s):
         return '<![CDATA[' + s + ']]>'
 
 
-def controller_dict_from_file(file_location: str) -> Optional[dict]:
+def xml_dict_from_file(file_location: str) -> Optional[dict]:
     """get a controller dictionary from a provided .l5x file location
 
     Args:
@@ -60,8 +60,8 @@ def controller_dict_from_file(file_location: str) -> Optional[dict]:
         return None
 
 
-def dict_to_controller_file(controller: dict,
-                            file_location: str) -> None:
+def dict_to_xml_file(controller: dict,
+                     file_location: str) -> None:
     """save a dictionary "xml" controller back to .L5X
 
     Args:
@@ -71,9 +71,9 @@ def dict_to_controller_file(controller: dict,
     save_file(file_location,
               '.L5X',
               'w',
-              unescape(xmltodict.unparse(controller,
-                                         preprocessor=preprocessor,
-                                         pretty=True)))
+              str(unescape(xmltodict.unparse(controller,
+                                             preprocessor=preprocessor,
+                                             pretty=True))))
 
 
 def get_rung_text(rung):
@@ -88,84 +88,20 @@ def get_rung_text(rung):
     return "No description available"
 
 
-def find_diagnostic_rungs(ctrl: Controller):
-
-    diagnostic_rungs = []
-
-    for program in ctrl.programs:
-        for routine in program.routines:
-            for rung in routine.rungs:
-                if rung.comment is not None and '<@DIAG>' in rung.comment:
-                    diagnostic_rungs.append(rung)
-                else:
-                    for instruction in rung.instructions:
-                        if 'JSR' in instruction and 'zZ999_Diagnostics' in instruction:
-                            diagnostic_rungs.append(rung)
-                            break
-
-    return diagnostic_rungs
-
-
-def find_redundant_otes(ctrl: Controller,
-                        include_all_coils=False):
-    """Find redundant OTE instructions in the L5X file"""
-    # Dictionary to store OTE operands and their locations
-    ote_operands = defaultdict(list)
-
-    # Find all routines in the program
-    routines = []
-
-    # Look for Controller/Programs/Program/Routines/Routine
-    for program in ctrl.programs:
-        for routine in program.routines:
-            routines.append((program.name, routine.name, routine))
-
-    # Process each routine
-    for program_name, routine_name, routine in routines:
-
-        # Process each rung
-        for rung_idx, rung in enumerate(routine.rungs, 1):
-            # Find OTE instructions
-            ote_elements = [x for x in rung.instructions if 'OTE(' in x]
-
-            # Process each OTE instruction
-            for ote in ote_elements:
-                # Get the operand (tag name)
-                operand = re.findall(OTE_OPERAND_RE_PATTERN, ote)[0]
-
-                if operand:
-                    # Store the location information
-                    location = {
-                        'program': program_name,
-                        'routine': routine_name,
-                        'rung': rung_idx,
-                        'operand': operand
-                    }
-                    ote_operands[operand].append(location)
-
-    # Filter out operands that are used in only one OTE instruction
-    redundant_otes = {operand: locations for operand, locations in ote_operands.items() if len(locations) > 1}
-
-    if include_all_coils is False:
-        return redundant_otes
-    if include_all_coils is True:
-        return (redundant_otes, ote_operands)
-
-
 def get_xml_string_from_file(file_path):
+    if not os.path.exists(file_path):
+        raise FileNotFoundError(f"File {file_path} does not exist.")
+
     try:
         parser = lxml.etree.XMLParser(strip_cdata=False)
         tree = lxml.etree.parse(file_path, parser)
         root = tree.getroot()
         return lxml.etree.tostring(root, encoding='utf-8').decode("utf-8")
-    except FileNotFoundError:
-        print(f"Error: File not found: {file_path}")
-        return None
-    except ET.ParseError:
-        print(f"Error: Invalid XML format in {file_path}")
+    except (lxml.etree.ParseError, TypeError) as e:
+        print(f"Error parsing XML file: {e}")
         return None
     except Exception as e:
-        print(f"An unexpected error occurred: {e}")
+        print(f"Unexpected error: {e}")
         return None
 
 

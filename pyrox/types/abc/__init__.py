@@ -10,10 +10,6 @@ from .application import (
     PartialApplicationConfiguration,
 )
 
-from .factory import (
-    Factory
-)
-
 from .list import (
     HashList,
     SafeList
@@ -46,7 +42,6 @@ __all__ = (
     'BaseMenu',
     'Buildable',
     'ConsolePanelHandler',
-    'Factory',
     'HashList',
     'Loggable',
     'LoggableUnitTest',

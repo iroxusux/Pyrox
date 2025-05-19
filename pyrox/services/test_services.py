@@ -1,69 +1,123 @@
 """testing module for services
     """
-import os
-
-
-from . import directory
-from . import plc_services
-
-
-from ..types.abc.meta import LoggableUnitTest
-from ..types.plc.plc import Controller
-
-
-__all__ = (
-    'TestServices',
+from .plc_services import (
+    cdata,
+    xml_dict_from_file,
+    dict_to_xml_file,
+    get_rung_text,
+    get_xml_string_from_file,
+    preprocessor
 )
+
+from unittest.mock import patch
+import unittest
+import lxml
+import lxml.etree as ET
 
 
 DUPS_TEST_FILE = r'docs\controls\_test_duplicate_coils.L5X'
 GM_TEST_FILE = r'docs\controls\_test_gm.L5X'
+ROOT_TEST_FILE = r'docs\controls\root.L5X'
 
 
-class TestServices(LoggableUnitTest):
-    """test class for meta module
-    """
+class TestCData(unittest.TestCase):
+    def test_cdata(self):
+        result = cdata("test")
+        self.assertEqual(result, "<![CDATA[test]]>")
 
-    def test_directory_service_class(self):
-        """test id generator generates unique ids
-        """
-        self.logger.info('Testing directory service class...')
-        author_name = 'IndiconLLC'
-        app_name = 'TestingDirectory'   # create common name for testing
 
-        # init service with common name
-        dir_class = directory.ApplicationDirectoryService(author_name, app_name)
+class TestControllerDictFromFile(unittest.TestCase):
+    def test_file_not_found(self):
+        with self.assertRaises(FileNotFoundError):
+            xml_dict_from_file("non_existent_file.L5X")
 
-        self.assertEqual(dir_class.author_name, author_name)
-        self.assertEqual(dir_class.app_name, app_name)
+    def test_invalid_file_extension(self):
+        with self.assertRaises(ValueError):
+            xml_dict_from_file("invalid_file.txt")
 
-        self.logger.info('Rebuilding directories...')
-        dir_class.build_directory(True)
+    @patch("os.path.exists")
+    @patch("lxml.etree.parse")
+    def test_parse_error(self, mock_parse, mock_exists):
+        mock_exists.return_value = True
+        mock_parse.side_effect = lxml.etree.ParseError
+        result = xml_dict_from_file("invalid_file.L5X")
+        self.assertIsNone(result)
 
-        self.assertTrue(os.path.isdir(dir_class.user_cache))
-        self.assertTrue(os.path.isdir(dir_class.user_config))
-        self.assertTrue(os.path.isdir(dir_class.user_data))
-        self.assertTrue(os.path.isdir(dir_class.user_documents))
-        self.assertTrue(os.path.isdir(dir_class.user_downloads))
-        self.logger.info('Available Directories...')
-        self.logger.info(dir_class.user_cache)
-        self.logger.info(dir_class.user_config)
-        self.logger.info(dir_class.user_data)
-        self.logger.info(dir_class.user_documents)
-        self.logger.info(dir_class.user_downloads)
+    @patch("os.path.exists")
+    @patch("lxml.etree.parse")
+    def test_unexpected_error(self, mock_parse, mock_exists):
+        mock_exists.return_value = True
+        mock_parse.side_effect = Exception("Unexpected error")
+        result = xml_dict_from_file("unexpected_error.L5X")
+        self.assertIsNone(result)
 
-    def test_plc_services(self):
-        """test plc services
-        """
-        ctrl_dict: dict = plc_services.controller_dict_from_file(DUPS_TEST_FILE)
-        self.assertIsInstance(ctrl_dict, dict)
+    @patch("os.path.exists")
+    @patch("lxml.etree.parse")
+    @patch("lxml.etree.XMLParser")
+    @patch("xmltodict.parse")
+    def test_successful_parse(self, mock_xmltodict_parse, mock_parser, mock_parse, mock_exists):
+        mock_exists.return_value = True
+        mock_parser.return_value = lxml.etree.XMLParser(strip_cdata=False)
+        mock_parse.return_value.getroot.return_value = lxml.etree.Element("root")
+        mock_parse.return_value.getroot.return_value.text = "<root></root>"
+        mock_xmltodict_parse.return_value = {"root": {}}
+        result = xml_dict_from_file("valid_file.L5X")
+        self.assertEqual(result, {"root": {}})
 
-        ctrl: Controller = Controller.from_file(DUPS_TEST_FILE)
 
-        duplicates, all_coils = plc_services.find_redundant_otes(ctrl, True)
-        self.assertTrue(len(all_coils) > 0)
-        self.assertTrue(len(duplicates) > 0)
+class TestDictToControllerFile(unittest.TestCase):
+    @patch("pyrox.services.plc_services.save_file")
+    @patch("xmltodict.unparse")
+    def test_dict_to_controller_file(self, mock_unparse, mock_save_file):
+        controller = {"root": {}}
+        file_location = "controller.L5X"
+        dict_to_xml_file(controller, file_location)
+        mock_unparse.assert_called_once_with(controller, preprocessor=preprocessor, pretty=True)
+        mock_save_file.assert_called_once()
 
-        gm_ctrl: Controller = Controller.from_file(GM_TEST_FILE)
-        diag_rungs = plc_services.find_diagnostic_rungs(gm_ctrl)
-        self.assertTrue(len(diag_rungs) > 0)
+
+class TestGetRungText(unittest.TestCase):
+    def test_get_rung_text_with_text(self):
+        rung = ET.Element("Rung")
+        text_element = ET.SubElement(rung, "Text")
+        text_element.text = "Test text"
+        result = get_rung_text(rung)
+        self.assertEqual(result, "Test text")
+
+    def test_get_rung_text_with_comment(self):
+        rung = ET.Element("Rung")
+        comment_element = ET.SubElement(rung, "Comment")
+        comment_element.text = "Test comment"
+        result = get_rung_text(rung)
+        self.assertEqual(result, "Test comment")
+
+    def test_get_rung_text_no_description(self):
+        rung = ET.Element("Rung")
+        result = get_rung_text(rung)
+        self.assertEqual(result, "No description available")
+
+
+class TestGetXmlStringFromFile(unittest.TestCase):
+    @patch("os.path.exists")
+    @patch("lxml.etree.parse")
+    @patch("lxml.etree.XMLParser")
+    def test_get_xml_string_from_file(self, mock_parser, mock_parse, mock_exists):
+        mock_exists.return_value = True
+        mock_parser.return_value = lxml.etree.XMLParser(strip_cdata=False)
+        mock_parse.return_value.getroot.return_value = lxml.etree.Element("root")
+        mock_parse.return_value.getroot.return_value.text = "<root></root>"
+        result = get_xml_string_from_file("valid_file.L5X")
+        self.assertEqual(result, "<root>&lt;root&gt;&lt;/root&gt;</root>")
+
+
+class TestPreprocessor(unittest.TestCase):
+    def test_preprocessor_with_cdata(self):
+        key = "Comment"
+        value = "Test comment"
+        result_key, result_value = preprocessor(key, value)
+        self.assertEqual(result_key, key)
+        self.assertEqual(result_value, "<![CDATA[Test comment]]>")
+
+
+if __name__ == '__main__':
+    unittest.main()

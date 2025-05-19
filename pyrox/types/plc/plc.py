@@ -3,11 +3,12 @@
 from __future__ import annotations
 
 
+from collections import defaultdict
 from dataclasses import dataclass
 from enum import Enum
 import os
 import re
-from typing import Generic, get_args, Optional, Self, TypeVar, Tuple
+from typing import Generic, get_args, Optional, Self, TypeVar, Union
 import xml.etree.ElementTree as ET
 
 
@@ -18,6 +19,7 @@ import xmltodict
 from ..abc.meta import EnforcesNaming, Loggable, SnowFlake
 
 
+from ...services.plc_services import xml_dict_from_file
 from ...utils import replace_strings_in_dict
 
 
@@ -39,6 +41,16 @@ __all__ = (
 T = TypeVar('T')
 
 INST_RE_PATTERN: str = r'([A-Z]{3,4}\(\S+?\))'
+
+PLC_ROOT_FILE = r'docs\controls\root.L5X'
+PLC_PROG_FILE = r'docs\controls\_program.L5X'
+PLC_ROUT_FILE = r'docs\controls\_routine.L5X'
+PLC_DT_FILE = r'docs\controls\_datatype.L5X'
+PLC_AOI_FILE = r'docs\controls\_aoi.L5X'
+PLC_MOD_FILE = r'docs\controls\_module.L5X'
+PLC_RUNG_FILE = r'docs\controls\_rung.L5X'
+PLC_TAG_FILE = r'docs\controls\_tag.L5X'
+OTE_OPERAND_RE_PATTERN = r"(?:OTE\()(.*)(?:\))"
 
 
 def controller_dict_from_file(file_location: str) -> Optional[dict]:
@@ -111,26 +123,23 @@ class PlcObject(EnforcesNaming, SnowFlake):
     """
 
     def __getitem__(self, key):
-        return self._meta_data.get(key, None)
+        return self._l5x_meta_data.get(key, None)
 
     def __setitem__(self, key, value):
-        self._meta_data[key] = value
+        self._l5x_meta_data[key] = value
 
     def __init__(self,
-                 l5x_meta_data: dict,
-                 controller: 'Controller'):
+                 l5x_meta_data: dict = defaultdict(None),
+                 controller: 'Controller' = None):
         SnowFlake.__init__(self)
 
-        if not l5x_meta_data:
-            raise ValueError('Cannot create an object from nothing!')
-
-        self._meta_data = l5x_meta_data
+        self._l5x_meta_data = l5x_meta_data
         self._controller = controller
 
     @property
-    def config(self) -> 'ControllerConfiguration':
+    def config(self) -> ControllerConfiguration:
         if not self._controller:
-            return None
+            return ControllerConfiguration()
         return self._controller._config
 
     @property
@@ -182,7 +191,13 @@ class PlcObject(EnforcesNaming, SnowFlake):
 
     @property
     def meta_data(self) -> dict:
-        return self._meta_data
+        return self._l5x_meta_data
+
+    def validate(self) -> 'ControllerReportItem':
+        return ControllerReportItem(self,
+                                    'N/A',
+                                    False,
+                                    'Testing to be implimented...')
 
 
 class SupportsMeta(Generic[T], PlcObject):
@@ -194,7 +209,11 @@ class SupportsMeta(Generic[T], PlcObject):
         raise NotImplementedError()
 
     def __set__(self, value: T):
-        if not isinstance(value, get_args(self.__orig_bases__[0])[0]):
+        try:
+            base = get_args(self.__orig_bases__[0])[0]
+        except TypeError:
+            base = get_args(self.__orig_bases__[0])
+        if not isinstance(value, base):
             raise ValueError(f'Value must be of type {T}!')
         self[self.__key__] = value
 
@@ -254,16 +273,24 @@ class SupportsRadix(SupportsMeta[str]):
 
 class AddOnInstruction(SupportsClass):
     def __init__(self,
-                 l5x_meta_data: dict,
-                 controller: 'Controller'):
+                 name: str = None,
+                 l5x_meta_data: dict = None,
+                 controller: 'Controller' = None):
         """type class for plc AddOn Instruction Definition
 
         Args:
             l5x_meta_data (str): meta data
             controller (Self): controller dictionary
         """
+
+        if not l5x_meta_data:
+            l5x_meta_data = xml_dict_from_file(PLC_AOI_FILE)['AddOnInstructionDefinition']
+
         super().__init__(l5x_meta_data=l5x_meta_data,
                          controller=controller)
+
+        if name:
+            self.name = name
 
     @property
     def revision(self) -> str:
@@ -332,6 +359,14 @@ class AddOnInstruction(SupportsClass):
             return [self['Routines']['Routine']]
         return self['Routines']['Routine']
 
+    def validate(self):
+        test_notes = []
+
+        return ControllerReportItem(self,
+                                    'Testing aoi attributes...',
+                                    True,
+                                    '\n'.join(test_notes))
+
 
 class ConnectionParameters:
     """connection parameters for connecting to a plc
@@ -396,17 +431,23 @@ class DatatypeMember(SupportsRadix, SupportsExternalAccess):
 
 class Datatype(SupportsClass):
     def __init__(self,
-                 l5x_meta_data: dict,
-                 controller: Controller):
+                 name: str = None,
+                 l5x_meta_data: dict = None,
+                 controller: Controller = None):
         """type class for plc Datatype
 
         Args:
             l5x_meta_data (str): meta data
             controller (Self): controller dictionary
         """
+        if not l5x_meta_data:
+            l5x_meta_data = xml_dict_from_file(PLC_DT_FILE)['DataType']
+
         super().__init__(l5x_meta_data=l5x_meta_data,
                          controller=controller)
-        self._members = [DatatypeMember(x['@Name'], self, self._controller) for x in self.raw_members]
+
+        if name:
+            self.name = name
 
     @property
     def family(self) -> str:
@@ -414,7 +455,7 @@ class Datatype(SupportsClass):
 
     @property
     def members(self) -> list[DatatypeMember]:
-        return self._members
+        return [DatatypeMember(x['@Name'], self, self._controller) for x in self.raw_members]
 
     @property
     def raw_members(self) -> list[dict]:
@@ -426,19 +467,35 @@ class Datatype(SupportsClass):
         else:
             return self['Members']['Member']
 
+    def validate(self):
+        test_notes = []
+
+        return ControllerReportItem(self,
+                                    'Testing datatype attributes...',
+                                    True,
+                                    '\n'.join(test_notes))
+
 
 class Module(PlcObject):
     def __init__(self,
-                 l5x_meta_data: dict,
-                 controller: Controller):
+                 name: str = None,
+                 l5x_meta_data: dict = None,
+                 controller: Controller = None):
         """type class for plc Module
 
         Args:
             l5x_meta_data (str): meta data
             controller (Self): controller dictionary
         """
+
+        if not l5x_meta_data:
+            l5x_meta_data = xml_dict_from_file(PLC_MOD_FILE)['Module']
+
         super().__init__(l5x_meta_data=l5x_meta_data,
                          controller=controller)
+
+        if name:
+            self.name = name
 
     @property
     def catalog_number(self) -> str:
@@ -501,23 +558,99 @@ class Module(PlcObject):
 
         return self['Communications']
 
+    def validate(self) -> ControllerReportItem:
+
+        conns = None
+        std_conn_ok = True
+        safe_conn_ok = True
+        test_notes = []
+
+        while True:
+            if self.communications is not None:
+                if self.communications['Connections'] is not None:
+                    conns = self.communications['Connections']['Connection']
+                    if not isinstance(conns, list):
+                        conns = [conns]
+
+                if not conns:
+                    break
+
+                std_connection = next((x for x in conns if x['@Name'] == 'Standard'), None)
+                safe_in_connection = next((x for x in conns if x['@Name'] == 'SafetyInput'), None)
+                safe_out_connection = next((x for x in conns if x['@Name'] == 'SafetyOutput'), None)
+
+                # ------------- check standard connection --------------- #
+                if std_connection:
+                    # check unicast operations for module
+                    try:
+                        if std_connection['@Unicast'] != 'true':
+                            std_conn_ok = False
+                            test_notes.append('Module standard tag not set for unicast!')
+                    except KeyError:
+                        test_notes.append('Module does not have @Unicast option...')
+
+                    # check standard RPI (requested packet interval) settings for module
+                    try:
+                        if int(std_connection['@RPI']) > 50_000 or int(std_connection['@RPI']) < 10_000:
+                            std_conn_ok = False
+                            test_notes.append('Module RPI must be above 10ms and below 50ms! (ideally, about 20ms).')
+                    except KeyError:
+                        test_notes.append('Module does not support RPI setting...')
+
+                # ------------- check safety input connection --------------- #
+                if safe_in_connection:
+                    # check unicast operations for module
+                    if safe_in_connection['@InputConnectionType'] != 'Unicast':
+                        safe_conn_ok = False
+                        test_notes.append('Module Safety Input tag not set for unicast!')
+
+                    # check standard RPI (requested packet interval) settings for module
+                    # TODO -> Match the RPI of an input module to the RPI of the controller safety task
+                    elif int(safe_in_connection['@RPI']) > 50_000 or int(safe_in_connection['@RPI']) < 10_000:
+                        safe_conn_ok = False
+                        test_notes.append('Module RPI must be above 10ms and below 50ms! (ideally, about 20ms).')
+
+                # ------------- check safety output connection --------------- #
+                if safe_out_connection:
+                    # check unicast operations for module
+                    if safe_out_connection['@InputConnectionType'] != 'Unicast':
+                        safe_conn_ok = False
+                        test_notes.append('Module Safety Input tag not set for unicast!')
+
+                    # check standard RPI (requested packet interval) settings for module
+                    # TODO -> Match the RPI of an input module to the RPI of the controller safety task
+                    elif int(safe_out_connection['@RPI']) > 50_000 or int(safe_out_connection['@RPI']) < 10_000:
+                        safe_conn_ok = False
+                        test_notes.append('Module RPI must be above 10ms and below 50ms! (ideally, about 20ms).')
+
+                break
+            break
+
+        return ControllerReportItem(self,
+                                    'Testing module standard and safety i/o settings...',
+                                    std_conn_ok and safe_conn_ok,
+                                    '\n'.join(test_notes))
+
 
 class Program(SupportsClass):
     def __init__(self,
-                 l5x_meta_data: dict,
-                 controller: Controller):
+                 name: str = None,
+                 l5x_meta_data: dict = None,
+                 controller: Controller = None):
         """type class for plc Program
 
         Args:
             l5x_meta_data (str): meta data
             controller (Self): controller dictionary
         """
+        if not l5x_meta_data:
+            l5x_meta_data = xml_dict_from_file(PLC_PROG_FILE)['Program']
+
         super().__init__(l5x_meta_data=l5x_meta_data,
                          controller=controller)
-        self._routines = [self.config.routine_type(l5x_meta_data=routine,
-                                                   controller=self.controller,
-                                                   program=self)
-                          for routine in self.raw_routines]
+
+        if name:
+            self.name = name
 
     @property
     def test_edits(self) -> str:
@@ -547,7 +680,10 @@ class Program(SupportsClass):
 
     @property
     def routines(self) -> list[Routine]:
-        return self._routines
+        return [self.config.routine_type(l5x_meta_data=routine,
+                                         controller=self.controller,
+                                         program=self)
+                for routine in self.raw_routines]
 
     @property
     def raw_routines(self) -> list[dict]:
@@ -558,6 +694,14 @@ class Program(SupportsClass):
             return [self['Routines']['Routine']]
 
         return self['Routines']['Routine']
+
+    def validate(self):
+        test_notes = []
+
+        return ControllerReportItem(self,
+                                    'Testing program attributes...',
+                                    True,
+                                    '\n'.join(test_notes))
 
 
 class ProgramTag(PlcObject):
@@ -582,8 +726,9 @@ class ProgramTag(PlcObject):
 
 class Routine(PlcObject):
     def __init__(self,
-                 l5x_meta_data: dict,
-                 controller: Controller,
+                 name: str = None,
+                 l5x_meta_data: dict = None,
+                 controller: Controller = None,
                  program: Optional[Program] = None):
         """type class for plc Routine
 
@@ -591,14 +736,16 @@ class Routine(PlcObject):
             l5x_meta_data (str): meta data
             controller (Self): controller dictionary
         """
+        if not l5x_meta_data:
+            l5x_meta_data = xml_dict_from_file(PLC_ROUT_FILE)['Routine']
+
         super().__init__(l5x_meta_data=l5x_meta_data,
                          controller=controller)
 
+        if name:
+            self.name = name
+
         self._program: Optional[Program] = program
-        self._rungs = [self.config.rung_type(l5x_meta_data=x,
-                                             controller=self.controller,
-                                             routine=self)
-                       for x in self.raw_rungs]
 
     @property
     def program(self) -> Optional[Program]:
@@ -606,7 +753,10 @@ class Routine(PlcObject):
 
     @property
     def rungs(self) -> list[Rung]:
-        return self._rungs
+        return [self.config.rung_type(l5x_meta_data=x,
+                                      controller=self.controller,
+                                      routine=self)
+                for x in self.raw_rungs]
 
     @property
     def raw_rungs(self) -> list[dict]:
@@ -621,8 +771,8 @@ class Routine(PlcObject):
 
 class Rung(PlcObject):
     def __init__(self,
-                 l5x_meta_data: dict,
-                 controller: Controller,
+                 l5x_meta_data: dict = None,
+                 controller: Controller = None,
                  routine: Optional[Routine] = None):
         """type class for plc Rung
 
@@ -630,8 +780,13 @@ class Rung(PlcObject):
             l5x_meta_data (str): meta data
             controller (Self): controller dictionary
         """
+
+        if not l5x_meta_data:
+            l5x_meta_data = xml_dict_from_file(PLC_RUNG_FILE)['Rung']
+
         super().__init__(l5x_meta_data=l5x_meta_data,
                          controller=controller)
+
         self._routine: Optional[Routine] = routine
 
     def __repr__(self):
@@ -655,6 +810,10 @@ class Rung(PlcObject):
     def routine(self) -> Optional[Routine]:
         return self._routine
 
+    @routine.setter
+    def routine(self, value: Routine):
+        self._routine = value
+
     @property
     def type(self) -> str:
         return self['@Type']
@@ -663,9 +822,17 @@ class Rung(PlcObject):
     def comment(self) -> str:
         return self['Comment']
 
+    @comment.setter
+    def comment(self, value: str):
+        self['Comment'] = value
+
     @property
     def text(self) -> str:
         return self['Text']
+
+    @text.setter
+    def text(self, value: str):
+        self['Text'] = value
 
     @property
     def instructions(self) -> list[LogixInstruction]:
@@ -681,16 +848,24 @@ class Rung(PlcObject):
 
 class Tag(SupportsClass, SupportsExternalAccess):
     def __init__(self,
-                 l5x_meta_data: dict,
-                 controller: 'Controller'):
+                 name: str = None,
+                 l5x_meta_data: dict = None,
+                 controller: 'Controller' = None):
         """type class for plc Tag
 
         Args:
             l5x_meta_data (str): meta data
             controller (Self): controller dictionary
         """
+
+        if not l5x_meta_data:
+            l5x_meta_data = xml_dict_from_file(PLC_TAG_FILE)['Tag']
+
         super().__init__(l5x_meta_data=l5x_meta_data,
                          controller=controller)
+
+        if name:
+            self.name = name
 
     @property
     def tag_type(self) -> str:
@@ -715,6 +890,14 @@ class Tag(SupportsClass, SupportsExternalAccess):
 
         return self['Data']
 
+    def validate(self):
+        test_notes = []
+
+        return ControllerReportItem(self,
+                                    'Testing tag attributes...',
+                                    True,
+                                    '\n'.join(test_notes))
+
 
 @dataclass
 class ControllerConfiguration:
@@ -735,74 +918,14 @@ class Controller(PlcObject, Loggable):
 
     .. ------------------------------------------------------------
 
-    Arguments
-    -----------
-    root_meta_data: :class:`str`
-        XML style data from .L5X data. Basically, the raw data.
-
-    .. ------------------------------------------------------------
-
-    Attributes
-    -----------
-    aois: list[:class:`dict`]
-        `AddOnInstructionDefintion` list from L5X.
-
-    comm_path: :type:`str`
-        Communication path for physical controller.
-
-    datatypes: list[:class:`dict`]
-        `Datatypes` list from L5X.
-
-    file_location: :type:`str`
-        File location of the .L5X the `Controller` was loaded from.
-
-    ip_address: :type:`str`
-        IP Address of the physical controller.
-
-    l5x_meta_data: :type:`dict`
-        The dictionary object parsed from .L5X (xml) format.
-
-    major_revision: :type:`int`
-        Major revision of the parsed controller.
-
-    minor_revision: :type:`int`
-        Minor revision of the parsed controller.
-
-    modules: list[:class:`dict`]
-        `Modules` list from L5X.
-
-    name: :type:`str`
-        Name of the parsed controller.
-
-    plc_module: :class:`dict`
-        Module from `ModuleList` that describes the controller itself. (@Local)
-
-    plc_module_icp_port: :class:`dict`
-        ICP Port for the physical controller. Contains connection parameter information.
-
-    plc_module_ports: list[:class:`dict`]
-        Ports of the physical controller. Contains connection parameter information.
-
-    programs: list[:class:`dict`]
-        `Programs` list from L5X.
-
-    root_meta_data: :type:`str`
-        Absolute root from the .L5X file. Required for compression back into a .L5X file.
-
-    slot: :type:`int`
-        The physical chassis slot for the controller.
-
-    tags: list[:class:`dict`]
-        `Tags` list from L5X.
-
         """
 
     def __init__(self,
-                 root_meta_data: str,
+                 root_meta_data: str = None,
                  config: Optional[ControllerConfiguration] = ControllerConfiguration()):
-        self._root_meta_data = root_meta_data
-        self._file_location: str = ''
-        self._ip_address: str = ''
+
+        self._root_meta_data: dict = root_meta_data if root_meta_data else controller_dict_from_file(PLC_ROOT_FILE)
+        self._file_location, self._ip_address = '', ''
         self._slot = 0
         self._config = config
 
@@ -814,8 +937,7 @@ class Controller(PlcObject, Loggable):
 
         try:
             self._assign_address(self.comm_path.split('\\')[-1])
-            self._slot = int(self.plc_module_icp_port['@Address'])
-        except (ValueError, TypeError) as e:
+        except (ValueError, TypeError, AttributeError) as e:
             self.logger.error('ip address assignment err -> %s', e)
 
         if not self._config:
@@ -823,9 +945,9 @@ class Controller(PlcObject, Loggable):
 
         self._aois: list = [self._config.aoi_type(x, self) for x in self.raw_aois]
         self._datatypes: list = [self._config.datatype_type(x, self) for x in self.raw_datatypes]
-        self._modules: list = [self._config.module_type(x, self) for x in self.raw_modules]
-        self._programs: list = [self._config.program_type(x, self) for x in self.raw_programs]
-        self._tags: list = [self._config.tag_type(x, self) for x in self.raw_tags]
+        self._modules: list = [self._config.module_type(l5x_meta_data=x, controller=self) for x in self.raw_modules]
+        self._programs: list = [self._config.program_type(l5x_meta_data=x, controller=self) for x in self.raw_programs]
+        self._tags: list = [self._config.tag_type(jl5x_meta_data=x, controller=self) for x in self.raw_tags]
 
     @property
     def aois(self) -> list[AddOnInstruction]:
@@ -833,30 +955,16 @@ class Controller(PlcObject, Loggable):
 
     @property
     def raw_aois(self) -> list[dict]:
-        """`AddOnInstructionDefintion` list from L5X.
-
-        .. ------------------------------------------------------------
-
-        Returns
-        ----------
-
-            aois: list[:class:`dict`]
-
-        """
-        return self['AddOnInstructionDefinitions']['AddOnInstructionDefinition']
+        if not self['AddOnInstructionDefinitions']:
+            return []
+        if not isinstance(self['AddOnInstructionDefinitions']['AddOnInstructionDefinition'], list):
+            return [self['AddOnInstructionDefinitions']['AddOnInstructionDefinition']]
+        else:
+            return self['AddOnInstructionDefinitions']['AddOnInstructionDefinition']
 
     @property
     def comm_path(self) -> str:
-        """Communication path for physical controller.
 
-        .. ------------------------------------------------------------
-
-        Returns
-        ----------
-
-            comm_path: :type:`str`
-
-        """
         return self['@CommPath']
 
     @property
@@ -865,30 +973,17 @@ class Controller(PlcObject, Loggable):
 
     @property
     def raw_datatypes(self) -> list[dict]:
-        """`Datatypes` list from L5X.
 
-        .. ------------------------------------------------------------
-
-        Returns
-        ----------
-
-            datatypes: list[:class:`dict`]
-
-        """
-        return self['DataTypes']['DataType']
+        if not self['DataTypes']:
+            return []
+        if not isinstance(self['DataTypes']['DataType'], list):
+            return [self['DataTypes']['DataType']]
+        else:
+            return self['DataTypes']['DataType']
 
     @property
     def file_location(self) -> str:
-        """File location of the .L5X the `Controller` was loaded from.
 
-        .. ------------------------------------------------------------
-
-        Returns
-        ----------
-
-            aois: list[:class:`dict`]
-
-        """
         return self._file_location
 
     @file_location.setter
@@ -898,16 +993,7 @@ class Controller(PlcObject, Loggable):
 
     @property
     def ip_address(self) -> str:
-        """IP Address of the physical controller.
 
-        .. ------------------------------------------------------------
-
-        Returns
-        ----------
-
-            ip_address: :type:`str`
-
-        """
         return self._ip_address
 
     @ip_address.setter
@@ -917,16 +1003,7 @@ class Controller(PlcObject, Loggable):
 
     @property
     def l5x_meta_data(self) -> dict:
-        """The dictionary object parsed from .L5X (xml) format.
 
-        .. ------------------------------------------------------------
-
-        Returns
-        ----------
-
-            l5x_meta_data: :type:`dict`
-
-        """
         return self._root_meta_data['RSLogix5000Content']['Controller']
 
     @l5x_meta_data.setter
@@ -935,30 +1012,10 @@ class Controller(PlcObject, Loggable):
 
     @property
     def major_revision(self) -> int:
-        """Major revision of the parsed controller.
-
-        .. ------------------------------------------------------------
-
-        Returns
-        ----------
-
-            major_revision: :type:`int`
-
-        """
         return int(self['@MajorRev'])
 
     @property
     def minor_revision(self) -> int:
-        """Minor revision of the parsed controller.
-
-        .. ------------------------------------------------------------
-
-        Returns
-        ----------
-
-            minor_revision: :type:`int`
-
-        """
         return int(self['@MinorRev'])
 
     @property
@@ -967,72 +1024,28 @@ class Controller(PlcObject, Loggable):
 
     @property
     def raw_modules(self) -> list[dict]:
-        """`Modules` list from L5X.
-
-        .. ------------------------------------------------------------
-
-        Returns
-        ----------
-
-            modules: list[:class:`dict`]
-
-        """
-        return self['Modules']['Module']
-
-    @property
-    def name(self) -> str:
-        """Name of the parsed controller.
-
-        .. ------------------------------------------------------------
-
-        Returns
-        ----------
-
-            name: :type:`str`
-
-        """
-        return self['@Name']
+        if not self['Modules']:
+            return []
+        if not isinstance(self['Modules']['Module'], list):
+            return [self['Modules']['Module']]
+        else:
+            return self['Modules']['Module']
 
     @property
     def plc_module(self) -> dict:
-        """Module from `ModuleList` that describes the controller itself. (@Local)
-
-        .. ------------------------------------------------------------
-
-        Returns
-        ----------
-
-            plc_module: :class:`dict`
-
-        """
         return next((x for x in self.raw_modules if x['@Name'] == 'Local'), None)
 
     @property
     def plc_module_icp_port(self) -> dict:
-        """ICP Port for the physical controller. Contains connection parameter information.
-
-        .. ------------------------------------------------------------
-
-        Returns
-        ----------
-
-            plc_module_icp_port: :class:`dict`
-
-        """
         return next((x for x in self.plc_module_ports if x['@Type'] == 'ICP' or x['@Type'] == '5069'), None)
 
     @property
     def plc_module_ports(self) -> list[dict]:
-        """Ports of the physical controller. Contains connection parameter information.
+        if not self.plc_module:
+            return []
 
-        .. ------------------------------------------------------------
-
-        Returns
-        ----------
-
-            plc_module_ports: list[:class:`dict`]
-
-        """
+        if not isinstance(self.plc_module['Ports']['Port'], list):
+            return [self.plc_module['Ports']['Port']]
         return self.plc_module['Ports']['Port']
 
     @property
@@ -1041,45 +1054,22 @@ class Controller(PlcObject, Loggable):
 
     @property
     def raw_programs(self) -> list[dict]:
-        """`Programs` list from L5X.
-
-        .. ------------------------------------------------------------
-
-        Returns
-        ----------
-
-            programs: list[:class:`dict`]
-
-        """
-        return self['Programs']['Program']
+        if not self['Programs']:
+            return []
+        if not isinstance(self['Programs']['Program'], list):
+            return [self['Programs']['Program']]
+        else:
+            return self['Programs']['Program']
 
     @property
     def root_meta_data(self) -> dict:
-        """Absolute root from the .L5X file. Required for compression back into a .L5X file.
-
-        .. ------------------------------------------------------------
-
-        Returns
-        ----------
-
-            root_meta_data: :type:`str`
-
-        """
         return self._root_meta_data
 
     @property
     def slot(self) -> int:
-        """The physical chassis slot for the controller.
-
-        .. ------------------------------------------------------------
-
-        Returns
-        ----------
-
-            slot: :type:`int`
-
-        """
-        return int(self._slot)
+        if not self.plc_module_icp_port:
+            return None
+        return int(self.plc_module_icp_port['@Address'])
 
     @slot.setter
     def slot(self,
@@ -1092,39 +1082,31 @@ class Controller(PlcObject, Loggable):
 
     @property
     def raw_tags(self) -> list[dict]:
-        """`Tags` list from L5X.
+        if not self._l5x_meta_data['Tags']:
+            return []
+        if not isinstance(self._l5x_meta_data['Tags'], dict):
+            raise ValueError('Tags must be a dictionary!')
+        if not isinstance(self._l5x_meta_data['Tags']['Tag'], list):
+            return [self._l5x_meta_data['Tags']['Tag']]
+        else:
+            return self._l5x_meta_data['Tags']['Tag']
 
-        .. ------------------------------------------------------------
+    @raw_tags.setter
+    def raw_tags(self,
+                 value: dict):
+        if value is None:
+            raise ValueError('Tags cannot be None!')
+        if not isinstance(value, dict) and not isinstance(value, list):
+            raise ValueError('Tags must be a dictionary or a list!')
 
-        Returns
-        ----------
-
-            tags: list[:class:`dict`]
-
-        """
-        return self['Tags']['Tag']
+        if isinstance(value, dict):
+            self['Tags'] = value
+        elif isinstance(value, list):
+            self['Tags']['Tag'] = value
 
     @classmethod
     def from_file(cls: Self,
                   file_location: str) -> Optional[Self]:
-        """Get an assembled controller from a given file location
-
-        .. ------------------------------------------------------------
-
-        Arguments
-        ----------
-        file_location: :type:`str`
-            File location to try to load a controller from.
-
-        .. Must be a .L5X file!
-
-        .. ------------------------------------------------------------
-
-        Returns
-        ----------
-            :class:`Controller`
-
-        """
         root_data = controller_dict_from_file(file_location)
         if not root_data:
             return None
@@ -1143,17 +1125,113 @@ class Controller(PlcObject, Loggable):
 
         self._ip_address = address
 
+    def _add_common(self,
+                    plcobject: Union[PlcObject, str, dict],
+                    target_list: list,
+                    objecttype: type):
+
+        if isinstance(plcobject, PlcObject):
+            target_list.append(plcobject)
+
+        elif isinstance(plcobject, dict):
+            target_list.append(objecttype(l5x_meta_data=plcobject, controller=self))
+
+        elif isinstance(plcobject, str):
+            target_list.append(objecttype(name=plcobject, controller=self))
+
+        else:
+            raise TypeError('Invalid type for %s!' % objecttype.__name__)
+
+    def _remove_common(self,
+                       plcobject: PlcObject,
+                       target_list: list):
+        if plcobject in target_list:
+            target_list.remove(plcobject)
+
+    def add_aoi(self, aoi: Union[AddOnInstruction, dict, str]):
+        self._add_common(aoi, self._aois, self._config.aoi_type)
+
+    def add_datatype(self, datatype: Union[Program, dict, str]):
+        self._add_common(datatype, self._datatypes, self._config.datatype_type)
+
+    def add_module(self, module: Union[Module, dict, str]):
+        self._add_common(module, self._modules, self._config.module_type)
+
+    def add_program(self, program: Union[Program, dict, str]):
+        self._add_common(program, self._programs, self._config.program_type)
+
+    def add_tag(self, tag: Union[Tag, dict, str]):
+        self._add_common(tag, self._tags, self._config.tag_type)
+
+    def remove_aoi(self, aoi: AddOnInstruction):
+        self._remove_common(aoi, self._aois)
+
+    def remove_datatype(self, datatype: Datatype):
+        self._remove_common(datatype, self._datatypes)
+
+    def remove_module(self, module: Module):
+        self._remove_common(module, self._modules)
+
+    def remove_program(self, program: Program):
+        self._remove_common(program, self._programs)
+
+    def remove_tag(self, tag: Tag):
+        self._remove_common(tag, self._tags)
+
+    def find_diagnostic_rungs(self) -> list[Rung]:
+        diagnostic_rungs = []
+
+        for program in self.programs:
+            for routine in program.routines:
+                for rung in routine.rungs:
+                    if rung.comment is not None and '<@DIAG>' in rung.comment:
+                        diagnostic_rungs.append(rung)
+                    else:
+                        for instruction in rung.instructions:
+                            if 'JSR' in instruction and 'zZ999_Diagnostics' in instruction:
+                                diagnostic_rungs.append(rung)
+                                break
+
+        return diagnostic_rungs
+
+    def find_redundant_otes(self,
+                            include_all_coils=False):
+        ote_operands = defaultdict(list)
+
+        routines = []
+
+        for program in self.programs:
+            for routine in program.routines:
+                routines.append((program.name, routine.name, routine))
+
+        for program_name, routine_name, routine in routines:
+
+            for rung_idx, rung in enumerate(routine.rungs, 1):
+                ote_elements = [x for x in rung.instructions if 'OTE(' in x]
+
+                for ote in ote_elements:
+                    operand = re.findall(OTE_OPERAND_RE_PATTERN, ote)[0]
+
+                    if operand:
+                        location = {
+                            'program': program_name,
+                            'routine': routine_name,
+                            'rung': rung_idx,
+                            'operand': operand
+                        }
+                        ote_operands[operand].append(location)
+
+        redundant_otes = {operand: locations for operand, locations in ote_operands.items() if len(locations) > 1}
+
+        if include_all_coils is False:
+            return redundant_otes
+        else:
+            return (redundant_otes, ote_operands)
+
     def rename_asset(self,
                      element_type: LogixElement,
                      name: str,
                      replace_name: str):
-        """rename an asset of the controller
-
-        Args:
-            resolver (enums.Resolver): which asset(s) to rename
-            name (str): name to rename
-            replace_name (str): final name
-        """
         if not element_type or not name or not replace_name:
             return
 
@@ -1169,105 +1247,44 @@ class Controller(PlcObject, Loggable):
             case _:
                 return
 
-
-class ModuleReportException(Exception):
-    """Base exception for module reporting.
-    """
-
-    def __init__(self, msg='My default message', *args, **kwargs):
-        super().__init__(msg, *args, **kwargs)
+    def validate(self) -> 'ControllerReport':
+        return ControllerReport(self).run()
 
 
-class DataTypeReportException(Exception):
-    """Base exception for datatype reporting.
-    """
-
-    def __init__(self, msg='My default message', *args, **kwargs):
-        super().__init__(msg, *args, **kwargs)
-
-
-class AddOnInstructionReportException(Exception):
-    """Base exception for addon instruction reporting.
-    """
-
-    def __init__(self, msg='My default message', *args, **kwargs):
-        super().__init__(msg, *args, **kwargs)
-
-
-class TagReportException(Exception):
-    """Base exception for tag reporting.
-    """
-
-    def __init__(self, msg='My default message', *args, **kwargs):
-        super().__init__(msg, *args, **kwargs)
-
-
-class ProgramReportException(Exception):
-    """Base exception for program reporting.
-    """
-
-    def __init__(self, msg='My default message', *args, **kwargs):
-        super().__init__(msg, *args, **kwargs)
-
-
-class ModuleInhibitedException(ModuleReportException):
-    """Module is inhibited!
-    """
-
-    def __init__(self, msg='Module should not be inhibted!', *args, **kwargs):
-        super().__init__(msg, *args, **kwargs)
-
-
-class ModuleNoCatalogException(ModuleReportException):
-    """Module has no catalog number!
-    """
-
-    def __init__(self, msg='Module has no catalog number!', *args, **kwargs):
-        super().__init__(msg, *args, **kwargs)
-
-
-class ModuleNoVendorException(ModuleReportException):
-    """Module has no vendor number!
-    """
-
-    def __init__(self, msg='Module has no vendor number!', *args, **kwargs):
-        super().__init__(msg, *args, **kwargs)
-
-
-class DataTypeNoFamilyException(DataTypeReportException):
-    """Datatype has no family type!
-    """
-
-    def __init__(self, msg='Datatype has no family type!', *args, **kwargs):
-        super().__init__(msg, *args, **kwargs)
-
-
-class DataTypeNoMembersException(DataTypeReportException):
-    """Datatype has no members!
-    """
-
-    def __init__(self, msg='Datatype has no members!', *args, **kwargs):
-        super().__init__(msg, *args, **kwargs)
-
-
-class ControllerReportContextManager:
-
+class ControllerReportItem:
     def __init__(self,
-                 report_items: list[list[str]]):
-        self._report_items = report_items
+                 plc_object: PlcObject,
+                 test_description: str,
+                 pass_fail: bool,
+                 report_description: str):
+        if plc_object is None or test_description is None or pass_fail is None or report_description is None:
+            raise ValueError('Cannot leave any fields empty/None!')
+        self._plc_object: PlcObject = plc_object
+        self._test_description: str = test_description
+        self._pass_fail: bool = pass_fail
+        self._report_description: str = report_description
 
-    def __enter__(self):
-        return self
+    def __repr__(self):
+        return f'ControllerReportItem(plc_object={self._plc_object},)'\
+            f'test_description={self._test_description}, '\
+            f'pass_fail={self._pass_fail}, '\
+            f'report_description={self._report_description})'
 
-    def __exit__(self, exc_type, exc_val, exc_tb):
-        if exc_type is not None:
-            self.log(exc_val)
+    @property
+    def plc_object(self) -> PlcObject:
+        return self._plc_object
 
-        return True
+    @property
+    def test_description(self) -> str:
+        return self._test_description
 
-    def log(self,
-            *messages: str) -> None:
-        self._report_items.append([*messages])
+    @property
+    def pass_fail(self) -> bool:
+        return self._pass_fail
+
+    @property
+    def report_description(self) -> str:
+        return self._report_description
 
 
 class ControllerReport(Loggable):
@@ -1280,43 +1297,15 @@ class ControllerReport(Loggable):
                  controller: Controller):
         super().__init__()
         self._controller: Controller = controller
-        self._report_items: list[list[str]] = []
-        self._health_counter:    int = 0
-        self._health_value:      int = 0
+        self._report_items: list[ControllerReportItem] = []
 
     @property
-    def health(self) -> Tuple[int, int]:
-        return (self._health_value, self._health_counter)
+    def report_items(self) -> list[ControllerReportItem]:
+        return self._report_items
 
-    def _log_health(self):
-        _log_char = '█'
-        _health = self.health
-        _log_chart = _log_char * int((self._health_counter * (_health[0]/_health[1])))
-        self.logger.info(f'Health -> {_log_chart}')
-
-    def _tick_health(self, health_good: bool):
-        """using boolean assignment, increment a health counter and health value.
-
-        This allows for a rolling counter, while tracking how much of the health was actually good.
-
-        In the end, is used to show health such as: 60/120, then be translated to a percentage (66% Healthy).
-        """
-        self._health_counter += 1
-        if health_good:
-            self._health_value += 1
-        # self._log_health()
-
-    def _check_aois(self):
-        self.logger.info('Checking addon instructions...')
-
-        for aoi in self._controller.aois:
-            try:
-                self.logger.info('AddOnInstruction: %s' % aoi.name)
-
-                self.logger.info('ok...')
-
-            except AddOnInstructionReportException as e:
-                self.logger.error('error -> %s' % e)
+    @property
+    def categorized_items(self) -> dict[list[ControllerReportItem]]:
+        return self._as_categorized()
 
     def _check_controller(self):
         self.logger.info('Checking controller...')
@@ -1328,7 +1317,6 @@ class ControllerReport(Loggable):
             self.logger.info('ok... -> %s' % str(self._controller.comm_path))
         else:
             self.logger.error('error!')
-        self._tick_health(good)
 
         # ip address
         self.logger.info('IP Address...')
@@ -1337,7 +1325,6 @@ class ControllerReport(Loggable):
             self.logger.info('ok... -> %s' % str(self._controller.ip_address))
         else:
             self.logger.error('error!')
-        self._tick_health(good)
 
         # slot
         self.logger.info('Slot...')
@@ -1346,7 +1333,6 @@ class ControllerReport(Loggable):
             self.logger.info('ok... -> %s' % str(self._controller.slot))
         else:
             self.logger.error('error!')
-        self._tick_health(good)
 
         # plc module
         self.logger.info('PLC Module...')
@@ -1355,73 +1341,35 @@ class ControllerReport(Loggable):
             self.logger.info('ok... -> %s' % str(self._controller.plc_module['@Name']))
         else:
             self.logger.error('error!')
-        self._tick_health(good)
 
-    def _check_datatypes(self):
-        self.logger.info('Checking datatypes...')
-        for datatype in self._controller.datatypes:
-            try:
-                self.logger.info('Datatype: %s' % datatype.name)
+    def _check_common(self, attr: list[PlcObject]):
 
-                if datatype.family is None:
-                    raise DataTypeNoFamilyException
+        if not isinstance(attr, list):
+            raise ValueError
 
-                if datatype.members is None:
-                    raise DataTypeNoMembersException
+        for x in attr:
+            self.logger.info('analyzing "%s"...', x.name)
+            self._report_items.append(x.validate())
+            if self._report_items[-1].pass_fail is True:
+                self.logger.info('validation ok...')
+            else:
+                self.logger.warning('validation error! -> %s', self._report_items[-1].report_description)
 
-                self.logger.info('ok...')
-
-            except DataTypeReportException as e:
-                self.logger.error('error -> %s' % e)
-
-    def _check_modules(self):
-        self.logger.info('Checking modules...')
-        for module in self._controller.modules:
-            try:
-                self.logger.info('Module: %s' % module.name)
-
-                if module.catalog_number is None:
-                    raise ModuleNoCatalogException
-
-                if module.vendor is None:
-                    raise ModuleNoVendorException
-
-                self.logger.info('ok...')
-
-            except ModuleReportException as e:
-                self.logger.error('error -> %s' % e)
-
-    def _check_programs(self):
-        self.logger.info('Checking programs...')
-
-        for program in self._controller.programs:
-            try:
-                self.logger.info('Program: %s' % program.name)
-
-                self.logger.info('ok...')
-
-            except ProgramReportException as e:
-                self.logger.error('error -> %s' % e)
-
-    def _check_tags(self):
-        self.logger.info('Checking tags...')
-
-        for tag in self._controller.tags:
-            try:
-                self.logger.info('Tag: %s' % tag.name)
-
-                self.logger.info('ok...')
-
-            except TagReportException as e:
-                self.logger.error('error -> %s' % e)
+    def _as_categorized(self) -> dict[list[ControllerReportItem]]:
+        categories = {}
+        for report in self._report_items:
+            if report.plc_object.__class__.__name__ not in categories:
+                categories[report.plc_object.__class__.__name__] = []
+            categories[report.plc_object.__class__.__name__].append(report)
+        return categories
 
     def run(self) -> Self:
         self.logger.info('Starting report...')
         self._check_controller()
-        self._check_modules()
-        self._check_datatypes()
-        self._check_aois()
-        self._check_tags()
-        self._check_programs()
+        self._check_common(self._controller.modules)
+        self._check_common(self._controller.datatypes)
+        self._check_common(self._controller.aois)
+        self._check_common(self._controller.tags)
+        self._check_common(self._controller.programs)
         self.logger.info('Finalizing report...')
         return self

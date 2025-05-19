@@ -1,7 +1,8 @@
 """run this engine locally (for debugging or demonstration purposes)
     """
 from pyrox import Application, ApplicationConfiguration
-from pyrox.models import EmulationModel, ConnectionTask, GmHmiTask
+from pyrox.models import EmulationModel, ConnectionTask
+from pyrox.models.general_motors import ALL_GM_TASKS
 
 
 def main():
@@ -11,9 +12,10 @@ def main():
     app_config.app_config.name = 'Pyrox Application'
     app = Application(model=EmulationModel, config=app_config)
 
-    conn = app.add_task(ConnectionTask(application=app))
-    app.add_task(GmHmiTask(application=app,
-                           connection_task=conn))
+    app.add_task(ConnectionTask(application=app))
+
+    for task in ALL_GM_TASKS:
+        app.add_task(task(application=app))
 
     app.start()
 
