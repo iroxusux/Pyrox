@@ -21,6 +21,7 @@ from .plc import (
     LogixInstruction,
     LogixInstructionType,
     Module,
+    NamedPlcObject,
     PlcObject,
     Program,
     ProgramTag,
@@ -85,22 +86,30 @@ class TestPlcObject(unittest.TestCase):
         self.plc_object["@Name"] = "NewName"
         self.assertEqual(self.plc_object["@Name"], "NewName")
 
-    def test_name_property(self):
-        self.assertEqual(self.plc_object.name, "TestObject")
-        self.plc_object.name = "NewName"
-        self.assertEqual(self.plc_object.name, "NewName")
-
-    def test_name_property_invalid(self):
-        with self.assertRaises(self.plc_object.InvalidNamingException):
-            self.plc_object.name = "Invalid Name!"
-
-    def test_description_property(self):
-        self.assertEqual(self.plc_object.description, "Test Description")
-        self.plc_object.description = "New Description"
-        self.assertEqual(self.plc_object.description, "New Description")
-
     def test_config_property(self):
         self.assertIsInstance(self.plc_object.config, ControllerConfiguration)
+
+
+class TestNamedPlcObject(unittest.TestCase):
+    def setUp(self):
+        self.controller = MockController()
+        self.meta_data = {"@Name": "TestNamedObject", "Description": "Test Description"}
+        self.named_object = NamedPlcObject(
+            meta_data=self.meta_data, controller=self.controller)
+
+    def test_name_property(self):
+        self.assertEqual(self.named_object.name, "TestNamedObject")
+        self.named_object.name = "NewName"
+        self.assertEqual(self.named_object.name, "NewName")
+
+    def test_invalid_name(self):
+        with self.assertRaises(self.named_object.InvalidNamingException):
+            self.named_object.name = "Invalid Name!"
+
+    def test_description_property(self):
+        self.assertEqual(self.named_object.description, "Test Description")
+        self.named_object.description = "New Description"
+        self.assertEqual(self.named_object.description, "New Description")
 
 
 class TestLogixOperand(unittest.TestCase):

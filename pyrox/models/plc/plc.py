@@ -16,6 +16,7 @@ from ...utils import replace_strings_in_dict
 
 
 __all__ = (
+    'BASE_FILES',
     'PlcObject',
     'AddOnInstruction',
     'ConnectionParameters',
@@ -224,7 +225,7 @@ class PlcObject(EnforcesNaming, SnowFlake):
         self._controller = controller
 
     def __repr__(self):
-        return self.name
+        return self.meta_data
 
     @property
     def config(self) -> ControllerConfiguration:
@@ -248,6 +249,18 @@ class PlcObject(EnforcesNaming, SnowFlake):
             :class:`Controller`
         """
         return self._controller
+
+    @property
+    def meta_data(self) -> dict:
+        return self._meta_data
+
+
+class NamedPlcObject(PlcObject):
+    def __init__(self, meta_data=defaultdict(None), controller=None):
+        super().__init__(meta_data, controller)
+
+    def __repr__(self):
+        return self.name
 
     @property
     def name(self) -> str:
@@ -284,10 +297,6 @@ class PlcObject(EnforcesNaming, SnowFlake):
     def description(self, value: str):
         self['Description'] = value
 
-    @property
-    def meta_data(self) -> dict:
-        return self._meta_data
-
 
 class LogixOperand(PlcObject):
     """Logix Operand
@@ -304,9 +313,6 @@ class LogixOperand(PlcObject):
         super().__init__(meta_data=meta_data,
                          controller=controller)
 
-    def __repr__(self):
-        return self._meta_data
-
     @property
     def arg_position(self) -> int:
         """get the positional argument for this logix operand
@@ -315,6 +321,11 @@ class LogixOperand(PlcObject):
 
     @property
     def as_qualified(self) -> str:
+        """ Get the qualified name of this operand
+
+        Returns:
+            :class:`str`: qualified name of this operand
+        """
         if not self.base_tag:
             return self.meta_data
 
@@ -453,7 +464,7 @@ class LogixInstruction(PlcObject):
         return LogixInstructionType.INPUT if self.instruction_name in INPUT_INSTRUCTIONS else LogixInstructionType.OUTPUT
 
 
-class SupportsMeta(Generic[T], PlcObject):
+class SupportsMeta(Generic[T], NamedPlcObject):
     """meta type for 'supports' structuring
     """
 
@@ -518,7 +529,7 @@ class SupportsRadix(SupportsMeta[str]):
         super().__set__(value, SupportsRadix.key)
 
 
-class TagContainer(PlcObject):
+class TagContainer(NamedPlcObject):
     def __init__(self, meta_data=defaultdict(None), controller=None):
         super().__init__(meta_data, controller)
 
@@ -581,7 +592,7 @@ class RoutineContainer(TagContainer):
         return self['Routines']['Routine']
 
 
-class AddOnInstruction(RoutineContainer, TagContainer, SupportsClass):
+class AddOnInstruction(RoutineContainer, SupportsClass):
     def __init__(self,
                  name: str = None,
                  l5x_meta_data: dict = None,
@@ -769,7 +780,7 @@ class Datatype(SupportsClass):
                                     '\n'.join(test_notes))
 
 
-class Module(PlcObject):
+class Module(NamedPlcObject):
     def __init__(self,
                  name: str = None,
                  l5x_meta_data: dict = None,
@@ -925,7 +936,7 @@ class Module(PlcObject):
                                     '\n'.join(test_notes))
 
 
-class Program(RoutineContainer, TagContainer):
+class Program(RoutineContainer):
     def __init__(self,
                  name: str = None,
                  meta_data: dict = None,
@@ -1007,7 +1018,7 @@ class Program(RoutineContainer, TagContainer):
                                     '\n'.join(test_notes))
 
 
-class ProgramTag(PlcObject):
+class ProgramTag(NamedPlcObject):
     def __init__(self,
                  l5x_meta_data: dict,
                  controller: Controller,
@@ -1027,7 +1038,7 @@ class ProgramTag(PlcObject):
         return self._program
 
 
-class Routine(PlcObject):
+class Routine(NamedPlcObject):
     def __init__(self,
                  name: str = None,
                  l5x_meta_data: dict = None,
@@ -1108,7 +1119,7 @@ class Routine(PlcObject):
         return self['RLLContent']['Rung']
 
 
-class Rung(PlcObject):
+class Rung(NamedPlcObject):
     def __init__(self,
                  l5x_meta_data: dict = None,
                  controller: Controller = None,
@@ -1204,7 +1215,7 @@ class Rung(PlcObject):
         return self._instructions
 
 
-class Tag(PlcObject):
+class Tag(NamedPlcObject):
     def __init__(self,
                  name: str = None,
                  l5x_meta_data: dict = None,
@@ -1336,7 +1347,7 @@ class Tag(PlcObject):
                                     '\n'.join(test_notes))
 
 
-class DataValueMember(PlcObject):
+class DataValueMember(NamedPlcObject):
     """type class for plc Tag DataValueMember
 
         Args:
@@ -1380,7 +1391,7 @@ class ControllerConfiguration:
     tag_type: type = Tag
 
 
-class Controller(PlcObject, Loggable):
+class Controller(NamedPlcObject, Loggable):
     """Controller container for Allen Bradley L5X Files.
     .. ------------------------------------------------------------
 
