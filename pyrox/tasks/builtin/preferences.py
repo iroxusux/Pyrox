@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 
-from ...models.application import ApplicationTask
+from pyrox.models.application import ApplicationTask
 
 
 class PreferencesTask(ApplicationTask):

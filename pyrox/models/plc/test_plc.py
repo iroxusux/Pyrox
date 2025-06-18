@@ -811,7 +811,7 @@ class TestController(unittest.TestCase):
 
     def test_validate(self):
         return  # i have work to do here
-        report = self.controller.validate()
+        report = self.controller.verify()
 
         self.assertIsInstance(report, ControllerReport)
 

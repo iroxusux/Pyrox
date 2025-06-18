@@ -9,10 +9,13 @@ from .plc_services import (
     preprocessor
 )
 
+
 from unittest.mock import patch
 import unittest
 import lxml
 import lxml.etree as ET
+
+from pyrox.models.application import ApplicationTask
 
 
 DUPS_TEST_FILE = r'docs\controls\_test_duplicate_coils.L5X'
@@ -125,6 +128,22 @@ class TestPreprocessor(unittest.TestCase):
         result_key, result_value = preprocessor(key, value)
         self.assertEqual(result_key, key)
         self.assertEqual(result_value, "<![CDATA[Test comment]]>")
+
+
+class TestFindAndInstantiateClass(unittest.TestCase):
+    def test_find_and_instantiate_class(self):
+        from .task_services import find_and_instantiate_class
+        from ..applications import App
+
+        app = App()
+        my_objects = find_and_instantiate_class(r"pyrox\\tasks\\builtin",
+                                                "ApplicationTask",
+                                                True,
+                                                ApplicationTask,
+                                                application=app)
+        self.assertIsNotNone(my_objects)
+        self.assertTrue(len(my_objects) > 4)
+        self.assertTrue(hasattr(my_objects[0], "application"))
 
 
 if __name__ == '__main__':

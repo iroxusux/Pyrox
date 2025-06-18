@@ -1,11 +1,14 @@
+from __future__ import annotations
+
+from pathlib import Path
 from typing import Optional
 
 
-from ..models import Application
+from ..models import Application, ApplicationTask
 from ..models.plc import Controller
 from ..models.utkinter import populate_tree
-from ..tasks.builtin import ALL_TASKS
 from ..services.plc_services import dict_to_xml_file, l5x_dict_from_file
+from ..services.task_services import find_and_instantiate_class
 
 
 class App(Application):
@@ -20,7 +23,13 @@ class App(Application):
         super().__init__(*args, **kwargs)
 
         self._controller: Optional[Controller] = None
-        self.add_tasks(tasks=ALL_TASKS)
+
+        tasks = find_and_instantiate_class(str(Path(__file__).parent.parent) + '/tasks',
+                                           "ApplicationTask",
+                                           True,
+                                           ApplicationTask,
+                                           application=self)
+        self.add_tasks(tasks=tasks)
         self.logger.info('Pyrox Application initialized.')
 
     @property
@@ -54,11 +63,11 @@ class App(Application):
             Location to open :class:`Controller` from.
 
         """
-        ctrl_dict = xml_dict_from_file(file_location)
+        ctrl_dict = l5x_dict_from_file(file_location)
         if not ctrl_dict:
             self.error('no controller was parsable from passed file location: %s...', file_location)
             return
-        ctrl = Controller(xml_dict_from_file(file_location))
+        ctrl = Controller(l5x_dict_from_file(file_location))
         if not ctrl:
             self.logger.error('no controller was passed...')
             return
@@ -90,3 +99,20 @@ class App(Application):
             return
         dict_to_xml_file(self.controller.root_meta_data,
                          file_location)
+
+
+class AppTask(ApplicationTask):
+    def __init__(self, application, model=None):
+        super().__init__(application, model)
+
+    @property
+    def application(self) -> App:
+        """Application instance associated with this task.
+
+        .. ------------------------------------------------------------
+
+        Returns
+        -----------
+            application: :class:`App`
+        """
+        return super().application

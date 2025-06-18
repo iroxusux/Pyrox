@@ -5,8 +5,7 @@ from __future__ import annotations
 
 import sys
 
-
-from ...models.application import ApplicationTask
+from pyrox.models import ApplicationTask
 
 
 class ExitTask(ApplicationTask):

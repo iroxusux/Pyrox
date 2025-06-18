@@ -6,13 +6,13 @@ from __future__ import annotations
 from typing import Optional, TYPE_CHECKING
 
 
-from ...services.file import get_open_file, get_save_file
-from ...models.application import ApplicationTask
-from ...models import SafeList
+from pyrox.services.file import get_open_file, get_save_file
+from pyrox.models.application import ApplicationTask
+from pyrox.models import SafeList
 
 
 if TYPE_CHECKING:
-    from ...models import Model, Application
+    from pyrox.models import Model, Application
 
 
 class FileTask(ApplicationTask):
@@ -34,10 +34,10 @@ class FileTask(ApplicationTask):
     """
 
     def __init__(self,
-                 application: Application,
-                 model: Model):
-        super().__init__(application=application,
-                         model=model)
+                 *args,
+                 **kwargs):
+        super().__init__(*args,
+                         **kwargs)
 
         self.on_new: SafeList[callable] = SafeList()
         self.on_save: SafeList[callable] = SafeList()

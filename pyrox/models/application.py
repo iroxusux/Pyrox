@@ -253,6 +253,9 @@ class ApplicationTask(PartialApplicationTask):
         super().__init__(application=application,
                          model=model)
 
+    def __repr__(self):
+        return self.__class__.__name__
+
     @property
     def application(self) -> 'Application':
         """The parent application of this task.
@@ -329,7 +332,7 @@ class Application(PartialApplication):
         super().__init__(config=config)
 
         self._tasks: HashList[PartialApplicationTask] = HashList('id')
-        self._menu = None if config.headless is True else MainApplicationMenu(self.application)
+        self._menu = None if self.config.headless is True else MainApplicationMenu(self.application)
         self._model_hash = HashList(SnowFlake.id.__name__)
         self._main_model_id: int = -1
         self._organizer = None
@@ -353,7 +356,7 @@ class Application(PartialApplication):
             self._workspace.pack(side=TOP, fill=BOTH, expand=True)
 
         # append all tasks from config into this application
-        self.add_tasks(config.tasks)
+        self.add_tasks(self.config.tasks)
 
     @property
     def menu(self) -> MainApplicationMenu:
@@ -533,6 +536,8 @@ class Application(PartialApplication):
             self._log_window.log_text.config(state='disabled')
         except TclError as e:
             print('Tcl error, original msg -> %s' % e)
+
+        self._log_window.update()
 
     def set_model(self,
                   model: Model) -> None:

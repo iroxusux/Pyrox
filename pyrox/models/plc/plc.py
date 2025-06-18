@@ -297,6 +297,9 @@ class NamedPlcObject(PlcObject):
     def description(self, value: str):
         self['Description'] = value
 
+    def validate(self):
+        raise NotImplementedError("This method should be implemented in subclasses.")
+
 
 class LogixOperand(PlcObject):
     """Logix Operand
@@ -613,6 +616,9 @@ class AddOnInstruction(RoutineContainer, SupportsClass):
         if name:
             self.name = name
 
+        def validate(self):
+            pass
+
     @property
     def revision(self) -> str:
         return self['@Revision']
@@ -670,6 +676,14 @@ class AddOnInstruction(RoutineContainer, SupportsClass):
         if not isinstance(self['LocalTags']['LocalTag'], list):
             return [self['LocalTags']['LocalTag']]
         return self['LocalTags']['LocalTag']
+
+    def validate(self):
+        test_notes = []
+
+        return ControllerReportItem(self,
+                                    'Testing aoi attributes...',
+                                    True,
+                                    '\n'.join(test_notes))
 
 
 class ConnectionParameters:
@@ -1785,7 +1799,7 @@ class Controller(NamedPlcObject, Loggable):
             case _:
                 return
 
-    def validate(self) -> 'ControllerReport':
+    def verify(self) -> 'ControllerReport':
         return ControllerReport(self).run()
 
 
@@ -1882,7 +1896,7 @@ class ControllerReport(Loggable):
 
     def _check_common(self, attr: list[PlcObject]):
 
-        if not isinstance(attr, list):
+        if not isinstance(attr, list) and not isinstance(attr, HashList):
             raise ValueError
 
         for x in attr:

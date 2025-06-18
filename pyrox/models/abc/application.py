@@ -22,7 +22,6 @@ from ttkthemes import ThemedTk
 
 from .meta import (
     Buildable,
-    SnowFlake,
     Runnable,
     PartialViewConfiguration,
     ViewType,
@@ -33,7 +32,6 @@ from .meta import (
 )
 
 from .model import PartialModel
-from .list import HashList
 from ..abc.meta import Loggable
 
 
@@ -319,6 +317,9 @@ class PartialApplication(Runnable):
                  config: PartialApplicationConfiguration) -> None:
 
         super().__init__()
+
+        if config is None:
+            config = PartialApplicationConfiguration.root()
 
         self._config: PartialApplicationConfiguration = config
         self._application: Union[Tk, ThemedTk, None] = config.application
