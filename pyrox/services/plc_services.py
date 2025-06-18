@@ -12,6 +12,7 @@ from typing import Optional
 import xmltodict
 import lxml.etree
 from xml.sax.saxutils import unescape
+import xml.etree.ElementTree as ET
 
 
 from ..services.file import save_file
@@ -36,7 +37,7 @@ def cdata(s):
         return '<![CDATA[' + s + ']]>'
 
 
-def xml_dict_from_file(file_location: str) -> Optional[dict]:
+def l5x_dict_from_file(file_location: str) -> Optional[dict]:
     """get a controller dictionary from a provided .l5x file location
 
     Args:
@@ -50,10 +51,31 @@ def xml_dict_from_file(file_location: str) -> Optional[dict]:
     """
     if not file_location.endswith('.L5X'):
         raise ValueError('can only parse .L5X files!')
+
+    if not os.path.exists(file_location):
+        raise FileNotFoundError
+
+    # use lxml and parse the .l5x xml into a dictionary
     try:
-        xml_str: str = get_xml_string_from_file(file_location)
-        if not xml_str:
-            return None
+        parser = lxml.etree.XMLParser(strip_cdata=False)
+        tree = lxml.etree.parse(file_location, parser)
+        root = tree.getroot()
+        xml_str = lxml.etree.tostring(root, encoding='utf-8').decode("utf-8")
+    except FileNotFoundError:
+        print(f"Error: File not found: {file_location}")
+        return None
+    except ET.ParseError:
+        print(f"Error: Invalid XML format in {file_location}")
+        return None
+    except Exception as e:
+        print(f"An unexpected error occurred: {e}")
+        return None
+
+    if not xml_str:
+        return None
+
+    # update c_data sections to create comments from all comment data
+    try:
         xml_str = xml_str.replace("<![CDATA[]]>", "<![CDATA[//]]>")
         return xmltodict.parse(xml_str)
     except KeyError:

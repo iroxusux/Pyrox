@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 
-from ...types.application import ApplicationTask
+from ...models.application import ApplicationTask
 
 
 class HelpTask(ApplicationTask):
@@ -19,6 +19,7 @@ class HelpTask(ApplicationTask):
     def inject(self) -> None:
         if not self.application.menu:
             return
+
         self.application.menu.help.add_separator()
         self.application.menu.help.add_command(label='Guides', command=self.guide)
         self.application.menu.help.add_separator()

@@ -1,22 +1,15 @@
 """run this engine locally (for debugging or demonstration purposes)
     """
-from pyrox import Application, ApplicationConfiguration
-from pyrox.models import EmulationModel, ConnectionTask
-from pyrox.models.general_motors import ALL_GM_TASKS
+from __future__ import annotations
+
+from pyrox.applications import App
+from pyrox import ApplicationConfiguration
 
 
 def main():
     """test this engine environment with a default application
     """
-    app_config = ApplicationConfiguration.root()
-    app_config.app_config.name = 'Pyrox Application'
-    app = Application(model=EmulationModel, config=app_config)
-
-    app.add_task(ConnectionTask(application=app))
-
-    for task in ALL_GM_TASKS:
-        app.add_task(task(application=app))
-
+    app = App(config=ApplicationConfiguration.root())
     app.start()
 
 

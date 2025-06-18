@@ -2,7 +2,7 @@
     """
 from .plc_services import (
     cdata,
-    xml_dict_from_file,
+    l5x_dict_from_file,
     dict_to_xml_file,
     get_rung_text,
     get_xml_string_from_file,
@@ -26,21 +26,21 @@ class TestCData(unittest.TestCase):
         self.assertEqual(result, "<![CDATA[test]]>")
 
 
-class TestControllerDictFromFile(unittest.TestCase):
+class TestL5XDictFromFile(unittest.TestCase):
     def test_file_not_found(self):
         with self.assertRaises(FileNotFoundError):
-            xml_dict_from_file("non_existent_file.L5X")
+            l5x_dict_from_file("non_existent_file.L5X")
 
     def test_invalid_file_extension(self):
         with self.assertRaises(ValueError):
-            xml_dict_from_file("invalid_file.txt")
+            l5x_dict_from_file("invalid_file.txt")
 
     @patch("os.path.exists")
     @patch("lxml.etree.parse")
     def test_parse_error(self, mock_parse, mock_exists):
         mock_exists.return_value = True
         mock_parse.side_effect = lxml.etree.ParseError
-        result = xml_dict_from_file("invalid_file.L5X")
+        result = l5x_dict_from_file("invalid_file.L5X")
         self.assertIsNone(result)
 
     @patch("os.path.exists")
@@ -48,7 +48,7 @@ class TestControllerDictFromFile(unittest.TestCase):
     def test_unexpected_error(self, mock_parse, mock_exists):
         mock_exists.return_value = True
         mock_parse.side_effect = Exception("Unexpected error")
-        result = xml_dict_from_file("unexpected_error.L5X")
+        result = l5x_dict_from_file("unexpected_error.L5X")
         self.assertIsNone(result)
 
     @patch("os.path.exists")
@@ -61,8 +61,16 @@ class TestControllerDictFromFile(unittest.TestCase):
         mock_parse.return_value.getroot.return_value = lxml.etree.Element("root")
         mock_parse.return_value.getroot.return_value.text = "<root></root>"
         mock_xmltodict_parse.return_value = {"root": {}}
-        result = xml_dict_from_file("valid_file.L5X")
+        result = l5x_dict_from_file("valid_file.L5X")
         self.assertEqual(result, {"root": {}})
+
+    def test_all_base_files(self):
+        from ..models.plc import BASE_FILES
+        for file in BASE_FILES:
+            with self.subTest(file=file):
+                result = l5x_dict_from_file(file)
+                self.assertIsInstance(result, dict)
+                self.assertTrue(len(result) > 0, f"File {file} should not be empty.")
 
 
 class TestDictToControllerFile(unittest.TestCase):

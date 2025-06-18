@@ -1,9 +1,9 @@
 """
 abc
 """
-from . import models, types, services, utils
+from . import models, applications, services, utils
 
-from .types import (
+from .models import (
     Application,
     ApplicationTask,
     ApplicationConfiguration,
@@ -23,7 +23,7 @@ from .services import (
     file
 )
 
-from .types.utkinter import (
+from .models.utkinter import (
     UserListbox,
     ContextMenu
 )
@@ -33,8 +33,8 @@ __version__ = "1.0.0"
 
 
 __all__ = (
-    'types',
     'services',
+    'applications',
     'Application',
     'ApplicationTask',
     'ApplicationConfiguration',

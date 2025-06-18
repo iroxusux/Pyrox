@@ -1,0 +1,1902 @@
+"""plc type module
+    """
+from __future__ import annotations
+
+
+from collections import defaultdict
+from dataclasses import dataclass
+from enum import Enum
+import re
+from typing import Generic, get_args, Optional, Self, TypeVar, Union
+
+from ..abc.meta import EnforcesNaming, Loggable, SnowFlake
+from ..abc.list import HashList
+from ...services.plc_services import l5x_dict_from_file
+from ...utils import replace_strings_in_dict
+
+
+__all__ = (
+    'PlcObject',
+    'AddOnInstruction',
+    'ConnectionParameters',
+    'Controller',
+    'Datatype',
+    'Module',
+    'Program',
+    'ProgramTag',
+    'Routine',
+    'Rung',
+    'Tag',
+)
+
+
+T = TypeVar('T')
+
+INST_RE_PATTERN: str = r'[A-Za-z0-9_]+\(\S+?\)'
+INST_TYPE_RE_PATTERN: str = r'([A-Za-z0-9_]+)(?:\(.*?)(?:\))'
+INST_OPER_RE_PATTERN: str = r'(?:[A-Za-z0-9_]+\()(.*?)(?:\))'
+
+
+PLC_ROOT_FILE = r'docs\controls\root.L5X'
+PLC_PROG_FILE = r'docs\controls\_program.L5X'
+PLC_ROUT_FILE = r'docs\controls\_routine.L5X'
+PLC_DT_FILE = r'docs\controls\_datatype.L5X'
+PLC_AOI_FILE = r'docs\controls\_aoi.L5X'
+PLC_MOD_FILE = r'docs\controls\_module.L5X'
+PLC_RUNG_FILE = r'docs\controls\_rung.L5X'
+PLC_TAG_FILE = r'docs\controls\_tag.L5X'
+
+BASE_FILES = [
+    PLC_ROOT_FILE,
+    PLC_PROG_FILE,
+    PLC_ROUT_FILE,
+    PLC_DT_FILE,
+    PLC_AOI_FILE,
+    PLC_MOD_FILE,
+    PLC_RUNG_FILE,
+    PLC_TAG_FILE,
+]
+
+RE_PATTERN_META_PRE = r"(?:"
+RE_PATTERN_META_POST = r"\()(.*?)(?:\))"
+
+OTE_OPERAND_RE_PATTERN = r"(?:OTE\()(.*?)(?:\))"
+OTL_OPERAND_RE_PATTERN = r"(?:OTL\()(.*?)(?:\))"
+OTU_OPERAND_RE_PATTERN = r"(?:OTU\()(.*?)(?:\))"
+MOV_OPERAND_RE_PATTERN = r"(?:MOV\()(.*?)(?:\))"
+MOVE_OPERAND_RE_PATTERN = r"(?:MOVE\()(.*?)(?:\))"
+COP_OPERAND_RE_PATTERN = r"(?:COP\()(.*?)(?:\))"
+CPS_OPERAND_RE_PATTERN = r"(?:CPS\()(.*?)(?:\))"
+
+OUTPUT_INSTRUCTIONS_RE_PATTERN = [OTE_OPERAND_RE_PATTERN,
+                                  OTL_OPERAND_RE_PATTERN,
+                                  OTU_OPERAND_RE_PATTERN,
+                                  MOV_OPERAND_RE_PATTERN,
+                                  MOVE_OPERAND_RE_PATTERN,
+                                  COP_OPERAND_RE_PATTERN,
+                                  CPS_OPERAND_RE_PATTERN]
+
+XIC_OPERAND_RE_PATTERN = r"(?:XIC\()(.*)(?:\))"
+XIO_OPERAND_RE_PATTERN = r"(?:XIO\()(.*)(?:\))"
+
+INPUT_INSTRUCTIONS_RE_PATTER = [XIC_OPERAND_RE_PATTERN,
+                                XIO_OPERAND_RE_PATTERN]
+# ------------------ Input Instructions ----------------------- #
+# All input instructions assume every operand is type INPUT
+INSTR_XIC = 'XIC'
+INSTR_XIO = 'XIO'
+INSTR_LIM = 'LIM'
+INSTR_MEQ = 'MEQ'
+INSTR_EQU = 'EQU'
+INSTR_NEQ = 'NEQ'
+INSTR_LES = 'LES'
+INSTR_GRT = 'GRT'
+INSTR_LEQ = 'LEQ'
+INSTR_GEQ = 'GEQ'
+INSTR_ISINF = 'IsINF'
+INSTR_ISNAN = 'IsNAN'
+
+INPUT_INSTRUCTIONS = [INSTR_XIC,
+                      INSTR_XIO]
+
+# ------------------ Output Instructions ----------------------- #
+# The first index of the tuple is the instruction type
+# the second index is the location of the output operand. -1 indicates the final position of an instructions operands
+# (i.e., the last operand)
+INSTR_OTE = ('OTE', -1)
+INSTR_OTU = ('OTU', -1)
+INSTR_OTL = ('OTL', -1)
+INSTR_TON = ('TON', 0)
+INSTR_TOF = ('TOF', 0)
+INSTR_RTO = ('RTO', 0)
+INSTR_CTU = ('CTU', 0)
+INSTR_CTD = ('CTD', 0)
+INSTR_RES = ('RES', -1)
+INSTR_MSG = ('MSG', -1)
+INSTR_GSV = ('GSV', -1)
+ISNTR_ONS = ('ONS', -1)
+INSTR_OSR = ('OSR', -1)
+INSTR_OSF = ('OSF', -1)
+INSTR_IOT = ('IOT', -1)
+INSTR_CPT = ('CPT', 0)
+INSTR_ADD = ('ADD', -1)
+INSTR_SUB = ('SUB', -1)
+INSTR_MUL = ('MUL', -1)
+INSTR_DIV = ('DIV', -1)
+INSTR_MOD = ('MOD', -1)
+INSTR_SQR = ('SQR', -1)
+INSTR_NEG = ('NEG', -1)
+INSTR_ABS = ('ABS', -1)
+INSTR_MOV = ('MOV', -1)
+INSTR_MVM = ('MVM', -1)
+INSTR_AND = ('AND', -1)
+INSTR_OR = ('OR', -1)
+INSTR_XOR = ('XOR', -1)
+INSTR_NOT = ('NOT', -1)
+INSTR_SWPB = ('SWPB', -1)
+INSTR_CLR = ('CLR', -1)
+INSTR_BTD = ('BTD', 2)
+INSTR_FAL = ('FAL', 4)
+INSTR_COP = ('COP', 1)
+INSTR_FLL = ('FLL', 1)
+INSTR_AVE = ('AVE', 2)
+INSTR_SIZE = ('SIZE', -1)
+ISNTR_CPS = ('CPS', 1)
+
+OUTPUT_INSTRUCTIONS = [INSTR_OTE,
+                       INSTR_OTU,
+                       INSTR_OTL,
+                       INSTR_TON,
+                       INSTR_TOF,
+                       INSTR_RTO,
+                       INSTR_CTU,
+                       INSTR_CTD,
+                       INSTR_RES,
+                       INSTR_MSG,
+                       INSTR_GSV,
+                       ISNTR_ONS,
+                       INSTR_OSR,
+                       INSTR_OSF,
+                       INSTR_IOT,
+                       INSTR_CPT,
+                       INSTR_ADD,
+                       INSTR_SUB,
+                       INSTR_MUL,
+                       INSTR_DIV,
+                       INSTR_MOD,
+                       INSTR_SQR,
+                       INSTR_NEG,
+                       INSTR_ABS,
+                       INSTR_MOV,
+                       INSTR_MVM,
+                       INSTR_AND,
+                       INSTR_OR,
+                       INSTR_XOR,
+                       INSTR_NOT,
+                       INSTR_SWPB,
+                       INSTR_CLR,
+                       INSTR_BTD,
+                       INSTR_FAL,
+                       INSTR_COP,
+                       INSTR_FLL,
+                       INSTR_AVE,
+                       INSTR_SIZE,
+                       ISNTR_CPS]
+
+
+class LogixInstructionType(Enum):
+    INPUT = 1
+    OUTPUT = 2
+    UNKOWN = 3
+
+
+class LogixAssetType(Enum):
+    """logix element resolver enumeration
+    """
+    DEFAULT = 0
+    TAG = 1
+    DATATYPE = 2
+    AOI = 3
+    MODULE = 4
+    PROGRAM = 5
+    ROUTINE = 6
+    PROGRAMTAG = 7
+    RUNG = 8
+    ALL = 9
+
+
+class PlcObject(EnforcesNaming, SnowFlake):
+    """base class for a l5x plc object.
+    """
+
+    def __getitem__(self, key):
+        return self._meta_data.get(key, None)
+
+    def __setitem__(self, key, value):
+        self._meta_data[key] = value
+
+    def __init__(self,
+                 meta_data: dict = defaultdict(None),
+                 controller: 'Controller' = None):
+        SnowFlake.__init__(self)
+
+        self._meta_data = meta_data
+        self._controller = controller
+
+    def __repr__(self):
+        return self.name
+
+    @property
+    def config(self) -> ControllerConfiguration:
+        """ get the controller configuration for this object
+
+        Returns:
+            :class:`ControllerConfiguration`
+        """
+        if not self._controller:
+            return ControllerConfiguration()
+        return self._controller._config
+
+    @property
+    def controller(self):
+        """get this object's controller
+
+        .. -------------------------------
+
+        Returns
+        ----------
+            :class:`Controller`
+        """
+        return self._controller
+
+    @property
+    def name(self) -> str:
+        """get this object's meta data name
+
+        .. -------------------------------
+
+        Returns
+        ----------
+            :class:`str`
+        """
+        return self['@Name']
+
+    @name.setter
+    def name(self, value: str):
+        if not self.is_valid_string(value):
+            raise self.InvalidNamingException
+
+        self['@Name'] = value
+
+    @property
+    def description(self) -> str:
+        """get this object's meta data description
+
+        .. -------------------------------
+
+        Returns
+        ----------
+            :class:`str`
+        """
+        return self['Description']
+
+    @description.setter
+    def description(self, value: str):
+        self['Description'] = value
+
+    @property
+    def meta_data(self) -> dict:
+        return self._meta_data
+
+
+class LogixOperand(PlcObject):
+    """Logix Operand
+    """
+
+    def __init__(self,
+                 meta_data: str,
+                 instruction: 'LogixInstruction',
+                 arg_position: int,
+                 controller: 'Controller'):
+        self._base_tag: Optional['Tag'] = None
+        self._instruction = instruction
+        self._arg_position = arg_position
+        super().__init__(meta_data=meta_data,
+                         controller=controller)
+
+    def __repr__(self):
+        return self._meta_data
+
+    @property
+    def arg_position(self) -> int:
+        """get the positional argument for this logix operand
+        """
+        return self._arg_position
+
+    @property
+    def as_qualified(self) -> str:
+        if not self.base_tag:
+            return self.meta_data
+
+        return self.meta_data.replace(self.base_name, self.base_tag.name)
+
+    @property
+    def base_name(self) -> str:
+        return self.meta_data.split('.')[0]
+
+    @property
+    def base_tag(self) -> Tag:
+        if self._base_tag:
+            return self._base_tag
+
+        if self.container:
+            tag: Tag = self.container.tags.get(self.base_name, None)
+
+        if not tag:
+            tag: Tag = self.controller.tags.get(self.base_name, None)
+
+        self._base_tag = None if not tag else tag.get_base_tag()
+
+        return self._base_tag
+
+    @property
+    def container(self) -> RoutineContainer:
+        return self.instruction.container
+
+    @property
+    def instruction(self) -> 'LogixInstruction':
+        return self._instruction
+
+    @property
+    def instruction_type(self) -> LogixInstructionType:
+        """Get the instruction type of this operand
+        """
+        if self.instruction.instruction_name in INPUT_INSTRUCTIONS:
+            return LogixInstructionType.INPUT
+
+        for instr in OUTPUT_INSTRUCTIONS:
+            if self.instruction.instruction_name == instr[0]:
+                if self.arg_position == instr[1] or (self.arg_position+1 == len(self.instruction.operands) and instr[1] == -1):
+                    return LogixInstructionType.OUTPUT
+
+        # for now, all AOI operands will be considered out, until i can later dig into this.
+        if self.instruction.instruction_name in [aoi.name for aoi in self.instruction.rung.controller.aois]:
+            # if self.instruction.element in self.instruction.routine.controller.aois:
+            return LogixInstructionType.OUTPUT
+
+        return LogixInstructionType.UNKOWN
+
+    @property
+    def parents(self) -> list[str]:
+        parts = self._meta_data.split('.')
+        if len(parts) == 1:
+            return [self._meta_data]
+
+        parents = []
+        for x in range(len(parts)):
+            parents.append(self._meta_data.rsplit('.', x)[0])
+
+        return parents
+
+    @property
+    def qualified_parents(self) -> list[str]:
+        if not self.base_tag:
+            return self.parents
+
+        return [x.replace(self.base_name, self.base_tag.name) for x in self.parents]
+
+
+class LogixInstruction(PlcObject):
+    """Logix instruction.
+    """
+
+    def __init__(self,
+                 meta_data: str,
+                 rung: Optional['Rung'],
+                 controller: 'Controller'):
+        self._rung = rung
+        super().__init__(meta_data=meta_data,
+                         controller=controller)
+
+    def __repr__(self):
+        return self._meta_data
+
+    @property
+    def instruction_name(self) -> str:
+        """get the instruction element
+
+        .. -------------------------------
+
+        Returns
+        ----------
+            :class:`str`
+        """
+        matches = re.findall(INST_TYPE_RE_PATTERN, self._meta_data)
+        if not matches or len(matches) < 1:
+            raise ValueError("Corrupt meta data for instruction, no type found!")
+        return matches[0]
+
+    @property
+    def operands(self) -> list[LogixOperand]:
+        """get the instruction operands
+
+        .. -------------------------------
+
+        Returns
+        ----------
+            :class:`list[str]`
+        """
+        matches = re.findall(INST_OPER_RE_PATTERN, self._meta_data)
+        if not matches or len(matches) < 1:
+            raise ValueError("Corrupt meta data for instruction, no operands found!")
+
+        return [LogixOperand(match, self, index, self.controller) for index, match in enumerate(matches[0].split(','))]
+
+    @property
+    def container(self) -> Optional[Union['Program', 'AddOnInstruction']]:
+        return self._rung.container
+
+    @property
+    def rung(self) -> Optional['Rung']:
+        """get the rung this instruction is in
+
+        .. -------------------------------
+
+        Returns
+        ----------
+            :class:`Routine`
+        """
+        return self._rung
+
+    @property
+    def type(self) -> LogixInstructionType:
+        return LogixInstructionType.INPUT if self.instruction_name in INPUT_INSTRUCTIONS else LogixInstructionType.OUTPUT
+
+
+class SupportsMeta(Generic[T], PlcObject):
+    """meta type for 'supports' structuring
+    """
+
+    @property
+    def __key__(self) -> str:
+        raise NotImplementedError()
+
+    def __set__(self, value: T, key: Optional[str] = None):
+        key_ = self.__key__ if not key else key
+        try:
+            base = get_args(self.__orig_bases__[0])[0]
+        except TypeError:
+            base = get_args(self.__orig_bases__[0])
+        if not isinstance(value, base):
+            raise ValueError(f'Value must be of type {T}!')
+        self[key_] = value
+
+    def __get__(self, key: Optional[str] = None):
+        key_ = self.__key__ if not key else key
+        return self[key_]
+
+
+class SupportsClass(SupportsMeta[str]):
+    """This PLC Object supports the @Class property
+    """
+    key = '@Class'
+
+    @property
+    def class_(self) -> str:
+        return super().__get__(SupportsClass.key)
+
+    @class_.setter
+    def class_(self, value: str):
+        super().__set__(value, SupportsClass.key)
+
+
+class SupportsExternalAccess(SupportsMeta[str]):
+    """This PLC Object supports the @ExternalAccess property
+    """
+    key = '@ExternalAccess'
+
+    @property
+    def external_access(self) -> str:
+        return super().__get__(SupportsExternalAccess.key)
+
+    @external_access.setter
+    def external_access(self, value: str):
+        super().__set__(value, SupportsExternalAccess.key)
+
+
+class SupportsRadix(SupportsMeta[str]):
+    """This PLC Object supports the @Radix property
+    """
+    key = '@Radix'
+
+    @property
+    def radix(self) -> str:
+        return super().__get__(SupportsRadix.key)
+
+    @radix.setter
+    def radix(self, value: str):
+        super().__set__(value, SupportsRadix.key)
+
+
+class TagContainer(PlcObject):
+    def __init__(self, meta_data=defaultdict(None), controller=None):
+        super().__init__(meta_data, controller)
+
+        self._tags: HashList = HashList('name')
+        [self._tags.append(self.config.tag_type(l5x_meta_data=x, controller=self.controller, container=self))
+         for x in self.raw_tags]
+
+    @property
+    def raw_tags(self) -> list[dict]:
+        if not self['Tags']:
+            return []
+
+        if not isinstance(self['Tags']['Tag'], list):
+            return [self['Tags']['Tag']]
+
+        return self['Tags']['Tag']
+
+    @property
+    def tags(self) -> HashList:
+        return self._tags
+
+
+class RoutineContainer(TagContainer):
+    """This PLC Object contains routines
+    """
+
+    def __init__(self,
+                 meta_data=defaultdict(None), controller=None):
+        super().__init__(meta_data, controller)
+
+    @property
+    def instructions(self) -> list[LogixInstruction]:
+        """get the instructions in this container
+
+        .. -------------------------------
+
+        Returns
+        ----------
+            :class:`list[LogixInstruction]`
+        """
+        instr = []
+        [instr.extend(x.instructions) for x in self.routines]
+        return instr
+
+    @property
+    def routines(self) -> list[Routine]:
+        return [self.config.routine_type(l5x_meta_data=routine,
+                                         controller=self.controller,
+                                         program=self)
+                for routine in self.raw_routines]
+
+    @property
+    def raw_routines(self) -> list[dict]:
+        if not self['Routines']:
+            return []
+
+        if not isinstance(self['Routines']['Routine'], list):
+            return [self['Routines']['Routine']]
+
+        return self['Routines']['Routine']
+
+
+class AddOnInstruction(RoutineContainer, TagContainer, SupportsClass):
+    def __init__(self,
+                 name: str = None,
+                 l5x_meta_data: dict = None,
+                 controller: 'Controller' = None):
+        """type class for plc AddOn Instruction Definition
+
+        Args:
+            l5x_meta_data (str): meta data
+            controller (Self): controller dictionary
+        """
+
+        if not l5x_meta_data:
+            l5x_meta_data = l5x_dict_from_file(PLC_AOI_FILE)['AddOnInstructionDefinition']
+
+        super().__init__(meta_data=l5x_meta_data,
+                         controller=controller)
+
+        if name:
+            self.name = name
+
+    @property
+    def revision(self) -> str:
+        return self['@Revision']
+
+    @property
+    def execute_prescan(self) -> str:
+        return self['@ExecutePrescan']
+
+    @property
+    def execute_postscan(self) -> str:
+        return self['@ExecutePostscan']
+
+    @property
+    def execute_enable_in_false(self) -> str:
+        return self['@ExecuteEnableInFalse']
+
+    @property
+    def created_date(self) -> str:
+        return self['@CreatedDate']
+
+    @property
+    def created_by(self) -> str:
+        return self['@CreatedBy']
+
+    @property
+    def edited_date(self) -> str:
+        return self['@EditedDate']
+
+    @property
+    def edited_by(self) -> str:
+        return self['@EditedBy']
+
+    @property
+    def software_revision(self) -> str:
+        return self['@SoftwareRevision']
+
+    @property
+    def revision_note(self) -> str:
+        return self['RevisionNote']
+
+    @property
+    def parameters(self) -> list[dict]:
+        if not self['Parameters']:
+            return []
+
+        if not isinstance(self['Parameters']['Parameter'], list):
+            return [self['Parameters']['Parameter']]
+        return self['Parameters']['Parameter']
+
+    @property
+    def local_tags(self) -> list[dict]:
+        if not self['LocalTags']:
+            return []
+
+        if not isinstance(self['LocalTags']['LocalTag'], list):
+            return [self['LocalTags']['LocalTag']]
+        return self['LocalTags']['LocalTag']
+
+
+class ConnectionParameters:
+    """connection parameters for connecting to a plc
+    """
+
+    def __init__(self,
+                 ip_address: str,
+                 slot: int,
+                 rpi: int = 50):
+        # explicit type-casting to enform type protection for this class
+        slot = int(slot)
+        rpi = int(rpi)
+
+        if len(ip_address.split('.')) != 4:
+            raise ValueError('Ip addresses must be specified in groups of 4 - e.g. 192.168.1.2')
+
+        self._ip_address: str = ip_address  # PLC IP Address
+        self._slot: int = slot              # PLC Slot
+        self._rpi: float = rpi              # PLC Requested Packet Interval
+
+    @property
+    def ip_address(self) -> str:
+        return self._ip_address
+
+    @property
+    def rpi(self) -> int:
+        return self._rpi
+
+    @property
+    def slot(self) -> int:
+        return self._slot
+
+
+class DatatypeMember(SupportsRadix, SupportsExternalAccess):
+    def __init__(self,
+                 l5x_meta_data: dict,
+                 datatype: 'Datatype',
+                 controller: Controller):
+        """type class for plc Datatype Member
+
+        Args:
+            l5x_meta_data (str): meta data
+            datatype (Datatype): parent datatype
+            controller (Self): controller dictionary
+        """
+        super().__init__(meta_data=l5x_meta_data,
+                         controller=controller)
+        self._datatype = datatype
+
+    @property
+    def datatype(self) -> 'Datatype':
+        return self._datatype
+
+    @property
+    def dimension(self) -> str:
+        return self['@Dimension']
+
+    @property
+    def hidden(self) -> str:
+        return self['@Hidden']
+
+
+class Datatype(SupportsClass):
+    def __init__(self,
+                 name: str = None,
+                 l5x_meta_data: dict = None,
+                 controller: Controller = None):
+        """type class for plc Datatype
+
+        Args:
+            l5x_meta_data (str): meta data
+            controller (Self): controller dictionary
+        """
+        if not l5x_meta_data:
+            l5x_meta_data = l5x_dict_from_file(PLC_DT_FILE)['DataType']
+
+        super().__init__(meta_data=l5x_meta_data,
+                         controller=controller)
+
+        if name:
+            self.name = name
+
+    @property
+    def family(self) -> str:
+        return self['@Family']
+
+    @property
+    def members(self) -> list[DatatypeMember]:
+        return [DatatypeMember(x['@Name'], self, self._controller) for x in self.raw_members]
+
+    @property
+    def raw_members(self) -> list[dict]:
+        if not self['Members']:
+            return []
+
+        if not isinstance(self['Members']['Member'], list):
+            return [self['Members']['Member']]
+        else:
+            return self['Members']['Member']
+
+    def validate(self):
+        test_notes = []
+
+        return ControllerReportItem(self,
+                                    'Testing datatype attributes...',
+                                    True,
+                                    '\n'.join(test_notes))
+
+
+class Module(PlcObject):
+    def __init__(self,
+                 name: str = None,
+                 l5x_meta_data: dict = None,
+                 controller: Controller = None):
+        """type class for plc Module
+
+        Args:
+            l5x_meta_data (str): meta data
+            controller (Self): controller dictionary
+        """
+
+        if not l5x_meta_data:
+            l5x_meta_data = l5x_dict_from_file(PLC_MOD_FILE)['Module']
+
+        super().__init__(meta_data=l5x_meta_data,
+                         controller=controller)
+
+        if name:
+            self.name = name
+
+    @property
+    def catalog_number(self) -> str:
+        return self['@CatalogNumber']
+
+    @property
+    def vendor(self) -> str:
+        return self['@Vendor']
+
+    @property
+    def product_type(self) -> str:
+        return self['@ProductType']
+
+    @property
+    def product_code(self) -> str:
+        return self['@ProductCode']
+
+    @property
+    def major(self) -> str:
+        return self['@Major']
+
+    @property
+    def minor(self) -> str:
+        return self['@Minor']
+
+    @property
+    def parent_module(self) -> str:
+        return self['@ParentModule']
+
+    @property
+    def parent_mod_port_id(self) -> str:
+        return self['@ParentModPortId']
+
+    @property
+    def inhibited(self) -> str:
+        return self['@Inhibited']
+
+    @property
+    def major_fault(self) -> str:
+        return self['@MajorFault']
+
+    @property
+    def ekey(self) -> dict:
+        return self['EKey']
+
+    @property
+    def ports(self) -> list[dict]:
+        if not self['Ports']:
+            return []
+
+        if not isinstance(self['Ports']['Port'], list):
+            return [self['Ports']['Port']]
+
+        return self['Ports']['Port']
+
+    @property
+    def communications(self) -> dict:
+        if not self['Communications']:
+            return None
+
+        return self['Communications']
+
+    def validate(self) -> ControllerReportItem:
+
+        conns = None
+        std_conn_ok = True
+        safe_conn_ok = True
+        test_notes = []
+
+        while True:
+            if self.communications is not None:
+                if self.communications['Connections'] is not None:
+                    conns = self.communications['Connections']['Connection']
+                    if not isinstance(conns, list):
+                        conns = [conns]
+
+                if not conns:
+                    break
+
+                std_connection = next((x for x in conns if x['@Name'] == 'Standard'), None)
+                safe_in_connection = next((x for x in conns if x['@Name'] == 'SafetyInput'), None)
+                safe_out_connection = next((x for x in conns if x['@Name'] == 'SafetyOutput'), None)
+
+                # ------------- check standard connection --------------- #
+                if std_connection:
+                    # check unicast operations for module
+                    try:
+                        if std_connection['@Unicast'] != 'true':
+                            std_conn_ok = False
+                            test_notes.append('Module standard tag not set for unicast!')
+                    except KeyError:
+                        test_notes.append('Module does not have @Unicast option...')
+
+                    # check standard RPI (requested packet interval) settings for module
+                    try:
+                        if int(std_connection['@RPI']) > 50_000 or int(std_connection['@RPI']) < 10_000:
+                            std_conn_ok = False
+                            test_notes.append('Module RPI must be above 10ms and below 50ms! (ideally, about 20ms).')
+                    except KeyError:
+                        test_notes.append('Module does not support RPI setting...')
+
+                # ------------- check safety input connection --------------- #
+                if safe_in_connection:
+                    # check unicast operations for module
+                    if safe_in_connection['@InputConnectionType'] != 'Unicast':
+                        safe_conn_ok = False
+                        test_notes.append('Module Safety Input tag not set for unicast!')
+
+                    # check standard RPI (requested packet interval) settings for module
+                    # TODO -> Match the RPI of an input module to the RPI of the controller safety task
+                    elif int(safe_in_connection['@RPI']) > 50_000 or int(safe_in_connection['@RPI']) < 10_000:
+                        safe_conn_ok = False
+                        test_notes.append('Module RPI must be above 10ms and below 50ms! (ideally, about 20ms).')
+
+                # ------------- check safety output connection --------------- #
+                if safe_out_connection:
+                    # check unicast operations for module
+                    if safe_out_connection['@InputConnectionType'] != 'Unicast':
+                        safe_conn_ok = False
+                        test_notes.append('Module Safety Input tag not set for unicast!')
+
+                    # check standard RPI (requested packet interval) settings for module
+                    # TODO -> Match the RPI of an input module to the RPI of the controller safety task
+                    elif int(safe_out_connection['@RPI']) > 50_000 or int(safe_out_connection['@RPI']) < 10_000:
+                        safe_conn_ok = False
+                        test_notes.append('Module RPI must be above 10ms and below 50ms! (ideally, about 20ms).')
+
+                break
+            break
+
+        return ControllerReportItem(self,
+                                    'Testing module standard and safety i/o settings...',
+                                    std_conn_ok and safe_conn_ok,
+                                    '\n'.join(test_notes))
+
+
+class Program(RoutineContainer, TagContainer):
+    def __init__(self,
+                 name: str = None,
+                 meta_data: dict = None,
+                 controller: Controller = None):
+        """type class for plc Program
+
+        Args:
+            l5x_meta_data (str): meta data
+            controller (Self): controller dictionary
+        """
+        if not meta_data:
+            meta_data = l5x_dict_from_file(PLC_PROG_FILE)['Program']
+
+        super().__init__(meta_data=meta_data,
+                         controller=controller)
+
+        if name:
+            self.name = name
+
+    @property
+    def disabled(self) -> str:
+        return self['@Disabled']
+
+    @property
+    def input_instructions(self) -> list[LogixInstruction]:
+        instr = []
+        [instr.extend(x.input_instructions) for x in self.routines]
+        return instr
+
+    @property
+    def main_routine_name(self) -> str:
+        return self['@MainRoutineName']
+
+    @property
+    def output_instructions(self) -> list[LogixInstruction]:
+        instr = []
+        [instr.extend(x.output_instructions) for x in self.routines]
+        return instr
+
+    @property
+    def test_edits(self) -> str:
+        return self['@TestEdits']
+
+    @property
+    def use_as_folder(self) -> str:
+        return self['@UseAsFolder']
+
+    def find_unpaired_inputs(self):
+        inputs = defaultdict(list)
+        outputs = set()
+
+        for instruction in self.input_instructions:
+            pass
+
+        for instruction in self.output_instructions:
+            pass
+
+        for instruction in self.instructions:
+            for operand in [x for x in instruction.operands]:
+                if operand.instruction_type is LogixInstructionType.INPUT:
+                    inputs[operand.as_qualified].append(operand)
+                elif operand.instruction_type is LogixInstructionType.OUTPUT:
+                    outputs.add(operand.as_qualified)
+        unpaired_inputs = {}
+
+        for operand, locations in inputs.items():
+            if operand not in outputs:
+                if not any(item in outputs for item in locations[0].qualified_parents):
+                    unpaired_inputs[operand] = locations
+
+        return unpaired_inputs
+
+    def validate(self):
+        test_notes = []
+
+        return ControllerReportItem(self,
+                                    'Testing program attributes...',
+                                    True,
+                                    '\n'.join(test_notes))
+
+
+class ProgramTag(PlcObject):
+    def __init__(self,
+                 l5x_meta_data: dict,
+                 controller: Controller,
+                 program: Optional[Program] = None):
+        """type class for plc Program Tag
+
+        Args:
+            l5x_meta_data (str): meta data
+            controller (Self): controller dictionary
+        """
+        super().__init__(meta_data=l5x_meta_data,
+                         controller=controller)
+        self._program: Optional[Program] = program
+
+    @property
+    def program(self) -> Optional[Program]:
+        return self._program
+
+
+class Routine(PlcObject):
+    def __init__(self,
+                 name: str = None,
+                 l5x_meta_data: dict = None,
+                 controller: Controller = None,
+                 program: Optional[Program] = None,
+                 aoi: Optional[AddOnInstruction] = None):
+        """type class for plc Routine
+
+        Args:
+            l5x_meta_data (str): meta data
+            controller (Self): controller dictionary
+        """
+        if not l5x_meta_data:
+            l5x_meta_data = l5x_dict_from_file(PLC_ROUT_FILE)['Routine']
+
+        super().__init__(meta_data=l5x_meta_data,
+                         controller=controller)
+
+        if name:
+            self.name = name
+
+        self._program: Optional[Program] = program
+        self._aoi: Optional[AddOnInstruction] = aoi
+
+    @property
+    def aoi(self) -> Optional[AddOnInstruction]:
+        return self._aoi
+
+    @property
+    def container(self) -> RoutineContainer:
+        return self.aoi if self.aoi else self.program
+
+    @property
+    def input_instructions(self) -> list[LogixInstruction]:
+        instr = []
+        [instr.extend(x.input_instructions) for x in self.rungs]
+        return instr
+
+    @property
+    def instructions(self) -> list[LogixInstruction]:
+        """get the instructions in this routine
+
+        .. -------------------------------
+
+        Returns
+        ----------
+            :class:`list[LogixInstruction]`
+        """
+        instr = []
+        [instr.extend(x.instructions) for x in self.rungs]
+        return instr
+
+    @property
+    def output_instructions(self) -> list[LogixInstruction]:
+        instr = []
+        [instr.extend(x.output_instructions) for x in self.rungs]
+        return instr
+
+    @property
+    def program(self) -> Optional[Program]:
+        return self._program
+
+    @property
+    def rungs(self) -> list[Rung]:
+        return [self.config.rung_type(l5x_meta_data=x,
+                                      controller=self.controller,
+                                      routine=self)
+                for x in self.raw_rungs]
+
+    @property
+    def raw_rungs(self) -> list[dict]:
+        if not self['RLLContent']:
+            return []
+
+        if not isinstance(self['RLLContent']['Rung'], list):
+            return [self['RLLContent']['Rung']]
+
+        return self['RLLContent']['Rung']
+
+
+class Rung(PlcObject):
+    def __init__(self,
+                 l5x_meta_data: dict = None,
+                 controller: Controller = None,
+                 routine: Optional[Routine] = None):
+        """type class for plc Rung
+
+        Args:
+            l5x_meta_data (str): meta data
+            controller (Self): controller dictionary
+        """
+
+        if not l5x_meta_data:
+            l5x_meta_data = l5x_dict_from_file(PLC_RUNG_FILE)['Rung']
+
+        super().__init__(meta_data=l5x_meta_data,
+                         controller=controller)
+
+        self._routine: Optional[Routine] = routine
+        self._instructions: list[LogixInstruction] = []
+
+    def __repr__(self):
+        return (
+            f'Rung(number={self.number}, '
+            f'routine={self.routine.name}, '
+            f'type={self.type}, '
+            f'comment={self.comment}, '
+            f'text={self.text}),'
+            f'instructions={self.instructions}),'
+        )
+
+    def __str__(self):
+        return self.text
+
+    @property
+    def comment(self) -> str:
+        return self['Comment']
+
+    @comment.setter
+    def comment(self, value: str):
+        self['Comment'] = value
+
+    @property
+    def container(self) -> Routine:
+        return self.routine.container
+
+    @property
+    def input_instructions(self) -> list[LogixInstruction]:
+        return [x for x in self.instructions if x.type is LogixInstructionType.INPUT]
+
+    @property
+    def instructions(self) -> list[LogixInstruction]:
+        return self._get_instructions()
+
+    @property
+    def output_instructions(self) -> list[LogixInstruction]:
+        return [x for x in self.instructions if x.type is LogixInstructionType.OUTPUT]
+
+    @property
+    def number(self) -> str:
+        return self['@Number']
+
+    @property
+    def routine(self) -> Optional[Routine]:
+        return self._routine
+
+    @routine.setter
+    def routine(self, value: Routine):
+        self._routine = value
+
+    @property
+    def text(self) -> str:
+        return self['Text']
+
+    @text.setter
+    def text(self, value: str):
+        self['Text'] = value
+        self._instructions = []  # text has changed, we need to reprocess instructions
+
+    @property
+    def type(self) -> str:
+        return self['@Type']
+
+    def _get_instructions(self):
+        if self._instructions:
+            return self._instructions
+
+        matches = re.findall(INST_RE_PATTERN, self.text)
+        if not matches:
+            return []
+
+        self._instructions = [LogixInstruction(x, self, self.controller) for x in matches if not x.isdigit()]
+
+        return self._instructions
+
+
+class Tag(PlcObject):
+    def __init__(self,
+                 name: str = None,
+                 l5x_meta_data: dict = None,
+                 controller: 'Controller' = None,
+                 container: Union[Program, AddOnInstruction, Controller] = None):
+        """type class for plc Tag
+
+        Args:
+            l5x_meta_data (str): meta data
+            controller (Self): controller dictionary
+        """
+
+        if not l5x_meta_data:
+            l5x_meta_data = l5x_dict_from_file(PLC_TAG_FILE)['Tag']
+
+        super().__init__(meta_data=l5x_meta_data,
+                         controller=controller)
+
+        if name:
+            self.name = name
+
+        self._container = container
+
+    def __repr__(self):
+        return self.name
+
+    @property
+    def alias_for(self) -> str:
+        return self._meta_data.get('@AliasFor', None)
+
+    @property
+    def alias_for_base_name(self) -> str:
+        """get the base name of the aliased tag
+
+        .. -------------------------------
+
+        Returns
+        ----------
+            :class:`str`
+        """
+        if not self.alias_for:
+            return None
+
+        return self.alias_for.split('.')[0]
+
+    @property
+    def class_(self) -> str:
+        return self['@Class']
+
+    @property
+    def constant(self) -> str:
+        return self['@Constant']
+
+    @property
+    def container(self) -> Optional[Union[Program, AddOnInstruction, Controller]]:
+        return self._container
+
+    @property
+    def data(self) -> list[dict]:
+        if not isinstance(self['Data'], list):
+            return [self['Data']]
+
+        return self['Data']
+
+    @property
+    def datatype(self) -> str:
+        return self['@DataType']
+
+    @property
+    def datavalue_members(self) -> list[DataValueMember]:
+        if not self.decorated_data:
+            return []
+
+        if not self.decorated_data['Structure']:
+            return []
+
+        return [DataValueMember(l5x_meta_data=x,
+                                controller=self.controller,
+                                parent=self)
+                for x in self.decorated_data['Structure']['DataValueMember']]
+
+    @property
+    def decorated_data(self) -> dict:
+        return next((x for x in self.data if x['@Format'] == 'Decorated'), None)
+
+    @property
+    def external_access(self) -> str:
+        return self['@ExternalAccess']
+
+    @property
+    def l5k_data(self) -> dict:
+        return next((x for x in self.data if x['@Format'] == 'L5K'), None)
+
+    @property
+    def opc_ua_access(self) -> str:
+        return self['@OpcUaAccess']
+
+    @property
+    def tag_type(self) -> str:
+        return self['@TagType']
+
+    def get_base_tag(self,
+                     tracked_tag: Self = None):
+        tag = self if not tracked_tag else tracked_tag
+
+        if not tag.alias_for:
+            return tag
+
+        if tag.container:
+            alias: Self = tag.container.tags.get(tag.alias_for_base_name, None)
+
+        if not alias:
+            alias: Self = tag.controller.tags.get(tag.alias_for_base_name, None)
+
+        if not alias:
+            raise ValueError('Could not find aliased tag!')
+
+        if alias.alias_for:
+            return self.get_base_tag(tracked_tag=alias)
+        else:
+            return alias
+
+    def validate(self):
+        test_notes = []
+
+        return ControllerReportItem(self,
+                                    'Testing tag attributes...',
+                                    True,
+                                    '\n'.join(test_notes))
+
+
+class DataValueMember(PlcObject):
+    """type class for plc Tag DataValueMember
+
+        Args:
+            l5x_meta_data (str): meta data
+            controller (Self): controller dictionary
+        """
+
+    def __init__(self,
+                 name: str = None,
+                 l5x_meta_data: dict = None,
+                 controller: 'Controller' = None,
+                 parent: Union[Tag, Self] = None):
+
+        if not l5x_meta_data:
+            raise ValueError('Cannot have an empty DataValueMember!')
+
+        if not parent:
+            raise ValueError('Cannot have a datavalue member without a parent!')
+
+        super().__init__(meta_data=l5x_meta_data,
+                         controller=controller)
+
+        self._parent = parent
+
+        if name:
+            self.name = name
+
+    @property
+    def parent(self) -> Union[Tag, Self]:
+        return self._parent
+
+
+@dataclass
+class ControllerConfiguration:
+    aoi_type: type = AddOnInstruction
+    datatype_type: type = Datatype
+    module_type: type = Module
+    program_type: type = Program
+    routine_type: type = Routine
+    rung_type: type = Rung
+    tag_type: type = Tag
+
+
+class Controller(PlcObject, Loggable):
+    """Controller container for Allen Bradley L5X Files.
+    .. ------------------------------------------------------------
+
+    .. package:: emulation_preparation.types.plc
+
+    .. ------------------------------------------------------------
+
+        """
+
+    def __init__(self,
+                 root_meta_data: str = None,
+                 config: Optional[ControllerConfiguration] = ControllerConfiguration()):
+
+        self._root_meta_data: dict = root_meta_data if root_meta_data else l5x_dict_from_file(PLC_ROOT_FILE)
+        self._file_location, self._ip_address = '', ''
+        self._slot = 0
+        self._config = config
+
+        PlcObject.__init__(self, self.l5x_meta_data, self)
+        Loggable.__init__(self)
+
+        if not self.plc_module:
+            raise ValueError('Could not find @Local in plc Modules!')
+
+        try:
+            self._assign_address(self.comm_path.split('\\')[-1])
+        except (ValueError, TypeError, AttributeError) as e:
+            self.logger.error('ip address assignment err -> %s', e)
+
+        if not self._config:
+            raise RuntimeError('Configuration must be supplied when creating a controller!')
+
+        # hashed - new
+        self._aois: HashList = HashList('name')
+        [self._aois.append(self.config.aoi_type(l5x_meta_data=x, controller=self))
+         for x in self.raw_aois]
+
+        self._datatypes: HashList = HashList('name')
+        [self._datatypes.append(self.config.datatype_type(l5x_meta_data=x, controller=self))
+         for x in self.raw_datatypes]
+
+        self._modules: HashList = HashList('name')
+        [self._modules.append(self.config.module_type(l5x_meta_data=x, controller=self))
+         for x in self.raw_modules]
+
+        self._programs: HashList = HashList('name')
+        [self._programs.append(self.config.program_type(meta_data=x, controller=self))
+         for x in self.raw_programs]
+
+        self._tags: HashList = HashList('name')
+        [self._tags.append(self.config.tag_type(l5x_meta_data=x, controller=self))
+         for x in self.raw_tags]
+
+    @property
+    def aois(self) -> HashList[AddOnInstruction]:
+        return self._aois
+
+    @property
+    def raw_aois(self) -> list[dict]:
+        if not self['AddOnInstructionDefinitions']:
+            return []
+        if not isinstance(self['AddOnInstructionDefinitions']['AddOnInstructionDefinition'], list):
+            return [self['AddOnInstructionDefinitions']['AddOnInstructionDefinition']]
+        else:
+            return self['AddOnInstructionDefinitions']['AddOnInstructionDefinition']
+
+    @property
+    def comm_path(self) -> str:
+
+        return self['@CommPath']
+
+    @property
+    def datatypes(self) -> HashList[Datatype]:
+        return self._datatypes
+
+    @property
+    def raw_datatypes(self) -> list[dict]:
+
+        if not self['DataTypes']:
+            return []
+        if not isinstance(self['DataTypes']['DataType'], list):
+            return [self['DataTypes']['DataType']]
+        else:
+            return self['DataTypes']['DataType']
+
+    @property
+    def file_location(self) -> str:
+
+        return self._file_location
+
+    @file_location.setter
+    def file_location(self,
+                      value: str):
+        self._file_location = value
+
+    @property
+    def input_instructions(self) -> list[LogixInstruction]:
+        instr = []
+        [instr.extend(x.input_instructions) for x in self.programs]
+        return instr
+
+    @property
+    def instructions(self) -> list[LogixInstruction]:
+        """get the instructions in this controller
+
+        .. -------------------------------
+
+        Returns
+        ----------
+            :class:`list[LogixInstruction]`
+        """
+        instr = []
+        [instr.extend(x.instructions) for x in self.programs]
+        # [instr.extend(x.instructions) for x in self.aois]
+        return instr
+
+    @property
+    def output_instructions(self) -> list[LogixInstruction]:
+        instr = []
+        [instr.extend(x.output_instructions) for x in self.programs]
+        return instr
+
+    @property
+    def ip_address(self) -> str:
+
+        return self._ip_address
+
+    @ip_address.setter
+    def ip_address(self,
+                   value: str):
+        self._assign_address(value)
+
+    @property
+    def l5x_meta_data(self) -> dict:
+
+        return self._root_meta_data['RSLogix5000Content']['Controller']
+
+    @l5x_meta_data.setter
+    def l5x_meta_data(self, value) -> None:
+        self._root_meta_data['RSLogix5000Content']['Controller'] = value
+
+    @property
+    def major_revision(self) -> int:
+        return int(self['@MajorRev'])
+
+    @property
+    def minor_revision(self) -> int:
+        return int(self['@MinorRev'])
+
+    @property
+    def modules(self) -> HashList[Module]:
+        return self._modules
+
+    @property
+    def raw_modules(self) -> list[dict]:
+        if not self['Modules']:
+            return []
+        if not isinstance(self['Modules']['Module'], list):
+            return [self['Modules']['Module']]
+        else:
+            return self['Modules']['Module']
+
+    @property
+    def plc_module(self) -> dict:
+        return next((x for x in self.raw_modules if x['@Name'] == 'Local'), None)
+
+    @property
+    def plc_module_icp_port(self) -> dict:
+        return next((x for x in self.plc_module_ports if x['@Type'] == 'ICP' or x['@Type'] == '5069'), None)
+
+    @property
+    def plc_module_ports(self) -> list[dict]:
+        if not self.plc_module:
+            return []
+
+        if not isinstance(self.plc_module['Ports']['Port'], list):
+            return [self.plc_module['Ports']['Port']]
+        return self.plc_module['Ports']['Port']
+
+    @property
+    def programs(self) -> HashList[Program]:
+        return self._programs
+
+    @property
+    def raw_programs(self) -> list[dict]:
+        if not self['Programs']:
+            return []
+        if not isinstance(self['Programs']['Program'], list):
+            return [self['Programs']['Program']]
+        else:
+            return self['Programs']['Program']
+
+    @property
+    def root_meta_data(self) -> dict:
+        return self._root_meta_data
+
+    @property
+    def slot(self) -> int:
+        if not self.plc_module_icp_port:
+            return None
+        return int(self.plc_module_icp_port['@Address'])
+
+    @slot.setter
+    def slot(self,
+             value: int):
+        self._slot = int(value)
+
+    @property
+    def tags(self) -> HashList[Tag]:
+        return self._tags
+
+    @property
+    def raw_tags(self) -> list[dict]:
+        if not self._meta_data['Tags']:
+            return []
+        if not isinstance(self._meta_data['Tags'], dict):
+            raise ValueError('Tags must be a dictionary!')
+        if not isinstance(self._meta_data['Tags']['Tag'], list):
+            return [self._meta_data['Tags']['Tag']]
+        else:
+            return self._meta_data['Tags']['Tag']
+
+    @raw_tags.setter
+    def raw_tags(self,
+                 value: dict):
+        if value is None:
+            raise ValueError('Tags cannot be None!')
+        if not isinstance(value, dict) and not isinstance(value, list):
+            raise ValueError('Tags must be a dictionary or a list!')
+
+        if isinstance(value, dict):
+            self['Tags'] = value
+        elif isinstance(value, list):
+            self['Tags']['Tag'] = value
+
+    @classmethod
+    def from_file(cls: Self,
+                  file_location: str) -> Optional[Self]:
+        root_data = l5x_dict_from_file(file_location)
+        if not root_data:
+            return None
+
+        return cls(root_data)
+
+    def _assign_address(self,
+                        address: str):
+        octets = address.split('.')
+        if not octets or len(octets) != 4:
+            raise ValueError('IP Octets invalid!')
+
+        for _, v in enumerate(octets):
+            if 0 > int(v) > 255:
+                raise ValueError(f'IP address octet range ivalid: {v}')
+
+        self._ip_address = address
+
+    def _add_common(self,
+                    plcobject: Union[PlcObject, str, dict],
+                    target_list: list,
+                    objecttype: type):
+
+        if isinstance(plcobject, PlcObject):
+            target_list.append(plcobject)
+
+        elif isinstance(plcobject, dict):
+            target_list.append(objecttype(meta_data=plcobject, controller=self))
+
+        elif isinstance(plcobject, str):
+            target_list.append(objecttype(name=plcobject, controller=self))
+
+        else:
+            raise TypeError('Invalid type for %s!' % objecttype.__name__)
+
+    def _remove_common(self,
+                       plcobject: PlcObject,
+                       target_list: list):
+        if plcobject in target_list:
+            target_list.remove(plcobject)
+
+    def add_aoi(self, aoi: Union[AddOnInstruction, dict, str]):
+        self._add_common(aoi, self._aois, self._config.aoi_type)
+
+    def add_datatype(self, datatype: Union[Program, dict, str]):
+        self._add_common(datatype, self._datatypes, self._config.datatype_type)
+
+    def add_module(self, module: Union[Module, dict, str]):
+        self._add_common(module, self._modules, self._config.module_type)
+
+    def add_program(self, program: Union[Program, dict, str]):
+        self._add_common(program, self._programs, self._config.program_type)
+
+    def add_tag(self, tag: Union[Tag, dict, str]):
+        self._add_common(tag, self._tags, self._config.tag_type)
+
+    def remove_aoi(self, aoi: AddOnInstruction):
+        self._remove_common(aoi, self._aois)
+
+    def remove_datatype(self, datatype: Datatype):
+        self._remove_common(datatype, self._datatypes)
+
+    def remove_module(self, module: Module):
+        self._remove_common(module, self._modules)
+
+    def remove_program(self, program: Program):
+        self._remove_common(program, self._programs)
+
+    def remove_tag(self, tag: Tag):
+        self._remove_common(tag, self._tags)
+
+    def find_diagnostic_rungs(self) -> list[Rung]:
+        diagnostic_rungs = []
+
+        for program in self.programs:
+            for routine in program.routines:
+                for rung in routine.rungs:
+                    if rung.comment is not None and '<@DIAG>' in rung.comment:
+                        diagnostic_rungs.append(rung)
+                    else:
+                        for instruction in rung.instructions:
+                            if 'JSR' in instruction and 'zZ999_Diagnostics' in instruction:
+                                diagnostic_rungs.append(rung)
+                                break
+
+        return diagnostic_rungs
+
+    def find_unpaired_controller_inputs(self):
+        inputs = defaultdict(list)
+        outputs = set()
+
+        [inputs[operand.as_qualified].append(operand) for instr in self.input_instructions for operand in instr.operands]
+        [outputs.add(operand.as_qualified) for instr in self.output_instructions for operand in instr.operands]
+
+        unpaired_inputs = {}
+
+        for key, value in inputs.items():
+            if key not in outputs and not any(item in outputs for item in value[0].qualified_parents):
+                unpaired_inputs[key] = value
+
+        return unpaired_inputs
+
+    def find_redundant_otes(self,
+                            include_all_coils=False):
+        ote_operands = defaultdict(list)
+
+        routines = []
+
+        for program in self.programs:
+            for routine in program.routines:
+                routines.append((program.name, routine.name, routine))
+
+        for program_name, routine_name, routine in routines:
+
+            for rung_idx, rung in enumerate(routine.rungs, 1):
+                ote_elements = [x for x in rung.instructions if 'OTE(' in x]
+
+                for ote in ote_elements:
+                    operand = re.findall(OTE_OPERAND_RE_PATTERN, ote)[0]
+
+                    if operand:
+                        location = {
+                            'program': program_name,
+                            'routine': routine_name,
+                            'rung': rung_idx,
+                            'operand': operand
+                        }
+                        ote_operands[operand].append(location)
+
+        redundant_otes = {operand: locations for operand, locations in ote_operands.items() if len(locations) > 1}
+
+        if include_all_coils is False:
+            return redundant_otes
+        else:
+            return (redundant_otes, ote_operands)
+
+    def rename_asset(self,
+                     element_type: LogixAssetType,
+                     name: str,
+                     replace_name: str):
+        if not element_type or not name or not replace_name:
+            return
+
+        match element_type:
+            case LogixAssetType.TAG:
+                self.raw_tags = replace_strings_in_dict(
+                    self.raw_tags, name, replace_name)
+
+            case LogixAssetType.ALL:
+                self.l5x_meta_data = replace_strings_in_dict(
+                    self.l5x_meta_data, name, replace_name)
+
+            case _:
+                return
+
+    def validate(self) -> 'ControllerReport':
+        return ControllerReport(self).run()
+
+
+class ControllerReportItem:
+    def __init__(self,
+                 plc_object: PlcObject,
+                 test_description: str,
+                 pass_fail: bool,
+                 report_description: str):
+        if plc_object is None or test_description is None or pass_fail is None or report_description is None:
+            raise ValueError('Cannot leave any fields empty/None!')
+        self._plc_object: PlcObject = plc_object
+        self._test_description: str = test_description
+        self._pass_fail: bool = pass_fail
+        self._report_description: str = report_description
+
+    def __repr__(self):
+        return f'ControllerReportItem(plc_object={self._plc_object},)'\
+            f'test_description={self._test_description}, '\
+            f'pass_fail={self._pass_fail}, '\
+            f'report_description={self._report_description})'
+
+    @property
+    def plc_object(self) -> PlcObject:
+        return self._plc_object
+
+    @property
+    def test_description(self) -> str:
+        return self._test_description
+
+    @property
+    def pass_fail(self) -> bool:
+        return self._pass_fail
+
+    @property
+    def report_description(self) -> str:
+        return self._report_description
+
+
+class ControllerReport(Loggable):
+    """Controller status report
+
+    Get detailed information about a controller, showing problem areas, etc.
+    """
+
+    def __init__(self,
+                 controller: Controller):
+        super().__init__()
+        self._controller: Controller = controller
+        self._report_items: list[ControllerReportItem] = []
+
+    @property
+    def report_items(self) -> list[ControllerReportItem]:
+        return self._report_items
+
+    @property
+    def categorized_items(self) -> dict[list[ControllerReportItem]]:
+        return self._as_categorized()
+
+    def _check_controller(self):
+        self.logger.info('Checking controller...')
+
+        # comm path
+        self.logger.info('Comms path...')
+        good = True if self._controller.comm_path != '' else False
+        if good:
+            self.logger.info('ok... -> %s' % str(self._controller.comm_path))
+        else:
+            self.logger.error('error!')
+
+        # ip address
+        self.logger.info('IP Address...')
+        good = True if self._controller.ip_address != '' else False
+        if good:
+            self.logger.info('ok... -> %s' % str(self._controller.ip_address))
+        else:
+            self.logger.error('error!')
+
+        # slot
+        self.logger.info('Slot...')
+        good = True if self._controller.slot is not None else False
+        if good:
+            self.logger.info('ok... -> %s' % str(self._controller.slot))
+        else:
+            self.logger.error('error!')
+
+        # plc module
+        self.logger.info('PLC Module...')
+        good = True if self._controller.plc_module else False
+        if good:
+            self.logger.info('ok... -> %s' % str(self._controller.plc_module['@Name']))
+        else:
+            self.logger.error('error!')
+
+    def _check_common(self, attr: list[PlcObject]):
+
+        if not isinstance(attr, list):
+            raise ValueError
+
+        for x in attr:
+            self.logger.info('analyzing "%s"...', x.name)
+            self._report_items.append(x.validate())
+            if self._report_items[-1].pass_fail is True:
+                self.logger.info('validation ok...')
+            else:
+                self.logger.warning('validation error! -> %s', self._report_items[-1].report_description)
+
+    def _as_categorized(self) -> dict[list[ControllerReportItem]]:
+        categories = {}
+        for report in self._report_items:
+            if report.plc_object.__class__.__name__ not in categories:
+                categories[report.plc_object.__class__.__name__] = []
+            categories[report.plc_object.__class__.__name__].append(report)
+        return categories
+
+    def run(self) -> Self:
+        self.logger.info('Starting report...')
+        self._check_controller()
+        self._check_common(self._controller.modules)
+        self._check_common(self._controller.datatypes)
+        self._check_common(self._controller.aois)
+        self._check_common(self._controller.tags)
+        self._check_common(self._controller.programs)
+        self.logger.info('Finalizing report...')
+        return self

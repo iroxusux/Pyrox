@@ -6,14 +6,13 @@ from __future__ import annotations
 from typing import Optional, TYPE_CHECKING
 
 
-from ...models import EmulationModel
 from ...services.file import get_open_file, get_save_file
-from ...types.application import ApplicationTask
-from ...types import SafeList
+from ...models.application import ApplicationTask
+from ...models import SafeList
 
 
 if TYPE_CHECKING:
-    from ...types import Model, Application
+    from ...models import Model, Application
 
 
 class FileTask(ApplicationTask):
@@ -70,10 +69,12 @@ class FileTask(ApplicationTask):
         _ = [x(file_location) for x in self.on_save]
 
     def inject(self) -> None:
+        if not self.application.menu:
+            return
+
         self.application.menu.file.insert_command(0, label='Save', command=self._on_file_save)
         self.application.menu.file.insert_command(0, label='New', command=self._on_file_new)
 
-        if self.model:  # only bind to the correct model when creating
-            if isinstance(self.model, EmulationModel):
-                self.on_new.append(self.model.load_controller)
-                self.on_save.append(self.model.save_controller)
+        if self.application:  # only bind to the correct model when creating
+            self.on_new.append(self.application.load_controller)
+            self.on_save.append(self.application.save_controller)

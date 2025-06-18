@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 
-from ...types.application import ApplicationTask
+from ...models.application import ApplicationTask
 
 
 class PreferencesTask(ApplicationTask):
@@ -17,5 +17,6 @@ class PreferencesTask(ApplicationTask):
     def inject(self) -> None:
         if not self.application.menu:
             return
+
         self.application.menu.edit.add_separator()
         self.application.menu.edit.add_command(label='Preferences', command=self.start)
