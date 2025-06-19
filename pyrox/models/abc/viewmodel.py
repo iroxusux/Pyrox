@@ -40,22 +40,15 @@ class PartialViewModel(Buildable):
 
     def __init__(self,
                  model: Optional[PartialModel] = None,
-                 view: Optional[Union[PartialView, type[PartialView]]] = None,
-                 view_config: Optional[PartialViewConfiguration] = None):
+                 view: Optional[Union[PartialView, type[PartialView]]] = None):
         super().__init__()
         self._model = model
-
-        if not view_config:
-            try:
-                view_config = PartialViewConfiguration(parent=model.application.frame)
-            except AttributeError:
-                view_config = PartialViewConfiguration()
 
         # either construct from a constructor, or set the already constructed value
         # if a bogus value was passed, raise a value error.
         self._view: Optional[PartialView] = None
         if isinstance(view, type):
-            self._view = view(config=view_config)
+            self._view = view()
         elif isinstance(view, PartialView):
             self._view = view
         elif view is not None:

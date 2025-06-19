@@ -87,7 +87,7 @@ class GmHmiView(View):
         super().__init__(view_model=view_model,
                          config=config)
 
-        self._title: str = config.name
+        self._title: str = config.title
         self._std_input_entry: Optional[Entry] = None
         self._std_output_entry: Optional[Entry] = None
         self._saf_input_entry: Optional[Entry] = None
@@ -427,7 +427,7 @@ class GmHmiModel(LaunchableModel):
         super().__init__(application=app,
                          view_model=GmHmiViewModel,
                          view=GmHmiView,
-                         view_config=ViewConfiguration(name='Gm HMI Emulate',
+                         view_config=ViewConfiguration(title='Gm HMI Emulate',
                                                        parent=app.view.frame,
                                                        type_=ViewType.TOPLEVEL))
 

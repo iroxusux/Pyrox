@@ -225,7 +225,10 @@ def populate_tree(tree, parent, data):
                 tree.insert(parent, 'end', text=str(key), values=(str(value),))
     elif isinstance(data, list):
         for index, item in enumerate(data):
-            node_label = f"[{index}]"
+            if isinstance(item, dict) and '@Name' in item:
+                node_label = item['@Name']
+            else:
+                node_label = f"[{index}]"
             if isinstance(item, (dict, list)):
                 node = tree.insert(parent, 'end', text=node_label, values=('[...]'))
                 populate_tree(tree, node, item)
@@ -322,6 +325,10 @@ class LogWindow(PyroxFrame):
                          **kwargs)
 
         self._logtext = Text(self, state='disabled')
+        vscrollbar = Scrollbar(self, orient=VERTICAL, command=self._logtext.yview)
+        self._logtext['yscrollcommand'] = vscrollbar.set
+
+        vscrollbar.pack(fill=Y, side=RIGHT)
         self._logtext.pack(side=BOTTOM, fill=BOTH, expand=True)
 
     @property

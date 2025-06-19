@@ -4,6 +4,7 @@ from __future__ import annotations
 
 
 from tkinter import Tk
+from ttkthemes import ThemedTk
 import unittest
 
 
@@ -43,6 +44,7 @@ class TestModels(unittest.TestCase):
                 self.application.menu.file.add_command(label='Test3', command=lambda: print('this is a test...'))
 
         app = Application(config=PartialApplicationConfiguration.root())
+        app.build()
 
         task = TestTask(app, None)
         task.inject()
@@ -62,7 +64,9 @@ class TestModels(unittest.TestCase):
         app = Application(PartialApplicationConfiguration.root())
         self.assertIsNotNone(app)
         self.assertIsNotNone(app.logger)
-        self.assertTrue(isinstance(app.application, Tk))
+        self.assertEqual(app.config.application, ThemedTk)
+
+        app.build()
 
         # check menu is built
         self.assertIsNotNone(app.menu)
@@ -79,6 +83,8 @@ class TestModels(unittest.TestCase):
         # can insert a task already built
         task = ApplicationTask(app, None)
         app.add_task(task)
+
+        app.stop()
 
     def test_model(self):
         """test model
@@ -103,11 +109,8 @@ class TestModels(unittest.TestCase):
         """
         view = View()
         self.assertIsNotNone(view)
-        self.assertIsNotNone(view.name)
-        self.assertIsNotNone(view.config)
         self.assertIsNone(view.view_model)
         self.assertIsNotNone(view.logger)
-        view.close()
 
     def test_view_model(self):
         """test view model

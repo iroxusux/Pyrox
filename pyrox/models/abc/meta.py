@@ -513,7 +513,7 @@ class PartialViewConfiguration:
     view_type: :class:`PartialViewType`
 
     """
-    name: Optional[str] = DEF_WIN_TITLE
+    title: Optional[str] = DEF_WIN_TITLE
     icon: Optional[str] = DEF_ICON
     size_: Optional[str] = DEF_WIN_SIZE
     parent: Optional[Union[Frame, LabelFrame]] = None
@@ -556,29 +556,14 @@ class PartialView(Runnable):
         The configuration this view was built with.
     """
 
-    __slots__ = ('_frame', '_name', '_parent', '_config')
+    __slots__ = ('_frame', '_parent')
 
     def __init__(self,
-                 config: PartialViewConfiguration):
+                 parent: Union[Tk, Toplevel, Frame, LabelFrame] = None):
         super().__init__()
-
-        self._config: PartialViewConfiguration = config
-        self._parent: Optional[Union[Frame, LabelFrame]] = self._config.parent
-        self._name: str = self._config.name
+        self._parent: Union[Tk, Toplevel, Frame, LabelFrame] = parent
         self._frame = Frame(master=self._parent, padx=2, pady=2)
         self._frame.pack(fill='both', expand=True)
-
-    @property
-    def config(self) -> PartialViewConfiguration:
-        """The configuration this view was built with.
-
-        .. ------------------------------------------------------------
-
-        Returns
-        -----------
-            config: :class:`PartialViewConfiguration`
-        """
-        return self._config
 
     @property
     def frame(self) -> Frame:

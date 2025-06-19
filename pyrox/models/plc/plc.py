@@ -254,6 +254,27 @@ class PlcObject(EnforcesNaming, SnowFlake):
     def meta_data(self) -> dict:
         return self._meta_data
 
+    def validate(self,
+                 test_notes: Optional[list[str]] = None) -> ControllerReportItem:
+        results = True
+        test_notes = test_notes or []
+        if self.config is None:
+            test_notes.append('No controller configuration found!')
+            results = False
+
+        if self.controller is None:
+            test_notes.append('No controller found!')
+            results = False
+
+        if self.meta_data is None:
+            test_notes.append('No meta data found!')
+            results = False
+
+        return ControllerReportItem(self,
+                                    f'Validating {self.__class__.__name__} object: {self.name}',
+                                    results,
+                                    '\n'.join(test_notes))
+
 
 class NamedPlcObject(PlcObject):
     def __init__(self, meta_data=defaultdict(None), controller=None):
@@ -297,8 +318,22 @@ class NamedPlcObject(PlcObject):
     def description(self, value: str):
         self['Description'] = value
 
-    def validate(self):
-        raise NotImplementedError("This method should be implemented in subclasses.")
+    def validate(self,
+                 test_notes: Optional[list[str]] = None) -> ControllerReportItem:
+        results = True
+        test_notes = test_notes or []
+        if self.name is None:
+            test_notes.append('No name found!')
+            results = False
+
+        if self.description is None:
+            test_notes.append('No description found!')
+            results = False
+
+        return ControllerReportItem(self,
+                                    f'Validating {self.__class__.__name__} object: {self.name}',
+                                    results,
+                                    '\n'.join(test_notes))
 
 
 class LogixOperand(PlcObject):
@@ -399,6 +434,48 @@ class LogixOperand(PlcObject):
 
         return [x.replace(self.base_name, self.base_tag.name) for x in self.parents]
 
+    def validate(self,
+                 test_notes: Optional[list[str]] = None) -> ControllerReportItem:
+        results = True
+        test_notes = test_notes or [f'Validating {self.__class__.__name__} object: {self.meta_data}']
+
+        if self.arg_position < 0:
+            test_notes.append(f'Invalid argument position for operand {self.meta_data}!')
+            results = False
+
+        if not self.as_qualified:
+            test_notes.append(f'No qualified name found for operand {self.meta_data}!')
+            results = False
+
+        if not self.base_name:
+            test_notes.append(f'No base name found for operand {self.meta_data}!')
+            results = False
+
+        if not self.container:
+            test_notes.append(f'No container found for operand {self.meta_data}!')
+            results = False
+
+        if not self.instruction:
+            test_notes.append(f'No instruction found for operand {self.meta_data}!')
+            results = False
+
+        if not self.instruction_type or self.instruction_type == LogixInstructionType.UNKOWN:
+            test_notes.append(f'No instruction type found for operand {self.meta_data}!')
+            results = False
+
+        if not self.parents:
+            test_notes.append(f'No parents found for operand {self.meta_data}!')
+            results = False
+
+        if not self.qualified_parents:
+            test_notes.append(f'No qualified parents found for operand {self.meta_data}!')
+            results = False
+
+        return ControllerReportItem(self,
+                                    f'Validating {self.__class__.__name__} object: {self.meta_data}',
+                                    results,
+                                    '\n'.join(test_notes))
+
 
 class LogixInstruction(PlcObject):
     """Logix instruction.
@@ -466,6 +543,42 @@ class LogixInstruction(PlcObject):
     def type(self) -> LogixInstructionType:
         return LogixInstructionType.INPUT if self.instruction_name in INPUT_INSTRUCTIONS else LogixInstructionType.OUTPUT
 
+    def validate(self,
+                 test_notes: Optional[list[str]] = None) -> list[ControllerReportItem]:
+        results = True
+        test_notes = test_notes or [f'Validating {self.__class__.__name__} object: {self.meta_data}']
+
+        if not self.instruction_name:
+            test_notes.append('No instruction name found!')
+            results = False
+
+        if not self.operands:
+            test_notes.append('No operands found for instruction!')
+            results = False
+
+        if not self.container:
+            test_notes.append('No container found for instruction!')
+            results = False
+
+        if not self.rung:
+            test_notes.append('No rung found for instruction!')
+            results = False
+
+        if not self.type or self.type == LogixInstructionType.UNKOWN:
+            test_notes.append('No instruction type found for instruction!')
+            results = False
+
+        for operand in self.operands:
+            item = operand.validate()
+            test_notes.append(item.report_description)
+            if item.pass_fail is False:
+                results = False
+
+        return ControllerReportItem(self,
+                                    f'Validating {self.__class__.__name__} object: {self.meta_data}',
+                                    results,
+                                    '\n'.join(test_notes))
+
 
 class SupportsMeta(Generic[T], NamedPlcObject):
     """meta type for 'supports' structuring
@@ -502,6 +615,20 @@ class SupportsClass(SupportsMeta[str]):
     @class_.setter
     def class_(self, value: str):
         super().__set__(value, SupportsClass.key)
+
+    def validate(self,
+                 test_notes: Optional[list[str]] = None) -> ControllerReportItem:
+        results = True
+        test_notes = test_notes or []
+
+        if self.class_ is None:
+            test_notes.append('No class found!')
+            results = False
+
+        return ControllerReportItem(self,
+                                    f'Validating {self.__class__.__name__} object: {self.name}',
+                                    results,
+                                    '\n'.join(test_notes))
 
 
 class SupportsExternalAccess(SupportsMeta[str]):
@@ -1023,12 +1150,32 @@ class Program(RoutineContainer):
 
         return unpaired_inputs
 
-    def validate(self):
-        test_notes = []
+    def validate(self,
+                 test_notes: Optional[list[str]] = None) -> list[ControllerReportItem]:
+        results = True
+        test_notes = test_notes or [f'Validating {self.__class__.__name__} object: {self.name}']
+
+        if not self.input_instructions:
+            test_notes.append('No input instructions found in program!')
+            results = False
+
+        if not self.output_instructions:
+            test_notes.append('No output instructions found in program!')
+            results = False
+
+        if not self.main_routine_name:
+            test_notes.append('No main routine name found in program!')
+            results = False
+
+        for routine in self.routines:
+            item = routine.validate()
+            test_notes.append(item.report_description)
+            if item.pass_fail is False:
+                results = False
 
         return ControllerReportItem(self,
-                                    'Testing program attributes...',
-                                    True,
+                                    f'Validating {self.__class__.__name__} object: {self.name}',
+                                    results,
                                     '\n'.join(test_notes))
 
 
@@ -1132,6 +1279,38 @@ class Routine(NamedPlcObject):
 
         return self['RLLContent']['Rung']
 
+    def validate(self,
+                 test_notes: Optional[list[str]] = None) -> ControllerReportItem:
+        results = True
+        test_notes = test_notes or [f'Validating {self.__class__.__name__} object: {self.name}']
+
+        if not self.input_instructions:
+            test_notes.append('No input instructions found in program!')
+            results = False
+
+        if not self.output_instructions:
+            test_notes.append('No output instructions found in program!')
+            results = False
+
+        if not self.program:
+            test_notes.append('No program found for routine!')
+            results = False
+
+        if not self.rungs:
+            test_notes.append('No rungs found in routine!')
+            results = False
+
+        for rung in self.rungs:
+            item = rung.validate()
+            test_notes.append(item.report_description)
+            if item.pass_fail is False:
+                results = False
+
+        return ControllerReportItem(self,
+                                    f'Validating {self.__class__.__name__} object: {self.name}',
+                                    results,
+                                    '\n'.join(test_notes))
+
 
 class Rung(NamedPlcObject):
     def __init__(self,
@@ -1192,6 +1371,10 @@ class Rung(NamedPlcObject):
         return [x for x in self.instructions if x.type is LogixInstructionType.OUTPUT]
 
     @property
+    def name(self) -> str:
+        return self.meta_data
+
+    @property
     def number(self) -> str:
         return self['@Number']
 
@@ -1227,6 +1410,38 @@ class Rung(NamedPlcObject):
         self._instructions = [LogixInstruction(x, self, self.controller) for x in matches if not x.isdigit()]
 
         return self._instructions
+
+    def validate(self,
+                 test_notes: Optional[list[str]] = None) -> list[ControllerReportItem]:
+        results = True
+        test_notes = test_notes or [f'Validating {self.__class__.__name__} object: {self.name}']
+
+        if not self.input_instructions:
+            test_notes.append('No input instructions found in program!')
+            results = False
+
+        if not self.output_instructions:
+            test_notes.append('No output instructions found in program!')
+            results = False
+
+        if not self.routine:
+            test_notes.append('No routine found for rung!')
+            results = False
+
+        if not self.instructions:
+            test_notes.append('No instructions found in rung!')
+            results = False
+
+        for instruction in self.instructions:
+            item = instruction.validate()
+            test_notes.append(item.report_description)
+            if item.pass_fail is False:
+                results = False
+
+        return ControllerReportItem(self,
+                                    f'Validating {self.__class__.__name__} object: {self.name}',
+                                    results,
+                                    '\n'.join(test_notes))
 
 
 class Tag(NamedPlcObject):
@@ -1894,18 +2109,17 @@ class ControllerReport(Loggable):
         else:
             self.logger.error('error!')
 
-    def _check_common(self, attr: list[PlcObject]):
+    def _check_common(self, plc_objects: list[PlcObject]):
 
-        if not isinstance(attr, list) and not isinstance(attr, HashList):
+        if not isinstance(plc_objects, list) and not isinstance(plc_objects, HashList):
             raise ValueError
 
-        for x in attr:
-            self.logger.info('analyzing "%s"...', x.name)
-            self._report_items.append(x.validate())
-            if self._report_items[-1].pass_fail is True:
-                self.logger.info('validation ok...')
-            else:
-                self.logger.warning('validation error! -> %s', self._report_items[-1].report_description)
+        for plc_object in plc_objects:
+            self.logger.info('analyzing "%s"...', plc_object.name if hasattr(plc_object, 'name') else plc_object.meta_data)
+            report = plc_object.validate()
+            self._report_items.append(report)
+            [self.logger.info(line) for line in report.report_description.split('\n')]
+            self.logger.info('validation ok...') if report.pass_fail is True else self.logger.warning('validation error!')
 
     def _as_categorized(self) -> dict[list[ControllerReportItem]]:
         categories = {}

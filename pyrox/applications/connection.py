@@ -197,7 +197,7 @@ class ConnectionModel(LaunchableModel):
         super().__init__(application=app,
                          view_model=ConnectionViewModel,
                          view=ConnectionView,
-                         view_config=ViewConfiguration(name='PLC Connection',
+                         view_config=ViewConfiguration(title='PLC Connection',
                                                        parent=app.view.frame,
                                                        size_='400x100',
                                                        type_=ViewType.TOPLEVEL))

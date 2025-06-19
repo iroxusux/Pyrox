@@ -6,7 +6,7 @@ from __future__ import annotations
 from typing import Optional, TYPE_CHECKING
 
 
-from .abc.meta import PartialView, PartialViewConfiguration
+from .abc.meta import PartialView
 
 
 if TYPE_CHECKING:
@@ -35,10 +35,9 @@ class View(PartialView):
     """
 
     def __init__(self,
-                 view_model: Optional[ViewModel] = None,
-                 config: Optional[PartialViewConfiguration] = PartialViewConfiguration()):
+                 view_model: Optional[ViewModel] = None):
 
-        super().__init__(config=config)
+        super().__init__()
 
         self._view_model: Optional[ViewModel] = view_model
 

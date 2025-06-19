@@ -175,7 +175,7 @@ class PartialApplicationConfiguration:
     inc_log_window: bool = False
     inc_organizer: bool = False
     inc_workspace: bool = False
-    name: Optional[str] = DEF_WIN_TITLE
+    title: Optional[str] = DEF_WIN_TITLE
     theme: Optional[str] = DEF_THEME
     type_: ViewType = ViewType.ROOT
     icon: Optional[str] = DEF_ICON
@@ -190,7 +190,7 @@ class PartialApplicationConfiguration:
                          inc_log_window: bool,
                          inc_organizer: bool,
                          inc_workspace: bool,
-                         name: str,
+                         title: str,
                          theme: str,
                          type_: ViewType,
                          icon: str,
@@ -203,7 +203,7 @@ class PartialApplicationConfiguration:
             inc_log_window=inc_log_window,
             inc_organizer=inc_organizer,
             inc_workspace=inc_workspace,
-            name=name,
+            title=title,
             theme=theme,
             type_=type_,
             icon=icon,
@@ -242,14 +242,14 @@ class PartialApplicationConfiguration:
                                                                 inc_log_window=False,
                                                                 inc_organizer=False,
                                                                 inc_workspace=True,
-                                                                name=DEF_WIN_TITLE,
+                                                                title=DEF_WIN_TITLE,
                                                                 theme=DEF_THEME,
                                                                 type_=ViewType.TOPLEVEL,
                                                                 icon=DEF_ICON,
                                                                 size_=DEF_WIN_SIZE,
                                                                 tasks=[],
                                                                 view_config=PartialViewConfiguration(),
-                                                                application=ThemedTk(theme=DEF_THEME))
+                                                                application=Toplevel)
 
     @classmethod
     def root(cls) -> Self:
@@ -280,14 +280,14 @@ class PartialApplicationConfiguration:
                                                                 inc_log_window=True,
                                                                 inc_organizer=True,
                                                                 inc_workspace=True,
-                                                                name=DEF_WIN_TITLE,
+                                                                title=DEF_WIN_TITLE,
                                                                 theme=DEF_THEME,
                                                                 type_=ViewType.ROOT,
                                                                 icon=DEF_ICON,
                                                                 size_=DEF_WIN_SIZE,
                                                                 tasks=[],
                                                                 view_config=PartialViewConfiguration(),
-                                                                application=ThemedTk(theme=DEF_THEME))
+                                                                application=ThemedTk)
 
 
 class PartialApplication(Runnable):
@@ -322,18 +322,7 @@ class PartialApplication(Runnable):
             config = PartialApplicationConfiguration.root()
 
         self._config: PartialApplicationConfiguration = config
-        self._application: Union[Tk, ThemedTk, None] = config.application
-
-        if self.application:
-            self.application.protocol('WM_DELETE_WINDOW', self.close)
-            self.application.title(self._config.name)
-            self.application.iconbitmap(self._config.icon)
-            self.application.geometry(self._config.size_)
-            self._frame: Frame = Frame(master=self.application)
-            self._frame.pack(fill='both', expand=True)
-
-        # when building a 'main' application, insert the app's handler into the global pool
-        # a full application should be able to manage all child loggers
+        self._application: Union[Tk, ThemedTk, None] = None
         Loggable.global_handlers.append(self._log_handler)
 
     @property
@@ -347,6 +336,10 @@ class PartialApplication(Runnable):
             application: Union[:class:`Tk`, :class:`ThemedTk`, None]
         """
         return self._application
+
+    @application.setter
+    def application(self, value: Union[Tk, ThemedTk, None]) -> None:
+        self._application = value
 
     @property
     def config(self) -> PartialApplicationConfiguration:
@@ -371,6 +364,40 @@ class PartialApplication(Runnable):
             frame: :class:`Frame`
         """
         return self._frame
+
+    def build(self) -> Self:
+        """Build this :class:`PartialApplication`.
+
+        .. ------------------------------------------------------------
+
+        Arguments
+        -----------
+        **kwargs: dict
+            Additional keyword arguments to pass to the build method.
+
+        Returns
+        --------
+            self: :class:`PartialApplication`
+        """
+        if self.config.application == Tk:
+            self.application = Tk()
+        elif self.config.application == ThemedTk:
+            self.application = ThemedTk(theme=self.config.theme)
+        elif self.config.application == Toplevel:
+            self.application = Toplevel()
+
+        if self.application:
+            self.application.protocol('WM_DELETE_WINDOW', self.close)
+            self.application.title(self.config.title)
+            self.application.iconbitmap(self.config.icon)
+            self.application.geometry(self.config.size_)
+            self._frame: Frame = Frame(master=self.application)
+            self._frame.pack(fill='both', expand=True)
+        else:
+            raise ValueError('Application type is not supported. '
+                             'Please use Tk, ThemedTk or Toplevel.')
+
+        super().build()
 
     def center(self) -> None:
         """center this application's view in the window it resides in.
@@ -409,10 +436,10 @@ class PartialApplication(Runnable):
         """
 
     def start(self) -> None:
+        super().start()
         self.on_pre_run()
         self.application.after(100, lambda: self.logger.info('Ready...'))
         self.application.focus()
-        super().start()
         self.application.mainloop()
 
     def stop(self) -> None:

@@ -3,7 +3,6 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Optional
 
-
 from ..models import Application, ApplicationTask
 from ..models.plc import Controller
 from ..models.utkinter import populate_tree
@@ -24,12 +23,6 @@ class App(Application):
 
         self._controller: Optional[Controller] = None
 
-        tasks = find_and_instantiate_class(str(Path(__file__).parent.parent) + '/tasks',
-                                           "ApplicationTask",
-                                           True,
-                                           ApplicationTask,
-                                           application=self)
-        self.add_tasks(tasks=tasks)
         self.logger.info('Pyrox Application initialized.')
 
     @property
@@ -50,6 +43,25 @@ class App(Application):
         if self.controller is not value:
             self._controller = value
             self.refresh()
+
+    def build(self):
+        """Build this :class:`Application`.
+
+        This method will build the main menu, organizer window, log window and workspace if they are enabled in the configuration.
+
+        """
+        super().build()
+
+        if not self.application:
+            self.logger.error('Cannot build application, no application root found')
+            return
+
+        tasks = find_and_instantiate_class(str(Path(__file__).parent.parent) + '/tasks',
+                                           "ApplicationTask",
+                                           True,
+                                           ApplicationTask,
+                                           application=self)
+        self.add_tasks(tasks=tasks)
 
     def load_controller(self,
                         file_location: str) -> None:

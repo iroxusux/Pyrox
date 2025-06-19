@@ -44,7 +44,7 @@ class GmMsgExtractModel(LaunchableModel):
         super().__init__(application=app,
                          view_model=GmMsgExtractViewModel,
                          view=GmMsgExtractView,
-                         view_config=ViewConfiguration(name='Gm Message Extract',
+                         view_config=ViewConfiguration(title='Gm Message Extract',
                                                        parent=app.view.frame,
                                                        type_=ViewType.TOPLEVEL))
 

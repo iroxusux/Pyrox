@@ -291,7 +291,7 @@ class EmulationModel(Model):
         if not view:
             view = EmulationView
 
-        view_config.name = 'Emulation Model'
+        view_config.title = 'Emulation Model'
         view_config.parent = application.view.frame
 
         super().__init__(application=application,
@@ -390,7 +390,7 @@ class EmulationModel(Model):
         class _ReportView(View):
             def __init__(self,
                          data_dict: dict):
-                super().__init__(config=ViewConfiguration(name='Controller Verify',
+                super().__init__(config=ViewConfiguration(title='Controller Verify',
                                                           type_=ViewType.TOPLEVEL))
 
                 x = TreeViewGridFrame(self.frame, data_dict=data_dict)

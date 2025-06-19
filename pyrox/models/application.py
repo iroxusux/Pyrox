@@ -331,32 +331,11 @@ class Application(PartialApplication):
                  config: PartialApplicationConfiguration = None):
         super().__init__(config=config)
 
-        self._tasks: HashList[PartialApplicationTask] = HashList('id')
-        self._menu = None if self.config.headless is True else MainApplicationMenu(self.application)
-        self._model_hash = HashList(SnowFlake.id.__name__)
-        self._main_model_id: int = -1
-        self._organizer = None
         self._log_window = None
+        self._model_hash: HashList[Model] = None
+        self._organizer = None
+        self._tasks = None
         self._workspace = None
-
-        # organizer window
-        if self.config.inc_organizer is True:
-            self._organizer = OrganizerWindow(master=self.frame)
-            self._organizer.pack(side=LEFT, fill=Y)
-
-        # log window
-        if self._config.inc_log_window is True:
-            self._log_window = LogWindow(self.frame)
-            self._log_window.pack(side=BOTTOM, fill=X)
-            self._log_handler.set_callback(self.log)
-
-        # workspace window
-        if self._config.inc_workspace is True:
-            self._workspace = PyroxFrame(self.frame, text='Workspace')
-            self._workspace.pack(side=TOP, fill=BOTH, expand=True)
-
-        # append all tasks from config into this application
-        self.add_tasks(self.config.tasks)
 
     @property
     def menu(self) -> MainApplicationMenu:
@@ -509,6 +488,35 @@ class Application(PartialApplication):
             return
 
         _ = [self.add_task(x, model) for x in tasks]
+
+    def build(self):
+        """Build this :class:`Application`.
+
+        This method will build the main menu, organizer window, log window and workspace if they are enabled in the configuration.
+
+        """
+        super().build()
+
+        if not self.application:
+            self.logger.error('Cannot build application, no application root found')
+            return
+
+        self._tasks: HashList[PartialApplicationTask] = HashList('id')
+        self._menu = None if self.config.headless is True else MainApplicationMenu(self.application)
+        self._model_hash = HashList(SnowFlake.id.__name__)
+
+        if self.config.inc_organizer is True:
+            self._organizer = OrganizerWindow(master=self.frame)
+            self._organizer.pack(side=LEFT, fill=Y)
+
+        if self._config.inc_log_window is True:
+            self._log_window = LogWindow(self.frame)
+            self._log_window.pack(side=BOTTOM, fill=X)
+            self._log_handler.set_callback(self.log)
+
+        if self._config.inc_workspace is True:
+            self._workspace = PyroxFrame(self.frame, text='Workspace')
+            self._workspace.pack(side=TOP, fill=BOTH, expand=True)
 
     def clear_workspace(self) -> None:
         """Clear workspace of all children.

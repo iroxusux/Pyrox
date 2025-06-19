@@ -3,16 +3,12 @@
 from __future__ import annotations
 
 
-from typing import Optional, TYPE_CHECKING
+from typing import Optional
 
 
 from pyrox.services.file import get_open_file, get_save_file
 from pyrox.models.application import ApplicationTask
 from pyrox.models import SafeList
-
-
-if TYPE_CHECKING:
-    from pyrox.models import Model, Application
 
 
 class FileTask(ApplicationTask):
@@ -57,6 +53,10 @@ class FileTask(ApplicationTask):
 
     def _on_file_save(self,
                       file_location: Optional[str] = None):
+        if not self.application.controller:
+            self.logger.warning('No controller loaded, cannot save...')
+            return
+
         if not file_location:
             file_location = get_save_file([("L5X XML Files", ".L5X")])
 

@@ -1,7 +1,9 @@
 import unittest
 import logging
 import os
-from tkinter import Frame, Tk, Menu
+from tkinter import Frame, Tk, Menu, Toplevel
+from ttkthemes import ThemedTk
+from typing import Union
 
 
 from .application import (
@@ -195,7 +197,7 @@ class TestViewType(unittest.TestCase):
 class TestPartialViewConfiguration(unittest.TestCase):
     def test_default_values(self):
         config = PartialViewConfiguration()
-        self.assertEqual(config.name, 'Pyrox Default Frame')
+        self.assertEqual(config.title, 'Pyrox Default Frame')
         self.assertEqual(config.icon, f'{os.path.dirname(os.path.abspath(__file__))}\\..\\..\\ui\\icons\\_def.ico')
         self.assertEqual(config.size_, '1024x768')
         self.assertIsNone(config.parent)
@@ -203,10 +205,7 @@ class TestPartialViewConfiguration(unittest.TestCase):
 
 class TestPartialView(unittest.TestCase):
     def test_initialization(self):
-        config = PartialViewConfiguration()
-        view = PartialView(config=config)
-        self.assertEqual(view.config, config)
-        self.assertEqual(view.name, config.name)
+        view = PartialView()
         self.assertIsInstance(view.frame, Frame)
         self.assertIsNone(view.parent)
 
@@ -270,7 +269,7 @@ class TestPartialApplicationConfiguration(unittest.TestCase):
         config = PartialApplicationConfiguration()
         self.assertFalse(config.headless)
         self.assertFalse(config.inc_log_window)
-        self.assertIsInstance(config.name, str)
+        self.assertIsInstance(config.title, str)
         self.assertIsInstance(config.theme, str)
         self.assertIsInstance(config.type_, ViewType)
         self.assertIsInstance(config.icon, str)
@@ -286,7 +285,7 @@ class TestPartialApplicationConfiguration(unittest.TestCase):
                                                                   inc_organizer=False,
                                                                   inc_workspace=False,
                                                                   tasks=[],
-                                                                  name=DEF_WIN_TITLE,
+                                                                  title=DEF_WIN_TITLE,
                                                                   theme=DEF_THEME,
                                                                   type_=ViewType.ROOT,
                                                                   icon=DEF_ICON,
@@ -296,7 +295,7 @@ class TestPartialApplicationConfiguration(unittest.TestCase):
         self.assertFalse(config.headless)
         self.assertFalse(config.inc_log_window)
         self.assertEqual(config.tasks, [])
-        self.assertEqual(config.name, DEF_WIN_TITLE)
+        self.assertEqual(config.title, DEF_WIN_TITLE)
         self.assertEqual(config.theme, DEF_THEME)
         self.assertEqual(config.type_, ViewType.ROOT)
         self.assertEqual(config.icon, DEF_ICON)
@@ -305,11 +304,11 @@ class TestPartialApplicationConfiguration(unittest.TestCase):
 
     def test_toplevel_method(self):
         config = PartialApplicationConfiguration.toplevel()
-        self.assertIsInstance(config.application, Tk)
+        self.assertEqual(config.application, Toplevel)
         self.assertFalse(config.headless)
         self.assertFalse(config.inc_log_window)
         self.assertEqual(config.tasks, [])
-        self.assertEqual(config.name, DEF_WIN_TITLE)
+        self.assertEqual(config.title, DEF_WIN_TITLE)
         self.assertEqual(config.theme, DEF_THEME)
         self.assertEqual(config.type_, ViewType.TOPLEVEL)
         self.assertEqual(config.icon, DEF_ICON)
@@ -318,11 +317,11 @@ class TestPartialApplicationConfiguration(unittest.TestCase):
 
     def test_root_method(self):
         config = PartialApplicationConfiguration.root()
-        self.assertIsInstance(config.application, Tk)
+        self.assertEqual(config.application, ThemedTk)
         self.assertFalse(config.headless)
         self.assertTrue(config.inc_log_window)
         self.assertEqual(config.tasks, [])
-        self.assertEqual(config.name, DEF_WIN_TITLE)
+        self.assertEqual(config.title, DEF_WIN_TITLE)
         self.assertEqual(config.theme, DEF_THEME)
         self.assertEqual(config.type_, ViewType.ROOT)
         self.assertEqual(config.icon, DEF_ICON)
@@ -514,11 +513,10 @@ class TestPartialModel(unittest.TestCase):
 class TestPartialViewModel(unittest.TestCase):
     def test_initialization(self):
         model = PartialModel()
-        view = PartialView(PartialViewConfiguration())
+        view = PartialView()
         view_model = PartialViewModel(model=model, view=view)
         self.assertEqual(view_model.model, model)
         self.assertEqual(view_model.view, view)
-        view.close()
 
     def test_initialization_with_view_class(self):
         model = PartialModel()
@@ -536,12 +534,12 @@ class TestPartialViewModel(unittest.TestCase):
         self.assertEqual(view_model.model, model)
 
     def test_view_property(self):
-        view = PartialView(PartialViewConfiguration())
+        view = PartialView()
         view_model = PartialViewModel(view=view)
         self.assertEqual(view_model.view, view)
 
     def test_view_deleter(self):
-        view = PartialView(PartialViewConfiguration())
+        view = PartialView()
         view_model = PartialViewModel(view=view)
         del view_model.view
         self.assertIsNone(view_model.view)

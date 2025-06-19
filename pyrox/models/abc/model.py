@@ -52,7 +52,7 @@ class PartialModel(Runnable):
         # if a bogus value was passed, raise a value error.
         self._view_model: Optional[PartialViewModel] = None
         if isinstance(view_model, type):
-            self._view_model = view_model(model=self, view=view, view_config=view_config)
+            self._view_model = view_model(model=self, view=view)
         elif isinstance(view_model, PartialViewModel):
             self._view_model = view_model
         elif view_model is not None:
