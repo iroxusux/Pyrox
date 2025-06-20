@@ -12,7 +12,7 @@ from pylogix import PLC
 from pylogix.lgx_response import Response
 
 
-from ..models import Application, ApplicationTask, LaunchableModel, ViewConfiguration, View, ViewModel, ViewType
+from ..models import Application, ApplicationTask, View
 
 from pyrox.models.plc import ConnectionParameters
 
@@ -63,10 +63,8 @@ class ConnectionView(View):
     """
 
     def __init__(self,
-                 view_model: Optional['ConnectionViewModel'] = None,
-                 config: Optional[ViewConfiguration] = ViewConfiguration()):
-        super().__init__(view_model=view_model,
-                         config=config)
+                 view_model: Optional['ConnectionViewModel'] = None):
+        super().__init__(view_model=view_model)
 
         self._liveframe: Optional[LabelFrame] = None
         self._plccfgframe: Optional[LabelFrame] = None
@@ -139,9 +137,8 @@ class ConnectionViewModel(ViewModel):
     """
 
     def __init__(self, model: Optional['ConnectionModel'],
-                 view: Optional[ConnectionView],
-                 view_config: ViewConfiguration):
-        super().__init__(model=model, view=view, view_config=view_config)
+                 view: Optional[ConnectionView]):
+        super().__init__(model=model, view=view)
 
     @property
     def model(self) -> 'ConnectionModel':
@@ -196,11 +193,7 @@ class ConnectionModel(LaunchableModel):
                  app: Application):
         super().__init__(application=app,
                          view_model=ConnectionViewModel,
-                         view=ConnectionView,
-                         view_config=ViewConfiguration(title='PLC Connection',
-                                                       parent=app.view.frame,
-                                                       size_='400x100',
-                                                       type_=ViewType.TOPLEVEL))
+                         view=ConnectionView)
         self._connected: bool = False
         self._connecting: bool = False
         self._params: ConnectionParameters = None

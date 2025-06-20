@@ -26,12 +26,12 @@ from .abc import (
     PartialApplication,
     PartialApplicationTask,
     BaseMenu,
-    PartialApplicationConfiguration,
+    ApplicationConfiguration,
     HashList,
     SnowFlake
 )
 
-from .utkinter.frames import LogWindow, OrganizerWindow, PyroxFrame
+from .utkinter.frames import LogWindow, FrameWithTreeViewAndScrollbar, PyroxFrame
 
 
 if TYPE_CHECKING:
@@ -328,7 +328,7 @@ class Application(PartialApplication):
     __slots__ = ('_menu', '_tasks', '_log_window')
 
     def __init__(self,
-                 config: PartialApplicationConfiguration = None):
+                 config: ApplicationConfiguration = None):
         super().__init__(config=config)
 
         self._log_window = None
@@ -360,7 +360,7 @@ class Application(PartialApplication):
         return self._model_hash
 
     @property
-    def organizer(self) -> Optional[OrganizerWindow]:
+    def organizer(self) -> Optional[FrameWithTreeViewAndScrollbar]:
         """The organizer window for this :class:`Application`.
 
         .. ------------------------------------------------------------
@@ -497,16 +497,16 @@ class Application(PartialApplication):
         """
         super().build()
 
-        if not self.application:
+        if not self.tk_app:
             self.logger.error('Cannot build application, no application root found')
             return
 
         self._tasks: HashList[PartialApplicationTask] = HashList('id')
-        self._menu = None if self.config.headless is True else MainApplicationMenu(self.application)
+        self._menu = None if self.config.headless is True else MainApplicationMenu(self.tk_app)
         self._model_hash = HashList(SnowFlake.id.__name__)
 
         if self.config.inc_organizer is True:
-            self._organizer = OrganizerWindow(master=self.frame)
+            self._organizer = FrameWithTreeViewAndScrollbar(master=self.frame, text='Organizer')
             self._organizer.pack(side=LEFT, fill=Y)
 
         if self._config.inc_log_window is True:

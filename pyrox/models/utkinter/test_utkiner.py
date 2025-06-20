@@ -14,7 +14,7 @@ from .frames import (
 from .listbox import UserListbox
 
 
-from ..application import Application, PartialApplicationConfiguration
+from ..application import Application, ApplicationConfiguration
 
 
 __all__ = (

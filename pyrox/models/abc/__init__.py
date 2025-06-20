@@ -7,7 +7,7 @@ from .application import (
     PartialApplicationTask,
     BaseMenu,
     PartialApplication,
-    PartialApplicationConfiguration,
+    ApplicationConfiguration,
 )
 
 from .list import (
@@ -21,8 +21,7 @@ from .meta import (
     Loggable,
     LoggableUnitTest,
     SnowFlake,
-    PartialView,
-    PartialViewConfiguration,
+    View,
     ViewType,
 )
 
@@ -34,9 +33,6 @@ from .viewmodel import (
     PartialViewModel
 )
 
-
-__version__ = '1.0.0'
-
 __all__ = (
     'PartialApplicationTask',
     'BaseMenu',
@@ -47,9 +43,8 @@ __all__ = (
     'LoggableUnitTest',
     'PartialModel',
     'PartialApplication',
-    'PartialApplicationConfiguration',
-    'PartialView',
-    'PartialViewConfiguration',
+    'ApplicationConfiguration',
+    'View',
     'PartialViewModel',
     'ViewType',
     'SafeList',

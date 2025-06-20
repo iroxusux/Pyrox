@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 
-from dataclasses import dataclass
 from enum import Enum
 import gc
 import logging
@@ -11,6 +10,7 @@ import os
 import re
 from typing import Callable, Optional, Union
 from tkinter import Tk, Toplevel, Frame, LabelFrame, TclError, Widget
+from ttkthemes import ThemedTk
 import unittest
 
 
@@ -18,8 +18,7 @@ __all__ = (
     'Buildable',
     'EnforcesNaming',
     'SnowFlake',
-    'PartialView',
-    'PartialViewConfiguration',
+    'View',
     'ViewType',
     'DEF_VIEW_TYPE',
     'DEF_THEME',
@@ -487,82 +486,44 @@ class ViewType(Enum):
     EMBED = 3
 
 
-@dataclass
-class PartialViewConfiguration:
-    """Partial View Configuration
+class View(Runnable):
+    """A meta view for displaying tracked GUI information.
 
     .. ------------------------------------------------------------
 
-    .. package:: types.abc.meta
-
-    .. ------------------------------------------------------------
-
-    Attributes
-    --------
-
-    name: :type:`str`
-
-    icon: :type:`str`
-
-    win_size: :type:`str`
-
-    theme: :type:`str`
-
-    parent: Optional[Union[:type:`Tk`, :type:`Toplevel`, :type:`Frame`, :type:`LabelFrame`]]
-
-    view_type: :class:`PartialViewType`
-
-    """
-    title: Optional[str] = DEF_WIN_TITLE
-    icon: Optional[str] = DEF_ICON
-    size_: Optional[str] = DEF_WIN_SIZE
-    parent: Optional[Union[Frame, LabelFrame]] = None
-
-
-class PartialView(Runnable):
-    """A partial meta view for mounting :class:`Application` and :class:`View` to.
-
-    .. ------------------------------------------------------------
-
-    .. package:: types.abc.meta
+    .. package:: models.abc.meta
 
     .. ------------------------------------------------------------
 
     Arguments
     -----------
-    name: Optional[:type:`str`]
-        Name of this partial view.
-
-    config: :class:`PartialViewConfiguration`
-        Configuration class for a :class:`PartialView`.
+    parent: Optional[:class:`Union[Tk, Toplevel, Frame, LabelFrame]`]
+        Parent of this partial view. Defaults to `None`, which will create a root view.
 
     .. ------------------------------------------------------------
 
     Attributes
     -----------
-    name: Optional[:type:`str`]
-        Name of this partial view.
-
     parent: :class:`Union[Tk, Toplevel, Frame, LabelFrame]`
-        The parent of this partial view.
+        Parent of this partial view.
 
     frame: :class:`Frame`
         Frame to mount widgets onto.
-
-    view_type: Literal[`1`, `2`, `3`]
-        Type of view this view was created as. (Root, TopLevel or Embeded).
-
-    config: :class:`PartialViewConfiguration`
-        The configuration this view was built with.
     """
 
     __slots__ = ('_frame', '_parent')
 
     def __init__(self,
-                 parent: Union[Tk, Toplevel, Frame, LabelFrame] = None):
+                 parent: Union[Tk, Toplevel, Frame, LabelFrame] = None,
+                 custom_frame_class: Optional[type[Frame]] = None):
         super().__init__()
-        self._parent: Union[Tk, Toplevel, Frame, LabelFrame] = parent
-        self._frame = Frame(master=self._parent, padx=2, pady=2)
+        self._parent: Union[Tk, ThemedTk, Toplevel, Frame, LabelFrame] = parent
+
+        if custom_frame_class:
+            self._frame = custom_frame_class(master=self._parent)
+        else:
+            self._frame = Frame(master=self._parent, padx=2, pady=2)
+
         self._frame.pack(fill='both', expand=True)
 
     @property
@@ -576,18 +537,6 @@ class PartialView(Runnable):
             frame: :class:`Frame`
         """
         return self._frame
-
-    @property
-    def name(self) -> Optional[str]:
-        """Name of this partial view.
-
-        .. ------------------------------------------------------------
-
-        Returns
-        -----------
-            name: Optional[:type:`str`]
-        """
-        return self._name
 
     @property
     def parent(self) -> Union[Tk, Toplevel, Frame, LabelFrame]:

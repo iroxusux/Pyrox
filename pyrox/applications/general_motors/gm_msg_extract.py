@@ -7,10 +7,8 @@ from ...models import (
     Application,
     ApplicationTask,
     LaunchableModel,
-    ViewConfiguration,
     View,
-    ViewModel,
-    ViewType
+    ViewModel
 )
 from ...models.plc.gm import GmController
 
@@ -43,10 +41,7 @@ class GmMsgExtractModel(LaunchableModel):
                  app: Application):
         super().__init__(application=app,
                          view_model=GmMsgExtractViewModel,
-                         view=GmMsgExtractView,
-                         view_config=ViewConfiguration(title='Gm Message Extract',
-                                                       parent=app.view.frame,
-                                                       type_=ViewType.TOPLEVEL))
+                         view=GmMsgExtractView)
 
     def run(self,
             controller: GmController) -> None:

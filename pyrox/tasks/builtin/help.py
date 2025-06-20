@@ -1,7 +1,7 @@
 """built-in help task.
     """
 from __future__ import annotations
-from pyrox.models.application import Application, ApplicationTask, PartialApplicationConfiguration
+from pyrox.models.application import Application, ApplicationTask, ApplicationConfiguration
 
 from tkinter import Canvas
 from pathlib import Path
@@ -15,7 +15,7 @@ class HelpTask(ApplicationTask):
 
     def about(self):
         self.logger.info('launching about page...')
-        config = PartialApplicationConfiguration.toplevel()
+        config = ApplicationConfiguration.toplevel()
         config.headless = True
         config.title = 'About Pyrox'
         config.inc_log_window = False
@@ -24,7 +24,7 @@ class HelpTask(ApplicationTask):
         config.size_ = '650x500'
         app = Application(config)
         app.build()
-        app.application.resizable(False, False)
+        app.tk_app.resizable(False, False)
         canvas = Canvas(app.frame)
         canvas.pack(fill='both', expand=True)
         path = str(Path(__file__).parent.parent.parent) + r'\ui\splash\about.png'

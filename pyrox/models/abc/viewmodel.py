@@ -6,7 +6,7 @@ from __future__ import annotations
 from typing import Optional, TYPE_CHECKING, Union
 
 
-from .meta import Buildable, PartialView, PartialViewConfiguration
+from .meta import Buildable, View
 
 
 if TYPE_CHECKING:
@@ -40,16 +40,16 @@ class PartialViewModel(Buildable):
 
     def __init__(self,
                  model: Optional[PartialModel] = None,
-                 view: Optional[Union[PartialView, type[PartialView]]] = None):
+                 view: Optional[Union[View, type[View]]] = None):
         super().__init__()
         self._model = model
 
         # either construct from a constructor, or set the already constructed value
         # if a bogus value was passed, raise a value error.
-        self._view: Optional[PartialView] = None
+        self._view: Optional[View] = None
         if isinstance(view, type):
             self._view = view()
-        elif isinstance(view, PartialView):
+        elif isinstance(view, View):
             self._view = view
         elif view is not None:
             raise ValueError('Could not discern type of %s!' % view)
@@ -67,7 +67,7 @@ class PartialViewModel(Buildable):
         return self._model
 
     @property
-    def view(self) -> PartialView:
+    def view(self) -> View:
         """The child :class:`View` this :class:`PartialViewModel`.
 
         .. ------------------------------------------------------------

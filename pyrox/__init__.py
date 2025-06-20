@@ -8,14 +8,11 @@ from .models import (
     ApplicationTask,
     ApplicationConfiguration,
     HashList,
-    LaunchableModel,
     Loggable,
     ProgressBar,
-    Model,
     SafeList,
     SnowFlake,
     View,
-    ViewModel
 )
 
 from .services import (
@@ -27,9 +24,6 @@ from .models.utkinter import (
     UserListbox,
     ContextMenu
 )
-
-
-__version__ = "1.0.0"
 
 
 __all__ = (

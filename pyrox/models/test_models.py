@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 
-from tkinter import Tk
 from ttkthemes import ThemedTk
 import unittest
 
@@ -11,13 +10,8 @@ import unittest
 from .application import (
     Application,
     ApplicationTask,
-    PartialApplicationConfiguration
+    ApplicationConfiguration
 )
-
-from .model import Model
-from .utkinter.progress_bar import ProgressBar
-from .view import View
-from .viewmodel import ViewModel
 
 
 __all__ = (
@@ -43,7 +37,7 @@ class TestModels(unittest.TestCase):
                 self.application.menu.file.add_command(label='Test2', command=lambda: print('this is a test...'))
                 self.application.menu.file.add_command(label='Test3', command=lambda: print('this is a test...'))
 
-        app = Application(config=PartialApplicationConfiguration.root())
+        app = Application(config=ApplicationConfiguration.root())
         app.build()
 
         task = TestTask(app, None)
@@ -61,7 +55,7 @@ class TestModels(unittest.TestCase):
         """test application builds
         """
         # test generic build with no model
-        app = Application(PartialApplicationConfiguration.root())
+        app = Application(ApplicationConfiguration.root())
         self.assertIsNotNone(app)
         self.assertIsNotNone(app.logger)
         self.assertEqual(app.config.application, ThemedTk)
@@ -85,38 +79,3 @@ class TestModels(unittest.TestCase):
         app.add_task(task)
 
         app.stop()
-
-    def test_model(self):
-        """test model
-        """
-        model = Model(None, None)
-        self.assertIsNone(model.application)
-        self.assertIsNone(model.view_model)
-        self.assertIsNotNone(model.id)
-        self.assertIsNotNone(model.logger)
-
-    def test_progressbar(self):
-        """test progress-bar
-        """
-        return  # this needs to be fixed
-        pbar = ProgressBar('Test Title', 'Test Header')
-        self.assertIsNotNone(pbar)
-        pbar.update('Some Extra Text', 50)
-        pbar.stop()
-
-    def test_view(self):
-        """test view
-        """
-        view = View()
-        self.assertIsNotNone(view)
-        self.assertIsNone(view.view_model)
-        self.assertIsNotNone(view.logger)
-
-    def test_view_model(self):
-        """test view model
-        """
-        view_model = ViewModel(None, None)
-        self.assertIsNotNone(view_model)
-        self.assertIsNone(view_model.model)
-        self.assertIsNone(view_model.view)
-        self.assertIsNotNone(view_model.logger)

@@ -8,17 +8,11 @@ from . import (
 )
 
 
-from .abc import Buildable, ConsolePanelHandler, HashList, Loggable, SafeList, SnowFlake, ViewType
-from .abc import PartialViewConfiguration as ViewConfiguration
+from .abc import Buildable, ConsolePanelHandler, HashList, Loggable, SafeList, SnowFlake, ViewType, View
 from .application import Application, ApplicationTask
-from .application import PartialApplicationConfiguration as ApplicationConfiguration
-from .model import Model, LaunchableModel
+from .application import ApplicationConfiguration as ApplicationConfiguration
 from .utkinter import ProgressBar
-from .view import View
-from .viewmodel import ViewModel
 
-
-__version__ = "1.0.0"
 
 __all__ = (
     'abc',
@@ -30,7 +24,6 @@ __all__ = (
     'HashList',
     'LaunchableModel',
     'Loggable',
-    'Model',
     'plc',
     'ProgressBar',
     'SafeList',
@@ -38,8 +31,6 @@ __all__ = (
     'test_models',
     'utkinter',
     'View',
-    'ViewConfiguration',
-    'ViewModel',
     'ViewType',
     'utkinter'
 )

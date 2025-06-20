@@ -52,7 +52,7 @@ class App(Application):
         """
         super().build()
 
-        if not self.application:
+        if not self.tk_app:
             self.logger.error('Cannot build application, no application root found')
             return
 

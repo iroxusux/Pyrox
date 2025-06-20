@@ -7,7 +7,7 @@ import tkinter
 from tkinter import ttk
 
 
-from ..abc import PartialApplication, PartialApplicationConfiguration
+from ..abc import PartialApplication, ApplicationConfiguration
 
 
 __all__ = (
@@ -44,13 +44,13 @@ class ProgressBar(PartialApplication):
                  title: str,
                  header_text: str):
 
-        config = PartialApplicationConfiguration.toplevel()
+        config = ApplicationConfiguration.toplevel()
         config.title = title
         config.size_ = '300x100'
 
         super().__init__(config=config)
 
-        self.application.overrideredirect(True)
+        self.tk_app.overrideredirect(True)
 
         # create header label
         lbl = tkinter.Label(self.view.frame, text=header_text)

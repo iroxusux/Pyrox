@@ -3,7 +3,8 @@ from .frames import (
     create_tree_view,
     populate_tree,
     DecoratedListboxFrame,
-    TreeViewGridFrame
+    TreeViewGridFrame,
+    FrameWithTreeViewAndScrollbar
 )
 from .listbox import UserListbox
 from .menu import ContextMenu
@@ -16,6 +17,7 @@ __all__ = (
     'create_tree_view',
     'populate_tree',
     'DecoratedListboxFrame',
+    'FrameWithTreeViewAndScrollbar',
     'UserListbox',
     'ContextMenu',
     'ProgressBar',

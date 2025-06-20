@@ -17,10 +17,8 @@ from ...models import (
     Application,
     ApplicationTask,
     LaunchableModel,
-    ViewConfiguration,
     View,
-    ViewModel,
-    ViewType
+    ViewModel
 )
 from ...utils import read_bit, set_bit, clear_bit
 
@@ -82,12 +80,9 @@ class GmHmiView(View):
     """
 
     def __init__(self,
-                 view_model: Optional['GmHmiViewModel'] = None,
-                 config: ViewConfiguration = ViewConfiguration()):
-        super().__init__(view_model=view_model,
-                         config=config)
+                 view_model: Optional['GmHmiViewModel'] = None):
+        super().__init__(view_model=view_model)
 
-        self._title: str = config.title
         self._std_input_entry: Optional[Entry] = None
         self._std_output_entry: Optional[Entry] = None
         self._saf_input_entry: Optional[Entry] = None
@@ -426,10 +421,7 @@ class GmHmiModel(LaunchableModel):
                  connection_model: ConnectionModel):
         super().__init__(application=app,
                          view_model=GmHmiViewModel,
-                         view=GmHmiView,
-                         view_config=ViewConfiguration(title='Gm HMI Emulate',
-                                                       parent=app.view.frame,
-                                                       type_=ViewType.TOPLEVEL))
+                         view=GmHmiView)
 
         if not connection_model:
             raise RuntimeError('Must have a connection model to continue!')

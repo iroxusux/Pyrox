@@ -6,12 +6,13 @@ from __future__ import annotations
 from typing import Optional, TYPE_CHECKING, Union
 
 
-from .meta import Runnable, PartialViewConfiguration
+from .meta import Runnable
 from .viewmodel import PartialViewModel
 
 
 if TYPE_CHECKING:
-    from .application import PartialApplication, View
+    from .application import PartialApplication
+    from .meta import View
 
 
 __all__ = (
@@ -42,8 +43,7 @@ class PartialModel(Runnable):
     def __init__(self,
                  application: Optional[PartialApplication] = None,
                  view_model: Optional[Union[PartialViewModel, type[PartialViewModel]]] = None,
-                 view: Optional[type[View]] = None,
-                 view_config: Optional[PartialViewConfiguration] = None):
+                 view: Optional[type[View]] = None):
         super().__init__()
 
         self._application: Optional[PartialApplication] = application

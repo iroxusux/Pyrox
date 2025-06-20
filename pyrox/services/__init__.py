@@ -2,21 +2,22 @@
 """
 
 from . import (
+    class_services,
     directory,
     file,
     notify_services,
     plc_services,
     test_services,
+    utkinter,
 )
 
 
-__version__ = '1.0.0'
-
-
 __all__ = (
+    'class_services',
     'directory',
     'file',
     'notify_services',
     'plc_services',
     'test_services',
+    'utkinter',
 )

@@ -1,16 +1,14 @@
 import unittest
 import logging
-import os
 from tkinter import Frame, Tk, Menu, Toplevel
 from ttkthemes import ThemedTk
-from typing import Union
 
 
 from .application import (
     BaseMenu,
     PartialApplication,
     PartialApplicationTask,
-    PartialApplicationConfiguration
+    ApplicationConfiguration
 )
 
 
@@ -32,8 +30,7 @@ from .meta import (
     Buildable,
     Runnable,
     ViewType,
-    PartialViewConfiguration,
-    PartialView,
+    View,
     ExceptionContextManager,
 )
 
@@ -194,18 +191,9 @@ class TestViewType(unittest.TestCase):
         self.assertEqual(ViewType.EMBED.value, 3)
 
 
-class TestPartialViewConfiguration(unittest.TestCase):
-    def test_default_values(self):
-        config = PartialViewConfiguration()
-        self.assertEqual(config.title, 'Pyrox Default Frame')
-        self.assertEqual(config.icon, f'{os.path.dirname(os.path.abspath(__file__))}\\..\\..\\ui\\icons\\_def.ico')
-        self.assertEqual(config.size_, '1024x768')
-        self.assertIsNone(config.parent)
-
-
 class TestPartialView(unittest.TestCase):
     def test_initialization(self):
-        view = PartialView()
+        view = View()
         self.assertIsInstance(view.frame, Frame)
         self.assertIsNone(view.parent)
 
@@ -247,7 +235,7 @@ class TestBaseMenu(unittest.TestCase):
 
 class TestPartialApplicationTask(unittest.TestCase):
     def test_initialization(self):
-        application = PartialApplication(PartialApplicationConfiguration())
+        application = PartialApplication(ApplicationConfiguration())
         model = PartialModel()
         task = PartialApplicationTask(application=application, model=model)
         self.assertEqual(task.application, application)
@@ -255,7 +243,7 @@ class TestPartialApplicationTask(unittest.TestCase):
         application.stop()
 
     def test_model_property(self):
-        application = PartialApplication(PartialApplicationConfiguration())
+        application = PartialApplication(ApplicationConfiguration())
         model = PartialModel()
         task = PartialApplicationTask(application=application, model=model)
         new_model = PartialModel()
@@ -264,9 +252,9 @@ class TestPartialApplicationTask(unittest.TestCase):
         application.stop()
 
 
-class TestPartialApplicationConfiguration(unittest.TestCase):
+class TestApplicationConfiguration(unittest.TestCase):
     def test_default_values(self):
-        config = PartialApplicationConfiguration()
+        config = ApplicationConfiguration()
         self.assertFalse(config.headless)
         self.assertFalse(config.inc_log_window)
         self.assertIsInstance(config.title, str)
@@ -275,22 +263,20 @@ class TestPartialApplicationConfiguration(unittest.TestCase):
         self.assertIsInstance(config.icon, str)
         self.assertIsInstance(config.size_, str)
         self.assertEqual(config.tasks, [])
-        self.assertIsInstance(config.view_config, PartialViewConfiguration)
         self.assertIsNone(config.application)
 
     def test_common_assembly(self):
-        config = PartialApplicationConfiguration._common_assembly(application=Tk(),
-                                                                  headless=False,
-                                                                  inc_log_window=False,
-                                                                  inc_organizer=False,
-                                                                  inc_workspace=False,
-                                                                  tasks=[],
-                                                                  title=DEF_WIN_TITLE,
-                                                                  theme=DEF_THEME,
-                                                                  type_=ViewType.ROOT,
-                                                                  icon=DEF_ICON,
-                                                                  size_=DEF_WIN_SIZE,
-                                                                  view_config=None)
+        config = ApplicationConfiguration._common_assembly(application=Tk(),
+                                                           headless=False,
+                                                           inc_log_window=False,
+                                                           inc_organizer=False,
+                                                           inc_workspace=False,
+                                                           tasks=[],
+                                                           title=DEF_WIN_TITLE,
+                                                           theme=DEF_THEME,
+                                                           type_=ViewType.ROOT,
+                                                           icon=DEF_ICON,
+                                                           size_=DEF_WIN_SIZE)
         self.assertIsInstance(config.application, Tk)
         self.assertFalse(config.headless)
         self.assertFalse(config.inc_log_window)
@@ -300,10 +286,9 @@ class TestPartialApplicationConfiguration(unittest.TestCase):
         self.assertEqual(config.type_, ViewType.ROOT)
         self.assertEqual(config.icon, DEF_ICON)
         self.assertEqual(config.size_, DEF_WIN_SIZE)
-        self.assertIsNone(config.view_config)
 
     def test_toplevel_method(self):
-        config = PartialApplicationConfiguration.toplevel()
+        config = ApplicationConfiguration.toplevel()
         self.assertEqual(config.application, Toplevel)
         self.assertFalse(config.headless)
         self.assertFalse(config.inc_log_window)
@@ -313,10 +298,9 @@ class TestPartialApplicationConfiguration(unittest.TestCase):
         self.assertEqual(config.type_, ViewType.TOPLEVEL)
         self.assertEqual(config.icon, DEF_ICON)
         self.assertEqual(config.size_, DEF_WIN_SIZE)
-        self.assertIsInstance(config.view_config, PartialViewConfiguration)
 
     def test_root_method(self):
-        config = PartialApplicationConfiguration.root()
+        config = ApplicationConfiguration.root()
         self.assertEqual(config.application, ThemedTk)
         self.assertFalse(config.headless)
         self.assertTrue(config.inc_log_window)
@@ -326,12 +310,11 @@ class TestPartialApplicationConfiguration(unittest.TestCase):
         self.assertEqual(config.type_, ViewType.ROOT)
         self.assertEqual(config.icon, DEF_ICON)
         self.assertEqual(config.size_, DEF_WIN_SIZE)
-        self.assertIsInstance(config.view_config, PartialViewConfiguration)
 
 
 class TestPartialApplication(unittest.TestCase):
     def test_initialization(self):
-        config = PartialApplicationConfiguration()
+        config = ApplicationConfiguration()
         application = PartialApplication(config=config)
         self.assertEqual(application.config, config)
 
@@ -468,14 +451,14 @@ class TestTrackedList(unittest.TestCase):
 
 class TestPartialModel(unittest.TestCase):
     def test_initialization(self):
-        application = PartialApplication(PartialApplicationConfiguration())
+        application = PartialApplication(ApplicationConfiguration())
         view_model = PartialViewModel()
         model = PartialModel(application=application, view_model=view_model)
         self.assertEqual(model.application, application)
         self.assertEqual(model.view_model, view_model)
 
     def test_initialization_with_view_model_class(self):
-        application = PartialApplication(PartialApplicationConfiguration())
+        application = PartialApplication(ApplicationConfiguration())
         model = PartialModel(application=application, view_model=PartialViewModel)
         self.assertEqual(model.application, application)
         self.assertIsInstance(model.view_model, PartialViewModel)
@@ -489,7 +472,7 @@ class TestPartialModel(unittest.TestCase):
         self.assertEqual(str(model), "PartialModel")
 
     def test_set_application(self):
-        application = PartialApplication(PartialApplicationConfiguration())
+        application = PartialApplication(ApplicationConfiguration())
         model = PartialModel()
         result = model.set_application(application)
         self.assertTrue(result)
@@ -497,7 +480,7 @@ class TestPartialModel(unittest.TestCase):
         application.stop()
 
     def test_set_application_already_set(self):
-        application = PartialApplication(PartialApplicationConfiguration())
+        application = PartialApplication(ApplicationConfiguration())
         model = PartialModel(application=application)
         result = model.set_application(application)
         self.assertFalse(result)
@@ -513,16 +496,16 @@ class TestPartialModel(unittest.TestCase):
 class TestPartialViewModel(unittest.TestCase):
     def test_initialization(self):
         model = PartialModel()
-        view = PartialView()
+        view = View()
         view_model = PartialViewModel(model=model, view=view)
         self.assertEqual(view_model.model, model)
         self.assertEqual(view_model.view, view)
 
     def test_initialization_with_view_class(self):
         model = PartialModel()
-        view_model = PartialViewModel(model=model, view=PartialView)
+        view_model = PartialViewModel(model=model, view=View)
         self.assertEqual(view_model.model, model)
-        self.assertIsInstance(view_model.view, PartialView)
+        self.assertIsInstance(view_model.view, View)
 
     def test_initialization_with_invalid_view(self):
         with self.assertRaises(ValueError):
@@ -534,12 +517,12 @@ class TestPartialViewModel(unittest.TestCase):
         self.assertEqual(view_model.model, model)
 
     def test_view_property(self):
-        view = PartialView()
+        view = View()
         view_model = PartialViewModel(view=view)
         self.assertEqual(view_model.view, view)
 
     def test_view_deleter(self):
-        view = PartialView()
+        view = View()
         view_model = PartialViewModel(view=view)
         del view_model.view
         self.assertIsNone(view_model.view)

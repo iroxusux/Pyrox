@@ -17,8 +17,8 @@ from tkinter import (
 from typing import Optional
 
 
-from ..services.plc_services import l5x_dict_from_file, dict_to_xml_file
-from ..models import Application, Model, ProgressBar, ViewModel, View, ViewConfiguration, ViewType
+from ..services.plc_services import dict_to_xml_file
+from ..models import Application, Model, ProgressBar, ViewModel, View
 from ..models.plc import Controller, ConnectionParameters
 from ..models.utkinter import DecoratedListboxFrame, TreeViewGridFrame
 
@@ -31,9 +31,8 @@ class EmulationView(View):
     """
 
     def __init__(self,
-                 view_model=None,
-                 config=None):
-        super().__init__(view_model, config)
+                 view_model=None):
+        super().__init__(view_model)
 
         self._plccfgframe: Optional[Frame] = None
 
@@ -282,8 +281,7 @@ class EmulationModel(Model):
     def __init__(self,
                  application: Application = None,
                  view_model: ViewModel = EmulationViewModel,
-                 view: View = EmulationView,
-                 view_config: ViewConfiguration = ViewConfiguration()):
+                 view: View = EmulationView):
 
         if not view_model:
             view_model = EmulationViewModel
@@ -291,13 +289,9 @@ class EmulationModel(Model):
         if not view:
             view = EmulationView
 
-        view_config.title = 'Emulation Model'
-        view_config.parent = application.view.frame
-
         super().__init__(application=application,
                          view_model=view_model,
-                         view=view,
-                         view_config=view_config)
+                         view=view)
 
         self._controller: Optional[Controller] = None
 
@@ -341,18 +335,7 @@ class EmulationModel(Model):
             Location to open :class:`Controller` from.
 
         """
-        ctrl_dict = xml_dict_from_file(file_location)
-        if not ctrl_dict:
-            self.error('no controller was parsable from passed file location: %s...', file_location)
-            return
-        ctrl = Controller(xml_dict_from_file(file_location))
-        if not ctrl:
-            self.logger.error('no controller was passed...')
-            return
-        ctrl.file_location = file_location
-
-        self.logger.info('new ctrl loaded -> %s', ctrl.name)
-        self.controller = ctrl
+        pass  # TODO: implement this
 
     def refresh(self):
         if self.application:
@@ -390,8 +373,7 @@ class EmulationModel(Model):
         class _ReportView(View):
             def __init__(self,
                          data_dict: dict):
-                super().__init__(config=ViewConfiguration(title='Controller Verify',
-                                                          type_=ViewType.TOPLEVEL))
+                super().__init__()
 
                 x = TreeViewGridFrame(self.frame, data_dict=data_dict)
                 x.pack(fill=BOTH, expand=True)

@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 
-import time
 from typing import DefaultDict, TypeVar
 import unittest
 from unittest.mock import MagicMock, patch
@@ -606,7 +605,7 @@ class TestProgram(unittest.TestCase):
         program = Program()
         report_item = program.validate()
         self.assertIsInstance(report_item, ControllerReportItem)
-        self.assertTrue(report_item.pass_fail)
+        self.assertFalse(report_item.pass_fail)
         self.assertEqual(report_item.plc_object, program)
 
 
@@ -955,11 +954,8 @@ class TestGmRung(unittest.TestCase):
 
     def setUp(self):
         self.obj = GmRung()
-        self.obj.name = "za_Action"
+        self.obj.text = "XIC(TestText) OTE(TestText)"
         self.obj.comment = "<@DIAG> <Alarm[69]: This is a diagnostic comment!>"
-
-    def test_is_gm_owned(self):
-        self.assertTrue(self.obj.is_gm_owned)
 
     def test_has_kdiag(self):
         self.assertTrue(self.obj.has_kdiag)

@@ -227,6 +227,8 @@ def populate_tree(tree, parent, data):
         for index, item in enumerate(data):
             if isinstance(item, dict) and '@Name' in item:
                 node_label = item['@Name']
+            elif isinstance(item, dict) and 'name' in item:
+                node_label = item['name']
             else:
                 node_label = f"[{index}]"
             if isinstance(item, (dict, list)):
@@ -341,12 +343,13 @@ class LogWindow(PyroxFrame):
         return self._logtext
 
 
-class OrganizerWindow(PyroxFrame):
+class FrameWithTreeViewAndScrollbar(PyroxFrame):
     def __init__(self,
                  *args,
+                 text: str = None,
                  **kwargs):
         super().__init__(*args,
-                         text='Organizer',
+                         text=text,
                          **kwargs)
 
         self._tree: ttk.Treeview = ttk.Treeview(master=self,

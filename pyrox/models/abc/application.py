@@ -23,7 +23,6 @@ from ttkthemes import ThemedTk
 from .meta import (
     Buildable,
     Runnable,
-    PartialViewConfiguration,
     ViewType,
     DEF_WIN_SIZE,
     DEF_WIN_TITLE,
@@ -38,7 +37,7 @@ from ..abc.meta import Loggable
 __all__ = (
     'BaseMenu',
     'PartialApplicationTask',
-    'PartialApplicationConfiguration',
+    'ApplicationConfiguration',
     'PartialApplication',
 )
 
@@ -152,12 +151,12 @@ class PartialApplicationTask(Runnable):
 
 
 @dataclass
-class PartialApplicationConfiguration:
+class ApplicationConfiguration:
     """application configuration
 
     .. ------------------------------------------------------------
 
-    .. package:: types.abc.application
+    .. package:: models.abc.application
 
     .. ------------------------------------------------------------
 
@@ -165,10 +164,37 @@ class PartialApplicationConfiguration:
     --------
 
     headless: :type:`bool`
+        If True, the application will not create a main window.
 
-    name: :type:`str`
+    inc_log_window: :type:`bool`
+        If True, the application will include a log window.
 
-    view_config: :class:`TypedDict`
+    inc_organizer: :type:`bool`
+        If True, the application will include an organizer window.
+
+    inc_workspace: :type:`bool`
+        If True, the application will include a workspace window.
+
+    title: :type:`str`
+        The title of the application window.
+
+    theme: :type:`str`
+        The theme to use for the application window.
+
+    type_: :class:`ViewType`
+        The type of the application view, which can be one of the predefined view types.
+
+    icon: :type:`str`
+        The icon to use for the application window.
+
+    size_: :type:`str`
+        The size of the application window, specified as a string (e.g., "800x600").
+
+    tasks: :type:`list[PartialApplicationTask]`
+        A list of tasks to be executed by the application.
+
+    application: :class:`Union[Tk, ThemedTk, None]`
+        The tkinter application instance for this configuration. It can be a `Tk`, `ThemedTk`, or `Toplevel` instance.
 
     """
     headless: bool = False
@@ -181,7 +207,6 @@ class PartialApplicationConfiguration:
     icon: Optional[str] = DEF_ICON
     size_: Optional[str] = DEF_WIN_SIZE
     tasks: list[PartialApplicationTask] = field(default_factory=list)
-    view_config: PartialViewConfiguration = field(default_factory=PartialViewConfiguration)
     application: Union[Tk, ThemedTk, None] = None
 
     @classmethod
@@ -196,7 +221,6 @@ class PartialApplicationConfiguration:
                          icon: str,
                          size_: str,
                          tasks: list[PartialApplicationTask],
-                         view_config: PartialViewConfiguration,
                          application: Union[Tk, ThemedTk, None]) -> Self:
         return cls(
             headless=headless,
@@ -209,7 +233,6 @@ class PartialApplicationConfiguration:
             icon=icon,
             size_=size_,
             tasks=tasks,
-            view_config=view_config,
             application=application
         )
 
@@ -221,48 +244,40 @@ class PartialApplicationConfiguration:
 
         .. ------------------------------------------------------------
 
-        Arguments
-        ----------
-        name: Optional[:type:`str`]
-            Name of the application to create.
-
-        .. ------------------------------------------------------------
-
         Returns
         --------
         ::
 
-            cls({
-            'name': {name},
-            'type': 2,
-            'view_config': PartialViewConfiguration(),
-            }
+            ApplicationConfiguration._common_assembly(
+                headless=False,
+                inc_log_window=False,
+                inc_organizer=False,
+                inc_workspace=True,
+                title=DEF_WIN_TITLE,
+                theme=DEF_THEME,
+                type_=ViewType.TOPLEVEL,
+                icon=DEF_ICON,
+                size_=DEF_WIN_SIZE,
+                tasks=[],
+                application=Toplevel)
         """
-        return PartialApplicationConfiguration._common_assembly(headless=False,
-                                                                inc_log_window=False,
-                                                                inc_organizer=False,
-                                                                inc_workspace=True,
-                                                                title=DEF_WIN_TITLE,
-                                                                theme=DEF_THEME,
-                                                                type_=ViewType.TOPLEVEL,
-                                                                icon=DEF_ICON,
-                                                                size_=DEF_WIN_SIZE,
-                                                                tasks=[],
-                                                                view_config=PartialViewConfiguration(),
-                                                                application=Toplevel)
+        return ApplicationConfiguration._common_assembly(headless=False,
+                                                         inc_log_window=False,
+                                                         inc_organizer=False,
+                                                         inc_workspace=True,
+                                                         title=DEF_WIN_TITLE,
+                                                         theme=DEF_THEME,
+                                                         type_=ViewType.TOPLEVEL,
+                                                         icon=DEF_ICON,
+                                                         size_=DEF_WIN_SIZE,
+                                                         tasks=[],
+                                                         application=Toplevel)
 
     @classmethod
     def root(cls) -> Self:
         """get a generic version of an application configuration
 
-        for a root level application
-
-        .. ------------------------------------------------------------
-
-        Arguments
-        ----------
-        name: Optional[:type:`str`]
-            Name of the application to create.
+        for a root application
 
         .. ------------------------------------------------------------
 
@@ -270,64 +285,68 @@ class PartialApplicationConfiguration:
         --------
         ::
 
-            cls({
-            'name': {name},
-            'type': 1,
-            'view_config': PartialViewConfiguration(),
-            }
+            ApplicationConfiguration._common_assembly(
+                headless=False,
+                inc_log_window=True,
+                inc_organizer=True,
+                inc_workspace=True,
+                title=DEF_WIN_TITLE,
+                theme=DEF_THEME,
+                type_=ViewType.ROOT,
+                icon=DEF_ICON,
+                size_=DEF_WIN_SIZE,
+                tasks=[],
+                application=ThemedTk)
         """
-        return PartialApplicationConfiguration._common_assembly(headless=False,
-                                                                inc_log_window=True,
-                                                                inc_organizer=True,
-                                                                inc_workspace=True,
-                                                                title=DEF_WIN_TITLE,
-                                                                theme=DEF_THEME,
-                                                                type_=ViewType.ROOT,
-                                                                icon=DEF_ICON,
-                                                                size_=DEF_WIN_SIZE,
-                                                                tasks=[],
-                                                                view_config=PartialViewConfiguration(),
-                                                                application=ThemedTk)
+        return ApplicationConfiguration._common_assembly(headless=False,
+                                                         inc_log_window=True,
+                                                         inc_organizer=True,
+                                                         inc_workspace=True,
+                                                         title=DEF_WIN_TITLE,
+                                                         theme=DEF_THEME,
+                                                         type_=ViewType.ROOT,
+                                                         icon=DEF_ICON,
+                                                         size_=DEF_WIN_SIZE,
+                                                         tasks=[],
+                                                         application=ThemedTk)
 
 
 class PartialApplication(Runnable):
-    """Represents a :class:`PartialView` in the form of a Partial Application.
+    """A :class:`PartialApplication` to contain the tk GUI instance, as well as reference to child views.
 
     .. ------------------------------------------------------------
 
-    .. package:: types.abc.application
+    .. package:: models.abc.application
 
     .. ------------------------------------------------------------
 
 
     Attributes
     --------
-    main_model :class:`Model`
-        Model the application was built with / main associated model.
-
-    model_hash :class:`HashList`
-        Hashed list of all models associated with this application.
+    tk_app :class:`Union[Tk, ThemedTk, None]`
+        tkinter application instance for this :class:`PartialApplication`.
 
     config :class:`PartialApplicationConfiguration`
         Configuration for this :class:`PartialApplication`.
 
+    frame :class:`Frame`
+        The frame for this :class:`PartialApplication`.
+
     """
 
     def __init__(self,
-                 config: PartialApplicationConfiguration) -> None:
+                 config: ApplicationConfiguration) -> None:
 
         super().__init__()
 
-        if config is None:
-            config = PartialApplicationConfiguration.root()
-
-        self._config: PartialApplicationConfiguration = config
-        self._application: Union[Tk, ThemedTk, None] = None
+        self._config: ApplicationConfiguration = ApplicationConfiguration.root() if config is None else config
+        self._frame: Frame = None
+        self._tk_app: Union[Tk, ThemedTk, None] = None
         Loggable.global_handlers.append(self._log_handler)
 
     @property
-    def application(self) -> Union[Tk, ThemedTk, None]:
-        """The application instance for this :class:`PartialApplication`.
+    def tk_app(self) -> Union[Tk, ThemedTk, None]:
+        """The tk application instance for this :class:`PartialApplication`.
 
         .. ------------------------------------------------------------
 
@@ -335,14 +354,10 @@ class PartialApplication(Runnable):
         -----------
             application: Union[:class:`Tk`, :class:`ThemedTk`, None]
         """
-        return self._application
-
-    @application.setter
-    def application(self, value: Union[Tk, ThemedTk, None]) -> None:
-        self._application = value
+        return self._tk_app
 
     @property
-    def config(self) -> PartialApplicationConfiguration:
+    def config(self) -> ApplicationConfiguration:
         """Configuration for this :class:`PartialApplication`.
 
         .. ------------------------------------------------------------
@@ -366,32 +381,19 @@ class PartialApplication(Runnable):
         return self._frame
 
     def build(self) -> Self:
-        """Build this :class:`PartialApplication`.
-
-        .. ------------------------------------------------------------
-
-        Arguments
-        -----------
-        **kwargs: dict
-            Additional keyword arguments to pass to the build method.
-
-        Returns
-        --------
-            self: :class:`PartialApplication`
-        """
         if self.config.application == Tk:
-            self.application = Tk()
+            self._tk_app = Tk()
         elif self.config.application == ThemedTk:
-            self.application = ThemedTk(theme=self.config.theme)
+            self._tk_app = ThemedTk(theme=self.config.theme)
         elif self.config.application == Toplevel:
-            self.application = Toplevel()
+            self._tk_app = Toplevel()
 
-        if self.application:
-            self.application.protocol('WM_DELETE_WINDOW', self.close)
-            self.application.title(self.config.title)
-            self.application.iconbitmap(self.config.icon)
-            self.application.geometry(self.config.size_)
-            self._frame: Frame = Frame(master=self.application)
+        if self._tk_app:
+            self._tk_app.protocol('WM_DELETE_WINDOW', self.close)
+            self._tk_app.title(self.config.title)
+            self._tk_app.iconbitmap(self.config.icon)
+            self._tk_app.geometry(self.config.size_)
+            self._frame: Frame = Frame(master=self._tk_app)
             self._frame.pack(fill='both', expand=True)
         else:
             raise ValueError('Application type is not supported. '
@@ -401,23 +403,21 @@ class PartialApplication(Runnable):
 
     def center(self) -> None:
         """center this application's view in the window it resides in.
-
         """
-        x = (self.application.winfo_screenwidth() - self.application.winfo_reqwidth()) // 2
-        y = (self.application.winfo_screenheight() - self.application.winfo_reqheight()) // 2
-        self.application.geometry(f'+{x}+{y}')
+        x = (self.tk_app.winfo_screenwidth() - self.tk_app.winfo_reqwidth()) // 2
+        y = (self.tk_app.winfo_screenheight() - self.tk_app.winfo_reqheight()) // 2
+        self.tk_app.geometry(f'+{x}+{y}')
 
     def close(self) -> None:
         """Close this application.
-
         """
         self.stop()
         try:
-            if isinstance(self.application, Tk):
-                self.application.quit()
-                self.application.destroy()
-            elif isinstance(self.application, Toplevel):
-                self.application.destroy()
+            if isinstance(self.tk_app, Tk):
+                self.tk_app.quit()
+                self.tk_app.destroy()
+            elif isinstance(self.tk_app, Toplevel):
+                self.tk_app.destroy()
         except TclError:
             self.logger.error('TclError: Could not destroy the parent window')
         finally:
@@ -438,9 +438,9 @@ class PartialApplication(Runnable):
     def start(self) -> None:
         super().start()
         self.on_pre_run()
-        self.application.after(100, lambda: self.logger.info('Ready...'))
-        self.application.focus()
-        self.application.mainloop()
+        self.tk_app.after(100, lambda: self.logger.info('Ready...'))
+        self.tk_app.focus()
+        self.tk_app.mainloop()
 
     def stop(self) -> None:
         super().stop()
