@@ -52,8 +52,7 @@ from .gm import (
 
 
 T = TypeVar('T')
-
-PLC_UNPAIRED_FILE = r'docs\controls\_test_gm.L5X'
+UNITTEST_PLC_FILE = r'docs\controls\unittest.L5X'
 
 
 class MockRoutine(Routine):
@@ -784,7 +783,7 @@ class TestController(unittest.TestCase):
         self.assertEqual(diagnostic_rungs, [mock_rung])
 
     def test_find_unpaired_controller_inputs(self):
-        ctrl = Controller.from_file(PLC_UNPAIRED_FILE)
+        ctrl = Controller.from_file(UNITTEST_PLC_FILE)
         unpaired_inputs = ctrl.find_unpaired_controller_inputs()
         self.assertIsNotNone(unpaired_inputs)
 

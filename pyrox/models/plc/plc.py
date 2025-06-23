@@ -729,7 +729,7 @@ class RoutineContainer(TagContainer):
     def __init__(self,
                  meta_data=defaultdict(None), controller=None):
         super().__init__(meta_data, controller)
-        
+
         self._instructions: list[LogixInstruction] = []
 
     @property
@@ -1073,7 +1073,7 @@ class Program(RoutineContainer):
 
         if name:
             self.name = name
-            
+
         self._input_instructions: list[LogixInstruction] = []
         self._output_instructions: list[LogixInstruction] = []
 
@@ -1085,7 +1085,7 @@ class Program(RoutineContainer):
     def input_instructions(self) -> list[LogixInstruction]:
         if self._input_instructions:
             return self._input_instructions
-        
+
         self._input_instructions = []
         [self._input_instructions.extend(x.input_instructions) for x in self.routines]
         return self._input_instructions
@@ -1098,7 +1098,7 @@ class Program(RoutineContainer):
     def output_instructions(self) -> list[LogixInstruction]:
         if self._output_instructions:
             return self._output_instructions
-        
+
         self._output_instructions = []
         [self._output_instructions.extend(x.output_instructions) for x in self.routines]
         return self._output_instructions
@@ -1260,9 +1260,9 @@ class Routine(NamedPlcObject):
         if self._rungs:
             return self._rungs
         self._rungs = [self.config.rung_type(l5x_meta_data=x,
-                                      controller=self.controller,
-                                      routine=self)
-                for x in self.raw_rungs]
+                                             controller=self.controller,
+                                             routine=self)
+                       for x in self.raw_rungs]
         return self._rungs
 
     @property
@@ -1611,10 +1611,9 @@ class Controller(NamedPlcObject, Loggable):
         super().__setitem__(key, value)
         if key == '@MajorRev' or key == '@MinorRev':
             self.logger.info('Changing revisions of processor...')
-            self.root_meta_data['RSLogix5000Content']['@SoftwareRevision'] = f'{self.controller.major_revision}.{self.controller.minor_revision}'
+            self.content_meta_data['@SoftwareRevision'] = f'{self.controller.major_revision}.{self.controller.minor_revision}'
             self.plc_module['@Major'] = self.major_revision
             self.plc_module['@Minor'] = self.minor_revision
-        
 
     def __init__(self,
                  root_meta_data: str = None,
@@ -1683,6 +1682,10 @@ class Controller(NamedPlcObject, Loggable):
         return self['@CommPath']
 
     @property
+    def content_meta_data(self) -> dict:
+        return self.root_meta_data['RSLogix5000Content']
+
+    @property
     def datatypes(self) -> HashList[Datatype]:
         return self._datatypes
 
@@ -1745,12 +1748,11 @@ class Controller(NamedPlcObject, Loggable):
 
     @property
     def l5x_meta_data(self) -> dict:
-
-        return self._root_meta_data['RSLogix5000Content']['Controller']
+        return self.content_meta_data['Controller']
 
     @l5x_meta_data.setter
     def l5x_meta_data(self, value) -> None:
-        self._root_meta_data['RSLogix5000Content']['Controller'] = value
+        self.content_meta_data['Controller'] = value
 
     @property
     def major_revision(self) -> int:
@@ -1997,7 +1999,7 @@ class ControllerReportItem(Loggable):
                  test_notes: list[str]):
         if plc_object is None or test_description is None or pass_fail is None or test_notes is None:
             raise ValueError('Cannot leave any fields empty/None!')
-        
+
         super().__init__()
         self._plc_object: PlcObject = plc_object
         self._test_description: str = test_description

@@ -30,15 +30,14 @@ class ControllerGenerateTask(AppTask):
             raise ValueError('GM controller attributes not found in JSON file.')
         self.logger.info('Generating new PLC...')
         controller = Controller()
-        
+
         self.logger.info('Creating GM controller with attributes: %s', attr_dict)
         for attr in attr_dict['ControllerAttributes']:
             controller[attr] = attr_dict['ControllerAttributes'][attr]
             self.logger.info('Controller %s set to %s', attr, attr_dict['ControllerAttributes'][attr])
-                
+
         self.logger.info('Assigning generated controller to application...')
         self.application.controller = controller
-        
 
     def generate_ford(self):
         self.logger.info('Generating Ford controller...')
