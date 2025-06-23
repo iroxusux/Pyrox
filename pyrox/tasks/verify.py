@@ -39,6 +39,7 @@ class ControllerVerifyTask(AppTask):
         self.application.logger.info('Verifying controller...')
         report_data = self.application.controller.verify()
         self.application.logger.info('Creating tree view...')
+        self.application.clear_workspace()
         verify_view = ControllerVerifyView(self.application.workspace)
         populate_tree(verify_view.frame.tree, '', report_data)
 

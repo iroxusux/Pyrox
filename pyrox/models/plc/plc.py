@@ -480,7 +480,7 @@ class LogixOperand(PlcObject):
             report.pass_fail = False
 
         if not self.aliased_parents:
-            report.test_notes.append(f'No qualified parents found for operand {self.meta_data}!')
+            report.test_notes.append(f'No aliased parents found for operand {self.meta_data}!')
             report.pass_fail = False
 
         return report
@@ -729,6 +729,8 @@ class RoutineContainer(TagContainer):
     def __init__(self,
                  meta_data=defaultdict(None), controller=None):
         super().__init__(meta_data, controller)
+        
+        self._instructions: list[LogixInstruction] = []
 
     @property
     def instructions(self) -> list[LogixInstruction]:
@@ -740,9 +742,11 @@ class RoutineContainer(TagContainer):
         ----------
             :class:`list[LogixInstruction]`
         """
-        instr = []
-        [instr.extend(x.instructions) for x in self.routines]
-        return instr
+        if self._instructions:
+            return self._instructions
+        self._instructions = []
+        [self._instructions.extend(x.instructions) for x in self.routines]
+        return self._instructions
 
     @property
     def routines(self) -> list[Routine]:
@@ -1069,6 +1073,9 @@ class Program(RoutineContainer):
 
         if name:
             self.name = name
+            
+        self._input_instructions: list[LogixInstruction] = []
+        self._output_instructions: list[LogixInstruction] = []
 
     @property
     def disabled(self) -> str:
@@ -1076,9 +1083,12 @@ class Program(RoutineContainer):
 
     @property
     def input_instructions(self) -> list[LogixInstruction]:
-        instr = []
-        [instr.extend(x.input_instructions) for x in self.routines]
-        return instr
+        if self._input_instructions:
+            return self._input_instructions
+        
+        self._input_instructions = []
+        [self._input_instructions.extend(x.input_instructions) for x in self.routines]
+        return self._input_instructions
 
     @property
     def main_routine_name(self) -> str:
@@ -1086,9 +1096,12 @@ class Program(RoutineContainer):
 
     @property
     def output_instructions(self) -> list[LogixInstruction]:
-        instr = []
-        [instr.extend(x.output_instructions) for x in self.routines]
-        return instr
+        if self._output_instructions:
+            return self._output_instructions
+        
+        self._output_instructions = []
+        [self._output_instructions.extend(x.output_instructions) for x in self.routines]
+        return self._output_instructions
 
     @property
     def test_edits(self) -> str:
@@ -1193,6 +1206,10 @@ class Routine(NamedPlcObject):
 
         self._program: Optional[Program] = program
         self._aoi: Optional[AddOnInstruction] = aoi
+        self._rungs: list[Rung] = []
+        self._instructions: list[LogixInstruction] = []
+        self._input_instructions: list[LogixInstruction] = []
+        self._output_instructions: list[LogixInstruction] = []
 
     @property
     def aoi(self) -> Optional[AddOnInstruction]:
@@ -1204,9 +1221,11 @@ class Routine(NamedPlcObject):
 
     @property
     def input_instructions(self) -> list[LogixInstruction]:
-        instr = []
-        [instr.extend(x.input_instructions) for x in self.rungs]
-        return instr
+        if self._input_instructions:
+            return self._input_instructions
+        self._input_instructions = []
+        [self._input_instructions.extend(x.input_instructions) for x in self.rungs]
+        return self._input_instructions
 
     @property
     def instructions(self) -> list[LogixInstruction]:
@@ -1218,15 +1237,19 @@ class Routine(NamedPlcObject):
         ----------
             :class:`list[LogixInstruction]`
         """
-        instr = []
-        [instr.extend(x.instructions) for x in self.rungs]
-        return instr
+        if self._instructions:
+            return self._instructions
+        self._instructions = []
+        [self._instructions.extend(x.instructions) for x in self.rungs]
+        return self._instructions
 
     @property
     def output_instructions(self) -> list[LogixInstruction]:
-        instr = []
-        [instr.extend(x.output_instructions) for x in self.rungs]
-        return instr
+        if self._output_instructions:
+            return self._output_instructions
+        self._output_instructions = []
+        [self._output_instructions.extend(x.output_instructions) for x in self.rungs]
+        return self._output_instructions
 
     @property
     def program(self) -> Optional[Program]:
@@ -1234,10 +1257,13 @@ class Routine(NamedPlcObject):
 
     @property
     def rungs(self) -> list[Rung]:
-        return [self.config.rung_type(l5x_meta_data=x,
+        if self._rungs:
+            return self._rungs
+        self._rungs = [self.config.rung_type(l5x_meta_data=x,
                                       controller=self.controller,
                                       routine=self)
                 for x in self.raw_rungs]
+        return self._rungs
 
     @property
     def raw_rungs(self) -> list[dict]:
@@ -1581,6 +1607,15 @@ class Controller(NamedPlcObject, Loggable):
 
         """
 
+    def __setitem__(self, key, value):
+        super().__setitem__(key, value)
+        if key == '@MajorRev' or key == '@MinorRev':
+            self.logger.info('Changing revisions of processor...')
+            self.root_meta_data['RSLogix5000Content']['@SoftwareRevision'] = f'{self.controller.major_revision}.{self.controller.minor_revision}'
+            self.plc_module['@Major'] = self.major_revision
+            self.plc_module['@Minor'] = self.minor_revision
+        
+
     def __init__(self,
                  root_meta_data: str = None,
                  config: Optional[ControllerConfiguration] = ControllerConfiguration()):
@@ -1604,23 +1639,27 @@ class Controller(NamedPlcObject, Loggable):
         if not self._config:
             raise RuntimeError('Configuration must be supplied when creating a controller!')
 
-        # hashed - new
+        self.logger.info('Generating add-on instructions...')
         self._aois: HashList = HashList('name')
         [self._aois.append(self.config.aoi_type(l5x_meta_data=x, controller=self))
          for x in self.raw_aois]
 
+        self.logger.info('Generating datatypes...')
         self._datatypes: HashList = HashList('name')
         [self._datatypes.append(self.config.datatype_type(l5x_meta_data=x, controller=self))
          for x in self.raw_datatypes]
 
+        self.logger.info('Generating modules...')
         self._modules: HashList = HashList('name')
         [self._modules.append(self.config.module_type(l5x_meta_data=x, controller=self))
          for x in self.raw_modules]
 
+        self.logger.info('Generating programs...')
         self._programs: HashList = HashList('name')
         [self._programs.append(self.config.program_type(meta_data=x, controller=self))
          for x in self.raw_programs]
 
+        self.logger.info('Generating tags...')
         self._tags: HashList = HashList('name')
         [self._tags.append(self.config.tag_type(l5x_meta_data=x, controller=self))
          for x in self.raw_tags]
@@ -1898,6 +1937,7 @@ class Controller(NamedPlcObject, Loggable):
         return diagnostic_rungs
 
     def find_unpaired_controller_inputs(self):
+        self.logger.info('Finding unpaired controller inputs...')
         inputs = defaultdict(list)
         outputs = set()
 
@@ -1913,7 +1953,7 @@ class Controller(NamedPlcObject, Loggable):
         return unpaired_inputs
 
     def find_redundant_otes(self):
-
+        self.logger.info('Finding redundant OTEs...')
         outputs = defaultdict(list)
         for inst in [x for x in self.output_instructions if x.instruction_name == 'OTE']:
             outputs[inst.aliased_meta_data].append(inst)
@@ -1949,7 +1989,7 @@ class Controller(NamedPlcObject, Loggable):
         }
 
 
-class ControllerReportItem:
+class ControllerReportItem(Loggable):
     def __init__(self,
                  plc_object: PlcObject,
                  test_description: str,
@@ -1957,12 +1997,14 @@ class ControllerReportItem:
                  test_notes: list[str]):
         if plc_object is None or test_description is None or pass_fail is None or test_notes is None:
             raise ValueError('Cannot leave any fields empty/None!')
-
+        
+        super().__init__()
         self._plc_object: PlcObject = plc_object
         self._test_description: str = test_description
         self._pass_fail: bool = pass_fail
         self._test_notes: list[str] = test_notes
         self._child_reports: list['ControllerReportItem'] = []
+        # self.logger.debug(self.test_description)  this just hammers it way too much, may just delete this line later
 
     def __repr__(self):
         return f'ControllerReportItem(plc_object={self._plc_object},)'\
@@ -2110,6 +2152,7 @@ class ControllerReport(Loggable):
         -------
             :class:`dict`
         """
+        self.logger.info('Converting report to dictionary...')
         report = {
             'controller': self._controller.l5x_meta_data,
             'report_items': [x.as_dictionary() for x in self._report_items],
@@ -2119,11 +2162,17 @@ class ControllerReport(Loggable):
 
     def run(self) -> Self:
         self.logger.info('Starting report...')
+        self.logger.info('Checking controller attributes...')
         self._check_controller()
+        self.logger.info('Checking modules...')
         self._check_common(self._controller.modules)
+        self.logger.info('Checking datatypes...')
         self._check_common(self._controller.datatypes)
+        self.logger.info('Checking add on instructions...')
         self._check_common(self._controller.aois)
+        self.logger.info('Checking tags...')
         self._check_common(self._controller.tags)
+        self.logger.info('Checking programs...')
         self._check_common(self._controller.programs)
         self.logger.info('Finalizing report...')
         return self

@@ -92,6 +92,7 @@ class App(Application):
         if not self.organizer:
             return
 
+        self.clear_organizer()
         self.clear_workspace()
         populate_tree(self._organizer.tree, '', self.controller.l5x_meta_data)
 

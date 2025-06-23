@@ -518,14 +518,25 @@ class Application(PartialApplication):
             self._workspace = PyroxFrame(self.frame, text='Workspace')
             self._workspace.pack(side=TOP, fill=BOTH, expand=True)
 
-    def clear_workspace(self) -> None:
-        """Clear workspace of all children.
+    def clear_organizer(self) -> None:
+        """Clear organizer of all children.
+
+        This method will remove all children from the organizer window, if it exists.
 
         """
-        for child in self.workspace.winfo_children():
-            child.pack_forget()
+        if not self.organizer:
+            return
 
         self.organizer.tree.delete(*self.organizer.tree.get_children())
+
+    def clear_workspace(self) -> None:
+        """Clear workspace of all children.
+        """
+        if not self.workspace:
+            return
+
+        for child in self.workspace.winfo_children():
+            child.pack_forget()
 
     def log(self,
             message: str):

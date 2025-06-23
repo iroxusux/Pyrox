@@ -354,6 +354,13 @@ class Loggable(SnowFlake):
         """
         self._logger.info(msg)
 
+    @staticmethod
+    def set_logging_level(log_level: int = logging.INFO):
+        for logger in Loggable._curr_loggers.values():
+            logger.setLevel(log_level)
+            for handler in logger.handlers:
+                handler.setLevel(log_level)
+
     def warning(self,
                 msg: str):
         """Send `warning` message to logger handler.

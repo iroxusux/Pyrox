@@ -223,7 +223,7 @@ def populate_tree(tree: Treeview, parent, data):
                 node = tree.insert(parent, 'end', text=str(key), values=['[...]'])
                 populate_tree(tree, node, value)
             else:
-                tree.insert(parent, 'end', text=str(key), values=(str(value),))
+                tree.insert(parent, 'end', text=str(key), values=(str(value).replace('\n', ' '),))
     elif isinstance(data, list):
         for index, item in enumerate(data):
             if isinstance(item, dict) and '@Name' in item:
@@ -238,7 +238,7 @@ def populate_tree(tree: Treeview, parent, data):
                 node = tree.insert(parent=parent, index='end', text=node_label, values=['[...]'])
                 populate_tree(tree, node, item)
             else:
-                tree.insert(parent, 'end', text=node_label, values=(str(item),))
+                tree.insert(parent, 'end', text=node_label, values=(str(item).replace('\n', ' '),))
 
 
 def create_tree_view(data_dict, parent):

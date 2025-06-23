@@ -1,0 +1,42 @@
+{
+    "ControllerAttributes": {
+        "@Name": "gm_controller",
+        "@ProcessorType": "1756-L83ES",
+        "@MajorRev": "32",
+        "@MinorRev": "1",
+        "@SFCExecutionControl": "CurrentActive",
+        "@SFCRestartPosition": "MostRecent",
+        "@SFCLastScan": "DontScan",
+        "@MatchProjectToController": "false",
+        "@CanUseRPIFromProducer": "false",
+        "@InhibitAutomaticFirmwareUpdate": "0",
+        "@PassThroughConfiguration": "EnabledWithAppend",
+        "@DownloadProjectDocumentationAndExtendedProperties": "false",
+        "Description": "Indicon LLC pyrox Auto-Generated"
+    },
+    "RedundancyInfo": {
+        "@Enabled": "false",
+        "@KeepTestEditsOnSwitchOver": "false"
+    },
+    "Security": {
+        "@Code": "0",
+        "ChangesToDetect": "16#ffff_ffff_ffff_ffff"
+    },
+    "SafetyInfo": {
+        "@SafetyLocked": "false",
+        "@SignatureRunModeProtect": "false",
+        "@ConfigureSafetyIOAlways": "true"
+    },
+    "CST": {
+        "@MasterID": "1"
+    },
+    "WallClockTime": {
+        "@LocalTimeAdjustment": "0",
+        "@TimeZone": "0"
+    },
+    "TimeSynchronize": {
+        "@Priority1": "128",
+        "@Priority2": "128",
+        "@PTPEnable": "true"
+    }
+}
