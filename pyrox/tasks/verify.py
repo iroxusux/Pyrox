@@ -37,19 +37,10 @@ class ControllerVerifyTask(AppTask):
             self.application.logger.error('No controller loaded to verify.')
             return
         self.application.logger.info('Verifying controller...')
-        report_data = self.application.controller.verify().as_dictionary()
-        self.application.logger.info('Finding redundant OTE instructions...')
-        duplicate_coils_data = self.application.controller.find_redundant_otes()
-        self.application.logger.info('Finding unpaired input instructions...')
-        missing_coils_data = self.application.controller.find_unpaired_controller_inputs()
-        data = {
-            'report': report_data,
-            'duplicate_coils': duplicate_coils_data,
-            'missing_coils': missing_coils_data
-        }
+        report_data = self.application.controller.verify()
         self.application.logger.info('Creating tree view...')
         verify_view = ControllerVerifyView(self.application.workspace)
-        populate_tree(verify_view.frame.tree, '', data)
+        populate_tree(verify_view.frame.tree, '', report_data)
 
     def inject(self) -> None:
         self.application.menu.tools.add_command(label='Verify Controller', command=self.run)

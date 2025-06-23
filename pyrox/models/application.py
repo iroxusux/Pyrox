@@ -525,6 +525,8 @@ class Application(PartialApplication):
         for child in self.workspace.winfo_children():
             child.pack_forget()
 
+        self.organizer.tree.delete(*self.organizer.tree.get_children())
+
     def log(self,
             message: str):
         """Post a message to this :class:`Application`'s logger frame.

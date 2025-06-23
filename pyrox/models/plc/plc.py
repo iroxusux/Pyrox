@@ -374,7 +374,7 @@ class LogixOperand(PlcObject):
         return self._arg_position
 
     @property
-    def as_qualified(self) -> str:
+    def as_aliased(self) -> str:
         """ Get the qualified name of this operand
 
         Returns:
@@ -383,7 +383,7 @@ class LogixOperand(PlcObject):
         if not self.base_tag:
             return self.meta_data
 
-        return self.meta_data.replace(self.base_name, self.base_tag.name)
+        return self.meta_data.replace(self.base_name, self.base_tag.name if not self.base_tag.alias_for else self.base_tag.alias_for)
 
     @property
     def base_name(self) -> str:
@@ -394,13 +394,8 @@ class LogixOperand(PlcObject):
         if self._base_tag:
             return self._base_tag
 
-        if self.container:
-            tag: Tag = self.container.tags.get(self.base_name, None)
-
-        if not tag:
-            tag: Tag = self.controller.tags.get(self.base_name, None)
-
-        self._base_tag = None if not tag else tag.get_base_tag()
+        self._base_tag = self.container.tags.get(self.base_name, None) if self.container else\
+            self.controller.tags.get(self.base_name, None)
 
         return self._base_tag
 
@@ -444,7 +439,7 @@ class LogixOperand(PlcObject):
         return parents
 
     @property
-    def qualified_parents(self) -> list[str]:
+    def aliased_parents(self) -> list[str]:
         if not self.base_tag:
             return self.parents
 
@@ -460,7 +455,7 @@ class LogixOperand(PlcObject):
             report.test_notes.append(f'Invalid argument position for operand {self.meta_data}!')
             report.pass_fail = False
 
-        if not self.as_qualified:
+        if not self.as_aliased:
             report.test_notes.append(f'No qualified name found for operand {self.meta_data}!')
             report.pass_fail = False
 
@@ -484,7 +479,7 @@ class LogixOperand(PlcObject):
             report.test_notes.append(f'No parents found for operand {self.meta_data}!')
             report.pass_fail = False
 
-        if not self.qualified_parents:
+        if not self.aliased_parents:
             report.test_notes.append(f'No qualified parents found for operand {self.meta_data}!')
             report.pass_fail = False
 
@@ -500,6 +495,7 @@ class LogixInstruction(PlcObject):
                  rung: Optional['Rung'],
                  controller: 'Controller'):
         self._rung = rung
+        self._operands: list[LogixOperand] = None
         super().__init__(meta_data=meta_data,
                          controller=controller)
 
@@ -529,17 +525,36 @@ class LogixInstruction(PlcObject):
 
         Returns
         ----------
-            :class:`list[str]`
+            :class:`list[LogixOperand]`
         """
+        if self._operands:
+            return self._operands
+
         matches = re.findall(INST_OPER_RE_PATTERN, self._meta_data)
         if not matches or len(matches) < 1:
             raise ValueError("Corrupt meta data for instruction, no operands found!")
 
-        return [LogixOperand(match, self, index, self.controller) for index, match in enumerate(matches[0].split(','))]
+        self._operands = [LogixOperand(match, self, index, self.controller) for index, match in enumerate(matches[0].split(','))]
+        return self._operands
 
     @property
     def container(self) -> Optional[Union['Program', 'AddOnInstruction']]:
         return self._rung.container
+
+    @property
+    def aliased_meta_data(self) -> str:
+        """get the aliased meta data for this instruction
+
+        .. -------------------------------
+
+        Returns
+        ----------
+            :class:`str`
+        """
+        data = self.meta_data
+        for operand in self.operands:
+            data = data.replace(operand.meta_data, operand.as_aliased)
+        return data
 
     @property
     def routine(self) -> Optional['Routine']:
@@ -1096,9 +1111,9 @@ class Program(RoutineContainer):
         for instruction in self.instructions:
             for operand in [x for x in instruction.operands]:
                 if operand.instruction_type is LogixInstructionType.INPUT:
-                    inputs[operand.as_qualified].append(operand)
+                    inputs[operand.as_aliased].append(operand)
                 elif operand.instruction_type is LogixInstructionType.OUTPUT:
-                    outputs.add(operand.as_qualified)
+                    outputs.add(operand.as_aliased)
         unpaired_inputs = {}
 
         for operand, locations in inputs.items():
@@ -1886,13 +1901,13 @@ class Controller(NamedPlcObject, Loggable):
         inputs = defaultdict(list)
         outputs = set()
 
-        [inputs[operand.as_qualified].append(operand) for instr in self.input_instructions for operand in instr.operands]
-        [outputs.add(operand.as_qualified) for instr in self.output_instructions for operand in instr.operands]
+        [inputs[operand.as_aliased].append(operand) for instr in self.input_instructions for operand in instr.operands]
+        [outputs.add(operand.as_aliased) for instr in self.output_instructions for operand in instr.operands]
 
         unpaired_inputs = {}
 
         for key, value in inputs.items():
-            if key not in outputs and not any(item in outputs for item in value[0].qualified_parents):
+            if key not in outputs and not any(item in outputs for item in value[0].aliased_parents):
                 unpaired_inputs[key] = value
 
         return unpaired_inputs
@@ -1901,7 +1916,7 @@ class Controller(NamedPlcObject, Loggable):
 
         outputs = defaultdict(list)
         for inst in [x for x in self.output_instructions if x.instruction_name == 'OTE']:
-            outputs[inst.meta_data].append(inst)
+            outputs[inst.aliased_meta_data].append(inst)
 
         return [{'name': outputs[x][0].meta_data,
                  'outputs': [{'name': str(y),
@@ -1927,7 +1942,11 @@ class Controller(NamedPlcObject, Loggable):
                 return
 
     def verify(self) -> 'ControllerReport':
-        return ControllerReport(self).run()
+        return {
+            'ControllerReport': ControllerReport(self).run().as_dictionary(),
+            'UnpairedControllerInputs': self.find_unpaired_controller_inputs(),
+            'RedundantOutputs': self.find_redundant_otes(),
+        }
 
 
 class ControllerReportItem:

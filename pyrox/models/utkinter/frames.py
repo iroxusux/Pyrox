@@ -24,6 +24,7 @@ from tkinter import (
     X,
     Y
 )
+from tkinter.ttk import Treeview
 
 if __name__ == '__main__':
     from pyrox import UserListbox
@@ -207,7 +208,7 @@ def clear_widget(widget: Widget):
         child.pack_forget()
 
 
-def populate_tree(tree, parent, data):
+def populate_tree(tree: Treeview, parent, data):
     """
     Recursively populates a ttk.Treeview with keys and values from a dictionary or list.
 
@@ -219,7 +220,7 @@ def populate_tree(tree, parent, data):
     if isinstance(data, dict):
         for key, value in data.items():
             if isinstance(value, (dict, list)):
-                node = tree.insert(parent, 'end', text=str(key), values=('[...]'))
+                node = tree.insert(parent, 'end', text=str(key), values=['[...]'])
                 populate_tree(tree, node, value)
             else:
                 tree.insert(parent, 'end', text=str(key), values=(str(value),))
@@ -231,8 +232,10 @@ def populate_tree(tree, parent, data):
                 node_label = item['name']
             else:
                 node_label = f"[{index}]"
+            if node_label == '' or node_label is None:
+                node_label = f"[{index}]"
             if isinstance(item, (dict, list)):
-                node = tree.insert(parent, 'end', text=node_label, values=('[...]'))
+                node = tree.insert(parent=parent, index='end', text=node_label, values=['[...]'])
                 populate_tree(tree, node, item)
             else:
                 tree.insert(parent, 'end', text=node_label, values=(str(item),))
