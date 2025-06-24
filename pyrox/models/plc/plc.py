@@ -1617,12 +1617,12 @@ class Controller(NamedPlcObject, Loggable):
 
     def __init__(self,
                  root_meta_data: str = None,
-                 config: Optional[ControllerConfiguration] = ControllerConfiguration()):
+                 config: Optional[ControllerConfiguration] = None):
 
         self._root_meta_data: dict = root_meta_data if root_meta_data else l5x_dict_from_file(PLC_ROOT_FILE)
         self._file_location, self._ip_address = '', ''
         self._slot = 0
-        self._config = config
+        self._config = config if config else ControllerConfiguration()
 
         PlcObject.__init__(self, self.l5x_meta_data, self)
         Loggable.__init__(self)
@@ -1634,9 +1634,6 @@ class Controller(NamedPlcObject, Loggable):
             self._assign_address(self.comm_path.split('\\')[-1])
         except (ValueError, TypeError, AttributeError) as e:
             self.logger.error('ip address assignment err -> %s', e)
-
-        if not self._config:
-            raise RuntimeError('Configuration must be supplied when creating a controller!')
 
         self.logger.info('Generating add-on instructions...')
         self._aois: HashList = HashList('name')
@@ -2065,13 +2062,16 @@ class ControllerReportItem(Loggable):
         -------
             :class:`dict`
         """
+        name = str(self.plc_object.name) if hasattr(self.plc_object, 'name') else str(self.plc_object.meta_data)
+        name += ' [%s]' % self.plc_object.__class__.__name__
+
         return {
-            'name': self.plc_object.name if hasattr(self.plc_object, 'name') else self.plc_object.meta_data,
-            'plc_object': self.plc_object.meta_data,
-            'test_description': self.test_description,
-            'pass_fail': self.pass_fail,
-            'test_notes': self.test_notes,
-            'child_reports': [x.as_dictionary() for x in self.child_reports]
+            'Name': name,
+            'PLC Object': self.plc_object.meta_data,
+            'Test Description': self.test_description,
+            'Pass?': self.pass_fail,
+            'Test Notes': self.test_notes,
+            'Child Reports': [x.as_dictionary() for x in self.child_reports]
         }
 
 
@@ -2135,9 +2135,7 @@ class ControllerReport(Loggable):
         if not isinstance(plc_objects, list) and not isinstance(plc_objects, HashList):
             raise ValueError
 
-        for plc_object in plc_objects:
-            report = plc_object.validate()
-            self._report_items.append(report)
+        [self.report_items.append(plc_object.validate()) for plc_object in plc_objects]
 
     def _as_categorized(self) -> dict[list[ControllerReportItem]]:
         categories = {}

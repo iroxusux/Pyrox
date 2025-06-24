@@ -236,20 +236,8 @@ class TestBaseMenu(unittest.TestCase):
 class TestPartialApplicationTask(unittest.TestCase):
     def test_initialization(self):
         application = PartialApplication(ApplicationConfiguration())
-        model = PartialModel()
-        task = PartialApplicationTask(application=application, model=model)
+        task = PartialApplicationTask(application=application)
         self.assertEqual(task.application, application)
-        self.assertEqual(task.model, model)
-        application.stop()
-
-    def test_model_property(self):
-        application = PartialApplication(ApplicationConfiguration())
-        model = PartialModel()
-        task = PartialApplicationTask(application=application, model=model)
-        new_model = PartialModel()
-        task.model = new_model
-        self.assertEqual(task.model, new_model)
-        application.stop()
 
 
 class TestApplicationConfiguration(unittest.TestCase):

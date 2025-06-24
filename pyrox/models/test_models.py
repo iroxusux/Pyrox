@@ -40,7 +40,7 @@ class TestModels(unittest.TestCase):
         app = Application(config=ApplicationConfiguration.root())
         app.build()
 
-        task = TestTask(app, None)
+        task = TestTask(app)
         task.inject()
 
         cmds = app.menu.get_menu_commands(app.menu.file)
@@ -69,13 +69,12 @@ class TestModels(unittest.TestCase):
         self.assertIsNotNone(app.menu.tools)
         self.assertIsNotNone(app.menu.view)
         self.assertIsNotNone(app.menu.help)
-        self.assertIsNotNone(app.menu.active_models)
 
         # can insert a task by type
         app.add_task(ApplicationTask)
 
         # can insert a task already built
-        task = ApplicationTask(app, None)
+        task = ApplicationTask(app)
         app.add_task(task)
 
         app.stop()

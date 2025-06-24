@@ -4,11 +4,11 @@ from __future__ import annotations
 
 
 from typing import Optional
+import sys
 
 
 from pyrox.services.file import get_open_file, get_save_file
 from pyrox.models.application import ApplicationTask
-from pyrox.models import SafeList
 
 
 class FileTask(ApplicationTask):
@@ -35,11 +35,19 @@ class FileTask(ApplicationTask):
         super().__init__(*args,
                          **kwargs)
 
-        self.on_new: SafeList[callable] = SafeList()
-        self.on_save: SafeList[callable] = SafeList()
+    def _on_file_new(self):
+        """Create a new controller instance."""
+        self.logger.info('Creating new controller instance...')
+        self.application.controller = self.application.create_controller()
+        if not self.application.controller:
+            self.logger.error('Failed to create new controller instance.')
+            return
 
-    def _on_file_new(self,
-                     file_location: Optional[str] = None):
+        # do some extra code here?
+        self.logger.info('New controller instance created successfully.')
+
+    def _on_file_open(self,
+                      file_location: Optional[str] = None):
         if not file_location:
             file_location = get_open_file([("L5X XML Files", ".L5X")])
 
@@ -48,8 +56,7 @@ class FileTask(ApplicationTask):
             return
 
         self.logger.info('File location -> %s', file_location)
-
-        _ = [x(file_location) for x in self.on_new]
+        self.application.load_controller(file_location)
 
     def _on_file_save(self,
                       file_location: Optional[str] = None):
@@ -65,16 +72,14 @@ class FileTask(ApplicationTask):
             return
 
         self.logger.info('Save location -> %s', file_location)
-
-        _ = [x(file_location) for x in self.on_save]
+        self.application.save_controller(file_location)
 
     def inject(self) -> None:
         if not self.application.menu:
             return
-
-        self.application.menu.file.insert_command(0, label='Save', command=self._on_file_save)
         self.application.menu.file.insert_command(0, label='New', command=self._on_file_new)
-
-        if self.application:  # only bind to the correct model when creating
-            self.on_new.append(self.application.load_controller)
-            self.on_save.append(self.application.save_controller)
+        self.application.menu.file.insert_separator(1)
+        self.application.menu.file.insert_command(2, label='Open', command=self._on_file_open)
+        self.application.menu.file.insert_command(3, label='Save', command=self._on_file_save)
+        self.application.menu.file.insert_separator(4)
+        self.application.menu.file.insert_command(5, label='Exit', command=lambda: sys.exit(0))

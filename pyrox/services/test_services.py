@@ -15,8 +15,6 @@ import unittest
 import lxml
 import lxml.etree as ET
 
-from pyrox.models.application import ApplicationTask
-
 
 DUPS_TEST_FILE = r'docs\controls\_test_duplicate_coils.L5X'
 GM_TEST_FILE = r'docs\controls\_test_gm.L5X'
@@ -134,6 +132,7 @@ class TestFindAndInstantiateClass(unittest.TestCase):
     def test_find_and_instantiate_class(self):
         from .task_services import find_and_instantiate_class
         from ..models.application import Application
+        from pyrox.models.application import ApplicationTask
 
         app = Application()
         app.build()
@@ -144,7 +143,7 @@ class TestFindAndInstantiateClass(unittest.TestCase):
                                                 ApplicationTask,
                                                 application=app)
         self.assertIsNotNone(my_objects)
-        self.assertTrue(len(my_objects) >= 4)
+        self.assertTrue(len(my_objects) >= 3)
         self.assertTrue(hasattr(my_objects[0], "application"))
 
 

@@ -5,7 +5,8 @@ from __future__ import annotations
 
 from pyrox.applications.app import App, AppTask
 from pyrox.models import View
-from pyrox.models.utkinter import FrameWithTreeViewAndScrollbar, populate_tree
+from pyrox.models.utkinter import FrameWithTreeViewAndScrollbar
+from pyrox.services.utkinter import populate_tree
 
 
 class ControllerVerifyView(View):

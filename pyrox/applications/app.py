@@ -5,9 +5,9 @@ from typing import Optional
 
 from ..models import Application, ApplicationTask
 from ..models.plc import Controller
-from ..models.utkinter import populate_tree
 from ..services.plc_services import dict_to_xml_file, l5x_dict_from_file
 from ..services.task_services import find_and_instantiate_class
+from ..services.utkinter import populate_tree
 
 
 class App(Application):
@@ -79,7 +79,13 @@ class App(Application):
         if not ctrl_dict:
             self.error('no controller was parsable from passed file location: %s...', file_location)
             return
-        ctrl = Controller(l5x_dict_from_file(file_location))
+
+        try:
+            ctrl = Controller(l5x_dict_from_file(file_location))
+        except KeyError as e:
+            self.logger.error('error parsing controller from file %s: %s', file_location, e)
+            return
+
         if not ctrl:
             self.logger.error('no controller was passed...')
             return
@@ -115,8 +121,8 @@ class App(Application):
 
 
 class AppTask(ApplicationTask):
-    def __init__(self, application, model=None):
-        super().__init__(application, model)
+    def __init__(self, application):
+        super().__init__(application)
 
     @property
     def application(self) -> App:

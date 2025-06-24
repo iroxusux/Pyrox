@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 
-from typing import Callable, Optional, TYPE_CHECKING, Union
+from typing import Optional, Union
 
 
 from tkinter import (
@@ -31,11 +31,8 @@ from .abc import (
     SnowFlake
 )
 
+from .plc import Controller
 from .utkinter.frames import LogWindow, FrameWithTreeViewAndScrollbar, PyroxFrame
-
-
-if TYPE_CHECKING:
-    from .model import Model
 
 
 __all__ = (
@@ -98,25 +95,7 @@ class MainApplicationMenu(BaseMenu):
         self.menu.add_cascade(label='View', menu=self.view)
         self.menu.add_cascade(label='Help', menu=self.help)
 
-        # add a builtin cascade to view all active models
-        self._active_models: Menu = Menu(self.view, name='active_models', tearoff=0)
-        self._on_new_model: list[Callable] = []
-        self.view.add_cascade(label='Active Models', menu=self.active_models)
-
         self.root.config(menu=self.menu)
-
-    @property
-    def active_models(self) -> Menu:
-        """
-        The currently active models within this :class:`MainApplicationMenu`'s :class:`Application`.
-
-        .. ------------------------------------------------------------
-
-        Returns
-        -----------
-            active_models: :class:`Menu`
-        """
-        return self._active_models
 
     @property
     def edit(self) -> Menu:
@@ -156,10 +135,6 @@ class MainApplicationMenu(BaseMenu):
             help: :class:`Menu`
         """
         return self._help
-
-    @property
-    def on_new_model(self) -> list[Callable]:
-        return self._on_new_model
 
     @property
     def tools(self) -> Menu:
@@ -212,20 +187,6 @@ class MainApplicationMenu(BaseMenu):
 
         return cmds
 
-    def on_model_select(self, model: Model):
-        self.logger.info('model selected -> %s', str(model))
-        _ = [x(model=model) for x in self._on_new_model]
-
-    def socket_update_models(self, *args, **kwargs):
-        if not kwargs['models'] or not kwargs['models']['hash_list']:
-            return
-
-        self.active_models.delete(0, END)
-
-        for x in kwargs['models']['hash_list']:
-            mdl: Model = kwargs['models']['hash_list'][x]
-            self.active_models.add_command(label=str(mdl), command=lambda y=mdl: self.on_model_select(y))
-
 
 class ApplicationTask(PartialApplicationTask):
     """model task for injecting functionality into an existing model.
@@ -248,10 +209,8 @@ class ApplicationTask(PartialApplicationTask):
     __slots__ = ()
 
     def __init__(self,
-                 application: 'Application',
-                 model: Model = None):
-        super().__init__(application=application,
-                         model=model)
+                 application: 'Application'):
+        super().__init__(application=application)
 
     def __repr__(self):
         return self.__class__.__name__
@@ -271,18 +230,6 @@ class ApplicationTask(PartialApplicationTask):
     @application.setter
     def application(self, value: 'Application'):
         self._application = value
-
-    @property
-    def model(self) -> Model:
-        """The model this task reflects.
-
-        .. ------------------------------------------------------------
-
-        Returns
-        -----------
-            model: :class:`Model`
-        """
-        return self._model
 
     def inject(self) -> None:
         """Inject this task into the hosting application
@@ -332,7 +279,6 @@ class Application(PartialApplication):
         super().__init__(config=config)
 
         self._log_window = None
-        self._model_hash: HashList[Model] = None
         self._organizer = None
         self._tasks = None
         self._workspace = None
@@ -348,16 +294,6 @@ class Application(PartialApplication):
             menu: :class:`MainApplicationMenu`
         """
         return self._menu
-
-    @property
-    def model_hash(self) -> HashList[Model]:
-        """Hashed list of all models associated with this application.
-
-        Returns
-        ----------
-            model_hash :class:`HashList`
-        """
-        return self._model_hash
 
     @property
     def organizer(self) -> Optional[FrameWithTreeViewAndScrollbar]:
@@ -395,39 +331,8 @@ class Application(PartialApplication):
         """
         return self._workspace
 
-    def add_model(self,
-                  model: Model) -> Model:
-        """Add a :class:`Model` to this :class:`Application`.
-
-        Arguments
-        ----------
-        model :class:`PartialModel`
-            Model to add to this application.
-
-        .. ------------------------------------------------------------
-
-        Raises
-        -----------
-        :class:`ValueError`
-            Incorrect model type was passed to application
-
-        .. ------------------------------------------------------------
-
-        Returns
-        ----------
-        model :class:`PartialModel`
-            Model to add to this application.
-        """
-        if not issubclass(type(model), Model):
-            raise TypeError(f'Model must be of type `Model`, not {type(model)}...')
-
-        self._model_hash.append(model)
-
-        return model
-
     def add_task(self,
-                 task: Union[ApplicationTask, type[ApplicationTask]],
-                 model: Optional[Model] = None) -> Optional[ApplicationTask]:
+                 task: Union[ApplicationTask, type[ApplicationTask]]) -> Optional[ApplicationTask]:
         """Add an :class:`ApplicationTask` to this `Application`.
 
         This method calls the task's `inject` method.
@@ -454,7 +359,7 @@ class Application(PartialApplication):
             return task
 
         if isinstance(task, type):
-            tsk = task(self, model)
+            tsk = task(self)
             self._tasks.append(tsk)
             tsk.inject()
             return tsk
@@ -462,8 +367,7 @@ class Application(PartialApplication):
         return None
 
     def add_tasks(self,
-                  tasks: Union[list[ApplicationTask], list[type[ApplicationTask]]],
-                  model: Optional[Model] = None) -> Optional[ApplicationTask]:
+                  tasks: Union[list[ApplicationTask], list[type[ApplicationTask]]]) -> Optional[ApplicationTask]:
         """Add a list of :class:`ApplicationTask`s to this `Application`.
 
         This method calls the task's `inject` method.
@@ -487,7 +391,7 @@ class Application(PartialApplication):
         if not tasks:
             return
 
-        _ = [self.add_task(x, model) for x in tasks]
+        _ = [self.add_task(x) for x in tasks]
 
     def build(self):
         """Build this :class:`Application`.
@@ -538,6 +442,12 @@ class Application(PartialApplication):
         for child in self.workspace.winfo_children():
             child.pack_forget()
 
+    def create_controller(self) -> Optional[Controller]:
+        """Create a new :class:`Controller` instance for this :class:`Application`."""
+        self.logger.info('Creating new controller instance...')
+        ctrl = Controller()
+        return ctrl
+
     def log(self,
             message: str):
         """Post a message to this :class:`Application`'s logger frame.
@@ -559,28 +469,3 @@ class Application(PartialApplication):
             print('Tcl error, original msg -> %s' % e)
 
         self._log_window.update()
-
-    def set_model(self,
-                  model: Model) -> None:
-        """Set a new model for this :class:`Application`.
-
-        Will trigger a `build` event if a model is given (Not `None`).
-
-        .. ------------------------------------------------------------
-
-        Arguments
-        -----------
-
-        model: :class:`Model`
-            Model to set as application main model.
-
-
-        """
-        # undo packing for all child widgets. This will allow us to rebuild a model in our frame
-        self.clear_workspace()
-        if not model:
-            self.logger.warning('No model given, cannot set model for application')
-            return
-
-        self._main_model_id = self.add_model(model).id
-        self.model_hash[self._main_model_id].build()

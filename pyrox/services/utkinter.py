@@ -1,20 +1,38 @@
-def insert_to_treeview(tree, parent, obj, name="root"):
+from __future__ import annotations
+
+from tkinter.ttk import Treeview
+
+
+def populate_tree(tree: Treeview, parent, data):
     """
-    Recursively inserts public attributes of a class instance into a ttk.Treeview.
-    Handles nested objects, lists, and dictionaries.
+    Recursively populates a ttk.Treeview with keys and values from a dictionary or list.
+
+    Parameters:
+    - tree: ttk.Treeview widget
+    - parent: parent node ID in the tree (use '' for root)
+    - data: dictionary or list to populate the tree with
     """
-    node = tree.insert(parent, "end", text=name)
-    if isinstance(obj, (str, int, float, bool, type(None))):
-        tree.insert(node, "end", text=str(obj))
-    elif isinstance(obj, dict):
-        for k, v in obj.items():
-            insert_to_treeview(tree, node, v, name=str(k))
-    elif isinstance(obj, (list, tuple, set)):
-        for idx, item in enumerate(obj):
-            insert_to_treeview(tree, node, item, name=f"[{idx}]")
-    elif hasattr(obj, "__dict__"):
-        for attr, value in vars(obj).items():
-            if not attr.startswith("_"):
-                insert_to_treeview(tree, node, value, name=attr)
-    else:
-        tree.insert(node, "end", text=str(obj))
+    if isinstance(data, dict):
+        for key, value in data.items():
+            if isinstance(value, (dict, list)):
+                node = tree.insert(parent, 'end', text=str(key), values=['[...]'])
+                populate_tree(tree, node, value)
+            else:
+                tree.insert(parent, 'end', text=str(key), values=(str(value).replace('\n', ' '),))
+    elif isinstance(data, list):
+        for index, item in enumerate(data):
+            if isinstance(item, dict) and '@Name' in item:
+                node_label = item['@Name']
+            elif isinstance(item, dict) and 'name' in item:
+                node_label = item['name']
+            elif isinstance(item, dict) and 'Name' in item:
+                node_label = item['Name']
+            else:
+                node_label = f"[{index}]"
+            if node_label == '' or node_label is None:
+                node_label = "[???]"
+            if isinstance(item, (dict, list)):
+                node = tree.insert(parent=parent, index='end', text=node_label, values=['[...]'])
+                populate_tree(tree, node, item)
+            else:
+                tree.insert(parent, 'end', text=node_label, values=(str(item).replace('\n', ' '),))

@@ -30,7 +30,6 @@ from .meta import (
     DEF_ICON,
 )
 
-from .model import PartialModel
 from ..abc.meta import Loggable
 
 
@@ -115,11 +114,9 @@ class PartialApplicationTask(Runnable):
     __slots__ = ('_application', '_model')
 
     def __init__(self,
-                 application: 'PartialApplication',
-                 model: PartialModel):
+                 application: 'PartialApplication'):
         super().__init__()
         self._application: 'PartialApplication' = application
-        self._model: PartialModel = model
 
     @property
     def application(self) -> 'PartialApplication':
@@ -132,22 +129,6 @@ class PartialApplicationTask(Runnable):
             application: :class:`PartialApplication`
         """
         return self._application
-
-    @property
-    def model(self) -> PartialModel:
-        """The model this task reflects.
-
-        .. ------------------------------------------------------------
-
-        Returns
-        -----------
-            model: :class:`PartialModel`
-        """
-        return self._model
-
-    @model.setter
-    def model(self, value):
-        self._model = value
 
 
 @dataclass
