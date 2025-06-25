@@ -9,7 +9,6 @@ from tkinter import (
     BOTH,
     BOTTOM,
     GROOVE,
-    Event,
     HORIZONTAL,
     LabelFrame,
     LEFT,
@@ -29,7 +28,7 @@ if __name__ == '__main__':
 else:
     from .listbox import UserListbox
 
-from ..abc.meta import TK_CURSORS, Loggable
+from ..abc.meta import Loggable
 
 
 class FrameActions(Enum):
@@ -69,6 +68,7 @@ class FrameActions(Enum):
 
 
 class PyroxFrame(LabelFrame, Loggable):
+
     def __init__(self, *args, **kwargs):
         LabelFrame.__init__(self,
                             *args,
@@ -78,183 +78,6 @@ class PyroxFrame(LabelFrame, Loggable):
                             relief=GROOVE,
                             **kwargs)
         Loggable.__init__(self)
-
-        self._current_action = FrameActions.STANDARD
-        self._resize_data = None
-        self._resize_edge = None
-        self._orig_geom = None
-
-        self.bind('<ButtonPress-1>', self._on_button_press)
-        self.bind('<ButtonRelease-1>', self._on_button_release)
-        self.bind('<Motion>', self._on_motion)
-        self.bind('<Leave>', self._on_leave)
-
-    @property
-    def current_action(self):
-        """get the current action of this frame
-
-        Returns:
-            str | None: current action
-        """
-        return self._current_action
-
-    @current_action.setter
-    def current_action(self, action: FrameActions):
-        """set the current action of this frame
-
-        Args:
-            action (FrameActions): the action to set
-        """
-        if isinstance(action, FrameActions):
-            self._current_action = action
-        else:
-            raise TypeError(f'Expected FrameActions, got {type(action)}')
-
-        # Set cursor based on action
-        if self._current_action in FrameActions.sizing_x():
-            self.config(cursor=TK_CURSORS.SIZING)
-        elif self._current_action in FrameActions.sizing_y():
-            self.config(cursor=TK_CURSORS.SIZING)
-        else:
-            self.config(cursor=TK_CURSORS.ARROW)
-
-    @property
-    def resizing(self) -> bool:
-        """check if the frame is currently resizing
-
-        Returns:
-            bool: True if resizing, False otherwise
-        """
-        return self.current_action in FrameActions.sizing_all()
-
-    def _on_button_press(self, event):
-        """handle button press events"""
-        edge, edge_pos = self._detect_edge(event, return_edge_pos=True)
-        if edge:
-            self._resize_edge = edge
-            self._resize_edge_pos = edge_pos  # 'top' or 'bottom' for y
-            self._resize_data = (event.x, event.y, self.winfo_width(), self.winfo_height(), self.winfo_y())
-            if edge == 'x':
-                self.current_action = FrameActions.RESIZING_X
-            elif edge == 'y':
-                self.current_action = FrameActions.RESIZING_Y
-        else:
-            self._resize_edge = None
-            self._resize_data = None
-            self.current_action = FrameActions.STANDARD
-
-    def _on_button_release(self,
-                           event):
-        """handle button release events"""
-        self.current_action = FrameActions.STANDARD
-        self._resize_data = None
-        self._resize_edge = None
-
-    def _on_motion(self, event):
-        if self.resizing and self._resize_data:
-            self._perform_resize(event)
-        else:
-            edge, _ = self._detect_edge(event, return_edge_pos=True)
-            if edge == 'x':
-                self.current_action = FrameActions.HOVERING_X
-            elif edge == 'y':
-                self.current_action = FrameActions.HOVERING_Y
-            else:
-                self.current_action = FrameActions.STANDARD
-
-    def _on_leave(self,
-                  event):
-        if not self.resizing:
-            self.current_action = FrameActions.STANDARD
-
-    def _detect_edge(self, event: Event, threshold=5, return_edge_pos=False):
-        x, y = event.x, event.y
-        w, h = self.winfo_width(), self.winfo_height()
-        # Detect left or right edge
-        if x <= threshold or x >= w - threshold:
-            return ('x', None) if return_edge_pos else 'x'
-        # Detect top or bottom edge as a single 'y' edge, but return which
-        if y <= threshold:
-            return ('y', 'top') if return_edge_pos else 'y'
-        if y >= h - threshold:
-            return ('y', 'bottom') if return_edge_pos else 'y'
-        return (None, None) if return_edge_pos else None
-
-    def _perform_resize(self, event):
-        self.pack_propagate(False)
-        x0, y0, w0, h0, _ = self._resize_data
-        dx = event.x - x0
-        dy = event.y - y0
-        if self._resize_edge == 'x':
-            new_width = max(20, w0 + dx)
-            self.config(width=new_width)
-        elif self._resize_edge == 'y':
-            if getattr(self, '_resize_edge_pos', None) == 'top':
-                # Dragging top edge: increase height as you drag up (do not move y)
-                new_height = max(20, h0 - dy)
-                self.config(height=new_height)
-            else:
-                # Dragging bottom edge: increase height as you drag down
-                new_height = max(20, h0 + dy)
-                self.config(height=new_height)
-
-    @property
-    def resize_data(self):
-        """get the resize data of this frame
-
-        Returns:
-            tuple | None: resize data (x, y, width, height)
-        """
-        return self._resize_data
-
-    @resize_data.setter
-    def resize_data(self, data):
-        """set the resize data of this frame
-
-        Args:
-            data (tuple): resize data (x, y, width, height) to set
-        """
-        self._resize_data = data
-
-    @property
-    def resize_edge(self):
-        """get the resize edge of this frame
-
-        Returns:
-            str | None: resize edge
-        """
-        return self._resize_edge
-
-    @resize_edge.setter
-    def resize_edge(self, edge):
-        """set the resize edge of this frame
-
-        Args:
-            edge (str): resize edge to set
-        """
-        self._resize_edge = edge
-
-    @property
-    def orig_geom(self):
-        """get the original geometry of this frame
-
-        Returns:
-            tuple | None: original geometry (x, y, width, height)
-        """
-        return self._orig_geom
-
-    @orig_geom.setter
-    def orig_geom(self, geom):
-        """set the original geometry of this frame
-
-        Args:
-            geom (tuple): original geometry (x, y, width, height) to set
-        """
-        self._orig_geom = geom
-
-    def _retag(self, tag, *widgets: list[Widget]):
-        for widget in widgets:
-            widget.bindtags((tag,) + widget.bindtags())
 
 
 def clear_widget(widget: Widget):

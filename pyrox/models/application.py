@@ -7,14 +7,12 @@ from typing import Optional, Union
 
 
 from tkinter import (
-    BOTH,
     BOTTOM,
     END,
     LabelFrame,
     LEFT,
+    PanedWindow,
     TOP,
-    X,
-    Y,
     Menu,
     TclError,
     Tk,
@@ -408,19 +406,33 @@ class Application(PartialApplication):
         self._tasks: HashList[PartialApplicationTask] = HashList('id')
         self._menu = None if self.config.headless is True else MainApplicationMenu(self.tk_app)
         self._model_hash = HashList(SnowFlake.id.__name__)
+        self._paned_window = PanedWindow(self.frame, orient='horizontal')
 
         if self.config.inc_organizer is True:
-            self._organizer = FrameWithTreeViewAndScrollbar(master=self.frame, text='Organizer')
-            self._organizer.pack(side=LEFT, fill=Y)
+            self._organizer = FrameWithTreeViewAndScrollbar(master=self._paned_window, text='Organizer')
+            self._organizer.pack(side=LEFT, fill='y')
+            self._paned_window.add(self._organizer)
 
-        if self._config.inc_log_window is True:
-            self._log_window = LogWindow(self.frame)
-            self._log_window.pack(side=BOTTOM, fill=X)
-            self._log_handler.set_callback(self.log)
+        # use an additional sub frame to pack widgets on left side of screen neatly
+        sub_frame = PanedWindow(self._paned_window, orient='vertical')
 
         if self._config.inc_workspace is True:
-            self._workspace = PyroxFrame(self.frame, text='Workspace')
-            self._workspace.pack(side=TOP, fill=BOTH, expand=True)
+            self._workspace = PyroxFrame(sub_frame, text='Workspace')
+            self._workspace.pack(side=TOP, fill='x')
+            sub_frame.add(self._workspace)
+
+        if self._config.inc_log_window is True:
+            self._log_window = LogWindow(sub_frame)
+            self._log_window.pack(side=BOTTOM, fill='x')
+            self._log_handler.set_callback(self.log)
+            sub_frame.add(self._log_window)
+
+        sub_frame.pack(fill='both', expand=True)
+        sub_frame.configure(sashrelief='groove', sashwidth=5, sashpad=5)
+
+        self._paned_window.add(sub_frame)
+        self._paned_window.pack(fill='both', expand=True)
+        self._paned_window.configure(sashrelief='groove', sashwidth=5, sashpad=5)
 
     def clear_organizer(self) -> None:
         """Clear organizer of all children.
