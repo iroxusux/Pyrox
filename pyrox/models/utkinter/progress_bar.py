@@ -7,7 +7,7 @@ import tkinter
 from tkinter import ttk
 
 
-from ..abc import PartialApplication, ApplicationConfiguration
+from ..abc import Application, ApplicationConfiguration
 
 
 __all__ = (
@@ -15,7 +15,7 @@ __all__ = (
 )
 
 
-class ProgressBar(PartialApplication):
+class ProgressBar(Application):
     """A Progress Bar in the form of a :class:`PartialApplication`.
 
     Supports updating text and percentage complete, to show user about an ongoing process.

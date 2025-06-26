@@ -35,6 +35,7 @@ dependencies = [
   "pytest",
   "pylogix",
   "xmltodict",
+  "pyinstaller"
 ]
 
 license = {file = "LICENSE"}

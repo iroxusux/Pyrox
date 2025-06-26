@@ -15,7 +15,7 @@ from xml.sax.saxutils import unescape
 import xml.etree.ElementTree as ET
 
 
-from ..services.file import save_file
+from .file import save_file
 
 
 KEEP_CDATA_SECTION = [

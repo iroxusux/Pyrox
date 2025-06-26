@@ -11,7 +11,7 @@ from .viewmodel import PartialViewModel
 
 
 if TYPE_CHECKING:
-    from .application import PartialApplication
+    from .application import Application
     from .meta import View
 
 
@@ -41,12 +41,12 @@ class PartialModel(Runnable):
     __slots__ = ('_application', '_view_model')
 
     def __init__(self,
-                 application: Optional[PartialApplication] = None,
+                 application: Optional[Application] = None,
                  view_model: Optional[Union[PartialViewModel, type[PartialViewModel]]] = None,
                  view: Optional[type[View]] = None):
         super().__init__()
 
-        self._application: Optional[PartialApplication] = application
+        self._application: Optional[Application] = application
 
         # either construct from a constructor, or set the already constructed value
         # if a bogus value was passed, raise a value error.
@@ -62,7 +62,7 @@ class PartialModel(Runnable):
         return self.__class__.__name__
 
     @property
-    def application(self) -> PartialApplication:
+    def application(self) -> Application:
         """The parent application of this :class:`Model`, if any.
 
         .. ------------------------------------------------------------
@@ -94,7 +94,7 @@ class PartialModel(Runnable):
         self._view_model = None
 
     def set_application(self,
-                        application: PartialApplication) -> bool:
+                        application: Application) -> bool:
         """Set the :class:`Application` for this :class:`Model`
 
         Returns

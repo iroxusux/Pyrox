@@ -2,7 +2,7 @@
     """
 from __future__ import annotations
 
-from pyrox.models.application import Application, ApplicationTask, ApplicationConfiguration
+from pyrox.models import Application, ApplicationTask, ApplicationConfiguration
 
 from tkinter.ttk import Frame, Notebook
 

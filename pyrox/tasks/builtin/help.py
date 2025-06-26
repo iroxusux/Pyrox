@@ -1,7 +1,7 @@
 """built-in help task.
     """
 from __future__ import annotations
-from pyrox.models.application import Application, ApplicationTask, ApplicationConfiguration
+from pyrox.models import Application, ApplicationTask, ApplicationConfiguration
 
 from tkinter import Canvas
 from pathlib import Path
@@ -12,6 +12,19 @@ import importlib.metadata
 class HelpTask(ApplicationTask):
     """built-in help task.
     """
+
+    def __init__(self, application):
+        super().__init__(application)
+
+        self._app_config = ApplicationConfiguration.toplevel()
+        self._app_config.headless = True
+        self._app_config.title = 'Pyrox Help'
+        self._app_config.size_ = '650x500'
+        self._app_config.inc_log_window = False
+        self._app_config.inc_organizer = False
+        self._app_config.inc_workspace = False
+
+        self._app = Application(self._app_config)
 
     def about(self):
         self.logger.info('launching about page...')

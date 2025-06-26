@@ -1,6 +1,7 @@
-"""run this engine locally (for debugging or demonstration purposes)
+"""run this engine locally
     """
 from __future__ import annotations
+
 
 from pyrox.applications import App
 from pyrox import ApplicationConfiguration

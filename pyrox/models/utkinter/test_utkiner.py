@@ -14,9 +14,6 @@ from .frames import (
 from .listbox import UserListbox
 
 
-from ..application import Application, ApplicationConfiguration
-
-
 __all__ = (
     'TestTypes',
 )

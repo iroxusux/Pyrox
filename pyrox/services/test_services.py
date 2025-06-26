@@ -131,17 +131,13 @@ class TestPreprocessor(unittest.TestCase):
 class TestFindAndInstantiateClass(unittest.TestCase):
     def test_find_and_instantiate_class(self):
         from .task_services import find_and_instantiate_class
-        from ..models.application import Application
-        from pyrox.models.application import ApplicationTask
-
-        app = Application()
-        app.build()
+        from pyrox.models import ApplicationTask
 
         my_objects = find_and_instantiate_class(r"pyrox\\tasks\\builtin",
                                                 "ApplicationTask",
                                                 True,
                                                 ApplicationTask,
-                                                application=app)
+                                                application=None)
         self.assertIsNotNone(my_objects)
         self.assertTrue(len(my_objects) >= 3)
         self.assertTrue(hasattr(my_objects[0], "application"))

@@ -4,10 +4,10 @@ from . import test_abc
 
 
 from .application import (
-    PartialApplicationTask,
-    BaseMenu,
-    PartialApplication,
+    Application,
     ApplicationConfiguration,
+    ApplicationTask,
+    BaseMenu,
 )
 
 from .list import (
@@ -34,7 +34,9 @@ from .viewmodel import (
 )
 
 __all__ = (
-    'PartialApplicationTask',
+    'Application',
+    'ApplicationConfiguration',
+    'ApplicationTask',
     'BaseMenu',
     'Buildable',
     'ConsolePanelHandler',
@@ -42,12 +44,10 @@ __all__ = (
     'Loggable',
     'LoggableUnitTest',
     'PartialModel',
-    'PartialApplication',
-    'ApplicationConfiguration',
-    'View',
     'PartialViewModel',
     'ViewType',
     'SafeList',
     'SnowFlake',
     'test_abc',
+    'View',
 )

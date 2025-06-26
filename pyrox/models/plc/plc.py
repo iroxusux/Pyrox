@@ -445,6 +445,23 @@ class LogixOperand(PlcObject):
 
         return [x.replace(self.base_name, self.base_tag.name) for x in self.parents]
 
+    def as_report_dict(self) -> dict:
+        """get this operand as a report dictionary
+
+        Returns:
+            :class:`dict`: report dictionary
+        """
+        return {
+            'base operand': self.meta_data,
+            'aliased operand': self.as_aliased,
+            'arg_position': self.arg_position,
+            'instruction': self.instruction.meta_data,
+            'instruction_type': self.instruction_type.name,
+            'program': self.container.name if self.container else '???',
+            'routine': self.instruction.rung.routine.name if self.instruction.rung and self.instruction.rung.routine else None,
+            'rung': self.instruction.rung.number if self.instruction.rung else '???',
+        }
+
     def validate(self) -> ControllerReportItem:
         report = ControllerReportItem(self,
                                       f'Validating {self.__class__.__name__} object: {self.meta_data}',
@@ -586,11 +603,22 @@ class LogixInstruction(PlcObject):
     def type(self) -> LogixInstructionType:
         return LogixInstructionType.INPUT if self.instruction_name in INPUT_INSTRUCTIONS else LogixInstructionType.OUTPUT
 
+    def as_report_dict(self) -> dict:
+        """get this operand as a report dictionary
+
+        Returns:
+            :class:`dict`: report dictionary
+        """
+        return {
+            'instruction': self.meta_data,
+            'program': self.container.name if self.container else '???',
+            'routine': self.routine.name if self.routine else '???',
+            'rung': self.rung.number if self.rung else '???',
+        }
+
     def validate(self) -> ControllerReportItem:
         report = ControllerReportItem(self,
-                                      f'Validating {self.__class__.__name__} object: {self.meta_data}',
-                                      True,
-                                      [])
+                                      f'Validating {self.__class__.__name__} object: {self.meta_data}')
 
         if not self.instruction_name:
             report.test_notes.append('No instruction name found!')
@@ -1138,9 +1166,7 @@ class Program(RoutineContainer):
 
     def validate(self) -> ControllerReportItem:
         report = ControllerReportItem(self,
-                                      f'Validating {self.__class__.__name__} object: {self.name}',
-                                      True,
-                                      [])
+                                      f'Validating {self.__class__.__name__} object: {self.name}')
 
         if not self.input_instructions:
             report.test_notes.append('No input instructions found in program!')
@@ -1277,9 +1303,7 @@ class Routine(NamedPlcObject):
 
     def validate(self) -> ControllerReportItem:
         report = ControllerReportItem(self,
-                                      f'Validating {self.__class__.__name__} object: {self.name}',
-                                      True,
-                                      [])
+                                      f'Validating {self.__class__.__name__} object: {self.name}')
 
         if not self.output_instructions:
             report.test_notes.append('No output instructions found in routine!')
@@ -1392,15 +1416,13 @@ class Rung(PlcObject):
         if not matches:
             return []
 
-        self._instructions = [LogixInstruction(x, self, self.controller) for x in matches if not x.isdigit()]
+        self._instructions = [LogixInstruction(x, self, self.controller) for x in matches]
 
         return self._instructions
 
     def validate(self) -> ControllerReportItem:
         report = ControllerReportItem(self,
-                                      f'Validating {self.__class__.__name__} object: {self.meta_data}',
-                                      True,
-                                      [])
+                                      f'Validating {self.__class__.__name__} object: {self.meta_data}')
 
         if not self.output_instructions:
             report.test_notes.append('No output instructions found in rung!')
@@ -1947,7 +1969,7 @@ class Controller(NamedPlcObject, Loggable):
 
         for key, value in inputs.items():
             if key not in outputs and not any(item in outputs for item in value[0].aliased_parents):
-                unpaired_inputs[key] = value
+                unpaired_inputs[key] = [x.as_report_dict() for x in value]
 
         return unpaired_inputs
 
@@ -1955,11 +1977,15 @@ class Controller(NamedPlcObject, Loggable):
         self.logger.info('Finding redundant OTEs...')
         outputs = defaultdict(list)
         for inst in [x for x in self.output_instructions if x.instruction_name == 'OTE']:
-            outputs[inst.aliased_meta_data].append(inst)
+            outputs[inst.aliased_meta_data].append(inst.as_report_dict())
 
-        return [{'name': outputs[x][0].meta_data,
-                 'outputs': [{'name': str(y),
-                              'object': y.get_all_properties()} for y in outputs[x]]} for x in outputs if len(outputs[x]) > 1]
+        shallow_outputs = outputs.copy()
+
+        for key, value in shallow_outputs.items():
+            if len(value) < 2:
+                del outputs[key]
+
+        return outputs
 
     def rename_asset(self,
                      element_type: LogixAssetType,
@@ -1992,18 +2018,17 @@ class ControllerReportItem(Loggable):
     def __init__(self,
                  plc_object: PlcObject,
                  test_description: str,
-                 pass_fail: bool,
-                 test_notes: list[str]):
-        if plc_object is None or test_description is None or pass_fail is None or test_notes is None:
+                 pass_fail: bool = False,
+                 test_notes: list[str] = None):
+        if plc_object is None or test_description is None:
             raise ValueError('Cannot leave any fields empty/None!')
 
         super().__init__()
         self._plc_object: PlcObject = plc_object
         self._test_description: str = test_description
         self._pass_fail: bool = pass_fail
-        self._test_notes: list[str] = test_notes
+        self._test_notes: list[str] = test_notes if test_notes is not None else []
         self._child_reports: list['ControllerReportItem'] = []
-        # self.logger.debug(self.test_description)  this just hammers it way too much, may just delete this line later
 
     def __repr__(self):
         return f'ControllerReportItem(plc_object={self._plc_object},)'\
@@ -2142,7 +2167,7 @@ class ControllerReport(Loggable):
         for report in self._report_items:
             if report.plc_object.__class__.__name__ not in categories:
                 categories[report.plc_object.__class__.__name__] = []
-            categories[report.plc_object.__class__.__name__].append(report)
+            categories[report.plc_object.__class__.__name__].append(report.as_dictionary())
         return categories
 
     def as_dictionary(self) -> dict:

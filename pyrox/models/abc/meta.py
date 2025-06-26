@@ -6,7 +6,7 @@ from __future__ import annotations
 from enum import Enum
 import gc
 import logging
-import os
+from pathlib import Path
 import re
 from typing import Callable, Optional, Union
 from tkinter import Tk, Toplevel, Frame, LabelFrame, TclError, Widget
@@ -29,18 +29,26 @@ __all__ = (
     'DEF_DATE_FMT',
 )
 
-ALLOWED_CHARS = r'a-zA-Z0-9_'
-ALLOWED_CHARS_COMPILED = re.compile(f'[^{ALLOWED_CHARS}]')
+ALLOWED_CHARS = re.compile(f'[^{r'a-zA-Z0-9_'}]')
 DEF_VIEW_TYPE = 1
 DEF_THEME = 'black'
 DEF_WIN_TITLE = 'Pyrox Default Frame'
 DEF_WIN_SIZE = '1024x768'
-DEF_ICON = f'{os.path.dirname(os.path.abspath(__file__))}\\..\\..\\ui\\icons\\_def.ico'
+DEF_ICON = Path(__file__).resolve().parent.parent.parent / "ui" / "icons" / "_def.ico"
+# DEF_ICON = f'{os.path.dirname(os.path.abspath(__file__))}\\..\\..\\ui\\icons\\_def.ico'
 DEF_FORMATTER = '%(asctime)s | %(name)s | %(levelname)s | %(message)s'
 DEF_DATE_FMT = "%m/%d/%Y, %H:%M:%S"
 
 
 class TK_CURSORS:
+    """Static class python tkinter cursors.
+
+    .. ------------------------------------------------------------
+
+    .. package:: models.abc.meta
+
+    """
+
     ARROW = "arrow"
     CIRCLE = "circle"
     CLOCK = "clock"
@@ -70,7 +78,7 @@ class _IdGenerator:
 
     .. ------------------------------------------------------------
 
-    .. package:: types.abc.meta
+    .. package:: models.abc.meta
 
     """
 
@@ -105,25 +113,50 @@ class _IdGenerator:
 
 
 class EnforcesNaming:
+    """Helper meta class to enforce naming schemes across objects.
+
+    Valid naming scheme is alphanumeric and underscores only.
+
+    .. ------------------------------------------------------------
+
+    .. package:: models.abc.meta
+
+    """
 
     class InvalidNamingException(Exception):
-        def __init__(self, message='Invalid naming scheme! Allowed chars are %s' % ALLOWED_CHARS_COMPILED):
+        """Helper exception class to raise invalid naming exceptions.
+
+        .. ------------------------------------------------------------
+
+        .. package:: models.abc.meta
+
+        """
+
+        def __init__(self, message='Invalid naming scheme! Allowed chars are %s' % ALLOWED_CHARS):
             self.message = message
             super().__init__(self.message)
 
     @staticmethod
     def is_valid_string(text):
-        if ALLOWED_CHARS_COMPILED.search(text):
+        """Check if a string is valid according to the naming scheme.
+
+        .. ------------------------------------------------------------
+
+        Returns
+        ----------
+            :class:`bool` valid name
+        """
+        if ALLOWED_CHARS.search(text):
             return False
         return True
 
 
 class SnowFlake:
-    """A meta class for all classes to derive from.
+    """A meta class for all classes to derive from to obtain unique IDs.
 
     .. ------------------------------------------------------------
 
-    .. package:: types.abc.meta
+    .. package:: models.abc.meta
 
     .. ------------------------------------------------------------
 
@@ -169,7 +202,7 @@ class ConsolePanelHandler(logging.Handler):
 
     .. ------------------------------------------------------------
 
-    .. package:: types.abc.meta
+    .. package:: models.abc.meta
 
     .. ------------------------------------------------------------
 
@@ -186,7 +219,35 @@ class ConsolePanelHandler(logging.Handler):
     def __init__(self, callback: Callable):
         super().__init__()
         self._callback: Callable = callback
-        self.formatter: logging.Formatter = logging.Formatter(fmt=DEF_FORMATTER, datefmt=DEF_DATE_FMT)
+        self._formatter: logging.Formatter = logging.Formatter(fmt=DEF_FORMATTER, datefmt=DEF_DATE_FMT)
+
+    @property
+    def formatter(self) -> logging.Formatter:
+        """Get the formatter for this handler.
+
+        .. ------------------------------------------------------------
+
+        Returns
+        -----------
+            formatter: :class:`logging.Formatter`
+        """
+        return self._formatter
+
+    @formatter.setter
+    def formatter(self, value: logging.Formatter) -> None:
+        """Set the formatter for this handler.
+
+        .. ------------------------------------------------------------
+
+        Arguments
+        ----------
+        value: :class:`logging.Formatter`
+            Formatter to set for this handler.
+        """
+        if isinstance(value, logging.Formatter) or value is None:
+            self._formatter = value
+        else:
+            raise TypeError(f'Expected logging.Formatter, got {type(value)}')
 
     def emit(self, record) -> None:
         if self._callback:
@@ -404,8 +465,9 @@ class Buildable(Loggable):
 
     __slots__ = ('_built',)
 
-    def __init__(self):
-        super().__init__()
+    def __init__(self,
+                 **kwargs):
+        super().__init__(**kwargs)
         self._built: bool = False
 
     @property
@@ -449,8 +511,9 @@ class Runnable(Buildable):
 
     __slots__ = ('_running', )
 
-    def __init__(self):
-        super().__init__()
+    def __init__(self,
+                 **kwargs):
+        super().__init__(**kwargs)
         self._running: bool = False
 
     @property

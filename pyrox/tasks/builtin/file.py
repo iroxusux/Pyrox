@@ -8,7 +8,7 @@ import sys
 
 
 from pyrox.services.file import get_open_file, get_save_file
-from pyrox.models.application import ApplicationTask
+from pyrox.models import ApplicationTask
 
 
 class FileTask(ApplicationTask):

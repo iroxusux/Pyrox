@@ -55,11 +55,5 @@ def find_and_instantiate_class(directory_path,
                 else:
                     if name == class_name:
                         print(f"Found class '{class_name}' in '{filename}'. Instantiating...")
-                        objects.append(obj(**kwargs))  # Create an object of the found class
+                        objects.append(obj(**kwargs))
     return objects
-
-# Example Usage:
-# Assuming a directory 'my_classes' with a file 'my_module.py' containing 'MyClass'
-# my_object = find_and_instantiate_class("my_classes", "MyClass")
-# if my_object:
-#     print(f"Object created: {my_object}")
