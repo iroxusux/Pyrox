@@ -6,6 +6,8 @@ It also includes utility classes for managing user interfaces, such as list boxe
 """
 from . import models, applications, services, utils
 
+from .applications import App
+
 from .models import (
     Application,
     ApplicationTask,
@@ -31,6 +33,7 @@ from .models.utkinter import (
 
 __all__ = (
     'services',
+    'App',
     'applications',
     'Application',
     'ApplicationTask',

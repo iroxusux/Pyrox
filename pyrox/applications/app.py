@@ -152,11 +152,7 @@ class App(Application):
             Location to open :class:`Controller` from.
 
         """
-        ctrl_dict = l5x_dict_from_file(file_location)
-        if not ctrl_dict:
-            self.error('no controller was parsable from passed file location: %s...', file_location)
-            return
-
+        self.logger.info('Loading controller from file: %s', file_location)
         try:
             ctrl = Controller(l5x_dict_from_file(file_location))
         except KeyError as e:
@@ -187,6 +183,10 @@ class App(Application):
             self._log_window.log_text.config(state='normal')
             self._log_window.log_text.insert('end', f'{message}\n')
             self._log_window.log_text.see('end')
+            line_count = self._log_window.log_text.count('1.0', 'end', 'lines')[0]
+            if line_count > 100:
+                dlt_count = abs(line_count - 100) + 1
+                self._log_window.log_text.delete('1.0', float(dlt_count))
             self._log_window.log_text.config(state='disabled')
         except TclError as e:
             print('Tcl error, original msg -> %s' % e)
@@ -196,9 +196,11 @@ class App(Application):
         if not self.organizer:
             return
 
+        self.logger.info('Refreshing application gui...')
         self.clear_organizer()
         self.clear_workspace()
         populate_tree(self._organizer.tree, '', self.controller.l5x_meta_data)
+        self.logger.info('Done!')
 
     def save_controller(self,
                         file_location: str) -> None:

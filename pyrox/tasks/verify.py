@@ -42,7 +42,9 @@ class ControllerVerifyTask(AppTask):
         self.application.logger.info('Creating tree view...')
         self.application.clear_workspace()
         verify_view = ControllerVerifyView(self.application.workspace)
+        verify_view.frame.tree.pack_forget()
         populate_tree(verify_view.frame.tree, '', report_data)
+        verify_view.frame.tree.pack(expand=True, fill='both')
 
     def inject(self) -> None:
         self.application.menu.tools.add_command(label='Verify Controller', command=self.run)

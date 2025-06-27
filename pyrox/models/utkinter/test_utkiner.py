@@ -3,13 +3,9 @@
 from __future__ import annotations
 
 
-from tkinter import LabelFrame, Listbox
+from tkinter import Listbox
 import unittest
 
-
-from .frames import (
-    DecoratedListboxFrame,
-)
 
 from .listbox import UserListbox
 
@@ -22,16 +18,6 @@ __all__ = (
 class TestTypes(unittest.TestCase):
     """Testing class for types
     """
-
-    def test_frames(self):
-        """test utkinter frames
-        """
-
-        frm = DecoratedListboxFrame(None,
-                                    text='Decorated Frame')
-
-        self.assertIsInstance(frm, LabelFrame)
-        self.assertIsInstance(frm.listbox, UserListbox)
 
     def test_userlistbox(self):
         """test userlistbox

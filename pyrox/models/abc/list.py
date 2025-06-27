@@ -199,6 +199,19 @@ class HashList(Subscribable):
         """
         return self._hashes.get(key, None)
 
+    def by_index(self,
+                 index: int) -> Optional[T]:
+        """Get hashed object by its integer index (in insertion order).
+
+        Returns
+        --------
+            T: :class:`T` or None if out of range
+        """
+        try:
+            return list(self._hashes.values())[index]
+        except IndexError:
+            return None
+
     def emit(self, *args, **kwargs):
         for subscriber in self.subscribers:
             subscriber(*args,

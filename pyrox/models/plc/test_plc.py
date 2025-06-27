@@ -268,20 +268,20 @@ class TestSupportsRadix(unittest.TestCase):
 class TestRoutineContainer(unittest.TestCase):
 
     def setUp(self):
-        self.mock_controller = MagicMock()
+        self.mock_controller = Controller()
         self.mock_routine_type = MagicMock()
         self.mock_routine_instance = MagicMock()
         self.mock_routine_instance.instructions = ['instr1', 'instr2']
 
         self.meta_data = DefaultDict(None)
         self.meta_data['Routines'] = {
-            'Routine': [{'Name': 'Routine1'}, {'Name': 'Routine2'}]
+            'Routine': [{'@Name': 'Routine1'}, {'@Name': 'Routine2'}]
         }
 
         self.container = RoutineContainer(meta_data=self.meta_data, controller=self.mock_controller)
 
     def test_raw_routines_multiple(self):
-        expected = [{'Name': 'Routine1'}, {'Name': 'Routine2'}]
+        expected = [{'@Name': 'Routine1'}, {'@Name': 'Routine2'}]
         self.assertEqual(self.container.raw_routines, expected)
 
     def test_raw_routines_single(self):
@@ -475,7 +475,7 @@ class TestDatatype(unittest.TestCase):
     def test_validate_method(self):
         report_item = self.datatype.validate()
         self.assertIsInstance(report_item, ControllerReportItem)
-        self.assertTrue(report_item.pass_fail)
+        self.assertFalse(report_item.pass_fail)
         self.assertEqual(report_item.plc_object, self.datatype)
 
 
@@ -543,7 +543,7 @@ class TestModule(unittest.TestCase):
     def test_validate_method(self):
         report_item = self.module.validate()
         self.assertIsInstance(report_item, ControllerReportItem)
-        self.assertTrue(report_item.pass_fail)
+        self.assertFalse(report_item.pass_fail)
         self.assertEqual(report_item.plc_object, self.module)
 
 
@@ -708,7 +708,7 @@ class TestTag(unittest.TestCase):
     def test_validate_method(self):
         report_item = self.tag.validate()
         self.assertIsInstance(report_item, ControllerReportItem)
-        self.assertTrue(report_item.pass_fail)
+        self.assertFalse(report_item.pass_fail)
         self.assertEqual(report_item.plc_object, self.tag)
 
 
@@ -1016,22 +1016,22 @@ class TestGmProgram(unittest.TestCase):
         self.program.name = "TestProgram"
 
     def test_is_gm_owned(self):
-        self.program.routines[0].name = 'zSomeRoutine'
+        self.program.routines.by_index(0).name = 'zSomeRoutine'
         self.assertTrue(self.program.is_gm_owned)
 
     def test_is_user_owned(self):
-        self.program.routines[0].name = 'uSomeRoutine'
+        self.program.routines.by_index(0).name = 'uSomeRoutine'
         self.assertTrue(self.program.is_user_owned)
 
     def test_diag_name(self):
-        self.program.routines[0].name = 'B001_Parameters'
-        self.program.routines[0].rungs[0].text = "MOV(12,HMI.Diag.Pgm.Name.LEN)[MOV(kAscii.I,HMI.Diag.Pgm.Name.DATA[0]),MOV(kAscii.F,HMI.Diag.Pgm.Name.DATA[1]),MOV(kAscii.D,HMI.Diag.Pgm.Name.DATA[2]),MOV(kAscii.n5,HMI.Diag.Pgm.Name.DATA[3]),MOV(kAscii.n0,HMI.Diag.Pgm.Name.DATA[4]),MOV(kAscii.n7,HMI.Diag.Pgm.Name.DATA[5]),MOV(kAscii.n5,HMI.Diag.Pgm.Name.DATA[6])];"  # noqa: E501
+        self.program.routines.by_index(0).name = 'B001_Parameters'
+        self.program.routines.by_index(0).rungs[0].text = "MOV(12,HMI.Diag.Pgm.Name.LEN)[MOV(kAscii.I,HMI.Diag.Pgm.Name.DATA[0]),MOV(kAscii.F,HMI.Diag.Pgm.Name.DATA[1]),MOV(kAscii.D,HMI.Diag.Pgm.Name.DATA[2]),MOV(kAscii.n5,HMI.Diag.Pgm.Name.DATA[3]),MOV(kAscii.n0,HMI.Diag.Pgm.Name.DATA[4]),MOV(kAscii.n7,HMI.Diag.Pgm.Name.DATA[5]),MOV(kAscii.n5,HMI.Diag.Pgm.Name.DATA[6])];"  # noqa: E501
         self.assertEqual(self.program.diag_name, "IFD5075")
 
     def test_diag_setup(self):
-        self.program.routines[0].name = 'B001_Parameters'
-        self.program.routines[0].rungs[0].text = "MOV(12,HMI.Diag.Pgm.Name.LEN)[MOV(kAscii.I,HMI.Diag.Pgm.Name.DATA[0]),MOV(kAscii.F,HMI.Diag.Pgm.Name.DATA[1]),MOV(kAscii.D,HMI.Diag.Pgm.Name.DATA[2]),MOV(kAscii.n5,HMI.Diag.Pgm.Name.DATA[3]),MOV(kAscii.n0,HMI.Diag.Pgm.Name.DATA[4]),MOV(kAscii.n7,HMI.Diag.Pgm.Name.DATA[5]),MOV(kAscii.n5,HMI.Diag.Pgm.Name.DATA[6])];"  # noqa: E501
-        self.program.routines[0].rungs[0].comment = "<@DIAG> <Alarm[69]: This is a diagnostic comment!>"
+        self.program.routines.by_index(0).name = 'B001_Parameters'
+        self.program.routines.by_index(0).rungs[0].text = "MOV(12,HMI.Diag.Pgm.Name.LEN)[MOV(kAscii.I,HMI.Diag.Pgm.Name.DATA[0]),MOV(kAscii.F,HMI.Diag.Pgm.Name.DATA[1]),MOV(kAscii.D,HMI.Diag.Pgm.Name.DATA[2]),MOV(kAscii.n5,HMI.Diag.Pgm.Name.DATA[3]),MOV(kAscii.n0,HMI.Diag.Pgm.Name.DATA[4]),MOV(kAscii.n7,HMI.Diag.Pgm.Name.DATA[5]),MOV(kAscii.n5,HMI.Diag.Pgm.Name.DATA[6])];"  # noqa: E501
+        self.program.routines.by_index(0).rungs[0].comment = "<@DIAG> <Alarm[69]: This is a diagnostic comment!>"
         diag_setup = self.program.diag_setup
         self.assertEqual(diag_setup['program_name'], self.program.name)
         self.assertEqual(diag_setup['diag_name'], "IFD5075")
@@ -1041,9 +1041,9 @@ class TestGmProgram(unittest.TestCase):
         self.assertEqual(diag_setup['tag_alias_refs'], 'TBD')
 
     def test_kdiags(self):
-        self.program.routines[0].name = 'B001_Parameters'
-        self.program.routines[0].rungs[0].text = "MOV(12,HMI.Diag.Pgm.Name.LEN)[MOV(kAscii.I,HMI.Diag.Pgm.Name.DATA[0]),MOV(kAscii.F,HMI.Diag.Pgm.Name.DATA[1]),MOV(kAscii.D,HMI.Diag.Pgm.Name.DATA[2]),MOV(kAscii.n5,HMI.Diag.Pgm.Name.DATA[3]),MOV(kAscii.n0,HMI.Diag.Pgm.Name.DATA[4]),MOV(kAscii.n7,HMI.Diag.Pgm.Name.DATA[5]),MOV(kAscii.n5,HMI.Diag.Pgm.Name.DATA[6])];"  # noqa: E501
-        self.program.routines[0].rungs[0].comment = "<@DIAG> <Alarm[69]: This is a diagnostic comment!>"
+        self.program.routines.by_index(0).name = 'B001_Parameters'
+        self.program.routines.by_index(0).rungs[0].text = "MOV(12,HMI.Diag.Pgm.Name.LEN)[MOV(kAscii.I,HMI.Diag.Pgm.Name.DATA[0]),MOV(kAscii.F,HMI.Diag.Pgm.Name.DATA[1]),MOV(kAscii.D,HMI.Diag.Pgm.Name.DATA[2]),MOV(kAscii.n5,HMI.Diag.Pgm.Name.DATA[3]),MOV(kAscii.n0,HMI.Diag.Pgm.Name.DATA[4]),MOV(kAscii.n7,HMI.Diag.Pgm.Name.DATA[5]),MOV(kAscii.n5,HMI.Diag.Pgm.Name.DATA[6])];"  # noqa: E501
+        self.program.routines.by_index(0).rungs[0].comment = "<@DIAG> <Alarm[69]: This is a diagnostic comment!>"
         kdiags = self.program.kdiags
         self.assertEqual(len(kdiags), 1)
         self.assertIsInstance(kdiags[0], KDiag)
@@ -1052,8 +1052,8 @@ class TestGmProgram(unittest.TestCase):
         self.assertEqual(self.program.parameter_offset, 0)
 
     def test_parameter_routine(self):
-        self.program.routines[0].name = 'B001_Parameters'
-        self.program.routines[0].rungs[0].text = "MOV(12,HMI.Diag.Pgm.Name.LEN)[MOV(kAscii.I,HMI.Diag.Pgm.Name.DATA[0]),MOV(kAscii.F,HMI.Diag.Pgm.Name.DATA[1]),MOV(kAscii.D,HMI.Diag.Pgm.Name.DATA[2]),MOV(kAscii.n5,HMI.Diag.Pgm.Name.DATA[3]),MOV(kAscii.n0,HMI.Diag.Pgm.Name.DATA[4]),MOV(kAscii.n7,HMI.Diag.Pgm.Name.DATA[5]),MOV(kAscii.n5,HMI.Diag.Pgm.Name.DATA[6])];"  # noqa: E501
+        self.program.routines.by_index(0).name = 'B001_Parameters'
+        self.program.routines.by_index(0).rungs[0].text = "MOV(12,HMI.Diag.Pgm.Name.LEN)[MOV(kAscii.I,HMI.Diag.Pgm.Name.DATA[0]),MOV(kAscii.F,HMI.Diag.Pgm.Name.DATA[1]),MOV(kAscii.D,HMI.Diag.Pgm.Name.DATA[2]),MOV(kAscii.n5,HMI.Diag.Pgm.Name.DATA[3]),MOV(kAscii.n0,HMI.Diag.Pgm.Name.DATA[4]),MOV(kAscii.n7,HMI.Diag.Pgm.Name.DATA[5]),MOV(kAscii.n5,HMI.Diag.Pgm.Name.DATA[6])];"  # noqa: E501
         self.assertIsInstance(self.program.parameter_routine, GmRoutine)
 
     def test_program_type(self):
@@ -1061,28 +1061,28 @@ class TestGmProgram(unittest.TestCase):
 
     def test_routines(self):
         self.assertEqual(len(self.program.routines), 1)
-        self.assertIsInstance(self.program.routines[0], GmRoutine)
+        self.assertIsInstance(self.program.routines.by_index(0), GmRoutine)
 
     def test_text_list_items(self):
-        self.program.routines[0].name = 'B001_Parameters'
-        self.program.routines[0].rungs[0].text = "MOV(12,HMI.Diag.Pgm.Name.LEN)[MOV(kAscii.I,HMI.Diag.Pgm.Name.DATA[0]),MOV(kAscii.F,HMI.Diag.Pgm.Name.DATA[1]),MOV(kAscii.D,HMI.Diag.Pgm.Name.DATA[2]),MOV(kAscii.n5,HMI.Diag.Pgm.Name.DATA[3]),MOV(kAscii.n0,HMI.Diag.Pgm.Name.DATA[4]),MOV(kAscii.n7,HMI.Diag.Pgm.Name.DATA[5]),MOV(kAscii.n5,HMI.Diag.Pgm.Name.DATA[6])];"  # noqa: E501
-        self.program.routines[0].rungs[0].comment = "<@DIAG> <Alarm[69]: This is a diagnostic comment!>"
+        self.program.routines.by_index(0).name = 'B001_Parameters'
+        self.program.routines.by_index(0).rungs[0].text = "MOV(12,HMI.Diag.Pgm.Name.LEN)[MOV(kAscii.I,HMI.Diag.Pgm.Name.DATA[0]),MOV(kAscii.F,HMI.Diag.Pgm.Name.DATA[1]),MOV(kAscii.D,HMI.Diag.Pgm.Name.DATA[2]),MOV(kAscii.n5,HMI.Diag.Pgm.Name.DATA[3]),MOV(kAscii.n0,HMI.Diag.Pgm.Name.DATA[4]),MOV(kAscii.n7,HMI.Diag.Pgm.Name.DATA[5]),MOV(kAscii.n5,HMI.Diag.Pgm.Name.DATA[6])];"  # noqa: E501
+        self.program.routines.by_index(0).rungs[0].comment = "<@DIAG> <Alarm[69]: This is a diagnostic comment!>"
         text_list_items = self.program.text_list_items
         self.assertEqual(len(text_list_items), 1)
         self.assertIsInstance(text_list_items[0], TextListElement)
 
     def test_gm_routines(self):
-        self.program.routines[0].name = 'zB001_Parameters'
-        self.program.routines[0].rungs[0].text = "MOV(12,HMI.Diag.Pgm.Name.LEN)[MOV(kAscii.I,HMI.Diag.Pgm.Name.DATA[0]),MOV(kAscii.F,HMI.Diag.Pgm.Name.DATA[1]),MOV(kAscii.D,HMI.Diag.Pgm.Name.DATA[2]),MOV(kAscii.n5,HMI.Diag.Pgm.Name.DATA[3]),MOV(kAscii.n0,HMI.Diag.Pgm.Name.DATA[4]),MOV(kAscii.n7,HMI.Diag.Pgm.Name.DATA[5]),MOV(kAscii.n5,HMI.Diag.Pgm.Name.DATA[6])];"  # noqa: E501
-        self.program.routines[0].rungs[0].comment = "<@DIAG> <Alarm[69]: This is a diagnostic comment!>"
+        self.program.routines.by_index(0).name = 'zB001_Parameters'
+        self.program.routines.by_index(0).rungs[0].text = "MOV(12,HMI.Diag.Pgm.Name.LEN)[MOV(kAscii.I,HMI.Diag.Pgm.Name.DATA[0]),MOV(kAscii.F,HMI.Diag.Pgm.Name.DATA[1]),MOV(kAscii.D,HMI.Diag.Pgm.Name.DATA[2]),MOV(kAscii.n5,HMI.Diag.Pgm.Name.DATA[3]),MOV(kAscii.n0,HMI.Diag.Pgm.Name.DATA[4]),MOV(kAscii.n7,HMI.Diag.Pgm.Name.DATA[5]),MOV(kAscii.n5,HMI.Diag.Pgm.Name.DATA[6])];"  # noqa: E501
+        self.program.routines.by_index(0).rungs[0].comment = "<@DIAG> <Alarm[69]: This is a diagnostic comment!>"
         gm_routines = self.program.gm_routines
         self.assertEqual(len(gm_routines), 1)
         self.assertIsInstance(gm_routines[0], GmRoutine)
 
     def test_user_routines(self):
-        self.program.routines[0].name = 'uB001_Parameters'
-        self.program.routines[0].rungs[0].text = "MOV(12,HMI.Diag.Pgm.Name.LEN)[MOV(kAscii.I,HMI.Diag.Pgm.Name.DATA[0]),MOV(kAscii.F,HMI.Diag.Pgm.Name.DATA[1]),MOV(kAscii.D,HMI.Diag.Pgm.Name.DATA[2]),MOV(kAscii.n5,HMI.Diag.Pgm.Name.DATA[3]),MOV(kAscii.n0,HMI.Diag.Pgm.Name.DATA[4]),MOV(kAscii.n7,HMI.Diag.Pgm.Name.DATA[5]),MOV(kAscii.n5,HMI.Diag.Pgm.Name.DATA[6])];"  # noqa: E501
-        self.program.routines[0].rungs[0].comment = "<@DIAG> <Alarm[69]: This is a diagnostic comment!>"
+        self.program.routines.by_index(0).name = 'uB001_Parameters'
+        self.program.routines.by_index(0).rungs[0].text = "MOV(12,HMI.Diag.Pgm.Name.LEN)[MOV(kAscii.I,HMI.Diag.Pgm.Name.DATA[0]),MOV(kAscii.F,HMI.Diag.Pgm.Name.DATA[1]),MOV(kAscii.D,HMI.Diag.Pgm.Name.DATA[2]),MOV(kAscii.n5,HMI.Diag.Pgm.Name.DATA[3]),MOV(kAscii.n0,HMI.Diag.Pgm.Name.DATA[4]),MOV(kAscii.n7,HMI.Diag.Pgm.Name.DATA[5]),MOV(kAscii.n5,HMI.Diag.Pgm.Name.DATA[6])];"  # noqa: E501
+        self.program.routines.by_index(0).rungs[0].comment = "<@DIAG> <Alarm[69]: This is a diagnostic comment!>"
         user_routines = self.program.user_routines
         self.assertEqual(len(user_routines), 1)
         self.assertIsInstance(user_routines[0], GmRoutine)

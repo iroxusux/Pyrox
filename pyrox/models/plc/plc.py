@@ -361,9 +361,15 @@ class LogixOperand(PlcObject):
                  instruction: 'LogixInstruction',
                  arg_position: int,
                  controller: 'Controller'):
+        self._aliased_parents: list[str] = None
+        self._arg_position = arg_position
+        self._as_aliased: str = None
+        self._base_name: str = None
         self._base_tag: Optional['Tag'] = None
         self._instruction = instruction
-        self._arg_position = arg_position
+        self._instruction_type: LogixInstructionType = None
+        self._parents: list[str] = None
+
         super().__init__(meta_data=meta_data,
                          controller=controller)
 
@@ -380,14 +386,23 @@ class LogixOperand(PlcObject):
         Returns:
             :class:`str`: qualified name of this operand
         """
-        if not self.base_tag:
-            return self.meta_data
+        if self._as_aliased:
+            return self._as_aliased
 
-        return self.meta_data.replace(self.base_name, self.base_tag.name if not self.base_tag.alias_for else self.base_tag.alias_for)
+        if not self.base_tag:
+            self._as_aliased = self.meta_data
+        else:
+            self._as_aliased = self.meta_data.replace(self.base_name, self.base_tag.name
+                                                      if not self.base_tag.alias_for else self.base_tag.alias_for)
+
+        return self._as_aliased
 
     @property
     def base_name(self) -> str:
-        return self.meta_data.split('.')[0]
+        if self._base_name:
+            return self._base_name
+        self._base_name = self.meta_data.split('.')[0]
+        return self._base_name
 
     @property
     def base_tag(self) -> Tag:
@@ -411,39 +426,55 @@ class LogixOperand(PlcObject):
     def instruction_type(self) -> LogixInstructionType:
         """Get the instruction type of this operand
         """
+        if self._instruction_type:
+            return self._instruction_type
+
         if self.instruction.instruction_name in INPUT_INSTRUCTIONS:
-            return LogixInstructionType.INPUT
+            self._instruction_type = LogixInstructionType.INPUT
+            return self._instruction_type
 
         for instr in OUTPUT_INSTRUCTIONS:
             if self.instruction.instruction_name == instr[0]:
                 if self.arg_position == instr[1] or (self.arg_position+1 == len(self.instruction.operands) and instr[1] == -1):
-                    return LogixInstructionType.OUTPUT
+                    self._instruction_type = LogixInstructionType.OUTPUT
+                    return self._instruction_type
 
         # for now, all AOI operands will be considered out, until i can later dig into this.
         if self.instruction.instruction_name in [aoi.name for aoi in self.instruction.rung.controller.aois]:
             # if self.instruction.element in self.instruction.routine.controller.aois:
-            return LogixInstructionType.OUTPUT
+            self._instruction_type = LogixInstructionType.OUTPUT
+            return self._instruction_type
 
-        return LogixInstructionType.UNKOWN
+        self._instruction_type = LogixInstructionType.UNKOWN
+        return self._instruction_type
 
     @property
     def parents(self) -> list[str]:
+        if self._parents:
+            return self._parents
+
         parts = self._meta_data.split('.')
         if len(parts) == 1:
-            return [self._meta_data]
+            self._parents = [self._meta_data]
+            return self._parents
 
-        parents = []
+        self._parents = []
         for x in range(len(parts)):
-            parents.append(self._meta_data.rsplit('.', x)[0])
+            self._parents.append(self._meta_data.rsplit('.', x)[0])
 
-        return parents
+        return self._parents
 
     @property
     def aliased_parents(self) -> list[str]:
-        if not self.base_tag:
-            return self.parents
+        if self._aliased_parents:
+            return self._aliased_parents
 
-        return [x.replace(self.base_name, self.base_tag.name) for x in self.parents]
+        if not self.base_tag:
+            self._aliased_parents = self.parents
+            return self._aliased_parents
+        self._aliased_parents = [x.replace(self.base_name, self.base_tag.name) for x in self.parents]
+
+        return self._aliased_parents
 
     def as_report_dict(self) -> dict:
         """get this operand as a report dictionary
@@ -511,7 +542,9 @@ class LogixInstruction(PlcObject):
                  meta_data: str,
                  rung: Optional['Rung'],
                  controller: 'Controller'):
+        self._instruction_name: str = None
         self._rung = rung
+        self._type: LogixInstructionType = None
         self._operands: list[LogixOperand] = None
         super().__init__(meta_data=meta_data,
                          controller=controller)
@@ -529,10 +562,15 @@ class LogixInstruction(PlcObject):
         ----------
             :class:`str`
         """
+        if self._instruction_name:
+            return self._instruction_name
+
         matches = re.findall(INST_TYPE_RE_PATTERN, self._meta_data)
         if not matches or len(matches) < 1:
             raise ValueError("Corrupt meta data for instruction, no type found!")
-        return matches[0]
+
+        self._instruction_name = matches[0]
+        return self._instruction_name
 
     @property
     def operands(self) -> list[LogixOperand]:
@@ -601,7 +639,10 @@ class LogixInstruction(PlcObject):
 
     @property
     def type(self) -> LogixInstructionType:
-        return LogixInstructionType.INPUT if self.instruction_name in INPUT_INSTRUCTIONS else LogixInstructionType.OUTPUT
+        if self._type:
+            return self._type
+        self._type = LogixInstructionType.INPUT if self.instruction_name in INPUT_INSTRUCTIONS else LogixInstructionType.OUTPUT
+        return self._type
 
     def as_report_dict(self) -> dict:
         """get this operand as a report dictionary
@@ -759,6 +800,9 @@ class RoutineContainer(TagContainer):
         super().__init__(meta_data, controller)
 
         self._instructions: list[LogixInstruction] = []
+        self._routines: HashList = HashList('name')
+        [self._routines.append(self.config.routine_type(l5x_meta_data=x, controller=self.controller, program=self))
+         for x in self.raw_routines]
 
     @property
     def instructions(self) -> list[LogixInstruction]:
@@ -778,10 +822,7 @@ class RoutineContainer(TagContainer):
 
     @property
     def routines(self) -> list[Routine]:
-        return [self.config.routine_type(l5x_meta_data=routine,
-                                         controller=self.controller,
-                                         program=self)
-                for routine in self.raw_routines]
+        return self._routines
 
     @property
     def raw_routines(self) -> list[dict]:
@@ -875,9 +916,7 @@ class AddOnInstruction(RoutineContainer, SupportsClass):
 
     def validate(self):
         report = ControllerReportItem(self,
-                                      f'Validating {self.__class__.__name__} object: {self.name}',
-                                      True,
-                                      [])
+                                      f'Validating {self.__class__.__name__} object: {self.name}')
 
         return report
 
@@ -962,6 +1001,9 @@ class Datatype(SupportsClass):
 
         if name:
             self.name = name
+        self._members: list[DatatypeMember] = []
+        [self._members.append(DatatypeMember(l5x_meta_data=x, controller=self.controller, datatype=self))
+         for x in self.raw_members]
 
     @property
     def family(self) -> str:
@@ -969,7 +1011,7 @@ class Datatype(SupportsClass):
 
     @property
     def members(self) -> list[DatatypeMember]:
-        return [DatatypeMember(x['@Name'], self, self._controller) for x in self.raw_members]
+        return self._members
 
     @property
     def raw_members(self) -> list[dict]:
@@ -983,9 +1025,7 @@ class Datatype(SupportsClass):
 
     def validate(self):
         report = ControllerReportItem(self,
-                                      f'Validating {self.__class__.__name__} object: {self.name}',
-                                      True,
-                                      [])
+                                      f'Validating {self.__class__.__name__} object: {self.name}')
 
         return report
 
@@ -1075,9 +1115,7 @@ class Module(NamedPlcObject):
     def validate(self) -> ControllerReportItem:
 
         report = ControllerReportItem(self,
-                                      f'Validating {self.__class__.__name__} object: {self.name}',
-                                      True,
-                                      [])
+                                      f'Validating {self.__class__.__name__} object: {self.name}')
 
         return report
 
@@ -1345,6 +1383,8 @@ class Rung(PlcObject):
 
         self._routine: Optional[Routine] = routine
         self._instructions: list[LogixInstruction] = []
+        self._input_instructions: list[LogixInstruction] = []
+        self._output_instructions: list[LogixInstruction] = []
 
     def __repr__(self):
         return (
@@ -1373,7 +1413,10 @@ class Rung(PlcObject):
 
     @property
     def input_instructions(self) -> list[LogixInstruction]:
-        return [x for x in self.instructions if x.type is LogixInstructionType.INPUT]
+        if self._input_instructions:
+            return self._input_instructions
+        self._input_instructions = [x for x in self.instructions if x.type is LogixInstructionType.INPUT]
+        return self._input_instructions
 
     @property
     def instructions(self) -> list[LogixInstruction]:
@@ -1381,7 +1424,10 @@ class Rung(PlcObject):
 
     @property
     def output_instructions(self) -> list[LogixInstruction]:
-        return [x for x in self.instructions if x.type is LogixInstructionType.OUTPUT]
+        if self._output_instructions:
+            return self._output_instructions
+        self._output_instructions = [x for x in self.instructions if x.type is LogixInstructionType.OUTPUT]
+        return self._output_instructions
 
     @property
     def number(self) -> str:
@@ -1569,9 +1615,7 @@ class Tag(NamedPlcObject):
 
     def validate(self):
         report = ControllerReportItem(self,
-                                      f'Validating {self.__class__.__name__} object: {self.name}',
-                                      True,
-                                      [])
+                                      f'Validating {self.__class__.__name__} object: {self.name}')
         return report
 
 
@@ -1968,6 +2012,8 @@ class Controller(NamedPlcObject, Loggable):
         unpaired_inputs = {}
 
         for key, value in inputs.items():
+            if ':' in key:
+                continue  # skip hardware flags / physical module i/o
             if key not in outputs and not any(item in outputs for item in value[0].aliased_parents):
                 unpaired_inputs[key] = [x.as_report_dict() for x in value]
 
@@ -2014,7 +2060,7 @@ class Controller(NamedPlcObject, Loggable):
         }
 
 
-class ControllerReportItem(Loggable):
+class ControllerReportItem:
     def __init__(self,
                  plc_object: PlcObject,
                  test_description: str,
@@ -2022,8 +2068,6 @@ class ControllerReportItem(Loggable):
                  test_notes: list[str] = None):
         if plc_object is None or test_description is None:
             raise ValueError('Cannot leave any fields empty/None!')
-
-        super().__init__()
         self._plc_object: PlcObject = plc_object
         self._test_description: str = test_description
         self._pass_fail: bool = pass_fail

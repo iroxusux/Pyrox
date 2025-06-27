@@ -26,12 +26,10 @@ from .meta import (
     SnowFlake,
     ConsolePanelHandler,
     Loggable,
-    LoggableUnitTest,
     Buildable,
     Runnable,
     ViewType,
     View,
-    ExceptionContextManager,
 )
 
 
@@ -137,13 +135,6 @@ class TestLoggable(unittest.TestCase):
         self.assertIn('Error message', messages[2])
 
 
-class TestLoggableUnitTest(unittest.TestCase):
-    def test_loggable_unittest_initialization(self):
-        test_case = LoggableUnitTest()
-        self.assertIsInstance(test_case.logger, logging.Logger)
-        self.assertIsInstance(test_case.log_handler, ConsolePanelHandler)
-
-
 class TestBuildable(unittest.TestCase):
     def test_initial_built_state(self):
         buildable = Buildable()
@@ -196,20 +187,6 @@ class TestPartialView(unittest.TestCase):
         view = View()
         self.assertIsInstance(view.frame, Frame)
         self.assertIsNone(view.parent)
-
-
-class TestExceptionContextManager(unittest.TestCase):
-    def test_log_exception(self):
-        report_items = []
-        with ExceptionContextManager(report_items) as manager:  # noqa: F841
-            raise ValueError("Test exception")
-        self.assertIn("Test exception", report_items)
-
-    def test_log_method(self):
-        report_items = []
-        manager = ExceptionContextManager(report_items)
-        manager.log("Test log message")
-        self.assertIn("Test log message", report_items)
 
 
 class TestBaseMenu(unittest.TestCase):

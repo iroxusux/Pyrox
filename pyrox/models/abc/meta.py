@@ -11,7 +11,6 @@ import re
 from typing import Callable, Optional, Union
 from tkinter import Tk, Toplevel, Frame, LabelFrame, TclError, Widget
 from ttkthemes import ThemedTk
-import unittest
 
 
 __all__ = (
@@ -35,7 +34,6 @@ DEF_THEME = 'black'
 DEF_WIN_TITLE = 'Pyrox Default Frame'
 DEF_WIN_SIZE = '1024x768'
 DEF_ICON = Path(__file__).resolve().parent.parent.parent / "ui" / "icons" / "_def.ico"
-# DEF_ICON = f'{os.path.dirname(os.path.abspath(__file__))}\\..\\..\\ui\\icons\\_def.ico'
 DEF_FORMATTER = '%(asctime)s | %(name)s | %(levelname)s | %(message)s'
 DEF_DATE_FMT = "%m/%d/%Y, %H:%M:%S"
 
@@ -269,7 +267,7 @@ class Loggable(SnowFlake):
 
     .. ------------------------------------------------------------
 
-    .. package:: types.abc.meta
+    .. package:: models.abc.meta
 
     .. ------------------------------------------------------------
 
@@ -437,15 +435,6 @@ class Loggable(SnowFlake):
         self._logger.warning(msg)
 
 
-class LoggableUnitTest(unittest.TestCase, Loggable):
-    """Loggable Unit Test TestCase
-    """
-
-    def __init__(self, methodName="runTest"):
-        unittest.TestCase.__init__(self, methodName)
-        Loggable.__init__(self)
-
-
 class Buildable(Loggable):
     """Denotes object is 'buildable' and supports `build` and `refresh` methods.
 
@@ -453,7 +442,7 @@ class Buildable(Loggable):
 
     .. ------------------------------------------------------------
 
-    .. package:: types.abc.meta
+    .. package:: models.abc.meta
 
     .. ------------------------------------------------------------
 
@@ -499,7 +488,7 @@ class Runnable(Buildable):
 
     .. ------------------------------------------------------------
 
-    .. package:: types.abc.meta
+    .. package:: models.abc.meta
 
     .. ------------------------------------------------------------
 
@@ -548,7 +537,7 @@ class ViewType(Enum):
 
     .. ------------------------------------------------------------
 
-    .. package:: types.abc.meta
+    .. package:: models.abc.meta
     """
     NA = 0
     ROOT = 1
@@ -661,23 +650,3 @@ class View(Runnable):
             self.logger.error('TclError: Could not destroy the parent window')
         finally:
             gc.collect()  # process garbage collection for tk/tcl elements
-
-
-class ExceptionContextManager:
-
-    def __init__(self,
-                 report_items: list[list[str]] = []):
-        self._report_items: list[list[str]] = report_items
-
-    def __enter__(self):
-        return self
-
-    def __exit__(self, exc_type, exc_val, exc_tb):
-        if exc_type is not None:
-            self.log(str(exc_val))
-
-        return True
-
-    def log(self,
-            *messages: str) -> None:
-        self._report_items.append(*messages)

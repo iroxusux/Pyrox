@@ -50,10 +50,8 @@ def find_and_instantiate_class(directory_path,
             for name, obj in objs:
                 if as_subclass and parent_class is not None:
                     if issubclass(obj, parent_class) and name != parent_class.__name__:
-                        print(f"Found subclass '{class_name}' in '{filename}'. Instantiating...")
                         objects.append(obj(**kwargs))
                 else:
                     if name == class_name:
-                        print(f"Found class '{class_name}' in '{filename}'. Instantiating...")
                         objects.append(obj(**kwargs))
     return objects

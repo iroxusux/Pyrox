@@ -3,4 +3,5 @@
 ------
  Controller Verification
 ------
-- Standard To Safety Mapping for unpaired controller inputs
+- Standard To Safety Mapping for unpaired controller inputs (LaFond - 6/26/2025)
+- Module defined I/O for unpaired controller inputs (LaFond - 6/26/2025) - Complete (LaFond - 6/26/2025)
