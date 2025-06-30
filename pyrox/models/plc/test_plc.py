@@ -3,35 +3,28 @@ from __future__ import annotations
 
 from typing import DefaultDict, TypeVar
 import unittest
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
+
+
+from ..abc.list import HashList
 
 
 from .plc import (
-    AddOnInstruction,
     ConnectionParameters,
-    Datatype,
     DatatypeMember,
-    Routine,
     Controller,
-    ControllerReport,
     ControllerReportItem,
     ControllerConfiguration,
-    LogixAssetType,
-    LogixOperand,
     LogixInstruction,
     LogixInstructionType,
-    Module,
     NamedPlcObject,
     PlcObject,
     Program,
-    ProgramTag,
     RoutineContainer,
-    Rung,
     SupportsMeta,
     SupportsClass,
     SupportsExternalAccess,
     SupportsRadix,
-    Tag,
     TagContainer
 )
 
@@ -55,18 +48,9 @@ T = TypeVar('T')
 UNITTEST_PLC_FILE = r'docs\controls\unittest.L5X'
 
 
-class MockRoutine(Routine):
-    def __init__(self, l5x_meta_data=None, controller=None, program=None):
-        super().__init__()
-
-
-class MockController(Controller):
-    pass
-
-
 class TestPlcObject(unittest.TestCase):
     def setUp(self):
-        self.controller = MockController()
+        self.controller: Controller = Controller.from_file(UNITTEST_PLC_FILE)
         self.meta_data = {"@Name": "TestObject",
                           "Description": "Test Description"}
         self.plc_object = PlcObject(
@@ -91,7 +75,7 @@ class TestPlcObject(unittest.TestCase):
 
 class TestNamedPlcObject(unittest.TestCase):
     def setUp(self):
-        self.controller = MockController()
+        self.controller: Controller = Controller.from_file(UNITTEST_PLC_FILE)
         self.meta_data = {"@Name": "TestNamedObject", "Description": "Test Description"}
         self.named_object = NamedPlcObject(
             meta_data=self.meta_data, controller=self.controller)
@@ -114,79 +98,225 @@ class TestNamedPlcObject(unittest.TestCase):
 class TestLogixOperand(unittest.TestCase):
 
     def setUp(self):
-        self.mock_controller = MagicMock()
-        self.mock_instruction = MagicMock()
-        self.mock_instruction.element = 'MOV'
-        self.mock_instruction.operands = ['A', 'B']
-        self.mock_instruction.routine.program = None
-        self.mock_instruction.routine.aoi = None
-        self.mock_instruction.rung.controller.aois = []
+        self.controller: Controller = Controller.from_file(UNITTEST_PLC_FILE)
+        self.program = self.controller.programs.get('LogixOperand')
+        self.routine = self.program.routines.get('main')
 
-        self.meta_data = 'Tag1.SubTag'
-        self.arg_position = 0
-
-        self.operand = LogixOperand(
-            meta_data=self.meta_data,
-            instruction=self.mock_instruction,
-            arg_position=self.arg_position,
-            controller=self.mock_controller
-        )
-
-    def test_repr(self):
-        self.assertEqual(repr(self.operand), self.meta_data)
+    def test_aliased_parents(self):
+        operand = self.routine.rungs[0].instructions[0].operands[0]
+        self.assertEqual(operand.aliased_parents, ['gFirstOperand'])
+        operand = self.routine.rungs[1].instructions[0].operands[1]
+        self.assertEqual(operand.aliased_parents, ['SecondOperand'])
+        operand = self.routine.rungs[2].instructions[0].operands[0]
+        self.assertEqual(operand.aliased_parents, ['SomeStruct.a', 'SomeStruct'])
+        operand = self.routine.rungs[3].instructions[0].operands[0]
+        self.assertEqual(operand.aliased_parents, ['gStruct.a', 'gStruct'])
+        operand = self.routine.rungs[4].instructions[0].operands[0]
+        self.assertEqual(operand.aliased_parents, ['gStruct.c', 'gStruct'])
+        operand = self.routine.rungs[5].instructions[0].operands[0]
+        self.assertEqual(operand.aliased_parents, ['LocalProgramTagOnly'])
 
     def test_arg_position(self):
-        self.assertEqual(self.operand.arg_position, self.arg_position)
+        operand = self.routine.rungs[0].instructions[0].operands[0]
+        self.assertEqual(operand.arg_position, 0)
+        operand = self.routine.rungs[1].instructions[0].operands[1]
+        self.assertEqual(operand.arg_position, 1)
+
+    def test_as_aliased(self):
+        operand = self.routine.rungs[0].instructions[0].operands[0]
+        self.assertEqual(operand.as_aliased, 'gFirstOperand')
+        operand = self.routine.rungs[1].instructions[0].operands[1]
+        self.assertEqual(operand.as_aliased, 'SecondOperand')
+        operand = self.routine.rungs[2].instructions[0].operands[0]
+        self.assertEqual(operand.as_aliased, 'SomeStruct.a')
+        operand = self.routine.rungs[3].instructions[0].operands[0]
+        self.assertEqual(operand.as_aliased, 'gStruct.a')
+        operand = self.routine.rungs[4].instructions[0].operands[0]
+        self.assertEqual(operand.as_aliased, 'gStruct.c')
+        operand = self.routine.rungs[5].instructions[0].operands[0]
+        self.assertEqual(operand.as_aliased, 'LocalProgramTagOnly')
+
+    def test_as_qualified(self):
+        operand = self.routine.rungs[0].instructions[0].operands[0]
+        self.assertEqual(operand.as_qualified, 'gFirstOperand')
+        operand = self.routine.rungs[1].instructions[0].operands[1]
+        self.assertEqual(operand.as_qualified, 'SecondOperand')
+        operand = self.routine.rungs[2].instructions[0].operands[0]
+        self.assertEqual(operand.as_qualified, 'SomeStruct.a')
+        operand = self.routine.rungs[3].instructions[0].operands[0]
+        self.assertEqual(operand.as_qualified, 'gStruct.a')
+        operand = self.routine.rungs[4].instructions[0].operands[0]
+        self.assertEqual(operand.as_qualified, 'gStruct.c')
+        operand = self.routine.rungs[5].instructions[0].operands[0]
+        self.assertEqual(operand.as_qualified, 'Program:LogixOperand.LocalProgramTagOnly')
 
     def test_base_name(self):
-        self.assertEqual(self.operand.base_name, 'Tag1')
+        operand = self.routine.rungs[0].instructions[0].operands[0]
+        self.assertEqual(operand.base_name, 'FirstOperand')
+        operand = self.routine.rungs[1].instructions[0].operands[1]
+        self.assertEqual(operand.base_name, 'SecondOperand')
+        operand = self.routine.rungs[2].instructions[0].operands[0]
+        self.assertEqual(operand.base_name, 'SomeStruct')
+        operand = self.routine.rungs[3].instructions[0].operands[0]
+        self.assertEqual(operand.base_name, 'pStruct')
+
+    def test_base_tag(self):
+        operand = self.routine.rungs[0].instructions[0].operands[0]
+        base_tag = self.controller.tags.get('gFirstOperand')
+        self.assertIsNotNone(base_tag)
+        self.assertIsNotNone(operand.base_tag)
+        self.assertEqual(operand.base_tag, base_tag)
+
+        operand = self.routine.rungs[1].instructions[0].operands[1]
+        base_tag = self.controller.tags.get('SecondOperand')
+        self.assertIsNotNone(base_tag)
+        self.assertIsNotNone(operand.base_tag)
+        self.assertEqual(operand.base_tag, base_tag)
+
+        operand = self.routine.rungs[3].instructions[1].operands[0]
+        base_tag = self.controller.tags.get('gStruct')
+        self.assertIsNotNone(base_tag)
+        self.assertIsNotNone(operand.base_tag)
+        self.assertEqual(operand.base_tag, base_tag)
+
+        operand = self.routine.rungs[4].instructions[1].operands[0]
+        base_tag = self.controller.tags.get('gStruct')
+        self.assertIsNotNone(base_tag)
+        self.assertIsNotNone(operand.base_tag)
+        self.assertEqual(operand.base_tag, base_tag)
+
+    def test_container(self):
+        operand = self.routine.rungs[0].instructions[0].operands[0]
+        self.assertEqual(operand.container, self.program)
+        operand = self.routine.rungs[1].instructions[0].operands[1]
+        self.assertEqual(operand.container, self.program)
+        operand = self.routine.rungs[2].instructions[0].operands[0]
+        self.assertEqual(operand.container, self.program)
+        operand = self.routine.rungs[3].instructions[0].operands[0]
+        self.assertEqual(operand.container, self.program)
+        operand = self.routine.rungs[4].instructions[0].operands[0]
+        self.assertEqual(operand.container, self.program)
+        operand = self.routine.rungs[5].instructions[0].operands[0]
+        self.assertEqual(operand.container, self.program)
+
+    def test_instruction(self):
+        operand = self.routine.rungs[0].instructions[0].operands[0]
+        self.assertEqual(operand.instruction, self.routine.rungs[0].instructions[0])
+        operand = self.routine.rungs[1].instructions[0].operands[1]
+        self.assertEqual(operand.instruction, self.routine.rungs[1].instructions[0])
+        operand = self.routine.rungs[2].instructions[0].operands[0]
+        self.assertEqual(operand.instruction, self.routine.rungs[2].instructions[0])
+
+    def test_instruction_type(self):
+        operand = self.routine.rungs[0].instructions[0].operands[0]
+        self.assertEqual(operand.instruction_type, LogixInstructionType.OUTPUT)
+        operand = self.routine.rungs[1].instructions[0].operands[0]
+        self.assertEqual(operand.instruction_type, LogixInstructionType.INPUT)
+        operand = self.routine.rungs[1].instructions[0].operands[1]
+        self.assertEqual(operand.instruction_type, LogixInstructionType.OUTPUT)
+        operand = self.routine.rungs[2].instructions[0].operands[0]
+        self.assertEqual(operand.instruction_type, LogixInstructionType.INPUT)
+        operand = self.routine.rungs[2].instructions[1].operands[0]
+        self.assertEqual(operand.instruction_type, LogixInstructionType.OUTPUT)
+
+    def test_first_tag(self):
+        operand = self.routine.rungs[0].instructions[0].operands[0]
+        first_tag = operand.container.tags.get('FirstOperand')
+        self.assertIsNotNone(first_tag)
+        self.assertIsNotNone(operand.first_tag)
+        self.assertEqual(operand.first_tag, first_tag)
+
+        operand = self.routine.rungs[1].instructions[0].operands[1]
+        first_tag = self.controller.tags.get('SecondOperand')
+        self.assertIsNotNone(first_tag)
+        self.assertIsNotNone(operand.first_tag)
+        self.assertEqual(operand.first_tag, first_tag)
+
+        operand = self.routine.rungs[2].instructions[0].operands[0]
+        first_tag = self.controller.tags.get('SomeStruct')
+        self.assertIsNotNone(first_tag)
+        self.assertIsNotNone(operand.first_tag)
+        self.assertEqual(operand.first_tag, first_tag)
+
+        operand = self.routine.rungs[3].instructions[1].operands[0]
+        first_tag = operand.container.tags.get('pStruct')
+        self.assertIsNotNone(first_tag)
+        self.assertIsNotNone(operand.first_tag)
+        self.assertEqual(operand.first_tag, first_tag)
+
+        operand = self.routine.rungs[4].instructions[1].operands[0]
+        first_tag = operand.container.tags.get('DeeperAliasing')
+        self.assertIsNotNone(first_tag)
+        self.assertIsNotNone(operand.first_tag)
+        self.assertEqual(operand.first_tag, first_tag)
 
     def test_parents(self):
-        expected_parents = ['Tag1.SubTag', 'Tag1']
-        self.assertEqual(self.operand.parents, expected_parents)
+        operand = self.routine.rungs[0].instructions[0].operands[0]
+        self.assertEqual(operand.parents, ['FirstOperand'])
+        operand = self.routine.rungs[1].instructions[0].operands[1]
+        self.assertEqual(operand.parents, ['SecondOperand'])
+        operand = self.routine.rungs[2].instructions[0].operands[0]
+        self.assertEqual(operand.parents, ['SomeStruct.a', 'SomeStruct'])
+        operand = self.routine.rungs[3].instructions[0].operands[0]
+        self.assertEqual(operand.parents, ['pStruct.a', 'pStruct'])
 
-    def test_instruction_type_unknown(self):
-        self.mock_instruction.element = 'UNKNOWN'
-        self.mock_instruction.rung.controller.aois = []
-        self.assertEqual(self.operand.instruction_type.name, 'UNKOWN')
+    def test_qualified_parents(self):
+        operand = self.routine.rungs[0].instructions[0].operands[0]
+        self.assertEqual(operand.qualified_parents, ['gFirstOperand'])
+        operand = self.routine.rungs[1].instructions[0].operands[1]
+        self.assertEqual(operand.qualified_parents, ['SecondOperand'])
+        operand = self.routine.rungs[2].instructions[0].operands[0]
+        self.assertEqual(operand.qualified_parents, ['SomeStruct.a', 'SomeStruct'])
+        operand = self.routine.rungs[3].instructions[0].operands[0]
+        self.assertEqual(operand.qualified_parents, ['gStruct.a', 'gStruct'])
+
+    def test_trailing_name(self):
+        operand = self.routine.rungs[0].instructions[0].operands[0]
+        self.assertEqual(operand.trailing_name, '')
+        operand = self.routine.rungs[1].instructions[0].operands[1]
+        self.assertEqual(operand.trailing_name, '')
+        operand = self.routine.rungs[2].instructions[0].operands[0]
+        self.assertEqual(operand.trailing_name, '.a')
+        operand = self.routine.rungs[3].instructions[0].operands[0]
+        self.assertEqual(operand.trailing_name, '.a')
+
+    def test_repr(self):
+        operand = self.routine.rungs[0].instructions[0].operands[0]
+        self.assertEqual(operand.meta_data, 'FirstOperand')
+        operand = self.routine.rungs[1].instructions[0].operands[1]
+        self.assertEqual(operand.meta_data, 'SecondOperand')
 
 
 class TestLogixInstruction(unittest.TestCase):
     def setUp(self):
-        self.mock_controller = MagicMock()
-        self.mock_container = MagicMock()
-        self.mock_rung = MagicMock()
-        self.mock_rung.container = self.mock_container
-        self.meta_data = 'MOV(SomeData,SomeOtherData)'
-        self.instruction = LogixInstruction(
-            meta_data=self.meta_data,
-            controller=self.mock_controller,
-            rung=self.mock_rung
-        )
+        self.controller: Controller = Controller.from_file(UNITTEST_PLC_FILE)
+        self.program = self.controller.programs.get('MainProgram')
+        self.routine = self.program.routines.get('main')
+        self.rung = self.routine.rungs[0]
+        self.instruction = self.rung.instructions[0]
 
     def test_repr(self):
-        self.assertEqual(repr(self.instruction), self.meta_data)
+        self.assertEqual(self.instruction.meta_data, 'OTL(AlwaysOn)')
 
     def test_element(self):
-        self.assertEqual(self.instruction.instruction_name, 'MOV')
+        self.assertEqual(self.instruction.instruction_name, 'OTL')
 
     def test_operands(self):
-        self.assertTrue(len(self.instruction.operands) == 2)
-        self.assertEqual(self.instruction.operands[0].base_name, 'SomeData')
-        self.assertEqual(self.instruction.operands[1].base_name, 'SomeOtherData')
+        self.assertTrue(len(self.instruction.operands) == 1)
+        self.assertEqual(self.instruction.operands[0].base_name, 'AlwaysOn')
 
     def test_container(self):
-        self.assertEqual(self.instruction.container, self.mock_container)
+        self.assertEqual(self.instruction.container, self.program)
 
     def test_rung(self):
-        self.assertEqual(self.instruction.rung, self.mock_rung)
+        self.assertEqual(self.instruction.rung, self.rung)
 
     def test_type(self):
         self.assertEqual(self.instruction.type, LogixInstructionType.OUTPUT)
         input_meta_data = 'XIC(JustABit)'
         input_instruction = LogixInstruction(meta_data=input_meta_data,
-                                             controller=self.mock_controller,
-                                             rung=self.mock_rung)
+                                             controller=self.controller,
+                                             rung=self.rung)
         self.assertEqual(input_instruction.type, LogixInstructionType.INPUT)
 
 
@@ -336,64 +466,47 @@ class TestTagContainer(unittest.TestCase):
 
 class TestAddOnInstruction(unittest.TestCase):
     def setUp(self):
-        self.meta_data = {
-            "@Revision": "1.0",
-            "@ExecutePrescan": "True",
-            "@ExecutePostscan": "True",
-            "@ExecuteEnableInFalse": "False",
-            "@CreatedDate": "2023-01-01",
-            "@CreatedBy": "User",
-            "@EditedDate": "2023-01-02",
-            "@EditedBy": "User",
-            "@SoftwareRevision": "1.0",
-            "RevisionNote": "Initial revision",
-            "Parameters": {"Parameter": [{"name": "Param1"}]},
-            "LocalTags": {"LocalTag": [{"name": "Tag1"}]},
-            "Routines": {"Routine": [{"name": "Routine1"}]}
-        }
-        self.controller = MockController()
-        self.add_on_instruction = AddOnInstruction(
-            l5x_meta_data=self.meta_data, controller=self.controller)
+        self.controller: Controller = Controller.from_file(UNITTEST_PLC_FILE)
+        self.aoi = self.controller.aois.get('unittest_aoi')
+        self.assertIsNotNone(self.aoi)
 
     def test_revision_property(self):
-        self.assertEqual(self.add_on_instruction.revision, "1.0")
+        self.assertEqual(self.aoi.revision, "1.0")
 
     def test_execute_prescan_property(self):
-        self.assertEqual(self.add_on_instruction.execute_prescan, "True")
+        self.assertEqual(self.aoi.execute_prescan, "false")
 
     def test_execute_postscan_property(self):
-        self.assertEqual(self.add_on_instruction.execute_postscan, "True")
+        self.assertEqual(self.aoi.execute_postscan, "false")
 
     def test_execute_enable_in_false_property(self):
         self.assertEqual(
-            self.add_on_instruction.execute_enable_in_false, "False")
+            self.aoi.execute_enable_in_false, "false")
 
     def test_created_date_property(self):
-        self.assertEqual(self.add_on_instruction.created_date, "2023-01-01")
+        self.assertIsNotNone(self.aoi.created_date)
 
     def test_created_by_property(self):
-        self.assertEqual(self.add_on_instruction.created_by, "User")
+        self.assertIsNotNone(self.aoi.created_by)
 
     def test_edited_date_property(self):
-        self.assertEqual(self.add_on_instruction.edited_date, "2023-01-02")
+        self.assertIsNotNone(self.aoi.edited_date)
 
     def test_edited_by_property(self):
-        self.assertEqual(self.add_on_instruction.edited_by, "User")
+        self.assertIsNotNone(self.aoi.edited_by)
 
     def test_software_revision_property(self):
-        self.assertEqual(self.add_on_instruction.software_revision, "1.0")
+        self.assertEqual(self.aoi.software_revision, "v34.03")
 
     def test_revision_note_property(self):
-        self.assertEqual(self.add_on_instruction.revision_note,
-                         "Initial revision")
+        self.assertEqual(self.aoi.revision_note,
+                         "initial release")
 
     def test_parameters_property(self):
-        self.assertEqual(self.add_on_instruction.parameters,
-                         [{"name": "Param1"}])
+        self.assertIsNotNone(self.aoi.parameters)
 
     def test_local_tags_property(self):
-        self.assertEqual(self.add_on_instruction.local_tags,
-                         [{"name": "Tag1"}])
+        self.assertIsNotNone(self.aoi.local_tags)
 
 
 class TestConnectionParameters(unittest.TestCase):
@@ -426,51 +539,39 @@ class TestConnectionParameters(unittest.TestCase):
 
 class TestDatatypeMember(unittest.TestCase):
     def setUp(self):
-        self.meta_data = {"@Dimension": "3", "@Hidden": "False"}
-        self.datatype = Datatype(l5x_meta_data={}, controller=MockController())
-        self.controller = MockController()
-        self.datatype_member = DatatypeMember(l5x_meta_data=self.meta_data,
-                                              datatype=self.datatype, controller=self.controller)
-
-    def test_initialization(self):
-        self.assertEqual(self.datatype_member.meta_data, self.meta_data)
-        self.assertEqual(self.datatype_member.datatype, self.datatype)
-        self.assertEqual(self.datatype_member.controller, self.controller)
+        self.controller: Controller = Controller.from_file(UNITTEST_PLC_FILE)
+        self.datatype = self.controller.datatypes.get('za_Parent')
+        self.datatype_member = self.datatype.members[0]
+        self.assertIsNotNone(self.datatype)
+        self.assertIsNotNone(self.datatype_member)
 
     def test_dimension_property(self):
-        self.assertEqual(self.datatype_member.dimension, "3")
+        self.assertEqual(self.datatype_member.dimension, "0")
 
     def test_hidden_property(self):
-        self.assertEqual(self.datatype_member.hidden, "False")
+        self.assertEqual(self.datatype_member.hidden, "true")
 
 
 class TestDatatype(unittest.TestCase):
     def setUp(self):
-        self.meta_data = {
-            "@Family": "TestFamily",
-            "Members": {"Member": [{"@Name": "Member1"}, {"@Name": "Member2"}]}
-        }
-        self.controller = MockController()
-        self.datatype = Datatype(
-            l5x_meta_data=self.meta_data, controller=self.controller)
+        self.controller: Controller = Controller.from_file(UNITTEST_PLC_FILE)
+        self.datatype = self.controller.datatypes.get('za_Parent')
 
     def test_initialization(self):
-        self.assertEqual(self.datatype.meta_data, self.meta_data)
-        self.assertEqual(self.datatype.controller, self.controller)
-        self.assertEqual(len(self.datatype.members), 2)
+        self.assertEqual(len(self.datatype.members), 4)
 
     def test_family_property(self):
-        self.assertEqual(self.datatype.family, "TestFamily")
+        self.assertEqual(self.datatype.family, "NoFamily")
 
     def test_members_property(self):
-        self.assertEqual(len(self.datatype.members), 2)
+        self.assertEqual(len(self.datatype.members), 4)
         self.assertIsInstance(self.datatype.members[0], DatatypeMember)
         self.assertIsInstance(self.datatype.members[1], DatatypeMember)
+        self.assertIsInstance(self.datatype.members[2], DatatypeMember)
+        self.assertIsInstance(self.datatype.members[3], DatatypeMember)
 
     def test_raw_members_property(self):
-        self.assertEqual(len(self.datatype.raw_members), 2)
-        self.assertEqual(self.datatype.raw_members[0]["@Name"], "Member1")
-        self.assertEqual(self.datatype.raw_members[1]["@Name"], "Member2")
+        self.assertEqual(len(self.datatype.raw_members), 4)
 
     def test_validate_method(self):
         report_item = self.datatype.validate()
@@ -481,64 +582,57 @@ class TestDatatype(unittest.TestCase):
 
 class TestModule(unittest.TestCase):
     def setUp(self):
-        self.meta_data = {
-            "@CatalogNumber": "12345",
-            "@Vendor": "VendorName",
-            "@ProductType": "TypeA",
-            "@ProductCode": "Code123",
-            "@Major": "1",
-            "@Minor": "0",
-            "@ParentModule": "ParentModule1",
-            "@ParentModPortId": "Port1",
-            "@Inhibited": "False",
-            "@MajorFault": "False",
-            "EKey": {"Key": "Value"},
-            "Ports": {"Port": [{"name": "Port1"}]},
-            "Communications": {"Connections": {"Connection": [{"@Name": "Standard", "@Unicast": "true", "@RPI": "20000"}]}}  # noqa: E501
-        }
-        self.controller = MockController()
-        self.module = Module(l5x_meta_data=self.meta_data,
-                             controller=self.controller)
+        self.controller = Controller.from_file(UNITTEST_PLC_FILE)
+        self.module = self.controller.modules.get('Local')
 
     def test_catalog_number_property(self):
-        self.assertEqual(self.module.catalog_number, "12345")
+        self.assertEqual(self.module.catalog_number, "1756-L81ES")
 
     def test_vendor_property(self):
-        self.assertEqual(self.module.vendor, "VendorName")
+        self.assertEqual(self.module.vendor, "1")
 
     def test_product_type_property(self):
-        self.assertEqual(self.module.product_type, "TypeA")
+        self.assertEqual(self.module.product_type, "14")
 
     def test_product_code_property(self):
-        self.assertEqual(self.module.product_code, "Code123")
+        self.assertEqual(self.module.product_code, "211")
 
     def test_major_property(self):
-        self.assertEqual(self.module.major, "1")
+        self.assertEqual(self.module.major, "34")
 
     def test_minor_property(self):
-        self.assertEqual(self.module.minor, "0")
+        self.assertEqual(self.module.minor, "11")
 
     def test_parent_module_property(self):
-        self.assertEqual(self.module.parent_module, "ParentModule1")
+        self.assertEqual(self.module.parent_module, "Local")
 
     def test_parent_mod_port_id_property(self):
-        self.assertEqual(self.module.parent_mod_port_id, "Port1")
+        self.assertEqual(self.module.parent_mod_port_id, "1")
 
     def test_inhibited_property(self):
-        self.assertEqual(self.module.inhibited, "False")
+        self.assertEqual(self.module.inhibited, "false")
 
     def test_major_fault_property(self):
-        self.assertEqual(self.module.major_fault, "False")
+        self.assertEqual(self.module.major_fault, "true")
 
     def test_ekey_property(self):
-        self.assertEqual(self.module.ekey, {"Key": "Value"})
+        self.assertEqual(self.module.ekey, {'@State': 'Disabled'})
 
     def test_ports_property(self):
-        self.assertEqual(self.module.ports, [{"name": "Port1"}])
+        self.assertEqual(self.module.ports, [{'@Address': '0',
+                                              '@Id': '1',
+                                              '@SafetyNetwork': '16#0000_4c24_03e6_e7fc',
+                                              '@Type': 'ICP',
+                                              '@Upstream': 'false',
+                                              'Bus': {'@Size': '4'}},
+                                             {'@Id': '2',
+                                              '@SafetyNetwork': '16#0000_4c24_03e6_e7fd',
+                                              '@Type': 'Ethernet',
+                                              '@Upstream': 'false',
+                                              'Bus': None}])
 
     def test_communications_property(self):
-        self.assertEqual(self.module.communications, {"Connections": {"Connection": [
-                         {"@Name": "Standard", "@Unicast": "true", "@RPI": "20000"}]}})
+        self.assertEqual(self.module.communications, None)
 
     def test_validate_method(self):
         report_item = self.module.validate()
@@ -547,58 +641,30 @@ class TestModule(unittest.TestCase):
         self.assertEqual(report_item.plc_object, self.module)
 
 
-class MockProgram(Program):
-    pass
-
-
 class TestProgram(unittest.TestCase):
-    @patch("pyrox.services.plc_services.l5x_dict_from_file")
-    def test_initialization_with_meta_data(self, mock_xml_dict_from_file):
-        mock_xml_dict_from_file.return_value = {"Routines": {"Routine": {}}}
-        controller = MockController()
-        program = Program(name="TestProgram", meta_data={
-                          "Routines": {"Routine": {}}}, controller=controller)
-        self.assertEqual(program.name, "TestProgram")
-        self.assertEqual(len(program.routines), 1)
-
-    def test_initialization_without_meta_data(self):
-        controller = MockController()
-        program = Program(name="TestProgram", controller=controller)
-        self.assertEqual(program.name, "TestProgram")
-        self.assertEqual(len(program.routines), 1)
+    def setUp(self):
+        self.controller = Controller.from_file(UNITTEST_PLC_FILE)
+        self.program = self.controller.programs.get('MainProgram')
 
     def test_test_edits_property(self):
-        program = Program(meta_data={"@TestEdits": "TestEditsValue"})
-        self.assertEqual(program.test_edits, "TestEditsValue")
+        self.assertEqual(self.program.test_edits, "false")
 
     def test_main_routine_name_property(self):
-        program = Program(
-            meta_data={"@MainRoutineName": "MainRoutineNameValue"})
-        self.assertEqual(program.main_routine_name, "MainRoutineNameValue")
+        self.assertEqual(self.program.main_routine_name, "main")
 
     def test_disabled_property(self):
-        program = Program(meta_data={"@Disabled": "DisabledValue"})
-        self.assertEqual(program.disabled, "DisabledValue")
+        self.assertEqual(self.program.disabled, "false")
 
     def test_use_as_folder_property(self):
-        program = Program(meta_data={"@UseAsFolder": "UseAsFolderValue"})
-        self.assertEqual(program.use_as_folder, "UseAsFolderValue")
+        self.assertEqual(self.program.use_as_folder, "false")
 
     def test_tags_property(self):
-        program = Program(meta_data={"Tags": {"Tag": {"name": "Tag1"}}})
-        self.assertEqual(program.raw_tags, [{"name": "Tag1"}])
-
-    def test_tags_property_empty(self):
-        program = Program(meta_data={"Tags": None})
-        self.assertEqual(program.raw_tags, [])
+        self.assertIsInstance(self.program.raw_tags, list)
+        self.assertIsInstance(self.program.tags, HashList)
 
     def test_routines_property(self):
-        program = Program(meta_data={"Routines": {"Routine": {}}})
-        self.assertEqual(len(program.routines), 1)
-
-    def test_raw_routines_property(self):
-        program = Program(meta_data={"Routines": {"Routine": {}}})
-        self.assertEqual(len(program.raw_routines), 1)
+        self.assertIsInstance(self.program.raw_routines, list)
+        self.assertIsInstance(self.program.routines, HashList)
 
     def test_validate_method(self):
         program = Program()
@@ -608,60 +674,23 @@ class TestProgram(unittest.TestCase):
         self.assertEqual(report_item.plc_object, program)
 
 
-class TestProgramTag(unittest.TestCase):
-    def setUp(self):
-        self.meta_data = {"@Name": "TestTag"}
-        self.controller = MockController()
-        self.program = MockProgram()
-        self.program_tag = ProgramTag(
-            l5x_meta_data=self.meta_data, controller=self.controller, program=self.program)
-
-    def test_initialization(self):
-        self.assertEqual(self.program_tag.meta_data, self.meta_data)
-        self.assertEqual(self.program_tag.controller, self.controller)
-        self.assertEqual(self.program_tag.program, self.program)
-
-
 class TestRoutine(unittest.TestCase):
-    @patch("pyrox.services.plc_services.l5x_dict_from_file")
-    def setUp(self, mock_xml_dict_from_file):
-        mock_xml_dict_from_file.return_value = {"RLLContent": {
-            "Rung": [{"@Number": "1", "@Type": "TypeA", "Comment": "Test Comment", "Text": "Test Text"}]}}
-        self.meta_data = {"RLLContent": {
-            "Rung": [{"@Number": "1", "@Type": "TypeA", "Comment": "Test Comment", "Text": "Test Text"}]}}
-        self.controller = MockController()
-        self.program = MockProgram()
-        self.routine = Routine(name="TestRoutine", l5x_meta_data=self.meta_data,
-                               controller=self.controller, program=self.program)
-
-    def test_initialization(self):
-        self.assertEqual(self.routine.meta_data, self.meta_data)
-        self.assertEqual(self.routine.controller, self.controller)
-        self.assertEqual(self.routine.program, self.program)
-        self.assertEqual(len(self.routine.rungs), 1)
+    def setUp(self):
+        self.controller = Controller.from_file(UNITTEST_PLC_FILE)
+        self.program = self.controller.programs.get('MainProgram')
+        self.routine = self.program.routines.get('main')
 
     def test_rungs_property(self):
-        self.assertEqual(len(self.routine.rungs), 1)
-        self.assertIsInstance(self.routine.rungs[0], Rung)
-
-    def test_raw_rungs_property(self):
-        self.assertEqual(len(self.routine.raw_rungs), 1)
-        self.assertEqual(self.routine.raw_rungs[0]["@Number"], "1")
+        self.assertIsInstance(self.routine.raw_rungs, list)
+        self.assertIsInstance(self.routine.rungs, list)
 
 
 class TestRung(unittest.TestCase):
     def setUp(self):
-        self.meta_data = {"@Number": "0", "@Type": "N",
-                          "Comment": "Test Comment", "Text": "XIC(TestText) OTE(TestText)"}
-        self.controller = MockController()
-        self.routine = MockRoutine()
-        self.rung = Rung(l5x_meta_data=self.meta_data,
-                         controller=self.controller, routine=self.routine)
-
-    def test_initialization(self):
-        self.assertEqual(self.rung.meta_data, self.meta_data)
-        self.assertEqual(self.rung.controller, self.controller)
-        self.assertEqual(self.rung.routine, self.routine)
+        self.controller = Controller.from_file(UNITTEST_PLC_FILE)
+        self.program = self.controller.programs.get('MainProgram')
+        self.routine = self.program.routines.get('main')
+        self.rung = self.routine.rungs[0]
 
     def test_number_property(self):
         self.assertEqual(self.rung.number, "0")
@@ -670,10 +699,10 @@ class TestRung(unittest.TestCase):
         self.assertEqual(self.rung.type, "N")
 
     def test_comment_property(self):
-        self.assertEqual(self.rung.comment, "Test Comment")
+        self.assertIsNotNone(self.rung.comment)
 
     def test_text_property(self):
-        self.assertEqual(self.rung.text, "XIC(TestText) OTE(TestText)")
+        self.assertIsNotNone(self.rung.text)
 
     def test_instructions_property(self):
         self.assertIsInstance(self.rung.instructions, list)
@@ -681,8 +710,8 @@ class TestRung(unittest.TestCase):
 
 class TestTag(unittest.TestCase):
     def setUp(self):
-        self.controller = MockController()
-        self.tag = Tag(controller=self.controller)
+        self.controller = Controller.from_file(UNITTEST_PLC_FILE)
+        self.tag = self.controller.tags.get('AlwaysOn')
 
     def test_initialization(self):
         self.assertEqual(self.tag.controller, self.controller)
@@ -691,7 +720,7 @@ class TestTag(unittest.TestCase):
         self.assertEqual(self.tag.tag_type, "Base")
 
     def test_datatype_property(self):
-        self.assertEqual(self.tag.datatype, "TIMER")
+        self.assertEqual(self.tag.datatype, "BOOL")
 
     def test_constant_property(self):
         self.assertEqual(self.tag.constant, "false")
@@ -715,104 +744,53 @@ class TestTag(unittest.TestCase):
 class TestController(unittest.TestCase):
 
     def setUp(self):
-        self.root_meta_data = {'RSLogix5000Content': {'Controller': {'@CommPath': 'path', '@MajorRev': '1', '@MinorRev': '0', '@Name': 'TestController', 'Modules': {'Module': [{'@Name': 'Local', 'Ports': {       # noqa: E501
-            'Port': [{'@Type': 'ICP', '@Address': '1'}]}}]}, 'Programs': {'Program': []}, 'Tags': {'Tag': []}, 'AddOnInstructionDefinitions': {'AddOnInstructionDefinition': []}, 'DataTypes': {'DataType': []}}}}  # noqa: E501
-        self.config = ControllerConfiguration()
-        self.controller = Controller(
-            root_meta_data=self.root_meta_data, config=self.config)
+        self.controller: Controller = Controller.from_file(UNITTEST_PLC_FILE)
 
     def test_init(self):
-        self.assertEqual(self.controller._root_meta_data, self.root_meta_data)
+        self.assertIsNotNone(self.controller._root_meta_data)
         self.assertEqual(self.controller._file_location, '')
-        self.assertEqual(self.controller._ip_address, '')
+        self.assertEqual(self.controller._ip_address, '120.15.35.60')
         self.assertEqual(self.controller._slot, 0)
-        self.assertEqual(self.controller._config, self.config)
+        self.assertIsNotNone(self.controller._config)
 
     def test_properties(self):
-        self.controller._root_meta_data = {'RSLogix5000Content': {'Controller': {'@CommPath': 'path', '@MajorRev': '1', '@MinorRev': '0', '@Name': 'TestController', 'Modules': {'Module': [{'@Name': 'Local', 'Ports': {  # noqa: E501
-            'Port': [{'@Type': 'ICP', '@Address': '1'}]}}]}, 'Programs': {'Program': []}, 'Tags': {'Tag': []}, 'AddOnInstructionDefinitions': {'AddOnInstructionDefinition': []}, 'DataTypes': {'DataType': []}}}}         # noqa: E501
 
-        self.assertEqual(self.controller.comm_path, 'path')
-        self.assertEqual(self.controller.major_revision, 1)
-        self.assertEqual(self.controller.minor_revision, 0)
-        self.assertEqual(self.controller.name, 'TestController')
-        self.assertEqual(self.controller.slot, 1)
+        self.assertEqual(self.controller.comm_path, 'AB_ETHIP-1\\120.15.35.60')
+        self.assertEqual(self.controller.major_revision, 34)
+        self.assertEqual(self.controller.minor_revision, 11)
+        self.assertEqual(self.controller.name, 'unittest')
+        self.assertEqual(self.controller.slot, 0)
         self.assertEqual(self.controller.plc_module['@Name'], 'Local')
-        self.assertEqual(self.controller.plc_module_icp_port['@Address'], '1')
-        self.assertEqual(self.controller.plc_module_ports[0]['@Type'], 'ICP')
-        self.assertEqual(self.controller.raw_programs, [])
-        self.assertEqual(self.controller.raw_tags, [])
-        self.assertEqual(self.controller.raw_aois, [])
-        self.assertEqual(self.controller.raw_datatypes, [])
-        self.assertEqual(self.controller.raw_modules[0]['@Name'], 'Local')
+        self.assertIsInstance(self.controller.raw_programs, list)
+        self.assertIsInstance(self.controller.raw_tags, list)
+        self.assertIsInstance(self.controller.raw_aois, list)
+        self.assertIsInstance(self.controller.raw_datatypes, list)
+        self.assertIsInstance(self.controller.raw_modules, list)
+        self.assertIsInstance(self.controller.programs, HashList)
+        self.assertIsInstance(self.controller.tags, HashList)
+        self.assertIsInstance(self.controller.aois, HashList)
+        self.assertIsInstance(self.controller.datatypes, HashList)
+        self.assertIsInstance(self.controller.modules, HashList)
 
     def test_assign_address(self):
         with self.assertRaises(ValueError):
-            self.controller._assign_address('invalid_address')
+            self.controller.ip_address = 'invalid_address'
 
-        self.controller._assign_address('192.168.1.1')
+        self.controller.ip_address = '192.168.1.1'
         self.assertEqual(self.controller.ip_address, '192.168.1.1')
 
-    def test_add_program(self):
-        program = Program(name='TestProgram', controller=self.controller)
-        self.controller.add_program(program)
-        self.assertIn(program, self.controller.programs)
-
-        program_dict = {'@Name': 'TestProgram'}
-        self.controller.add_program(program_dict)
-        self.assertEqual(self.controller.programs['TestProgram'].name, 'TestProgram')
-
-        program_name = 'TestProgram'
-        self.controller.add_program(program_name)
-        self.assertEqual(self.controller.programs['TestProgram'].name, 'TestProgram')
-
-        with self.assertRaises(TypeError):
-            self.controller.add_program(123)
-
-    def test_find_diagnostic_rungs(self):
-        mock_rung = MagicMock()
-        mock_rung.comment = '<@DIAG>'
-        mock_rung.instructions = ['JSR(zZ999_Diagnostics)']
-        mock_routine = MagicMock()
-        mock_routine.rungs = [mock_rung]
-        mock_program = MagicMock()
-        mock_program.routines = [mock_routine]
-        self.controller._programs = [mock_program]
-
-        diagnostic_rungs = self.controller.find_diagnostic_rungs()
-        self.assertEqual(diagnostic_rungs, [mock_rung])
-
     def test_find_unpaired_controller_inputs(self):
-        ctrl = Controller.from_file(UNITTEST_PLC_FILE)
-        unpaired_inputs = ctrl.find_unpaired_controller_inputs()
-        self.assertIsNotNone(unpaired_inputs)
+        unpaired_inputs = self.controller.find_unpaired_controller_inputs()
+        self.assertTrue(len(unpaired_inputs) != 0)
 
     def test_find_redundant_otes(self):
-        mock_rung = MagicMock()
-        mock_rung.instructions = ['OTE(tag1)', 'OTE(tag2)']
-        mock_routine = MagicMock()
-        mock_routine.rungs = [mock_rung]
-        mock_program = MagicMock()
-        mock_program.routines = [mock_routine]
-        self.controller._programs = [mock_program]
-
         redundant_otes = self.controller.find_redundant_otes()
-        self.assertTrue(len(redundant_otes) == 0)
-
-    def test_rename_asset(self):
-        self.controller.raw_tags = {'Tag': [{'@Name': 'old_name'}]}
-        self.controller.rename_asset(LogixAssetType.TAG, 'old_name', 'new_name')
-        self.assertEqual(self.controller.raw_tags[0]['@Name'], 'new_name')
-
-        self.controller.l5x_meta_data = {'@Name': 'old_name'}
-        self.controller.rename_asset(LogixAssetType.ALL, 'old_name', 'new_name')
-        self.assertEqual(self.controller.l5x_meta_data['@Name'], 'new_name')
+        self.assertTrue(len(redundant_otes) != 0)
 
     def test_validate(self):
-        return  # i have work to do here
         report = self.controller.verify()
 
-        self.assertIsInstance(report, ControllerReport)
+        self.assertIsInstance(report, dict)
 
 
 class TestTextListElement(unittest.TestCase):

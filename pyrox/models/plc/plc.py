@@ -186,6 +186,14 @@ OUTPUT_INSTRUCTIONS = [INSTR_OTE,
                        ISNTR_CPS]
 
 
+class LogixTagScope(Enum):
+    """logix tag scope enumeration
+    """
+    PROGRAM = 0
+    PUBLIC = 1
+    CONTROLLER = 2
+
+
 class LogixInstructionType(Enum):
     INPUT = 1
     OUTPUT = 2
@@ -364,14 +372,33 @@ class LogixOperand(PlcObject):
         self._aliased_parents: list[str] = None
         self._arg_position = arg_position
         self._as_aliased: str = None
+        self._as_qualified: str = None
         self._base_name: str = None
         self._base_tag: Optional['Tag'] = None
+        self._first_tag: Optional['Tag'] = None
         self._instruction = instruction
         self._instruction_type: LogixInstructionType = None
         self._parents: list[str] = None
+        self._qualified_parents: list[str] = None
 
         super().__init__(meta_data=meta_data,
                          controller=controller)
+
+    @property
+    def aliased_parents(self) -> list[str]:
+        if self._aliased_parents:
+            return self._aliased_parents
+
+        parts = self.as_aliased.split('.')
+        if len(parts) == 1:
+            self._aliased_parents = [self.as_aliased]
+            return self._aliased_parents
+
+        self._aliased_parents = []
+        for x in range(len(parts)):
+            self._aliased_parents.append(self.as_aliased.rsplit('.', x)[0])
+
+        return self._aliased_parents
 
     @property
     def arg_position(self) -> int:
@@ -381,21 +408,34 @@ class LogixOperand(PlcObject):
 
     @property
     def as_aliased(self) -> str:
-        """ Get the qualified name of this operand
+        """ Get the aliased name of this operand
 
         Returns:
-            :class:`str`: qualified name of this operand
+            :class:`str`: aliased name of this operand
         """
         if self._as_aliased:
             return self._as_aliased
 
-        if not self.base_tag:
+        if not self.first_tag or not self.first_tag.alias_for:
             self._as_aliased = self.meta_data
-        else:
-            self._as_aliased = self.meta_data.replace(self.base_name, self.base_tag.name
-                                                      if not self.base_tag.alias_for else self.base_tag.alias_for)
+            return self._as_aliased
 
-        return self._as_aliased
+        return self.first_tag.get_alias_string(additional_elements=self.trailing_name)
+
+    @property
+    def as_qualified(self) -> str:
+        """Get the qualified name of this operand
+
+        Returns:
+            :class:`str`: qualified name of this operand
+        """
+        if not self.base_tag:
+            return self.meta_data
+
+        if self.base_tag.scope is LogixTagScope.PROGRAM:
+            return f'Program:{self.container.name}.{self.as_aliased}'
+        else:
+            return self.as_aliased
 
     @property
     def base_name(self) -> str:
@@ -409,8 +449,14 @@ class LogixOperand(PlcObject):
         if self._base_tag:
             return self._base_tag
 
-        self._base_tag = self.container.tags.get(self.base_name, None) if self.container else\
-            self.controller.tags.get(self.base_name, None)
+        if self.container:
+            self._base_tag = self.container.tags.get(self.base_name, None)
+
+        if not self._base_tag:
+            self._base_tag = self.controller.tags.get(self.base_name, None)
+
+        if self._base_tag:
+            self._base_tag = self._base_tag.get_base_tag()
 
         return self._base_tag
 
@@ -437,7 +483,10 @@ class LogixOperand(PlcObject):
             if self.instruction.instruction_name == instr[0]:
                 if self.arg_position == instr[1] or (self.arg_position+1 == len(self.instruction.operands) and instr[1] == -1):
                     self._instruction_type = LogixInstructionType.OUTPUT
-                    return self._instruction_type
+                else:
+                    self._instruction_type = LogixInstructionType.INPUT
+
+                return self._instruction_type
 
         # for now, all AOI operands will be considered out, until i can later dig into this.
         if self.instruction.instruction_name in [aoi.name for aoi in self.instruction.rung.controller.aois]:
@@ -447,6 +496,19 @@ class LogixOperand(PlcObject):
 
         self._instruction_type = LogixInstructionType.UNKOWN
         return self._instruction_type
+
+    @property
+    def first_tag(self) -> Tag:
+        if self._first_tag:
+            return self._first_tag
+
+        if self.container:
+            self._first_tag = self.container.tags.get(self.base_name, None)
+
+        if not self._first_tag:
+            self._first_tag = self.controller.tags.get(self.base_name, None)
+
+        return self._first_tag
 
     @property
     def parents(self) -> list[str]:
@@ -465,16 +527,41 @@ class LogixOperand(PlcObject):
         return self._parents
 
     @property
-    def aliased_parents(self) -> list[str]:
-        if self._aliased_parents:
-            return self._aliased_parents
+    def qualified_parents(self) -> list[str]:
+        """get the qualified parents of this operand
 
-        if not self.base_tag:
-            self._aliased_parents = self.parents
-            return self._aliased_parents
-        self._aliased_parents = [x.replace(self.base_name, self.base_tag.name) for x in self.parents]
+        Returns:
+            :class:`list[str]`: list of qualified parents
+        """
+        if self._qualified_parents:
+            return self._qualified_parents
+        
+        if self.base_tag.scope == LogixTagScope.CONTROLLER:
+            self._qualified_parents = self.aliased_parents
+            return self._qualified_parents
 
-        return self._aliased_parents
+        self._qualified_parents = self.aliased_parents
+
+        for i, v in enumerate(self._qualified_parents):
+            self._qualified_parents[i] = f'Program:{self.container.name}.{v}'
+
+        return self._qualified_parents
+
+    @property
+    def trailing_name(self) -> str:
+        """get the trailing name of this operand
+
+        Returns:
+            :class:`str`: trailing name of this operand
+        """
+        if not self.meta_data:
+            return None
+
+        parts = self.meta_data.split('.')
+        if len(parts) == 1:
+            return ''
+
+        return '.' + '.'.join(parts[1:])
 
     def as_report_dict(self) -> dict:
         """get this operand as a report dictionary
@@ -485,6 +572,7 @@ class LogixOperand(PlcObject):
         return {
             'base operand': self.meta_data,
             'aliased operand': self.as_aliased,
+            'qualified operand': self.as_qualified,
             'arg_position': self.arg_position,
             'instruction': self.instruction.meta_data,
             'instruction_type': self.instruction_type.name,
@@ -542,6 +630,8 @@ class LogixInstruction(PlcObject):
                  meta_data: str,
                  rung: Optional['Rung'],
                  controller: 'Controller'):
+        self._aliased_meta_data: str = None
+        self._qualified_meta_data: str = None
         self._instruction_name: str = None
         self._rung = rung
         self._type: LogixInstructionType = None
@@ -551,6 +641,28 @@ class LogixInstruction(PlcObject):
 
     def __repr__(self):
         return self._meta_data
+
+    @property
+    def aliased_meta_data(self) -> str:
+        """get the aliased meta data for this instruction
+
+        .. -------------------------------
+
+        Returns
+        ----------
+            :class:`str`
+        """
+        if self._aliased_meta_data:
+            return self._aliased_meta_data
+
+        self._aliased_meta_data = self.meta_data
+        for operand in self.operands:
+            self._aliased_meta_data = self._aliased_meta_data.replace(operand.meta_data, operand.as_aliased)
+        return self._aliased_meta_data
+
+    @property
+    def container(self) -> Optional[Union['Program', 'AddOnInstruction']]:
+        return self._rung.container
 
     @property
     def instruction_name(self) -> str:
@@ -593,12 +705,8 @@ class LogixInstruction(PlcObject):
         return self._operands
 
     @property
-    def container(self) -> Optional[Union['Program', 'AddOnInstruction']]:
-        return self._rung.container
-
-    @property
-    def aliased_meta_data(self) -> str:
-        """get the aliased meta data for this instruction
+    def qualified_meta_data(self) -> str:
+        """get the qualified meta data for this instruction
 
         .. -------------------------------
 
@@ -606,10 +714,13 @@ class LogixInstruction(PlcObject):
         ----------
             :class:`str`
         """
-        data = self.meta_data
+        if self._qualified_meta_data:
+            return self._qualified_meta_data
+
+        self._qualified_meta_data = self.meta_data
         for operand in self.operands:
-            data = data.replace(operand.meta_data, operand.as_aliased)
-        return data
+            self._qualified_meta_data = self._qualified_meta_data.replace(operand.meta_data, operand.as_qualified)
+        return self._qualified_meta_data
 
     @property
     def routine(self) -> Optional['Routine']:
@@ -1589,8 +1700,43 @@ class Tag(NamedPlcObject):
         return self['@OpcUaAccess']
 
     @property
+    def scope(self) -> LogixTagScope:
+        if isinstance(self.container, Controller):
+            return LogixTagScope.CONTROLLER
+        elif isinstance(self.container, Program) or isinstance(self.container, AddOnInstruction):
+            return LogixTagScope.PROGRAM
+        else:
+            raise ValueError('Unknown tag scope!')
+
+    @property
     def tag_type(self) -> str:
         return self['@TagType']
+
+    def get_alias_string(self,
+                         additional_elements: str = None) -> str:
+        """get the alias string for this tag
+
+        .. -------------------------------
+
+        Returns
+        ----------
+            :class:`str`
+        """
+        if not additional_elements:
+            additional_elements = ''
+
+        if not self.alias_for:
+            return self.name + additional_elements
+
+        parent_tag = self.get_parent_tag(self)
+        if not parent_tag:
+            raise ValueError(f'Tag {self.name} has an alias for {self.alias_for_base_name} but no parent tag found!')
+
+        alias_element = self.alias_for.split('.')[1:]
+        if alias_element:
+            additional_elements += '.' + ''.join(alias_element)
+
+        return parent_tag.get_alias_string(additional_elements=additional_elements)
 
     def get_base_tag(self,
                      tracked_tag: Self = None):
@@ -1599,19 +1745,27 @@ class Tag(NamedPlcObject):
         if not tag.alias_for:
             return tag
 
+        alias = tag.get_parent_tag(tag)
+
+        if alias.alias_for:
+            return self.get_base_tag(tracked_tag=alias)
+        else:
+            return alias
+
+    @staticmethod
+    def get_parent_tag(tag: Self):
+        if not tag.alias_for:
+            return None
+
+        alias = None
+
         if tag.container:
             alias: Self = tag.container.tags.get(tag.alias_for_base_name, None)
 
         if not alias:
             alias: Self = tag.controller.tags.get(tag.alias_for_base_name, None)
 
-        if not alias:
-            raise ValueError('Could not find aliased tag!')
-
-        if alias.alias_for:
-            return self.get_base_tag(tracked_tag=alias)
-        else:
-            return alias
+        return alias
 
     def validate(self):
         report = ControllerReportItem(self,
@@ -1723,7 +1877,7 @@ class Controller(NamedPlcObject, Loggable):
 
         self.logger.info('Generating tags...')
         self._tags: HashList = HashList('name')
-        [self._tags.append(self.config.tag_type(l5x_meta_data=x, controller=self))
+        [self._tags.append(self.config.tag_type(l5x_meta_data=x, controller=self, container=self))
          for x in self.raw_tags]
 
     @property
@@ -2006,15 +2160,13 @@ class Controller(NamedPlcObject, Loggable):
         inputs = defaultdict(list)
         outputs = set()
 
-        [inputs[operand.as_aliased].append(operand) for instr in self.input_instructions for operand in instr.operands]
-        [outputs.add(operand.as_aliased) for instr in self.output_instructions for operand in instr.operands]
+        [inputs[operand.as_qualified].append(operand) for instr in self.input_instructions for operand in instr.operands]
+        [outputs.add(operand.as_qualified) for instr in self.output_instructions for operand in instr.operands]
 
         unpaired_inputs = {}
 
         for key, value in inputs.items():
-            if ':' in key:
-                continue  # skip hardware flags / physical module i/o
-            if key not in outputs and not any(item in outputs for item in value[0].aliased_parents):
+            if key not in outputs and not any(item in outputs for item in value[0].qualified_parents):
                 unpaired_inputs[key] = [x.as_report_dict() for x in value]
 
         return unpaired_inputs
@@ -2022,8 +2174,9 @@ class Controller(NamedPlcObject, Loggable):
     def find_redundant_otes(self):
         self.logger.info('Finding redundant OTEs...')
         outputs = defaultdict(list)
+
         for inst in [x for x in self.output_instructions if x.instruction_name == 'OTE']:
-            outputs[inst.aliased_meta_data].append(inst.as_report_dict())
+            outputs[inst.qualified_meta_data].append(inst.as_report_dict())
 
         shallow_outputs = outputs.copy()
 
@@ -2052,7 +2205,7 @@ class Controller(NamedPlcObject, Loggable):
             case _:
                 return
 
-    def verify(self) -> 'ControllerReport':
+    def verify(self) -> dict:
         return {
             'ControllerReport': ControllerReport(self).run().as_dictionary(),
             'UnpairedControllerInputs': self.find_unpaired_controller_inputs(),

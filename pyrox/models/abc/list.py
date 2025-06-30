@@ -67,7 +67,7 @@ class Subscribable:
         Arguments
         ----------
         callback: :type:`Callable`
-            A callback to be called when this object emits.    
+            A callback to be called when this object emits.
         """
         if callback not in self._subscribers:
             self._subscribers.append(callback)
@@ -78,7 +78,7 @@ class Subscribable:
         Arguments
         ----------
         callback: :type:`Callable`
-            A callback to be called when this object emits.    
+            A callback to be called when this object emits.
         """
         if callback in self._subscribers:
             self._subscribers.remove(callback)

@@ -1,7 +1,7 @@
 ﻿<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
-<RSLogix5000Content SchemaRevision="1.0" SoftwareRevision="34.03" TargetName="unittest" TargetType="Controller" ContainsContext="false" Owner="EQUANS North America IT, CCG" ExportDate="Mon Jun 23 08:54:24 2025" ExportOptions="NoRawData L5KData DecoratedData ForceProtectedEncoding AllProjDocTrans">
-<Controller Use="Target" Name="unittest" ProcessorType="1756-L81ES" MajorRev="34" MinorRev="11" ProjectCreationDate="Wed May 14 14:11:04 2025" LastModifiedDate="Mon Jun 23 08:52:46 2025" SFCExecutionControl="CurrentActive" SFCRestartPosition="MostRecent" SFCLastScan="DontScan" ProjectSN="16#0000_0000"
- MatchProjectToController="false" CanUseRPIFromProducer="false" InhibitAutomaticFirmwareUpdate="0" PassThroughConfiguration="EnabledWithAppend" DownloadProjectDocumentationAndExtendedProperties="true" DownloadProjectCustomProperties="true" ReportMinorOverflow="false" AutoDiagsEnabled="true" WebServerEnabled="false">
+<RSLogix5000Content SchemaRevision="1.0" SoftwareRevision="34.03" TargetName="unittest" TargetType="Controller" ContainsContext="false" Owner="EQUANS North America IT, CCG" ExportDate="Mon Jun 30 14:43:18 2025" ExportOptions="NoRawData L5KData DecoratedData ForceProtectedEncoding AllProjDocTrans">
+<Controller Use="Target" Name="unittest" ProcessorType="1756-L81ES" MajorRev="34" MinorRev="11" ProjectCreationDate="Wed May 14 14:11:04 2025" LastModifiedDate="Mon Jun 30 14:43:10 2025" SFCExecutionControl="CurrentActive" SFCRestartPosition="MostRecent" SFCLastScan="DontScan" CommPath="AB_ETHIP-1\120.15.35.60"
+ ProjectSN="16#0000_0000" MatchProjectToController="false" CanUseRPIFromProducer="false" InhibitAutomaticFirmwareUpdate="0" PassThroughConfiguration="EnabledWithAppend" DownloadProjectDocumentationAndExtendedProperties="true" DownloadProjectCustomProperties="true" ReportMinorOverflow="false" AutoDiagsEnabled="true" WebServerEnabled="false">
 <Description>
 <![CDATA[Indicon LLC
 unittesting plc file]]>
@@ -9,7 +9,16 @@ unittesting plc file]]>
 <RedundancyInfo Enabled="false" KeepTestEditsOnSwitchOver="false"/>
 <Security Code="0" ChangesToDetect="16#ffff_ffff_ffff_ffff"/>
 <SafetyInfo SafetyLocked="false" SignatureRunModeProtect="false" ConfigureSafetyIOAlways="false" SafetyLevel="SIL2/PLd"/>
-<DataTypes/>
+<DataTypes>
+<DataType Name="za_Parent" Family="NoFamily" Class="User">
+<Members>
+<Member Name="ZZZZZZZZZZza_Parent0" DataType="SINT" Dimension="0" Radix="Decimal" Hidden="true" ExternalAccess="Read/Write"/>
+<Member Name="a" DataType="BIT" Dimension="0" Radix="Decimal" Hidden="false" Target="ZZZZZZZZZZza_Parent0" BitNumber="0" ExternalAccess="Read/Write"/>
+<Member Name="b" DataType="BIT" Dimension="0" Radix="Decimal" Hidden="false" Target="ZZZZZZZZZZza_Parent0" BitNumber="1" ExternalAccess="Read/Write"/>
+<Member Name="c" DataType="BIT" Dimension="0" Radix="Decimal" Hidden="false" Target="ZZZZZZZZZZza_Parent0" BitNumber="2" ExternalAccess="Read/Write"/>
+</Members>
+</DataType>
+</DataTypes>
 <Modules>
 <Module Name="Local" CatalogNumber="1756-L81ES" Vendor="1" ProductType="14" ProductCode="211" Major="34" Minor="11" ParentModule="Local" ParentModPortId="1" Inhibited="false" MajorFault="true"
 >
@@ -24,7 +33,56 @@ unittesting plc file]]>
 </Ports>
 </Module>
 </Modules>
-<AddOnInstructionDefinitions/>
+<AddOnInstructionDefinitions>
+<AddOnInstructionDefinition Name="unittest_aoi" Class="Standard" Revision="1.0" ExecutePrescan="false" ExecutePostscan="false" ExecuteEnableInFalse="false" CreatedDate="2025-06-30T16:39:36.726Z" CreatedBy="D90\MH8243" EditedDate="2025-06-30T16:43:49.872Z" EditedBy="D90\MH8243" SoftwareRevision="v34.03"
+>
+<RevisionNote>
+<![CDATA[initial release]]>
+</RevisionNote>
+<Parameters>
+<Parameter Name="EnableIn" TagType="Base" DataType="BOOL" Usage="Input" Radix="Decimal" Required="false" Visible="false" ExternalAccess="Read Only">
+<Description>
+<![CDATA[Enable Input - System Defined Parameter]]>
+</Description>
+</Parameter>
+<Parameter Name="EnableOut" TagType="Base" DataType="BOOL" Usage="Output" Radix="Decimal" Required="false" Visible="false" ExternalAccess="Read Only">
+<Description>
+<![CDATA[Enable Output - System Defined Parameter]]>
+</Description>
+</Parameter>
+<Parameter Name="Input" TagType="Base" DataType="DINT" Usage="Input" Radix="Decimal" Required="true" Visible="true" ExternalAccess="Read/Write">
+<DefaultData Format="L5K">
+<![CDATA[0]]>
+</DefaultData>
+<DefaultData Format="Decorated">
+<DataValue DataType="DINT" Radix="Decimal" Value="0"/>
+</DefaultData>
+</Parameter>
+<Parameter Name="Output" TagType="Base" DataType="DINT" Usage="Output" Radix="Decimal" Required="true" Visible="true" ExternalAccess="Read Only">
+<DefaultData Format="L5K">
+<![CDATA[0]]>
+</DefaultData>
+<DefaultData Format="Decorated">
+<DataValue DataType="DINT" Radix="Decimal" Value="0"/>
+</DefaultData>
+</Parameter>
+<Parameter Name="InOut" TagType="Base" DataType="DINT" Usage="InOut" Radix="Decimal" Required="true" Visible="true" Constant="false"/>
+</Parameters>
+<LocalTags>
+<LocalTag Name="LocalTag" DataType="DINT" Radix="Decimal" ExternalAccess="None">
+<DefaultData Format="L5K">
+<![CDATA[0]]>
+</DefaultData>
+<DefaultData Format="Decorated">
+<DataValue DataType="DINT" Radix="Decimal" Value="0"/>
+</DefaultData>
+</LocalTag>
+</LocalTags>
+<Routines>
+<Routine Name="Logic" Type="RLL"/>
+</Routines>
+</AddOnInstructionDefinition>
+</AddOnInstructionDefinitions>
 <Tags>
 <Tag Name="AlwaysOn" Class="Standard" TagType="Base" DataType="BOOL" Radix="Decimal" Constant="false" ExternalAccess="Read/Write">
 <Description>
@@ -77,6 +135,14 @@ Duplicated Coil]]>
 </Data>
 </Tag>
 <Tag Name="gDuplicatedCoilAlias" Class="Standard" TagType="Base" DataType="BOOL" Radix="Decimal" Constant="false" ExternalAccess="Read/Write">
+<Data Format="L5K">
+<![CDATA[0]]>
+</Data>
+<Data Format="Decorated">
+<DataValue DataType="BOOL" Radix="Decimal" Value="0"/>
+</Data>
+</Tag>
+<Tag Name="gFirstOperand" Class="Standard" TagType="Base" DataType="BOOL" Radix="Decimal" Constant="false" ExternalAccess="Read/Write">
 <Data Format="L5K">
 <![CDATA[0]]>
 </Data>
@@ -139,6 +205,46 @@ Alias]]>
 </Data>
 <Data Format="Decorated">
 <DataValue DataType="BOOL" Radix="Decimal" Value="0"/>
+</Data>
+</Tag>
+<Tag Name="gStruct" Class="Standard" TagType="Base" DataType="za_Parent" Constant="false" ExternalAccess="Read/Write">
+<Data Format="L5K">
+<![CDATA[[0]]]>
+</Data>
+<Data Format="Decorated">
+<Structure DataType="za_Parent">
+<DataValueMember Name="a" DataType="BOOL" Value="0"/>
+<DataValueMember Name="b" DataType="BOOL" Value="0"/>
+<DataValueMember Name="c" DataType="BOOL" Value="0"/>
+</Structure>
+</Data>
+</Tag>
+<Tag Name="MyValue" Class="Standard" TagType="Base" DataType="DINT" Radix="Decimal" Constant="false" ExternalAccess="Read/Write">
+<Data Format="L5K">
+<![CDATA[0]]>
+</Data>
+<Data Format="Decorated">
+<DataValue DataType="DINT" Radix="Decimal" Value="0"/>
+</Data>
+</Tag>
+<Tag Name="SecondOperand" Class="Standard" TagType="Base" DataType="DINT" Radix="Decimal" Constant="false" ExternalAccess="Read/Write">
+<Data Format="L5K">
+<![CDATA[0]]>
+</Data>
+<Data Format="Decorated">
+<DataValue DataType="DINT" Radix="Decimal" Value="0"/>
+</Data>
+</Tag>
+<Tag Name="SomeStruct" Class="Standard" TagType="Base" DataType="za_Parent" Constant="false" ExternalAccess="Read/Write">
+<Data Format="L5K">
+<![CDATA[[0]]]>
+</Data>
+<Data Format="Decorated">
+<Structure DataType="za_Parent">
+<DataValueMember Name="a" DataType="BOOL" Value="0"/>
+<DataValueMember Name="b" DataType="BOOL" Value="0"/>
+<DataValueMember Name="c" DataType="BOOL" Value="0"/>
+</Structure>
 </Data>
 </Tag>
 </Tags>
@@ -225,6 +331,94 @@ program coil, aliased to global coil with no related input instruction
 <Rung Number="1" Type="N">
 <Text>
 <![CDATA[XIC(pInputWithNoCoil)NOP();]]>
+</Text>
+</Rung>
+</RLLContent>
+</Routine>
+</Routines>
+</Program>
+<Program Name="LogixOperand" TestEdits="false" MainRoutineName="main" Disabled="false" Class="Standard" UseAsFolder="false">
+<Tags>
+<Tag Name="DeeperAliasing" TagType="Alias" Radix="Decimal" AliasFor="pStruct.c" ExternalAccess="Read/Write"/>
+<Tag Name="FirstOperand" TagType="Alias" Radix="Decimal" AliasFor="gFirstOperand" ExternalAccess="Read/Write">
+<Description>
+<![CDATA[First Operand
+In Controller]]>
+</Description>
+</Tag>
+<Tag Name="LocalProgramTagOnly" TagType="Base" DataType="BOOL" Radix="Decimal" Constant="false" ExternalAccess="Read/Write">
+<Description>
+<![CDATA[Local Program Tag
+Only]]>
+</Description>
+<Data Format="L5K">
+<![CDATA[0]]>
+</Data>
+<Data Format="Decorated">
+<DataValue DataType="BOOL" Radix="Decimal" Value="0"/>
+</Data>
+</Tag>
+<Tag Name="LocalProgramUnpairedOnly" TagType="Base" DataType="BOOL" Radix="Decimal" Constant="false" ExternalAccess="Read/Write">
+<Description>
+<![CDATA[Local Program Tag
+Upaired Only]]>
+</Description>
+<Data Format="L5K">
+<![CDATA[0]]>
+</Data>
+<Data Format="Decorated">
+<DataValue DataType="BOOL" Radix="Decimal" Value="0"/>
+</Data>
+</Tag>
+<Tag Name="pStruct" TagType="Alias" AliasFor="gStruct" ExternalAccess="Read/Write"/>
+</Tags>
+<Routines>
+<Routine Name="main" Type="RLL">
+<RLLContent>
+<Rung Number="0" Type="N">
+<Comment>
+<![CDATA[-----
+Logix Operand unit testing code
+-----
+]]>
+</Comment>
+<Text>
+<![CDATA[OTL(FirstOperand);]]>
+</Text>
+</Rung>
+<Rung Number="1" Type="N">
+<Text>
+<![CDATA[MOV(MyValue,SecondOperand);]]>
+</Text>
+</Rung>
+<Rung Number="2" Type="N">
+<Text>
+<![CDATA[XIC(SomeStruct.a)OTE(SomeStruct.b);]]>
+</Text>
+</Rung>
+<Rung Number="3" Type="N">
+<Text>
+<![CDATA[XIC(pStruct.a)OTE(pStruct.b);]]>
+</Text>
+</Rung>
+<Rung Number="4" Type="N">
+<Text>
+<![CDATA[XIC(DeeperAliasing)OTE(DeeperAliasing);]]>
+</Text>
+</Rung>
+<Rung Number="5" Type="N">
+<Text>
+<![CDATA[OTE(LocalProgramTagOnly);]]>
+</Text>
+</Rung>
+<Rung Number="6" Type="N">
+<Text>
+<![CDATA[OTE(LocalProgramTagOnly);]]>
+</Text>
+</Rung>
+<Rung Number="7" Type="N">
+<Text>
+<![CDATA[XIC(LocalProgramUnpairedOnly)NOP();]]>
 </Text>
 </Rung>
 </RLLContent>
@@ -335,6 +529,7 @@ empty routine
 <ScheduledProgram Name="InputWithNoCoil"/>
 <ScheduledProgram Name="DuplicatedCoil"/>
 <ScheduledProgram Name="NoneFlaggingLogic"/>
+<ScheduledProgram Name="LogixOperand"/>
 </ScheduledPrograms>
 </Task>
 <Task Name="SafetyTask" Type="PERIODIC" Rate="20" Priority="10" Watchdog="20" DisableUpdateOutputs="false" InhibitTask="false" Class="Safety">
