@@ -3,7 +3,7 @@ from __future__ import annotations
 from tkinter.ttk import Treeview
 
 
-def populate_tree(tree: Treeview, parent, data):
+def populate_tree(tree: Treeview, parent, data, fill_recursive: bool = True) -> None:
     """
     Recursively populates a ttk.Treeview with keys and values from a dictionary or list.
 
@@ -16,7 +16,8 @@ def populate_tree(tree: Treeview, parent, data):
         for key, value in data.items():
             if isinstance(value, (dict, list)):
                 node = tree.insert(parent, 'end', text=str(key), values=['[...]'])
-                populate_tree(tree, node, value)
+                if fill_recursive:
+                    populate_tree(tree, node, value)
             else:
                 tree.insert(parent, 'end', text=str(key), values=(value,))
     elif isinstance(data, list):
@@ -36,6 +37,7 @@ def populate_tree(tree: Treeview, parent, data):
 
             if isinstance(item, (dict, list)):
                 node = tree.insert(parent=parent, index='end', text=node_label, values=['[...]'])
-                populate_tree(tree, node, item)
+                if fill_recursive:
+                    populate_tree(tree, node, item)
             else:
                 tree.insert(parent, 'end', text=node_label, values=(item,))
