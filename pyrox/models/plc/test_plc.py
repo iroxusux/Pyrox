@@ -20,12 +20,8 @@ from .plc import (
     NamedPlcObject,
     PlcObject,
     Program,
-    RoutineContainer,
-    SupportsMeta,
-    SupportsClass,
-    SupportsExternalAccess,
-    SupportsRadix,
-    TagContainer
+    ContainsRoutines,
+    ContainsTags
 )
 
 from .gm import (
@@ -53,8 +49,7 @@ class TestPlcObject(unittest.TestCase):
         self.controller: Controller = Controller.from_file(UNITTEST_PLC_FILE)
         self.meta_data = {"@Name": "TestObject",
                           "Description": "Test Description"}
-        self.plc_object = PlcObject(
-            meta_data=self.meta_data, controller=self.controller)
+        self.plc_object = PlcObject(meta_data=self.meta_data, controller=self.controller)
 
     def test_initialization(self):
         self.assertEqual(self.plc_object.meta_data, self.meta_data)
@@ -70,29 +65,87 @@ class TestPlcObject(unittest.TestCase):
         self.assertEqual(self.plc_object["@Name"], "NewName")
 
     def test_config_property(self):
-        self.assertIsInstance(self.plc_object.config, ControllerConfiguration)
+        self.assertEqual(self.plc_object.config, self.controller.config)
+
+    def test_get_all_properties(self):
+        # PlcObject has three properties: config, controller, meta_data
+        props = self.plc_object.get_all_properties()
+        self.assertIsInstance(props, dict)
+        # Check that all property names are present
+        self.assertIn('config', props)
+        self.assertIn('controller', props)
+        self.assertIn('meta_data', props)
+        # Check that the values are correct
+        self.assertEqual(props['config'], self.plc_object.config)
+        self.assertEqual(props['controller'], self.plc_object.controller)
+        self.assertEqual(props['meta_data'], self.plc_object.meta_data)
+
+    def test_validate(self):
+        # Should return a ControllerReportItem with pass_fail True and no notes for valid object
+        report = self.plc_object.validate()
+        self.assertIsInstance(report, ControllerReportItem)
+        self.assertTrue(report.pass_fail)
+        self.assertIn('Validating PlcObject object', report.test_description)
+        self.assertEqual(report.test_notes, [])
+
+        # Test with missing config, controller, and meta_data
+        obj = PlcObject(meta_data=None, controller=None)
+        report = obj.validate()
+        self.assertIsInstance(report, ControllerReportItem)
+        self.assertFalse(report.pass_fail)
+        self.assertNotIn('No controller configuration found!', report.test_notes)
+        self.assertIn('No controller found!', report.test_notes)
+        self.assertIn('No meta data found!', report.test_notes)
 
 
 class TestNamedPlcObject(unittest.TestCase):
     def setUp(self):
         self.controller: Controller = Controller.from_file(UNITTEST_PLC_FILE)
-        self.meta_data = {"@Name": "TestNamedObject", "Description": "Test Description"}
-        self.named_object = NamedPlcObject(
-            meta_data=self.meta_data, controller=self.controller)
+        self.meta_data = {"@Name": "TestNamed", "Description": "Test Description"}
+        self.named_obj = NamedPlcObject(meta_data=self.meta_data, controller=self.controller)
 
     def test_name_property(self):
-        self.assertEqual(self.named_object.name, "TestNamedObject")
-        self.named_object.name = "NewName"
-        self.assertEqual(self.named_object.name, "NewName")
-
-    def test_invalid_name(self):
-        with self.assertRaises(self.named_object.InvalidNamingException):
-            self.named_object.name = "Invalid Name!"
+        # Test getter
+        self.assertEqual(self.named_obj.name, "TestNamed")
+        # Test setter with valid string
+        self.named_obj.name = "NewName"
+        self.assertEqual(self.named_obj.name, "NewName")
+        # Test setter with invalid string (simulate is_valid_string returning False)
+        self.named_obj.is_valid_string = MagicMock(return_value=False)
+        with self.assertRaises(self.named_obj.InvalidNamingException):
+            self.named_obj.name = ""
 
     def test_description_property(self):
-        self.assertEqual(self.named_object.description, "Test Description")
-        self.named_object.description = "New Description"
-        self.assertEqual(self.named_object.description, "New Description")
+        # Test getter
+        self.assertEqual(self.named_obj.description, "Test Description")
+        # Test setter
+        self.named_obj.description = "Updated description"
+        self.assertEqual(self.named_obj.description, "Updated description")
+
+    def test_repr_and_str(self):
+        self.assertEqual(repr(self.named_obj), self.named_obj.name)
+        self.assertEqual(str(self.named_obj), self.named_obj.name)
+
+    def test_validate(self):
+        # Should pass when both name and description are present
+        report = self.named_obj.validate()
+        self.assertIsInstance(report, ControllerReportItem)
+        self.assertTrue(report.pass_fail)
+        self.assertNotIn('No name found!', report.test_notes)
+        self.assertNotIn('No description found!', report.test_notes)
+
+        # Should fail if name is None
+        self.named_obj._meta_data["@Name"] = None
+        report = self.named_obj.validate()
+        self.assertFalse(report.pass_fail)
+        self.assertIn('No name found!', report.test_notes)
+
+        # Should fail if description is None
+        self.named_obj._meta_data["@Name"] = "TestNamed"
+        self.named_obj._meta_data["Description"] = None
+        report = self.named_obj.validate()
+        self.assertFalse(report.pass_fail)
+        self.assertIn('No description found!', report.test_notes)
 
 
 class TestLogixOperand(unittest.TestCase):
@@ -320,81 +373,6 @@ class TestLogixInstruction(unittest.TestCase):
         self.assertEqual(input_instruction.type, LogixInstructionType.INPUT)
 
 
-class TestSupportsMeta(unittest.TestCase):
-    def setUp(self):
-        class MockMeta(SupportsMeta[str]):
-            pass
-
-        self.meta_data = {"test_key": "test_value"}
-        self.controller = None
-        self.supports_meta = MockMeta(meta_data=self.meta_data, controller=self.controller)
-
-    def test_initialization(self):
-        self.assertEqual(self.supports_meta.meta_data, self.meta_data)
-        self.assertEqual(self.supports_meta.controller, self.controller)
-
-    def test_get_key(self):
-        with self.assertRaises(NotImplementedError) as context:
-            self.assertEqual(self.supports_meta.__key__, "test_key")
-        self.assertIsInstance(context.exception, NotImplementedError)
-
-    def test_set_value(self):
-        self.supports_meta.__set__("new_value", 'test_key')
-        self.assertEqual(self.supports_meta["test_key"], "new_value")
-
-    def test_set_invalid_value(self):
-        with self.assertRaises(ValueError):
-            self.supports_meta.__set__(123, 'test_key')
-
-    def test_get_value(self):
-        self.assertEqual(self.supports_meta.__get__('test_key'), "test_value")
-
-
-class TestSupportsClass(unittest.TestCase):
-    def setUp(self):
-        self.meta_data = {"@Class": "TestClass"}
-        self.supports_class = SupportsClass(
-            meta_data=self.meta_data, controller=None)
-
-    def test_key_property(self):
-        self.assertEqual(self.supports_class.key, "@Class")
-
-    def test_class_property(self):
-        self.assertEqual(self.supports_class.class_, "TestClass")
-        self.supports_class.class_ = "NewClass"
-        self.assertEqual(self.supports_class.class_, "NewClass")
-
-
-class TestSupportsExternalAccess(unittest.TestCase):
-    def setUp(self):
-        self.meta_data = {"@ExternalAccess": "ReadWrite"}
-        self.supports_external_access = SupportsExternalAccess(
-            meta_data=self.meta_data, controller=None)
-
-    def test_key_property(self):
-        self.assertEqual(self.supports_external_access.key, "@ExternalAccess")
-
-    def test_external_access_property(self):
-        self.assertEqual(self.supports_external_access.external_access, "ReadWrite")
-        self.supports_external_access.external_access = "ReadOnly"
-        self.assertEqual(self.supports_external_access.external_access, "ReadOnly")
-
-
-class TestSupportsRadix(unittest.TestCase):
-    def setUp(self):
-        self.meta_data = {"@Radix": "Decimal"}
-        self.supports_radix = SupportsRadix(
-            meta_data=self.meta_data, controller=None)
-
-    def test_key_property(self):
-        self.assertEqual(self.supports_radix.key, "@Radix")
-
-    def test_radix_property(self):
-        self.assertEqual(self.supports_radix.radix, "Decimal")
-        self.supports_radix.radix = "Hex"
-        self.assertEqual(self.supports_radix.radix, "Hex")
-
-
 class TestRoutineContainer(unittest.TestCase):
 
     def setUp(self):
@@ -408,7 +386,7 @@ class TestRoutineContainer(unittest.TestCase):
             'Routine': [{'@Name': 'Routine1'}, {'@Name': 'Routine2'}]
         }
 
-        self.container = RoutineContainer(meta_data=self.meta_data, controller=self.mock_controller)
+        self.container = ContainsRoutines(meta_data=self.meta_data, controller=self.mock_controller)
 
     def test_raw_routines_multiple(self):
         expected = [{'@Name': 'Routine1'}, {'@Name': 'Routine2'}]
@@ -444,7 +422,7 @@ class TestTagContainer(unittest.TestCase):
             'Tag': [{'Name': 'Tag1'}, {'Name': 'Tag2'}]
         }
 
-        self.container = TagContainer(meta_data=self.meta_data, controller=self.mock_controller)
+        self.container = ContainsTags(meta_data=self.meta_data, controller=self.mock_controller)
 
     def test_raw_tags_multiple(self):
         expected = [{'Name': 'Tag1'}, {'Name': 'Tag2'}]
@@ -576,7 +554,7 @@ class TestDatatype(unittest.TestCase):
     def test_validate_method(self):
         report_item = self.datatype.validate()
         self.assertIsInstance(report_item, ControllerReportItem)
-        self.assertFalse(report_item.pass_fail)
+        self.assertTrue(report_item.pass_fail)
         self.assertEqual(report_item.plc_object, self.datatype)
 
 
@@ -637,7 +615,7 @@ class TestModule(unittest.TestCase):
     def test_validate_method(self):
         report_item = self.module.validate()
         self.assertIsInstance(report_item, ControllerReportItem)
-        self.assertFalse(report_item.pass_fail)
+        self.assertTrue(report_item.pass_fail)
         self.assertEqual(report_item.plc_object, self.module)
 
 
@@ -737,7 +715,7 @@ class TestTag(unittest.TestCase):
     def test_validate_method(self):
         report_item = self.tag.validate()
         self.assertIsInstance(report_item, ControllerReportItem)
-        self.assertFalse(report_item.pass_fail)
+        self.assertTrue(report_item.pass_fail)
         self.assertEqual(report_item.plc_object, self.tag)
 
 

@@ -15,7 +15,6 @@ from ..abc.list import HashList
 from ...services.plc_services import l5x_dict_from_file
 from ...utils import replace_strings_in_dict
 
-
 __all__ = (
     'BASE_FILES',
     'PlcObject',
@@ -31,13 +30,11 @@ __all__ = (
     'Tag',
 )
 
-
 T = TypeVar('T')
 
 INST_RE_PATTERN: str = r'[A-Za-z0-9_]+\(\S+?\)'
 INST_TYPE_RE_PATTERN: str = r'([A-Za-z0-9_]+)(?:\(.*?)(?:\))'
 INST_OPER_RE_PATTERN: str = r'(?:[A-Za-z0-9_]+\()(.*?)(?:\))'
-
 
 PLC_ROOT_FILE = r'docs\controls\root.L5X'
 PLC_PROG_FILE = r'docs\controls\_program.L5X'
@@ -195,6 +192,8 @@ class LogixTagScope(Enum):
 
 
 class LogixInstructionType(Enum):
+    """logix instruction type enumeration
+    """
     INPUT = 1
     OUTPUT = 2
     UNKOWN = 3
@@ -225,36 +224,39 @@ class PlcObject(EnforcesNaming, SnowFlake):
         elif isinstance(self.meta_data, str):
             return self.meta_data
 
-    def __setitem__(self, key, value):
-        self._meta_data[key] = value
-
     def __init__(self,
                  meta_data: Union[dict, str] = defaultdict(None),
                  controller: 'Controller' = None):
         SnowFlake.__init__(self)
-
         self._meta_data = meta_data
         self._controller = controller
 
     def __repr__(self):
         return self.meta_data
 
+    def __setitem__(self, key, value):
+        if isinstance(self.meta_data, dict):
+            self._meta_data[key] = value
+        else:
+            raise TypeError("Cannot set item on a non-dict meta data object!")
+
     def __str__(self):
         return str(self.meta_data)
 
     @property
-    def config(self) -> ControllerConfiguration:
+    def config(self) -> Optional['ControllerConfiguration']:
         """ get the controller configuration for this object
 
+        .. -------------------------------
+
         Returns:
+        ----------
             :class:`ControllerConfiguration`
         """
-        if not self._controller:
-            return ControllerConfiguration()
-        return self._controller._config
+        return ControllerConfiguration() if not self._controller else self._controller._config
 
     @property
-    def controller(self):
+    def controller(self) -> Optional['Controller']:
         """get this object's controller
 
         .. -------------------------------
@@ -269,36 +271,40 @@ class PlcObject(EnforcesNaming, SnowFlake):
     def meta_data(self) -> dict:
         return self._meta_data
 
-    def get_all_properties(self):
+    def get_all_properties(self) -> dict:
         return {
             name: getattr(self, name)
             for name, value in inspect.getmembers(type(self), lambda v: isinstance(v, property))
         }
 
     def validate(self,
-                 test_notes: Optional[list[str]] = None) -> ControllerReportItem:
-        results = True
-        test_notes = test_notes or []
+                 report: Optional[ControllerReportItem] = None) -> ControllerReportItem:
+        if not report:
+            report = ControllerReportItem(self,
+                                          f'Validating {self.__class__.__name__} object: {str(self)}')
+
         if self.config is None:
-            test_notes.append('No controller configuration found!')
-            results = False
+            report.test_notes.append('No controller configuration found!')
+            report.pass_fail = False
 
         if self.controller is None:
-            test_notes.append('No controller found!')
-            results = False
+            report.test_notes.append('No controller found!')
+            report.pass_fail = False
 
         if self.meta_data is None:
-            test_notes.append('No meta data found!')
-            results = False
+            report.test_notes.append('No meta data found!')
+            report.pass_fail = False
 
-        return ControllerReportItem(self,
-                                    f'Validating {self.__class__.__name__} object: {self.name}',
-                                    results,
-                                    '\n'.join(test_notes))
+        return report
 
 
 class NamedPlcObject(PlcObject):
-    def __init__(self, meta_data=defaultdict(None), controller=None):
+    """Supports a name and description for a PLC object.
+    """
+
+    def __init__(self,
+                 meta_data=defaultdict(None),
+                 controller=None):
         super().__init__(meta_data, controller)
 
     def __repr__(self):
@@ -343,21 +349,18 @@ class NamedPlcObject(PlcObject):
         self['Description'] = value
 
     def validate(self,
-                 test_notes: Optional[list[str]] = None) -> ControllerReportItem:
-        results = True
-        test_notes = test_notes or []
+                 report: Optional[ControllerReportItem] = None) -> ControllerReportItem:
+        report = super().validate(report=report)
+
         if self.name is None:
-            test_notes.append('No name found!')
-            results = False
+            report.test_notes.append('No name found!')
+            report.pass_fail = False
 
         if self.description is None:
-            test_notes.append('No description found!')
-            results = False
+            report.test_notes.append('No description found!')
+            report.pass_fail = False
 
-        return ControllerReportItem(self,
-                                    f'Validating {self.__class__.__name__} object: {self.name}',
-                                    results,
-                                    '\n'.join(test_notes))
+        return report
 
 
 class LogixOperand(PlcObject):
@@ -461,7 +464,7 @@ class LogixOperand(PlcObject):
         return self._base_tag
 
     @property
-    def container(self) -> RoutineContainer:
+    def container(self) -> ContainsRoutines:
         return self.instruction.container
 
     @property
@@ -535,7 +538,7 @@ class LogixOperand(PlcObject):
         """
         if self._qualified_parents:
             return self._qualified_parents
-        
+
         if self.base_tag.scope == LogixTagScope.CONTROLLER:
             self._qualified_parents = self.aliased_parents
             return self._qualified_parents
@@ -823,65 +826,12 @@ class SupportsMeta(Generic[T], NamedPlcObject):
         return self[key_]
 
 
-class SupportsClass(SupportsMeta[str]):
-    """This PLC Object supports the @Class property
-    """
-    key = '@Class'
-
-    @property
-    def class_(self) -> str:
-        return super().__get__(SupportsClass.key)
-
-    @class_.setter
-    def class_(self, value: str):
-        super().__set__(value, SupportsClass.key)
-
-    def validate(self,
-                 test_notes: Optional[list[str]] = None) -> ControllerReportItem:
-        results = True
-        test_notes = test_notes or []
-
-        if self.class_ is None:
-            test_notes.append('No class found!')
-            results = False
-
-        return ControllerReportItem(self,
-                                    f'Validating {self.__class__.__name__} object: {self.name}',
-                                    results,
-                                    '\n'.join(test_notes))
-
-
-class SupportsExternalAccess(SupportsMeta[str]):
-    """This PLC Object supports the @ExternalAccess property
-    """
-    key = '@ExternalAccess'
-
-    @property
-    def external_access(self) -> str:
-        return super().__get__(SupportsExternalAccess.key)
-
-    @external_access.setter
-    def external_access(self, value: str):
-        super().__set__(value, SupportsExternalAccess.key)
-
-
-class SupportsRadix(SupportsMeta[str]):
-    """This PLC Object supports the @Radix property
-    """
-    key = '@Radix'
-
-    @property
-    def radix(self) -> str:
-        return super().__get__(SupportsRadix.key)
-
-    @radix.setter
-    def radix(self, value: str):
-        super().__set__(value, SupportsRadix.key)
-
-
-class TagContainer(NamedPlcObject):
-    def __init__(self, meta_data=defaultdict(None), controller=None):
-        super().__init__(meta_data, controller)
+class ContainsTags(NamedPlcObject):
+    def __init__(self,
+                 meta_data=defaultdict(None),
+                 controller=None):
+        super().__init__(meta_data,
+                         controller)
 
         self._tags: HashList = HashList('name')
         [self._tags.append(self.config.tag_type(l5x_meta_data=x, controller=self.controller, container=self))
@@ -902,7 +852,7 @@ class TagContainer(NamedPlcObject):
         return self._tags
 
 
-class RoutineContainer(TagContainer):
+class ContainsRoutines(ContainsTags):
     """This PLC Object contains routines
     """
 
@@ -946,7 +896,10 @@ class RoutineContainer(TagContainer):
         return self['Routines']['Routine']
 
 
-class AddOnInstruction(RoutineContainer, SupportsClass):
+class AddOnInstruction(ContainsRoutines):
+    """AddOn Instruction Definition for a rockwell plc
+    """
+
     def __init__(self,
                  name: str = None,
                  l5x_meta_data: dict = None,
@@ -1064,7 +1017,7 @@ class ConnectionParameters:
         return self._slot
 
 
-class DatatypeMember(SupportsRadix, SupportsExternalAccess):
+class DatatypeMember(NamedPlcObject):
     def __init__(self,
                  l5x_meta_data: dict,
                  datatype: 'Datatype',
@@ -1093,7 +1046,7 @@ class DatatypeMember(SupportsRadix, SupportsExternalAccess):
         return self['@Hidden']
 
 
-class Datatype(SupportsClass):
+class Datatype(NamedPlcObject):
     def __init__(self,
                  name: str = None,
                  l5x_meta_data: dict = None,
@@ -1231,7 +1184,7 @@ class Module(NamedPlcObject):
         return report
 
 
-class Program(RoutineContainer):
+class Program(ContainsRoutines):
     def __init__(self,
                  name: str = None,
                  meta_data: dict = None,
@@ -1314,8 +1267,7 @@ class Program(RoutineContainer):
         return unpaired_inputs
 
     def validate(self) -> ControllerReportItem:
-        report = ControllerReportItem(self,
-                                      f'Validating {self.__class__.__name__} object: {self.name}')
+        report = super().validate()
 
         if not self.input_instructions:
             report.test_notes.append('No input instructions found in program!')
@@ -1391,7 +1343,7 @@ class Routine(NamedPlcObject):
         return self._aoi
 
     @property
-    def container(self) -> RoutineContainer:
+    def container(self) -> ContainsRoutines:
         return self.aoi if self.aoi else self.program
 
     @property
@@ -2217,7 +2169,7 @@ class ControllerReportItem:
     def __init__(self,
                  plc_object: PlcObject,
                  test_description: str,
-                 pass_fail: bool = False,
+                 pass_fail: bool = True,
                  test_notes: list[str] = None):
         if plc_object is None or test_description is None:
             raise ValueError('Cannot leave any fields empty/None!')
