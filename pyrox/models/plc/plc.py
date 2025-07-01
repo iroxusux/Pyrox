@@ -2125,6 +2125,11 @@ class Controller(NamedPlcObject, Loggable):
             if key not in outputs and not any(item in outputs for item in value[0].qualified_parents):
                 unpaired_inputs[key] = [x.as_report_dict() for x in value]
 
+        # these are common used hardware flags from the PLC, there are no outputs for these
+        for key in ['S:FS', 'S:Fs', 'S:fs', 's:fs', 's:FS']:
+            if key in unpaired_inputs:
+                del unpaired_inputs[key]
+
         return unpaired_inputs
 
     def find_redundant_otes(self):

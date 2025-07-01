@@ -1,15 +1,7 @@
-"""run this engine locally
+"""run this app locally
     """
-from __future__ import annotations
 from pyrox import App, ApplicationConfiguration
 
-
-def main():
-    """test this engine environment with a default application
-    """
+if __name__ == '__main__':
     app = App(config=ApplicationConfiguration.root())
     app.start()
-
-
-if __name__ == '__main__':
-    main()

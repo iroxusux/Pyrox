@@ -1,7 +1,8 @@
 from .frames import (
     FrameWithTreeViewAndScrollbar,
     LogWindow,
-    PyroxFrame
+    PyroxFrame,
+    ToplevelWithTreeViewAndScrollbar
 )
 from .listbox import UserListbox
 from .menu import ContextMenu
@@ -14,4 +15,5 @@ __all__ = (
     'UserListbox',
     'ContextMenu',
     'ProgressBar',
+    'ToplevelWithTreeViewAndScrollbar'
 )

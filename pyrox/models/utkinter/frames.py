@@ -12,6 +12,7 @@ from tkinter import (
     RIGHT,
     Scrollbar,
     Text,
+    Toplevel,
     VERTICAL,
     Y
 )
@@ -32,6 +33,12 @@ class PyroxFrame(LabelFrame, Loggable):
                             relief=GROOVE,
                             **kwargs)
         Loggable.__init__(self)
+
+
+class PyroxTopLevelFrame(Toplevel, Loggable):
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
 
 
 class LogWindow(PyroxFrame):
@@ -117,3 +124,36 @@ class FrameWithTreeViewAndScrollbar(PyroxFrame):
             self._tree.pack(fill=BOTH, expand=True)
         else:
             raise TypeError(f'Expected LazyLoadingTreeView, got {type(value)}')
+
+
+class ToplevelWithTreeViewAndScrollbar(PyroxTopLevelFrame):
+    def __init__(self,
+                 *args,
+                 text: str = None,
+                 **kwargs):
+        super().__init__(*args,
+                         text=text,
+                         **kwargs)
+
+        self._tree: LazyLoadingTreeView = LazyLoadingTreeView(master=self,
+                                                              columns=('Value',),
+                                                              show='tree headings')
+        self._tree.heading('#0', text='Name')
+        self._tree.heading('Value', text='Value')
+
+        vscrollbar = Scrollbar(self,
+                               orient=VERTICAL,
+                               command=self._tree.yview)
+        self._tree['yscrollcommand'] = vscrollbar.set
+
+        vscrollbar.pack(fill=Y, side=RIGHT)
+        self._tree.pack(fill=BOTH, expand=True)
+
+    @property
+    def tree(self) -> LazyLoadingTreeView:
+        """get the tree view of this organizer window
+
+        Returns:
+            ttk.Treeview: tree view
+        """
+        return self._tree
