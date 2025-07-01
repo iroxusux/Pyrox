@@ -9,7 +9,6 @@ from ..models.plc import Controller
 from ..models.utkinter import FrameWithTreeViewAndScrollbar, LogWindow, PyroxFrame
 from ..services.plc_services import dict_to_xml_file, l5x_dict_from_file
 from ..services.task_services import find_and_instantiate_class
-from ..services.utkinter import populate_tree
 
 
 class App(Application):
@@ -199,7 +198,7 @@ class App(Application):
         self.logger.info('Refreshing application gui...')
         self.clear_organizer()
         self.clear_workspace()
-        populate_tree(self._organizer.tree, '', self.controller.l5x_meta_data)
+        self._organizer.tree.populate_tree('', self.controller.l5x_meta_data)
         self.logger.info('Done!')
 
     def save_controller(self,

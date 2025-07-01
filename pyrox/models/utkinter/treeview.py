@@ -1,7 +1,6 @@
 from tkinter.ttk import Treeview
 
 from pyrox.models.plc import Controller
-from pyrox.services.utkinter import populate_tree
 
 UNITTEST_PLC_FILE = r'docs\controls\unittest.L5X'
 
@@ -17,17 +16,63 @@ class LazyLoadingTreeView(Treeview):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.bind('<Button-1>', self.on_click)
+        self._dict_map = {}
 
     def on_click(self, event):
         """Handle click events to load items lazily."""
         item = self.identify_row(event.y)
-        if item and not self.get_children(item):
+        if item and self._dict_map.get(item):
             self.load_children(item)
+            del self._dict_map[item]  # Remove item from map after loading
 
     def load_children(self, item):
         """Load children for the given item."""
         # Placeholder for actual loading logic
-        populate_tree(self, item, self.get_children(item), fill_recursive=False)
+        for x in self.get_children(item):
+            self.delete(x)
+        self.populate_tree(item, self._dict_map.get(item, {}))
+
+    def populate_tree(self,
+                      parent,
+                      data) -> None:
+        """
+        Recursively populates a ttk.Treeview with keys and values from a dictionary or list.
+
+        Parameters:
+        - parent: parent node ID in the tree (use '' for root)
+        - data: dictionary or list to populate the tree with
+        """
+        if isinstance(data, dict):
+            for key, value in data.items():
+                if isinstance(value, (dict, list)):
+                    # insert value, then add placeholder for lazy loading
+                    node = self.insert(parent, 'end', text=str(key), values=['[...]'])
+                    self._dict_map[node] = value
+                    self.insert(node, 'end', text='Loading...', values=['...'])
+                else:
+                    self.insert(parent, 'end', text=str(key), values=(value,))
+        elif isinstance(data, list):
+            for index, item in enumerate(data):
+                node_label = "[???]"
+                if isinstance(item, dict):
+                    if '@Name' in item:
+                        node_label = item['@Name']
+                    elif 'name' in item:
+                        node_label = item['name']
+                    elif 'Name' in item:
+                        node_label = item['Name']
+                    else:
+                        node_label = f"[{index}]"
+                else:
+                    node_label = f"[{index}]"
+
+                if isinstance(item, (dict, list)):
+                    # insert value, then add placeholder for lazy loading
+                    node = self.insert(parent=parent, index='end', text=node_label, values=['[...]'])
+                    self._dict_map[node] = item
+                    self.insert(node, 'end', text='Loading...', values=['...'])
+                else:
+                    self.insert(parent, 'end', text=node_label, values=(item,))
 
 
 if __name__ == "__main__":
@@ -36,5 +81,5 @@ if __name__ == "__main__":
     tree = LazyLoadingTreeView(root)
     tree.pack(expand=True, fill='both')
     controller = Controller.from_file(UNITTEST_PLC_FILE)
-    populate_tree(tree, '', controller.l5x_meta_data, fill_recursive=False)
+    tree.populate_tree('', controller.l5x_meta_data)
     root.mainloop()

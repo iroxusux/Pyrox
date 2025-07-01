@@ -6,7 +6,6 @@ from __future__ import annotations
 from pyrox.applications.app import App, AppTask
 from pyrox.models import View
 from pyrox.models.utkinter import FrameWithTreeViewAndScrollbar
-from pyrox.services.utkinter import populate_tree
 
 
 class ControllerVerifyView(View):
@@ -43,7 +42,7 @@ class ControllerVerifyTask(AppTask):
         self.application.clear_workspace()
         verify_view = ControllerVerifyView(self.application.workspace)
         verify_view.frame.tree.pack_forget()
-        populate_tree(verify_view.frame.tree, '', report_data)
+        verify_view.frame.tree.populate_tree('', report_data)
         verify_view.frame.tree.pack(expand=True, fill='both')
 
     def inject(self) -> None:

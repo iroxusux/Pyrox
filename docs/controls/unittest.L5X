@@ -1,6 +1,6 @@
 ﻿<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
-<RSLogix5000Content SchemaRevision="1.0" SoftwareRevision="34.03" TargetName="unittest" TargetType="Controller" ContainsContext="false" Owner="EQUANS North America IT, CCG" ExportDate="Mon Jun 30 14:43:18 2025" ExportOptions="NoRawData L5KData DecoratedData ForceProtectedEncoding AllProjDocTrans">
-<Controller Use="Target" Name="unittest" ProcessorType="1756-L81ES" MajorRev="34" MinorRev="11" ProjectCreationDate="Wed May 14 14:11:04 2025" LastModifiedDate="Mon Jun 30 14:43:10 2025" SFCExecutionControl="CurrentActive" SFCRestartPosition="MostRecent" SFCLastScan="DontScan" CommPath="AB_ETHIP-1\120.15.35.60"
+<RSLogix5000Content SchemaRevision="1.0" SoftwareRevision="34.03" TargetName="unittest" TargetType="Controller" ContainsContext="false" Owner="EQUANS North America IT, CCG" ExportDate="Tue Jul 01 12:01:53 2025" ExportOptions="NoRawData L5KData DecoratedData ForceProtectedEncoding AllProjDocTrans">
+<Controller Use="Target" Name="unittest" ProcessorType="1756-L81ES" MajorRev="34" MinorRev="11" ProjectCreationDate="Wed May 14 14:11:04 2025" LastModifiedDate="Tue Jul 01 12:01:46 2025" SFCExecutionControl="CurrentActive" SFCRestartPosition="MostRecent" SFCLastScan="DontScan" CommPath="AB_ETHIP-1\120.15.35.60"
  ProjectSN="16#0000_0000" MatchProjectToController="false" CanUseRPIFromProducer="false" InhibitAutomaticFirmwareUpdate="0" PassThroughConfiguration="EnabledWithAppend" DownloadProjectDocumentationAndExtendedProperties="true" DownloadProjectCustomProperties="true" ReportMinorOverflow="false" AutoDiagsEnabled="true" WebServerEnabled="false">
 <Description>
 <![CDATA[Indicon LLC
@@ -16,6 +16,13 @@ unittesting plc file]]>
 <Member Name="a" DataType="BIT" Dimension="0" Radix="Decimal" Hidden="false" Target="ZZZZZZZZZZza_Parent0" BitNumber="0" ExternalAccess="Read/Write"/>
 <Member Name="b" DataType="BIT" Dimension="0" Radix="Decimal" Hidden="false" Target="ZZZZZZZZZZza_Parent0" BitNumber="1" ExternalAccess="Read/Write"/>
 <Member Name="c" DataType="BIT" Dimension="0" Radix="Decimal" Hidden="false" Target="ZZZZZZZZZZza_Parent0" BitNumber="2" ExternalAccess="Read/Write"/>
+<Member Name="Child" DataType="zb_Child" Dimension="0" Radix="NullType" Hidden="false" ExternalAccess="Read/Write"/>
+</Members>
+</DataType>
+<DataType Name="zb_Child" Family="NoFamily" Class="User">
+<Members>
+<Member Name="Age" DataType="INT" Dimension="0" Radix="Decimal" Hidden="false" ExternalAccess="Read/Write"/>
+<Member Name="Name" DataType="STRING" Dimension="0" Radix="NullType" Hidden="false" ExternalAccess="Read/Write"/>
 </Members>
 </DataType>
 </DataTypes>
@@ -209,13 +216,23 @@ Alias]]>
 </Tag>
 <Tag Name="gStruct" Class="Standard" TagType="Base" DataType="za_Parent" Constant="false" ExternalAccess="Read/Write">
 <Data Format="L5K">
-<![CDATA[[0]]]>
+<![CDATA[[0,[0,[0,'$00$00$00$00$00$00$00$00$00$00$00$00$00$00$00$00$00$00$00$00$00$00$00$00$00$00$00$00$00$00$00$00$00$00$00$00$00$00$00$00$00$00$00$00$00$00$00$00$00$00$00$00$00$00$00$00$00$00$00$00$00$00$00$00$00$00$00$00$00$00$00$00$00$00$00$00$00$00$00$00$00$00'
+		]]]]]>
 </Data>
 <Data Format="Decorated">
 <Structure DataType="za_Parent">
 <DataValueMember Name="a" DataType="BOOL" Value="0"/>
 <DataValueMember Name="b" DataType="BOOL" Value="0"/>
 <DataValueMember Name="c" DataType="BOOL" Value="0"/>
+<StructureMember Name="Child" DataType="zb_Child">
+<DataValueMember Name="Age" DataType="INT" Radix="Decimal" Value="0"/>
+<StructureMember Name="Name" DataType="STRING">
+<DataValueMember Name="LEN" DataType="DINT" Radix="Decimal" Value="0"/>
+<DataValueMember Name="DATA" DataType="STRING" Radix="ASCII">
+<![CDATA[]]>
+</DataValueMember>
+</StructureMember>
+</StructureMember>
 </Structure>
 </Data>
 </Tag>
@@ -237,13 +254,23 @@ Alias]]>
 </Tag>
 <Tag Name="SomeStruct" Class="Standard" TagType="Base" DataType="za_Parent" Constant="false" ExternalAccess="Read/Write">
 <Data Format="L5K">
-<![CDATA[[0]]]>
+<![CDATA[[0,[0,[0,'$00$00$00$00$00$00$00$00$00$00$00$00$00$00$00$00$00$00$00$00$00$00$00$00$00$00$00$00$00$00$00$00$00$00$00$00$00$00$00$00$00$00$00$00$00$00$00$00$00$00$00$00$00$00$00$00$00$00$00$00$00$00$00$00$00$00$00$00$00$00$00$00$00$00$00$00$00$00$00$00$00$00'
+		]]]]]>
 </Data>
 <Data Format="Decorated">
 <Structure DataType="za_Parent">
 <DataValueMember Name="a" DataType="BOOL" Value="0"/>
 <DataValueMember Name="b" DataType="BOOL" Value="0"/>
 <DataValueMember Name="c" DataType="BOOL" Value="0"/>
+<StructureMember Name="Child" DataType="zb_Child">
+<DataValueMember Name="Age" DataType="INT" Radix="Decimal" Value="0"/>
+<StructureMember Name="Name" DataType="STRING">
+<DataValueMember Name="LEN" DataType="DINT" Radix="Decimal" Value="0"/>
+<DataValueMember Name="DATA" DataType="STRING" Radix="ASCII">
+<![CDATA[]]>
+</DataValueMember>
+</StructureMember>
+</StructureMember>
 </Structure>
 </Data>
 </Tag>
@@ -339,6 +366,7 @@ program coil, aliased to global coil with no related input instruction
 </Program>
 <Program Name="LogixOperand" TestEdits="false" MainRoutineName="main" Disabled="false" Class="Standard" UseAsFolder="false">
 <Tags>
+<Tag Name="Child" TagType="Alias" AliasFor="gStruct.Child" ExternalAccess="Read/Write"/>
 <Tag Name="DeeperAliasing" TagType="Alias" Radix="Decimal" AliasFor="pStruct.c" ExternalAccess="Read/Write"/>
 <Tag Name="FirstOperand" TagType="Alias" Radix="Decimal" AliasFor="gFirstOperand" ExternalAccess="Read/Write">
 <Description>
@@ -419,6 +447,21 @@ Logix Operand unit testing code
 <Rung Number="7" Type="N">
 <Text>
 <![CDATA[XIC(LocalProgramUnpairedOnly)NOP();]]>
+</Text>
+</Rung>
+<Rung Number="8" Type="N">
+<Text>
+<![CDATA[XIC(pStruct.Child.Age.0)OTE(pStruct.Child.Age.0);]]>
+</Text>
+</Rung>
+<Rung Number="9" Type="N">
+<Text>
+<![CDATA[XIC(pStruct.Child.Name.DATA[0].0)OTE(pStruct.Child.Name.DATA[0].0);]]>
+</Text>
+</Rung>
+<Rung Number="10" Type="N">
+<Text>
+<![CDATA[XIC(Child.Age.0)NOP();]]>
 </Text>
 </Rung>
 </RLLContent>

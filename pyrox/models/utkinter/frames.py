@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 
-from enum import Enum
 from typing import Optional
 from tkinter import (
     BOTH,
@@ -13,49 +12,13 @@ from tkinter import (
     RIGHT,
     Scrollbar,
     Text,
-    ttk,
     VERTICAL,
     Y
 )
 
 
+from .treeview import LazyLoadingTreeView
 from ..abc.meta import Loggable
-
-
-class FrameActions(Enum):
-    """enumeration of actions that can be performed on a frame
-    """
-    STANDARD = 'standard'
-    HOVERING_X = 'hovering_x'
-    HOVERING_Y = 'hovering_y'
-    RESIZING_X = 'resizing_x'
-    RESIZING_Y = 'resizing_y'
-
-    @staticmethod
-    def sizing_all() -> list:
-        """get all sizing actions
-
-        Returns:
-            list[FrameActions]: all sizing actions
-        """
-        return [
-            FrameActions.RESIZING_X,
-            FrameActions.RESIZING_Y
-        ]
-
-    @staticmethod
-    def sizing_x() -> list:
-        return [
-            FrameActions.HOVERING_X,
-            FrameActions.RESIZING_X
-        ]
-
-    @staticmethod
-    def sizing_y() -> list:
-        return [
-            FrameActions.HOVERING_Y,
-            FrameActions.RESIZING_Y
-        ]
 
 
 class PyroxFrame(LabelFrame, Loggable):
@@ -119,9 +82,12 @@ class FrameWithTreeViewAndScrollbar(PyroxFrame):
                          text=text,
                          **kwargs)
 
-        self._tree: ttk.Treeview = ttk.Treeview(master=self,
-                                                columns=('Value',),
-                                                show='tree headings')
+        self._tree: LazyLoadingTreeView = LazyLoadingTreeView(master=self,
+                                                              columns=('Value',),
+                                                              show='tree headings')
+        self._tree.heading('#0', text='Name')
+        self._tree.heading('Value', text='Value')
+
         vscrollbar = Scrollbar(self,
                                orient=VERTICAL,
                                command=self._tree.yview)
@@ -131,7 +97,7 @@ class FrameWithTreeViewAndScrollbar(PyroxFrame):
         self._tree.pack(fill=BOTH, expand=True)
 
     @property
-    def tree(self) -> ttk.Treeview:
+    def tree(self) -> LazyLoadingTreeView:
         """get the tree view of this organizer window
 
         Returns:
@@ -140,14 +106,14 @@ class FrameWithTreeViewAndScrollbar(PyroxFrame):
         return self._tree
 
     @tree.setter
-    def tree(self, value: ttk.Treeview):
+    def tree(self, value: LazyLoadingTreeView):
         """set the tree view of this organizer window
 
         Args:
             value (ttk.Treeview): tree view to set
         """
-        if isinstance(value, ttk.Treeview):
+        if isinstance(value, LazyLoadingTreeView):
             self._tree = value
             self._tree.pack(fill=BOTH, expand=True)
         else:
-            raise TypeError(f'Expected ttk.Treeview, got {type(value)}')
+            raise TypeError(f'Expected LazyLoadingTreeView, got {type(value)}')

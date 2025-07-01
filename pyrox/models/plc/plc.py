@@ -539,6 +539,10 @@ class LogixOperand(PlcObject):
         if self._qualified_parents:
             return self._qualified_parents
 
+        if not self.base_tag:  # could be a system flag or hardware device, maybe
+            self._qualified_parents = self.aliased_parents
+            return self._qualified_parents
+
         if self.base_tag.scope == LogixTagScope.CONTROLLER:
             self._qualified_parents = self.aliased_parents
             return self._qualified_parents
@@ -1678,15 +1682,15 @@ class Tag(NamedPlcObject):
             additional_elements = ''
 
         if not self.alias_for:
-            return self.name + additional_elements
+            return f'{self.name}{additional_elements}'
 
         parent_tag = self.get_parent_tag(self)
         if not parent_tag:
             raise ValueError(f'Tag {self.name} has an alias for {self.alias_for_base_name} but no parent tag found!')
 
-        alias_element = self.alias_for.split('.')[1:]
-        if alias_element:
-            additional_elements += '.' + ''.join(alias_element)
+        alias_element_pointer = self.alias_for.find('.')
+        if alias_element_pointer != -1:
+            additional_elements = f'{self.alias_for[alias_element_pointer:]}{additional_elements}'
 
         return parent_tag.get_alias_string(additional_elements=additional_elements)
 
