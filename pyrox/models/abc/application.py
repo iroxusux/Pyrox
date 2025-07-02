@@ -46,7 +46,7 @@ class BaseMenu(Buildable):
 
     .. ------------------------------------------------------------
 
-    .. package:: types.abc.application
+    .. package:: models.abc.application
 
     .. ------------------------------------------------------------
 
@@ -66,7 +66,7 @@ class BaseMenu(Buildable):
                  root: Union[Tk, Toplevel]):
         super().__init__()
         self._root = root
-        self._menu = Menu(self.root)
+        self._menu = Menu(self._root)
 
     @property
     def menu(self) -> Menu:
@@ -100,7 +100,7 @@ class MainApplicationMenu(BaseMenu):
 
     .. ------------------------------------------------------------
 
-    .. package:: types.application
+    .. package:: models.abc.application
 
     .. ------------------------------------------------------------
 
@@ -129,7 +129,7 @@ class MainApplicationMenu(BaseMenu):
         The View :class:`Menu` for this :class:`MainApplicationMenu`
     """
 
-    __slots__ = ('_active_models', '_file', '_edit', '_tools', '_view', '_help', '_on_new_model')
+    __slots__ = ('_file', '_edit', '_tools', '_view', '_help',)
 
     def __init__(self,
                  root: Union[Tk, Toplevel]):
@@ -272,21 +272,25 @@ class ApplicationTask(Runnable):
 
         Returns
         -----------
-            application: :class:`PartialApplication`
+            application: :class:`Application`
         """
         return self._application
 
     @application.setter
     def application(self, value: 'Application'):
+        if not isinstance(value, Application):
+            raise TypeError('application must be of type Application')
         self._application = value
 
     def inject(self) -> None:
         """Inject this task into the hosting application
         """
+        raise NotImplementedError('This method should be overridden in a subclass.')
 
     def start(self) -> None:
         """Run this task
         """
+        raise NotImplementedError('This method should be overridden in a subclass.')
 
 
 @dataclass
@@ -433,22 +437,32 @@ class Application(Runnable):
     Attributes
     --------
     tk_app :class:`Union[Tk, ThemedTk, None]`
-        tkinter application instance for this :class:`PartialApplication`.
+        tkinter application instance for this :class:`Application`.
 
     config :class:`PartialApplicationConfiguration`
-        Configuration for this :class:`PartialApplication`.
+        Configuration for this :class:`Application`.
 
     frame :class:`Frame`
-        The frame for this :class:`PartialApplication`.
+        The frame for this :class:`Application`.
+
+    menu :class:`MainApplicationMenu`
+        Main Tk :class:`Menu` for this :class:`Application`.
+
+    tasks :class:`HashList` [:class:`ApplicationTask`]
+        Hashed list of tasks for this :class:`Application`.
 
     """
 
+    __slots__ = ('_config', '_frame', '_menu', '_tasks', '_tk_app')
+
     def __init__(self,
-                 config: ApplicationConfiguration) -> None:
+                 config: ApplicationConfiguration,
+                 **kwargs) -> None:
 
-        super().__init__(add_to_globals=True)
+        super().__init__(add_to_globals=True,
+                         **kwargs)
 
-        self._config: ApplicationConfiguration = ApplicationConfiguration.root() if config is None else config
+        self._config: ApplicationConfiguration = config or ApplicationConfiguration.root()
         self._frame: Frame = None
         self._menu: MainApplicationMenu = None
         self._tasks: HashList[ApplicationTask] = None
@@ -456,7 +470,7 @@ class Application(Runnable):
 
     @property
     def tk_app(self) -> Union[Tk, ThemedTk, None]:
-        """The tk application instance for this :class:`PartialApplication`.
+        """The tk application instance for this :class:`Application`.
 
         .. ------------------------------------------------------------
 
@@ -468,19 +482,19 @@ class Application(Runnable):
 
     @property
     def config(self) -> ApplicationConfiguration:
-        """Configuration for this :class:`PartialApplication`.
+        """Configuration for this :class:`Application`.
 
         .. ------------------------------------------------------------
 
         Returns
         --------
-            config :class:`PartialApplicationConfiguration`
+            config :class:`ApplicationConfiguration`
         """
         return self._config
 
     @property
     def frame(self) -> Frame:
-        """The frame for this :class:`PartialApplication`.
+        """The frame for this :class:`Application`.
 
         .. ------------------------------------------------------------
 
@@ -504,7 +518,7 @@ class Application(Runnable):
 
     @property
     def tasks(self) -> HashList[ApplicationTask]:
-        """Hashed list of tasks for this :class:`PartialApplication`.
+        """Hashed list of tasks for this :class:`Application`.
 
         .. ------------------------------------------------------------
 
@@ -514,7 +528,10 @@ class Application(Runnable):
         """
         return self._tasks
 
-    def build(self) -> Self:
+    def build(self) -> None:
+        """Build this :class:`Application`.
+        This method initializes the tkinter application instance, sets up the main window,
+        and prepares the main frame and menu."""
         if self.config.application == Tk:
             self._tk_app = Tk()
         elif self.config.application == ThemedTk:

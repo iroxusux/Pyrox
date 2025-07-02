@@ -6,6 +6,7 @@ import inspect
 def find_and_instantiate_class(directory_path,
                                class_name,
                                as_subclass: bool = False,
+                               ignoring_classes: list[str] = None,
                                parent_class: type = None,
                                **kwargs):
     """
@@ -20,16 +21,20 @@ def find_and_instantiate_class(directory_path,
     """
     objects = []
 
+    if not ignoring_classes:
+        ignoring_classes = []
+
     for filename in os.listdir(directory_path):
         if filename == '__init__.py':
             continue
 
         if os.path.isdir(os.path.join(directory_path, filename)):
             # If it's a directory, recursively search in it
-            sub_objects = find_and_instantiate_class(os.path.join(directory_path, filename),
-                                                     class_name,
-                                                     as_subclass,
-                                                     parent_class,
+            sub_objects = find_and_instantiate_class(directory_path=os.path.join(directory_path, filename),
+                                                     class_name=class_name,
+                                                     as_subclass=as_subclass,
+                                                     ignoring_classes=ignoring_classes,
+                                                     parent_class=parent_class,
                                                      **kwargs)
             objects.extend(sub_objects)
             continue
@@ -48,8 +53,12 @@ def find_and_instantiate_class(directory_path,
             objs = inspect.getmembers(module, inspect.isclass)
 
             for name, obj in objs:
+
+                if name in ignoring_classes:
+                    continue
+
                 if as_subclass and parent_class is not None:
-                    if issubclass(obj, parent_class) and name != parent_class.__name__:
+                    if issubclass(obj, parent_class):
                         objects.append(obj(**kwargs))
                 else:
                     if name == class_name:

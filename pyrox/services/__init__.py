@@ -3,7 +3,6 @@
 
 from . import (
     class_services,
-    directory,
     file,
     notify_services,
     plc_services,
@@ -14,7 +13,6 @@ from . import (
 
 __all__ = (
     'class_services',
-    'directory',
     'file',
     'notify_services',
     'plc_services',

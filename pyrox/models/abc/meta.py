@@ -175,8 +175,10 @@ class SnowFlake:
     def __hash__(self):
         return hash(self._id)
 
-    def __init__(self):
+    def __init__(self,
+                 **kwargs):
         self._id = _IdGenerator.get_id()
+        super().__init__(**kwargs)
 
     def __str__(self):
         return str(self.id)
@@ -299,8 +301,9 @@ class Loggable(SnowFlake):
 
     def __init__(self,
                  name: Optional[str] = None,
-                 add_to_globals: bool = False):
-        super().__init__()
+                 add_to_globals: bool = False,
+                 **kwargs):
+        super().__init__(**kwargs)
         self._logger: logging.Logger = self._get(name=name if name else self.__class__.__name__)
         self._log_handler: ConsolePanelHandler = ConsolePanelHandler(None)
 

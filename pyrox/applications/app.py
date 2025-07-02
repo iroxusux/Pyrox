@@ -1,18 +1,183 @@
 from __future__ import annotations
 
 from logging import INFO, WARNING, ERROR
+import os
 from pathlib import Path
+import platformdirs
 from typing import Optional
 from tkinter import PanedWindow, TclError
+
 
 from ..models import Application, ApplicationTask
 from ..models.plc import Controller
 from ..models.utkinter import FrameWithTreeViewAndScrollbar, LogWindow, PyroxFrame, TaskFrame
+from ..services import file
 from ..services.plc_services import dict_to_xml_file, l5x_dict_from_file
 from ..services.task_services import find_and_instantiate_class
 
 
-class App(Application):
+class ApplicationDirectoryService:
+    """Application Directory Service
+
+    Manage Application Directories with this service class
+
+    .. ------------------------------------------------------------
+
+    .. package:: applications.app
+
+    .. ------------------------------------------------------------
+
+    Attributes
+    -----------
+    root: :class:`str`
+        Root directory for this service.
+    """
+
+    def __init__(self,
+                 author_name: str,
+                 app_name: str,
+                 **kwargs):
+        if not author_name or author_name == '':
+            raise ValueError('A valid, non-null author name must be supplied for this class!')
+
+        if not app_name or app_name == '':
+            raise ValueError('A valid, non-null application name must be supplied for this class!')
+
+        self._app_name = app_name
+        self._author_name = author_name
+
+        super().__init__(**kwargs)
+
+    @property
+    def app_name(self) -> str:
+        """Application Name supplied to this service class
+
+        .. ------------------------------------------------
+
+        Returns
+        ----------
+        :class:`str`
+        """
+        return self._app_name
+
+    @property
+    def author_name(self) -> str:
+        """Author Name supplied to this service class
+
+        .. ------------------------------------------------
+
+        Returns
+        ----------
+        :class:`str`
+        """
+        return self._author_name
+
+    @property
+    def user_cache(self):
+        """User cache directory.
+
+        .. ---------------------------------------------------------------------------
+
+        Returns
+        ----------
+        :class:`str`
+        """
+        return platformdirs.user_cache_dir(self._app_name, self._author_name, ensure_exists=True)
+
+    @property
+    def user_config(self):
+        """User config directory.
+
+        .. ---------------------------------------------------------------------------
+
+        Returns
+        ----------
+        :class:`str`
+        """
+        return platformdirs.user_config_dir(self._app_name, self._author_name, ensure_exists=True)
+
+    @property
+    def user_data(self):
+        """User data directory.
+
+        Example >>> 'C:/Users/JohnSmith/AppData/Local/JSmithEnterprises/MyApplication'
+
+        .. ---------------------------------------------------------------------------
+
+        Returns
+        ----------
+        :class:`str`
+        """
+        return platformdirs.user_data_dir(self._app_name, self._author_name, ensure_exists=True)
+
+    @property
+    def user_documents(self):
+        """User documents directory.
+
+        .. ---------------------------------------------------------------------------
+
+        Returns
+        ----------
+        :class:`str`
+        """
+        return platformdirs.user_documents_dir()
+
+    @property
+    def user_downloads(self):
+        """User downloads directory.
+
+        .. ---------------------------------------------------------------------------
+
+        Returns
+        ----------
+        :class:`str`
+        """
+        return platformdirs.user_downloads_dir()
+
+    @property
+    def user_log(self):
+        """User log directory.
+
+        .. ---------------------------------------------------------------------------
+
+        Returns
+        ----------
+        :class:`str`
+        """
+        return platformdirs.user_log_dir(self._app_name, self._author_name)
+
+    def build_directory(self,
+                        as_refresh: bool = False):
+        """Build the directory for the parent application.
+
+        Uses the supplied name for directory naming.
+        """
+        # --- cache --- #
+        if os.path.isdir(self.user_cache):
+            if as_refresh:
+                file.remove_all_files(self.user_cache)
+
+        else:
+            os.mkdir(self.user_cache)
+
+        # --- config --- #
+        if os.path.isdir(self.user_config):
+            if as_refresh:
+                file.remove_all_files(self.user_config)
+
+        else:
+            os.mkdir(self.user_config)
+
+        # --- data --- #
+        if os.path.isdir(self.user_data):
+            if as_refresh:
+                file.remove_all_files(self.user_data)
+
+        else:
+            os.mkdir(self.user_data)
+
+
+class App(Application, ApplicationDirectoryService):
     """Application class for Pyrox.
 
     This class is used to create and manage the application instance.
@@ -20,8 +185,13 @@ class App(Application):
     functionality specific to the Pyrox framework.
     """
 
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
+    def __init__(self,
+                 *args,
+                 **kwargs):
+        super().__init__(*args,
+                         author_name='irox',
+                         app_name='pyrox',
+                         **kwargs)
 
         self._controller: Optional[Controller] = None
         self._organizer: Optional[FrameWithTreeViewAndScrollbar] = None
@@ -119,12 +289,15 @@ class App(Application):
         self._paned_window.pack(fill='both', expand=True)
         self._paned_window.configure(sashrelief='groove', sashwidth=5, sashpad=5)
 
-        tasks = find_and_instantiate_class(str(Path(__file__).parent.parent) + '/tasks',
-                                           "ApplicationTask",
-                                           True,
-                                           ApplicationTask,
+        tasks = find_and_instantiate_class(directory_path=str(Path(__file__).parent.parent) + '/tasks',
+                                           class_name="ApplicationTask",
+                                           as_subclass=True,
+                                           ignoring_classes=['ApplicationTask', 'AppTask'],
+                                           parent_class=ApplicationTask,
                                            application=self)
         self.add_tasks(tasks=tasks)
+
+        self.build_directory()
 
     def clear_organizer(self) -> None:
         """Clear organizer of all children.

@@ -133,10 +133,11 @@ class TestFindAndInstantiateClass(unittest.TestCase):
         from .task_services import find_and_instantiate_class
         from pyrox.models import ApplicationTask
 
-        my_objects = find_and_instantiate_class(r"pyrox\\tasks\\builtin",
-                                                "ApplicationTask",
-                                                True,
-                                                ApplicationTask,
+        my_objects = find_and_instantiate_class(directory_path=r"pyrox\\tasks\\builtin",
+                                                class_name="ApplicationTask",
+                                                as_subclass=True,
+                                                ignoring_classes=["ApplicationTask", "AppTask"],
+                                                parent_class=ApplicationTask,
                                                 application=None)
         self.assertIsNotNone(my_objects)
         self.assertTrue(len(my_objects) >= 3)

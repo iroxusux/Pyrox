@@ -21,7 +21,6 @@ from .models import (
 )
 
 from .services import (
-    directory,
     file
 )
 
@@ -39,7 +38,6 @@ __all__ = (
     'ApplicationTask',
     'ApplicationConfiguration',
     'ContextMenu',
-    'directory',
     'file',
     'HashList',
     'LaunchableModel',
