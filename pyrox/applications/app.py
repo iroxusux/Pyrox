@@ -254,6 +254,15 @@ class App(Application, ApplicationDirectoryService):
             return
         frame.master = self.workspace
         frame.pack(fill='both', expand=True, side='top')
+        self._set_frame_selected(frame)
+
+    def _set_frame_selected(self, frame):
+        """Set the selected frame in the view menubar."""
+        cmds = self.menu.get_menu_commands(self.menu.view)
+        for entry in cmds:
+            self.menu.view.entryconfig(self.menu.view.index(entry), state='normal')
+
+        self.menu.view.entryconfig(self.menu.view.index(frame.name), state='active')
 
     def build(self):
         """Build this :class:`Application`.

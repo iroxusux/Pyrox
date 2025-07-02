@@ -151,7 +151,7 @@ class TaskFrame(Frame):
                  **kwargs):
         super().__init__(*args, **kwargs)
         self._name = name or 'Task Frame'
-        self._title_bar = Frame(self, height=30, bg='lightgrey')
+        self._title_bar = Frame(self, height=20, bg='lightgrey')
 
         self._close_button = Button(self._title_bar,
                                     text='X',

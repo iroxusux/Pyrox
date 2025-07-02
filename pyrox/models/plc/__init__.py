@@ -3,6 +3,7 @@
 from .plc import (
     AddOnInstruction,
     BASE_FILES,
+    ConnectionCommand,
     ConnectionParameters,
     Controller,
     Datatype,
@@ -21,6 +22,7 @@ __version__ = "1.0.0"
 __all__ = (
     'AddOnInstruction',
     'BASE_FILES',
+    'ConnectionCommand',
     'ConnectionParameters',
     'Controller',
     'Datatype',
