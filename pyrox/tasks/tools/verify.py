@@ -2,6 +2,7 @@
     """
 from __future__ import annotations
 
+from tkinter import Scrollbar, VERTICAL, Y, RIGHT
 from typing import Optional
 
 from pyrox.applications.app import App, AppTask
@@ -17,10 +18,16 @@ class ControllerVerifyFrame(TaskFrame):
                  parent=None):
         super().__init__(parent,
                          name='Controller Verification',)
+
         self._tree = LazyLoadingTreeView(master=self.content_frame,
                                          columns=('Value',))
         self._tree.heading('#0', text='Name')
         self._tree.heading('Value', text='Value')
+
+        vscrollbar = Scrollbar(self.content_frame, orient=VERTICAL, command=self._tree.yview)
+        vscrollbar.pack(fill=Y, side=RIGHT)
+
+        self._tree['yscrollcommand'] = vscrollbar.set
         self._tree.pack(fill='both', expand=True, side='top')
 
     @property

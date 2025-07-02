@@ -130,7 +130,8 @@ class EnforcesNaming:
 
         """
 
-        def __init__(self, message='Invalid naming scheme! Allowed chars are %s' % ALLOWED_CHARS):
+        def __init__(self,
+                     message='Invalid naming scheme! Allowed chars are %s' % ALLOWED_CHARS):
             self.message = message
             super().__init__(self.message)
 

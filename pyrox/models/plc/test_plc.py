@@ -737,7 +737,6 @@ class TestController(unittest.TestCase):
     def test_init(self):
         self.assertIsNotNone(self.controller._root_meta_data)
         self.assertEqual(self.controller._file_location, '')
-        self.assertEqual(self.controller._ip_address, '120.15.35.60')
         self.assertEqual(self.controller._slot, 0)
         self.assertIsNotNone(self.controller._config)
 

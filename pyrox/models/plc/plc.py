@@ -227,8 +227,9 @@ class PlcObject(EnforcesNaming, SnowFlake):
 
     def __init__(self,
                  meta_data: Union[dict, str] = defaultdict(None),
-                 controller: 'Controller' = None):
-        SnowFlake.__init__(self)
+                 controller: 'Controller' = None,
+                 **kwargs):
+        super().__init__(**kwargs)
         self._meta_data = meta_data
         self._controller = controller
 
@@ -305,8 +306,11 @@ class NamedPlcObject(PlcObject):
 
     def __init__(self,
                  meta_data=defaultdict(None),
-                 controller=None):
-        super().__init__(meta_data, controller)
+                 controller=None,
+                 **kwargs):
+        super().__init__(meta_data=meta_data,
+                         controller=controller,
+                         **kwargs)
 
     def __repr__(self):
         return self.name
@@ -1031,6 +1035,7 @@ class ConnectionCommandType(Enum):
 class ConnectionCommand:
     """Connection Command for a PLC
     """
+
     def __init__(self,
                  type: ConnectionCommandType,
                  tag_name: str,
@@ -1836,23 +1841,16 @@ class Controller(NamedPlcObject, Loggable):
 
     def __init__(self,
                  root_meta_data: str = None,
-                 config: Optional[ControllerConfiguration] = None):
+                 config: Optional[ControllerConfiguration] = None,
+                 **kwargs):
 
-        self._root_meta_data: dict = root_meta_data if root_meta_data else l5x_dict_from_file(PLC_ROOT_FILE)
-        self._file_location, self._ip_address = '', ''
-        self._slot = 0
+        self._root_meta_data: dict = root_meta_data or l5x_dict_from_file(PLC_ROOT_FILE)
+        self._file_location, self._ip_address, self._slot = '', '', 0
         self._config = config if config else ControllerConfiguration()
 
-        PlcObject.__init__(self, self.l5x_meta_data, self)
-        Loggable.__init__(self)
-
-        if not self.plc_module:
-            raise ValueError('Could not find @Local in plc Modules!')
-
-        try:
-            self._assign_address(self.comm_path.split('\\')[-1])
-        except (ValueError, TypeError, AttributeError) as e:
-            self.logger.error('ip address assignment err -> %s', e)
+        super().__init__(meta_data=self.l5x_meta_data,
+                         controller=self,
+                         **kwargs)
 
         self.logger.info('Generating add-on instructions...')
         self._aois: HashList = HashList('name')
