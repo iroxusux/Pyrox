@@ -1,12 +1,13 @@
 from __future__ import annotations
 
+from logging import INFO, WARNING, ERROR
 from pathlib import Path
 from typing import Optional
 from tkinter import PanedWindow, TclError
 
 from ..models import Application, ApplicationTask
 from ..models.plc import Controller
-from ..models.utkinter import FrameWithTreeViewAndScrollbar, LogWindow, PyroxFrame
+from ..models.utkinter import FrameWithTreeViewAndScrollbar, LogWindow, PyroxFrame, TaskFrame
 from ..services.plc_services import dict_to_xml_file, l5x_dict_from_file
 from ..services.task_services import find_and_instantiate_class
 
@@ -73,6 +74,17 @@ class App(Application):
         """
         return self._workspace
 
+    def _raise_frame(self,
+                     frame: TaskFrame) -> None:
+        """Raise a frame to the top of the application."""
+        self.clear_workspace()
+        if not frame or not frame.winfo_exists():
+            self.unregister_frame(frame)
+            self.logger.error('Frame does not exist or is not provided.')
+            return
+        frame.master = self.workspace
+        frame.pack(fill='both', expand=True, side='top')
+
     def build(self):
         """Build this :class:`Application`.
 
@@ -91,7 +103,7 @@ class App(Application):
         # use an additional sub frame to pack widgets on left side of screen neatly
         sub_frame = PanedWindow(self._paned_window, orient='vertical')
 
-        self._workspace = PyroxFrame(sub_frame, text='Workspace', height=350)
+        self._workspace = PyroxFrame(sub_frame, text='Workspace', height=500)
         self._workspace.pack(side='top', fill='x')
         sub_frame.add(self._workspace)
 
@@ -167,7 +179,7 @@ class App(Application):
         self.controller = ctrl
 
     def log(self,
-            message: str):
+            message: str) -> None:
         """Post a message to this :class:`Application`'s logger frame.
 
         Arguments
@@ -178,9 +190,19 @@ class App(Application):
         if not self._log_window:
             return
 
+        severity = WARNING if '| WARNING | ' in message else \
+            ERROR if '| ERROR | ' in message else INFO
+
         try:
             self._log_window.log_text.config(state='normal')
+            msg_begin = self._log_window.log_text.index('end-1c')
             self._log_window.log_text.insert('end', f'{message}\n')
+            msg_end = self._log_window.log_text.index('end-1c')
+            self._log_window.log_text.tag_add(message, msg_begin, msg_end)
+            self._log_window.log_text.tag_config(message,
+                                                 foreground='white' if severity == ERROR else 'black',
+                                                 background='yellow' if severity == WARNING else 'red' if severity == ERROR else 'white',
+                                                 font=('Courier New', 10, 'bold'))
             self._log_window.log_text.see('end')
             line_count = self._log_window.log_text.count('1.0', 'end', 'lines')[0]
             if line_count > 100:
@@ -201,6 +223,29 @@ class App(Application):
         self._organizer.tree.populate_tree('', self.controller.l5x_meta_data)
         self.logger.info('Done!')
 
+    def register_frame(self,
+                       frame: TaskFrame,
+                       raise_=False) -> None:
+        """Register a frame to this :class:`Application`.
+
+        .. ------------------------------------------------------------
+
+        Arguments
+        -----------
+        frame: :class:`Frame`
+            The frame to register to this :class:`Application`.
+
+        """
+        if not frame:
+            raise ValueError('Frame must be provided to register a frame.')
+
+        if not isinstance(frame, TaskFrame):
+            raise TypeError(f'Expected TaskFrame, got {type(frame)}')
+
+        self.menu.view.add_command(label=frame.name, command=lambda: self._raise_frame(frame))
+        if raise_:
+            self._raise_frame(frame)
+
     def save_controller(self,
                         file_location: str) -> None:
         """Save a :class:`Controller` back to a .L5X Allen Bradley PLC File.
@@ -217,6 +262,42 @@ class App(Application):
             return
         dict_to_xml_file(self.controller.root_meta_data,
                          file_location)
+
+    def set_frame(self,
+                  frame: TaskFrame) -> None:
+        """Set a frame to the top of the application.
+
+        This method will raise the provided frame to the top of the application.
+
+        .. ------------------------------------------------------------
+
+        Arguments
+        -----------
+        frame: :class:`TaskFrame`
+            The frame to set to the top of the application.
+
+        """
+        self._raise_frame(frame)
+
+    def unregister_frame(self,
+                         frame: TaskFrame) -> None:
+        """Unregister a frame from this :class:`Application`.
+
+        .. ------------------------------------------------------------
+
+        Arguments
+        -----------
+        frame: :class:`Frame`
+            The frame to unregister from this :class:`Application`.
+
+        """
+        if not frame:
+            raise ValueError('Frame must be provided to unregister a frame.')
+
+        if not isinstance(frame, TaskFrame):
+            raise TypeError(f'Expected TaskFrame, got {type(frame)}')
+
+        self.menu.view.delete(frame.name)
 
 
 class AppTask(ApplicationTask):

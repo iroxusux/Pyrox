@@ -2,6 +2,7 @@ from .frames import (
     FrameWithTreeViewAndScrollbar,
     LogWindow,
     PyroxFrame,
+    TaskFrame,
     ToplevelWithTreeViewAndScrollbar
 )
 from .listbox import UserListbox
@@ -15,5 +16,6 @@ __all__ = (
     'UserListbox',
     'ContextMenu',
     'ProgressBar',
+    'TaskFrame',
     'ToplevelWithTreeViewAndScrollbar'
 )

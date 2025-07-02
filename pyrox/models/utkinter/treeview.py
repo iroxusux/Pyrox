@@ -18,6 +18,14 @@ class LazyLoadingTreeView(Treeview):
         self.bind('<Button-1>', self.on_click)
         self._dict_map = {}
 
+    def clear(self):
+        """Clear the treeview and reset the lazy loading map."""
+        if not self.winfo_exists():
+            return
+        for item in self.get_children():
+            self.delete(item)
+        self._dict_map.clear()
+
     def on_click(self, event):
         """Handle click events to load items lazily."""
         item = self.identify_row(event.y)
@@ -44,7 +52,7 @@ class LazyLoadingTreeView(Treeview):
         """
         if isinstance(data, dict):
             for key, value in data.items():
-                if isinstance(value, (dict, list)):
+                if isinstance(value, (dict, list)) and len(value) > 0:
                     # insert value, then add placeholder for lazy loading
                     node = self.insert(parent, 'end', text=str(key), values=['[...]'])
                     self._dict_map[node] = value
@@ -66,7 +74,7 @@ class LazyLoadingTreeView(Treeview):
                 else:
                     node_label = f"[{index}]"
 
-                if isinstance(item, (dict, list)):
+                if isinstance(item, (dict, list)) and len(item) > 0:
                     # insert value, then add placeholder for lazy loading
                     node = self.insert(parent=parent, index='end', text=node_label, values=['[...]'])
                     self._dict_map[node] = item
