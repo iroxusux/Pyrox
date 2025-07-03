@@ -1,3 +1,3 @@
-""" manage PLC tasks as built-ins
+""" tools tasks
     """
 from __future__ import annotations

@@ -10,10 +10,13 @@ from .plc_services import (
 )
 
 
-from unittest.mock import patch
 import unittest
+from unittest.mock import patch
 import lxml
 import lxml.etree as ET
+import pandas as pd
+
+from pyrox.services.xml import parse_xml
 
 
 DUPS_TEST_FILE = r'docs\controls\_test_duplicate_coils.L5X'
@@ -142,6 +145,24 @@ class TestFindAndInstantiateClass(unittest.TestCase):
         self.assertIsNotNone(my_objects)
         self.assertTrue(len(my_objects) >= 3)
         self.assertTrue(hasattr(my_objects[0], "application"))
+
+
+class TestParseXML(unittest.TestCase):
+    @patch('pyrox.services.xml.pd.read_excel')
+    def test_parse_xml_returns_keys(self, mock_read_excel):
+        # Mocked data to simulate pd.read_excel output
+        mock_data = {
+            'Sheet1': pd.DataFrame({'A': [1, 2]}),
+            'Sheet2': pd.DataFrame({'B': [3, 4]})
+        }
+        mock_read_excel.return_value = mock_data
+
+        file_location = 'dummy/path/to/file.xlsx'
+        result = parse_xml(file_location)
+
+        # Should return dict_keys of the mock_data
+        self.assertEqual(set(result), set(mock_data.keys()))
+        mock_read_excel.assert_called_once_with(file_location, sheet_name=None)
 
 
 if __name__ == '__main__':

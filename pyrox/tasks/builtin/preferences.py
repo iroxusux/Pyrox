@@ -1,4 +1,4 @@
-"""built-in preferences task.
+""" preferences task
     """
 from __future__ import annotations
 

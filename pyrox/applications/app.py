@@ -45,8 +45,29 @@ class ApplicationDirectoryService:
 
         self._app_name = app_name
         self._author_name = author_name
+        self.build_directory()
 
         super().__init__(**kwargs)
+
+    @property
+    def all_directories(self) -> dict:
+        """All directories for this service class.
+
+        .. ------------------------------------------------
+
+        Returns
+        ----------
+        :class:`dict`
+            Dictionary of all directories for this service class.
+        """
+        return {
+            'user_cache': self.user_cache,
+            'user_config': self.user_config,
+            'user_data': self.user_data,
+            'user_documents': self.user_documents,
+            'user_downloads': self.user_downloads,
+            'user_log': self.user_log
+        }
 
     @property
     def app_name(self) -> str:
@@ -146,35 +167,32 @@ class ApplicationDirectoryService:
         """
         return platformdirs.user_log_dir(self._app_name, self._author_name)
 
+    @property
+    def user_log_file(self) -> str:
+        """User log file.
+
+        This is the file where the application will log messages.
+
+        .. ---------------------------------------------------------------------------
+
+        Returns
+        ----------
+        :class:`str`
+        """
+        return os.path.join(self.user_log, f'{self._app_name}.log')
+
     def build_directory(self,
                         as_refresh: bool = False):
         """Build the directory for the parent application.
 
         Uses the supplied name for directory naming.
         """
-        # --- cache --- #
-        if os.path.isdir(self.user_cache):
-            if as_refresh:
-                file.remove_all_files(self.user_cache)
-
-        else:
-            os.mkdir(self.user_cache)
-
-        # --- config --- #
-        if os.path.isdir(self.user_config):
-            if as_refresh:
-                file.remove_all_files(self.user_config)
-
-        else:
-            os.mkdir(self.user_config)
-
-        # --- data --- #
-        if os.path.isdir(self.user_data):
-            if as_refresh:
-                file.remove_all_files(self.user_data)
-
-        else:
-            os.mkdir(self.user_data)
+        for dir in self.all_directories.values():
+            if not os.path.isdir(dir):
+                os.makedirs(dir, exist_ok=True)
+            else:
+                if as_refresh:
+                    file.remove_all_files(dir)
 
 
 class App(Application, ApplicationDirectoryService):
@@ -200,6 +218,13 @@ class App(Application, ApplicationDirectoryService):
         self._workspace: Optional[PyroxFrame] = None
 
         self.logger.info('Pyrox Application initialized.')
+
+        # clear log file
+        try:
+            with open(self.user_log_file, 'w', encoding='utf-8') as log_file:
+                log_file.write('')  # Create an empty log file
+        except IOError as e:
+            self.logger.error(f'Error creating log file {self.user_log_file}: {e}')
 
     @property
     def controller(self) -> Optional[Controller]:
@@ -363,12 +388,20 @@ class App(Application, ApplicationDirectoryService):
     def log(self,
             message: str) -> None:
         """Post a message to this :class:`Application`'s logger frame.
+        Additionally, append the message to this application's log text file.
 
         Arguments
         ----------
         message: :type:`str`
-            Message to be sent to this :class:`Application`'s log frame.
+            Message to be sent to this :class:`Application`'s log frame and to be appended to the log text file.
         """
+        try:
+            with open(self.user_log_file, 'a', encoding='utf-8') as log_file:
+                log_file.write(f'{message}\n')
+        except IOError as e:
+            print(f'Error writing to log file {self.user_log_file}: {e}')
+            return
+
         if not self._log_window:
             return
 

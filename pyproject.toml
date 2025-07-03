@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "Pyrox"
-version = "1.2.1"
+version = "1.2.2"
 authors = [
   { name="Brian LaFond", email="Brian.L.LaFond@gmail.com" },
 ]
@@ -30,12 +30,14 @@ classifiers = [
 ]
 dependencies = [
   "lxml",
-  "ttkthemes",
+  "pandas",
   "platformdirs",
-  "pytest",
+  "pyinstaller",
   "pylogix",
+  "pytest",
+  "ttkthemes",
   "xmltodict",
-  "pyinstaller"
+  
 ]
 
 license = {file = "LICENSE"}
