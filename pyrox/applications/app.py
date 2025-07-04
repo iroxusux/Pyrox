@@ -518,7 +518,7 @@ class App(Application, ApplicationDirectoryService):
         self.logger.info('Refreshing application gui...')
         self.clear_organizer()
         self.clear_workspace()
-        self._organizer.tree.populate_tree('', self.controller.l5x_meta_data)
+        self._organizer.tree.populate_tree('', self.controller)
         self.logger.info('Done!')
 
     def register_frame(self,

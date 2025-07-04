@@ -1,6 +1,7 @@
 from tkinter.ttk import Treeview
 
 from .menu import ContextMenu
+from pyrox.models.abc import PyroxObject, HashList
 from pyrox.models.plc import Controller
 
 UNITTEST_PLC_FILE = r'docs\controls\unittest.L5X'
@@ -73,41 +74,45 @@ class LazyLoadingTreeView(Treeview):
         """
         if isinstance(data, dict):
             for k, v in data.items():
-                if isinstance(v, (dict, list)) or hasattr(v, "__dict__"):
+                if isinstance(v, (dict, list, HashList, PyroxObject)):
                     node = self.insert(parent, 'end', text=str(k), values=['[...]'])
                     self._lazy_load_map[node] = v
-                    self.insert(node, 'end', text='Loading...', values=['...'])
+                    self.insert(node, 'end', text='Empty...', values=['...'])
                 else:
                     node = self.insert(parent, 'end', text=str(k), values=(v,))
                 self._item_hash[node] = (data, k)  # Store reference to parent dict and key
-        elif isinstance(data, list):
+
+        elif isinstance(data, (list, HashList)):
             for idx, item in enumerate(data):
                 node_label = f"[{idx}]"
                 if isinstance(item, dict):
                     node_label = item.get('@Name') or item.get('name') or item.get('Name') or node_label
-                elif hasattr(item, "__class__") and hasattr(item, "__dict__"):
-                    node_label = getattr(item, 'name', f"{item.__class__.__name__}[{idx}]")
-                if isinstance(item, (dict, list)) or hasattr(item, "__dict__"):
+                elif isinstance(item, PyroxObject):
+                    node_label = item.name or item.description or node_label
+                if isinstance(item, (dict, list, HashList, PyroxObject)):
                     node = self.insert(parent, 'end', text=node_label, values=['[...]'])
                     self._lazy_load_map[node] = item
-                    self.insert(node, 'end', text='Loading...', values=['...'])
+                    self.insert(node, 'end', text='Empty...', values=['...'])
                 else:
                     node = self.insert(parent, 'end', text=node_label, values=(item,))
                 self._item_hash[node] = (data, idx)  # Store reference to parent list and index
-        elif hasattr(data, "__dict__"):
-            for attr, value in vars(data).items():
-                if isinstance(value, (dict, list)) or hasattr(value, "__dict__"):
-                    node = self.insert(parent, 'end', text=str(attr), values=['[...]'])
+
+        elif isinstance(data, PyroxObject):
+            # Handle PyroxObject specifically
+            for attr in data.gui_interface_attributes():
+                value = getattr(data, attr)
+                if isinstance(value, (dict, list, HashList, PyroxObject)):
+                    node = self.insert(parent, 'end', text=attr, values=['[...]'])
                     self._lazy_load_map[node] = value
-                    self.insert(node, 'end', text='Loading...', values=['...'])
+                    self.insert(node, 'end', text='Empty...', values=['...'])
                 else:
-                    node = self.insert(parent, 'end', text=str(attr), values=(value,))
-                self._item_hash[node] = (data, attr)  # Store reference to parent object and attribute name
+                    node = self.insert(parent, 'end', text=attr, values=(value,))
+                self._item_hash[node] = (data, attr)
+
         else:
             node = self.insert(parent, 'end', text=str(data), values=['...'])
             self._item_hash[node] = (container, key)  # fallback
 
-    # When you want to modify the value:
     def update_node_value(self, node, new_value):
         """
         Update the value displayed in the Treeview node.

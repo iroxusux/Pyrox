@@ -545,6 +545,7 @@ class Application(Runnable):
         self._tk_app.protocol('WM_DELETE_WINDOW', self.close)
         self._tk_app.title(self.config.title)
         self._tk_app.iconbitmap(self.config.icon)
+        self._tk_app.iconbitmap(default=self.config.icon)
         self._tk_app.geometry(self.config.size_)
         self._frame: Frame = Frame(master=self._tk_app)
         self._frame.pack(fill='both', expand=True)

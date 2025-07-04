@@ -10,7 +10,7 @@ import inspect
 import re
 from typing import Callable, Generic, get_args, Optional, Self, TypeVar, Union
 
-from ..abc.meta import EnforcesNaming, Loggable, SnowFlake
+from ..abc.meta import EnforcesNaming, PyroxObject
 from ..abc.list import HashList
 from ...services.plc_services import l5x_dict_from_file
 from ...utils import replace_strings_in_dict
@@ -215,7 +215,7 @@ class LogixAssetType(Enum):
     ALL = 9
 
 
-class PlcObject(EnforcesNaming, SnowFlake):
+class PlcObject(EnforcesNaming, PyroxObject):
     """base class for a l5x plc object.
     """
 
@@ -278,6 +278,9 @@ class PlcObject(EnforcesNaming, SnowFlake):
             name: getattr(self, name)
             for name, value in inspect.getmembers(type(self), lambda v: isinstance(v, property))
         }
+
+    def gui_interface_attributes(self) -> list[str]:
+        return ['meta_data']
 
     def validate(self,
                  report: Optional[ControllerReportItem] = None) -> ControllerReportItem:
@@ -352,6 +355,12 @@ class NamedPlcObject(PlcObject):
     @description.setter
     def description(self, value: str):
         self['Description'] = value
+
+    def gui_interface_attributes(self) -> list[str]:
+        return super().gui_interface_attributes() + [
+            'name',
+            'description'
+        ]
 
     def validate(self,
                  report: Optional[ControllerReportItem] = None) -> ControllerReportItem:
@@ -860,6 +869,11 @@ class ContainsTags(NamedPlcObject):
     def tags(self) -> HashList:
         return self._tags
 
+    def gui_interface_attributes(self) -> list[str]:
+        return super().gui_interface_attributes() + [
+            'tags'
+        ]
+
 
 class ContainsRoutines(ContainsTags):
     """This PLC Object contains routines
@@ -903,6 +917,11 @@ class ContainsRoutines(ContainsTags):
             return [self['Routines']['Routine']]
 
         return self['Routines']['Routine']
+
+    def gui_interface_attributes(self) -> list[str]:
+        return super().gui_interface_attributes() + [
+            'routines'
+        ]
 
 
 class AddOnInstruction(ContainsRoutines):
@@ -986,6 +1005,24 @@ class AddOnInstruction(ContainsRoutines):
         if not isinstance(self['LocalTags']['LocalTag'], list):
             return [self['LocalTags']['LocalTag']]
         return self['LocalTags']['LocalTag']
+
+    def gui_interface_attributes(self) -> list[str]:
+        return [
+            'name',
+            'description',
+            'revision',
+            'execute_prescan',
+            'execute_postscan',
+            'execute_enable_in_false',
+            'created_date',
+            'created_by',
+            'edited_date',
+            'edited_by',
+            'software_revision',
+            'revision_note',
+            'parameters',
+            'local_tags'
+        ]
 
     def validate(self):
         report = ControllerReportItem(self,
@@ -1139,6 +1176,14 @@ class Datatype(NamedPlcObject):
         else:
             return self['Members']['Member']
 
+    def gui_interface_attributes(self) -> list[str]:
+        return [
+            'name',
+            'description',
+            'family',
+            'members'
+        ]
+
     def validate(self):
         report = ControllerReportItem(self,
                                       f'Validating {self.__class__.__name__} object: {self.name}')
@@ -1227,6 +1272,23 @@ class Module(NamedPlcObject):
             return None
 
         return self['Communications']
+
+    def gui_interface_attributes(self) -> list[str]:
+        return [
+            'name',
+            'description',
+            'catalog_number',
+            'vendor',
+            'product_type',
+            'product_code',
+            'major',
+            'minor',
+            'inhibited',
+            'major_fault',
+            'ekey',
+            'ports',
+            'communications'
+        ]
 
     def validate(self) -> ControllerReportItem:
 
@@ -1317,6 +1379,16 @@ class Program(ContainsRoutines):
                     unpaired_inputs[operand] = locations
 
         return unpaired_inputs
+
+    def gui_interface_attributes(self) -> list[str]:
+        return super().gui_interface_attributes() + [
+            'name',
+            'description',
+            'disabled',
+            'main_routine_name',
+            'test_edits',
+            'use_as_folder',
+        ]
 
     def validate(self) -> ControllerReportItem:
         report = super().validate()
@@ -1454,6 +1526,13 @@ class Routine(NamedPlcObject):
 
         return self['RLLContent']['Rung']
 
+    def gui_interface_attributes(self) -> list[str]:
+        return [
+            'name',
+            'description',
+            'rungs',
+        ]
+
     def validate(self) -> ControllerReportItem:
         report = ControllerReportItem(self,
                                       f'Validating {self.__class__.__name__} object: {self.name}')
@@ -1580,6 +1659,15 @@ class Rung(PlcObject):
         self._instructions = [LogixInstruction(x, self, self.controller) for x in matches]
 
         return self._instructions
+
+    def gui_interface_attributes(self) -> list[str]:
+        return [
+            'comment',
+            'text',
+            'instructions',
+            'number',
+            'type',
+        ]
 
     def validate(self) -> ControllerReportItem:
         report = ControllerReportItem(self,
@@ -1756,6 +1844,18 @@ class Tag(NamedPlcObject):
         else:
             return alias
 
+    def gui_interface_attributes(self) -> list[str]:
+        return [
+            'alias_for',
+            'class_',
+            'constant',
+            'data',
+            'datatype',
+            'external_access',
+            'scope',
+            'tag_type',
+        ]
+
     @staticmethod
     def get_parent_tag(tag: Self):
         if not tag.alias_for:
@@ -1821,7 +1921,7 @@ class ControllerConfiguration:
     tag_type: type = Tag
 
 
-class Controller(NamedPlcObject, Loggable):
+class Controller(NamedPlcObject):
     """Controller container for Allen Bradley L5X Files.
     .. ------------------------------------------------------------
 
@@ -2121,6 +2221,22 @@ class Controller(NamedPlcObject, Loggable):
     def add_tag(self, tag: Union[Tag, dict, str]):
         self._add_common(tag, self._tags, self._config.tag_type)
 
+    def gui_interface_attributes(self) -> list[str]:
+        return [
+            'name',
+            'file_location',
+            'ip_address',
+            'slot',
+            'major_revision',
+            'minor_revision',
+            'comm_path',
+            'aois',
+            'datatypes',
+            'modules',
+            'programs',
+            'tags'
+        ]
+
     def remove_aoi(self, aoi: AddOnInstruction):
         self._remove_common(aoi, self._aois)
 
@@ -2299,7 +2415,7 @@ class ControllerReportItem:
         }
 
 
-class ControllerReport(Loggable):
+class ControllerReport(PyroxObject):
     """Controller status report
 
     Get detailed information about a controller, showing problem areas, etc.

@@ -56,6 +56,14 @@ class PyroxTopLevelFrame(Toplevel, Loggable):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
+    def center(self):
+        """Center the toplevel window on the screen."""
+        width = self.winfo_width()
+        height = self.winfo_height()
+        x = (self.winfo_screenwidth() // 2) - (width // 2)
+        y = (self.winfo_screenheight() // 2) - (height // 2)
+        self.geometry(f'{width}x{height}+{x}+{y}')
+
 
 class LogWindow(PyroxFrame):
     """tkinter :class:`LabelFrame` with user logic and attributes packed on top.
@@ -278,7 +286,7 @@ class ToplevelWithTreeViewAndScrollbar(PyroxTopLevelFrame):
         return self._tree
 
 
-class ValueEditPopup(Toplevel):
+class ValueEditPopup(PyroxTopLevelFrame):
     """
     Popup dialog for editing a value.
     Usage:
@@ -288,7 +296,11 @@ class ValueEditPopup(Toplevel):
         - callback: function(new_value) called if user accepts
     """
 
-    def __init__(self, parent, value, callback, title="Modify Value"):
+    def __init__(self,
+                 parent,
+                 value,
+                 callback,
+                 title="Modify Value"):
         super().__init__(parent)
         self.transient(parent)
         self.title(title)

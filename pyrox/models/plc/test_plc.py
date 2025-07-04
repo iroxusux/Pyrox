@@ -97,6 +97,11 @@ class TestPlcObject(unittest.TestCase):
         self.assertIn('No controller found!', report.test_notes)
         self.assertIn('No meta data found!', report.test_notes)
 
+    def test_get_gui_interface_attributes(self):
+        # Test the GUI interface attributes
+        expected_attributes = ['meta_data']
+        self.assertEqual(self.plc_object.gui_interface_attributes(), expected_attributes)
+
 
 class TestNamedPlcObject(unittest.TestCase):
     def setUp(self):
@@ -146,6 +151,11 @@ class TestNamedPlcObject(unittest.TestCase):
         report = self.named_obj.validate()
         self.assertFalse(report.pass_fail)
         self.assertIn('No description found!', report.test_notes)
+
+    def test_get_gui_interface_attributes(self):
+        # Test the GUI interface attributes
+        expected_attributes = ['meta_data', 'name', 'description']
+        self.assertEqual(self.named_obj.gui_interface_attributes(), expected_attributes)
 
 
 class TestLogixOperand(unittest.TestCase):

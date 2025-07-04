@@ -15,7 +15,11 @@ from ttkthemes import ThemedTk
 
 __all__ = (
     'Buildable',
+    'ConsolePanelHandler',
     'EnforcesNaming',
+    'Loggable',
+    'PyroxObject',
+    'Runnable',
     'SnowFlake',
     'View',
     'ViewType',
@@ -26,6 +30,7 @@ __all__ = (
     'DEF_ICON',
     'DEF_FORMATTER',
     'DEF_DATE_FMT',
+    'TK_CURSORS',
 )
 
 ALLOWED_CHARS = re.compile(f'[^{r'a-zA-Z0-9_'}]')
@@ -440,7 +445,55 @@ class Loggable(SnowFlake):
         self._logger.warning(msg)
 
 
-class Buildable(Loggable):
+class PyroxObject(Loggable):
+    """A base class for all Pyrox objects.
+
+    .. ------------------------------------------------------------
+
+    .. package:: models.abc.meta
+
+    .. ------------------------------------------------------------
+
+    Attributes
+    -----------
+    logger: :class:`logging.Logger`
+        Logger for this object.
+    """
+
+    __slots__ = ()
+
+    def __init__(self,
+                 **kwargs):
+        super().__init__(**kwargs)
+
+    def gui_interface_attributes(self) -> list[str]:
+        """Return a set of attributes that are intended for GUI interface.
+
+        This method is meant to be overridden by subclasses to provide
+        specific attributes that should be displayed in a GUI context.
+
+        Returns
+        ----------
+            :type:`list[str]`: Set of attribute names.
+        """
+        return self.public_attributes()
+
+    def public_attributes(self) -> list[str]:
+        """Return a set of public attributes for this object.
+
+        This method is meant to be overridden by subclasses to provide
+        specific attributes that should be considered public.
+
+        Returns
+        ----------
+            :type:`list[str]`: Set of public attribute names.
+        """
+        return {attr for attr in dir(self) if not attr.startswith('_')
+                and not callable(getattr(self, attr))
+                and not isinstance(getattr(self, attr), property)}
+
+
+class Buildable(PyroxObject):
     """Denotes object is 'buildable' and supports `build` and `refresh` methods.
 
     Also, supports `built` property.
