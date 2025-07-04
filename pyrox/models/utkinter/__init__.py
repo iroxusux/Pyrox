@@ -3,19 +3,22 @@ from .frames import (
     LogWindow,
     PyroxFrame,
     TaskFrame,
-    ToplevelWithTreeViewAndScrollbar
+    ToplevelWithTreeViewAndScrollbar,
+    ValueEditPopup
 )
 from .listbox import UserListbox
-from .menu import ContextMenu
+from .menu import ContextMenu, MenuItem
 from .progress_bar import ProgressBar
 
 __all__ = (
     'FrameWithTreeViewAndScrollbar',
     'LogWindow',
+    'MenuItem',
     'PyroxFrame',
     'UserListbox',
     'ContextMenu',
     'ProgressBar',
     'TaskFrame',
-    'ToplevelWithTreeViewAndScrollbar'
+    'ToplevelWithTreeViewAndScrollbar',
+    'ValueEditPopup'
 )

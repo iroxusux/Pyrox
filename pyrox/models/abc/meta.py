@@ -301,6 +301,7 @@ class Loggable(SnowFlake):
     __slots__ = ('_logger', '_log_handler')
 
     def __init__(self,
+                 *_,
                  name: Optional[str] = None,
                  add_to_globals: bool = False,
                  **kwargs):

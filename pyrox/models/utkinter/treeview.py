@@ -1,5 +1,6 @@
 from tkinter.ttk import Treeview
 
+from .menu import ContextMenu
 from pyrox.models.plc import Controller
 
 UNITTEST_PLC_FILE = r'docs\controls\unittest.L5X'
@@ -13,10 +14,21 @@ class LazyLoadingTreeView(Treeview):
     items at once would be inefficient.
     """
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self,
+                 *args,
+                 context_menu: ContextMenu = None,
+                 **kwargs):
         super().__init__(*args, **kwargs)
+        self._context_menu = context_menu or ContextMenu(self, tearoff=0)
+        self.bind('<Button-3>', self.on_right_click)
         self.bind('<Button-1>', self.on_click)
-        self._dict_map = {}
+        self._lazy_load_map = {}
+        self._item_hash = {}
+
+    @property
+    def context_menu(self) -> ContextMenu:
+        """Get the context menu associated with this treeview."""
+        return self._context_menu
 
     def clear(self):
         """Clear the treeview and reset the lazy loading map."""
@@ -24,63 +36,88 @@ class LazyLoadingTreeView(Treeview):
             return
         for item in self.get_children():
             self.delete(item)
-        self._dict_map.clear()
+        self._lazy_load_map.clear()
+        self._item_hash.clear()
 
     def on_click(self, event):
         """Handle click events to load items lazily."""
         item = self.identify_row(event.y)
-        if item and self._dict_map.get(item):
+        if item and self._lazy_load_map.get(item):
             self.load_children(item)
-            del self._dict_map[item]  # Remove item from map after loading
+            del self._lazy_load_map[item]  # Remove item from map after loading
+
+    def on_right_click(self, event):
+        item = self.identify_row(event.y)
+        if item:
+            self.selection_set(item)
+            self.focus(item)
+        self._context_menu.on_right_click(event.x_root,
+                                          event.y_root,
+                                          item=item,
+                                          data=self._item_hash.get(item, None))
 
     def load_children(self, item):
         """Load children for the given item."""
-        # Placeholder for actual loading logic
         for x in self.get_children(item):
             self.delete(x)
-        self.populate_tree(item, self._dict_map.get(item, {}))
+        self.populate_tree(item, self._lazy_load_map.get(item, {}))
 
     def populate_tree(self,
                       parent,
-                      data) -> None:
+                      data,
+                      container=None,
+                      key=None):
         """
-        Recursively populates a ttk.Treeview with keys and values from a dictionary or list.
-
-        Parameters:
-        - parent: parent node ID in the tree (use '' for root)
-        - data: dictionary or list to populate the tree with
+        Recursively populates a ttk.Treeview with keys and values from a dictionary, list, or custom class.
+        Stores (container, key/index) for each node to allow modification.
         """
         if isinstance(data, dict):
-            for key, value in data.items():
-                if isinstance(value, (dict, list)) and len(value) > 0:
-                    # insert value, then add placeholder for lazy loading
-                    node = self.insert(parent, 'end', text=str(key), values=['[...]'])
-                    self._dict_map[node] = value
+            for k, v in data.items():
+                if isinstance(v, (dict, list)) or hasattr(v, "__dict__"):
+                    node = self.insert(parent, 'end', text=str(k), values=['[...]'])
+                    self._lazy_load_map[node] = v
                     self.insert(node, 'end', text='Loading...', values=['...'])
                 else:
-                    self.insert(parent, 'end', text=str(key), values=(value,))
+                    node = self.insert(parent, 'end', text=str(k), values=(v,))
+                self._item_hash[node] = (data, k)  # Store reference to parent dict and key
         elif isinstance(data, list):
-            for index, item in enumerate(data):
-                node_label = "[???]"
+            for idx, item in enumerate(data):
+                node_label = f"[{idx}]"
                 if isinstance(item, dict):
-                    if '@Name' in item:
-                        node_label = item['@Name']
-                    elif 'name' in item:
-                        node_label = item['name']
-                    elif 'Name' in item:
-                        node_label = item['Name']
-                    else:
-                        node_label = f"[{index}]"
-                else:
-                    node_label = f"[{index}]"
-
-                if isinstance(item, (dict, list)) and len(item) > 0:
-                    # insert value, then add placeholder for lazy loading
-                    node = self.insert(parent=parent, index='end', text=node_label, values=['[...]'])
-                    self._dict_map[node] = item
+                    node_label = item.get('@Name') or item.get('name') or item.get('Name') or node_label
+                elif hasattr(item, "__class__") and hasattr(item, "__dict__"):
+                    node_label = getattr(item, 'name', f"{item.__class__.__name__}[{idx}]")
+                if isinstance(item, (dict, list)) or hasattr(item, "__dict__"):
+                    node = self.insert(parent, 'end', text=node_label, values=['[...]'])
+                    self._lazy_load_map[node] = item
                     self.insert(node, 'end', text='Loading...', values=['...'])
                 else:
-                    self.insert(parent, 'end', text=node_label, values=(item,))
+                    node = self.insert(parent, 'end', text=node_label, values=(item,))
+                self._item_hash[node] = (data, idx)  # Store reference to parent list and index
+        elif hasattr(data, "__dict__"):
+            for attr, value in vars(data).items():
+                if isinstance(value, (dict, list)) or hasattr(value, "__dict__"):
+                    node = self.insert(parent, 'end', text=str(attr), values=['[...]'])
+                    self._lazy_load_map[node] = value
+                    self.insert(node, 'end', text='Loading...', values=['...'])
+                else:
+                    node = self.insert(parent, 'end', text=str(attr), values=(value,))
+                self._item_hash[node] = (data, attr)  # Store reference to parent object and attribute name
+        else:
+            node = self.insert(parent, 'end', text=str(data), values=['...'])
+            self._item_hash[node] = (container, key)  # fallback
+
+    # When you want to modify the value:
+    def update_node_value(self, node, new_value):
+        """
+        Update the value displayed in the Treeview node.
+
+        Args:
+            node: The Treeview node ID to update.
+            new_value: The new value to set.
+        """
+        # Update the Treeview display (assumes value is in the first value column)
+        self.item(node, values=(new_value,))
 
 
 if __name__ == "__main__":

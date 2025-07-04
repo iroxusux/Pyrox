@@ -48,8 +48,10 @@ class ControllerGenerateTask(AppTask):
         raise NotImplementedError('Stellantis controller generation not implemented yet.')
 
     def inject(self) -> None:
-        drop_down = Menu(self.application.menu.tools, name='controller_generation', tearoff=0)
-        self.application.menu.tools.add_cascade(menu=drop_down, label='Controller Generation')
+        drop_down = Menu(self.application.menu.file, name='new_from_template', tearoff=0)
+        file_new_item = self.application.menu.file.index('New Controller')  # Get the index of the 'New Controller' item
+        self.application.menu.file.insert_cascade(file_new_item+1, label='New From Template', menu=drop_down)
+
         drop_down.add_command(label='GM', command=self.generate_gm)
         drop_down.add_command(label='Ford', command=self.generate_ford)
         drop_down.add_command(label='Stellantis', command=self.generate_stellantis)

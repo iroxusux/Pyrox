@@ -1,20 +1,24 @@
 """tkinter user made frames
     """
 from __future__ import annotations
+import tkinter as tk
 
 
+from logging import INFO, WARNING, ERROR
 from typing import Optional
 from tkinter import (
     BOTH,
     Button,
     BOTTOM,
     GROOVE,
+    Entry,
     Frame,
     LabelFrame,
     Label,
     LEFT,
     RIGHT,
     Scrollbar,
+    TclError,
     Text,
     TOP,
     Toplevel,
@@ -31,6 +35,12 @@ from ..abc.meta import Loggable
 class PyroxFrame(LabelFrame, Loggable):
 
     def __init__(self, *args, **kwargs):
+        if 'context_menu' in kwargs:  # this is gross, but it works
+            del kwargs['context_menu']
+        if 'controller' in kwargs:  # this is gross, but it works
+            del kwargs['controller']
+        if 'parent' in kwargs:  # this is gross, but it works
+            del kwargs['parent']
         LabelFrame.__init__(self,
                             *args,
                             borderwidth=4,
@@ -69,7 +79,7 @@ class LogWindow(PyroxFrame):
                          text='Logger',
                          **kwargs)
 
-        self._logtext = Text(self, state='disabled')
+        self._logtext = Text(self, state='disabled', background='black', foreground='white', wrap='word')
         vscrollbar = Scrollbar(self, orient=VERTICAL, command=self._logtext.yview)
         self._logtext['yscrollcommand'] = vscrollbar.set
 
@@ -85,19 +95,48 @@ class LogWindow(PyroxFrame):
         """
         return self._logtext
 
+    def log(self, message: str):
+        """Log a message to the log text area.
+
+        Args:
+            message (str): The message to log.
+        """
+
+        severity = WARNING if '| WARNING | ' in message else \
+            ERROR if '| ERROR | ' in message else INFO
+
+        try:
+            self._logtext.config(state='normal')
+            msg_begin = self._logtext.index('end-1c')
+            self._logtext.insert('end', f'{message}\n')
+            msg_end = self._logtext.index('end-1c')
+            self._logtext.tag_add(message, msg_begin, msg_end)
+            self._logtext.tag_config(message,
+                                     foreground='black' if severity == WARNING else 'white',
+                                     background='yellow' if severity == WARNING else 'red' if severity == ERROR else 'black',
+                                     font=('Courier New', 12, 'bold'))
+            self._logtext.see('end')
+            line_count = self._logtext.count('1.0', 'end', 'lines')[0]
+            if line_count > 100:
+                dlt_count = abs(line_count - 100) + 1
+                self._logtext.delete('1.0', float(dlt_count))
+            self._logtext.config(state='disabled')
+        except TclError as e:
+            print('Tcl error, original msg -> %s' % e)
+        self.update()
+
 
 class FrameWithTreeViewAndScrollbar(PyroxFrame):
     def __init__(self,
                  *args,
-                 text: str = None,
                  **kwargs):
         super().__init__(*args,
-                         text=text,
                          **kwargs)
 
         self._tree: LazyLoadingTreeView = LazyLoadingTreeView(master=self,
                                                               columns=('Value',),
-                                                              show='tree headings')
+                                                              show='tree headings',
+                                                              context_menu=kwargs.get('context_menu', None))
         self._tree.heading('#0', text='Name')
         self._tree.heading('Value', text='Value')
 
@@ -237,3 +276,53 @@ class ToplevelWithTreeViewAndScrollbar(PyroxTopLevelFrame):
             ttk.Treeview: tree view
         """
         return self._tree
+
+
+class ValueEditPopup(Toplevel):
+    """
+    Popup dialog for editing a value.
+    Usage:
+        popup = ValueEditPopup(parent, value, callback)
+        - parent: parent window
+        - value: initial value to display
+        - callback: function(new_value) called if user accepts
+    """
+
+    def __init__(self, parent, value, callback, title="Modify Value"):
+        super().__init__(parent)
+        self.transient(parent)
+        self.title(title)
+        self.callback = callback
+        self.result = None
+
+        self.label = Label(self, text="Modify value:")
+        self.label.pack(padx=10, pady=(10, 0))
+
+        self.entry = Entry(self)
+        self.entry.insert(0, str(value))
+        self.entry.pack(padx=10, pady=5, fill='x')
+        self.entry.focus_set()
+
+        button_frame = tk.Frame(self)
+        button_frame.pack(pady=(0, 10))
+
+        self.ok_button = Button(button_frame, text="OK", width=10, command=self.on_ok)
+        self.ok_button.pack(side='left', padx=5)
+        self.cancel_button = Button(button_frame, text="Cancel", width=10, command=self.on_cancel)
+        self.cancel_button.pack(side='left', padx=5)
+
+        self.bind("<Return>", lambda event: self.on_ok())
+        self.bind("<Escape>", lambda event: self.on_cancel())
+
+        self.grab_set()
+        self.protocol("WM_DELETE_WINDOW", self.on_cancel)
+        self.wait_window(self)
+
+    def on_ok(self):
+        self.result = self.entry.get()
+        if self.callback:
+            self.callback(self.result)
+        self.destroy()
+
+    def on_cancel(self):
+        self.destroy()

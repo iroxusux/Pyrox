@@ -77,9 +77,9 @@ class FileTask(ApplicationTask):
     def inject(self) -> None:
         if not self.application.menu:
             return
-        self.application.menu.file.insert_command(0, label='New', command=self._on_file_new)
+        self.application.menu.file.insert_command(0, label='New Controller', command=self._on_file_new)
         self.application.menu.file.insert_separator(1)
-        self.application.menu.file.insert_command(2, label='Open', command=self._on_file_open)
-        self.application.menu.file.insert_command(3, label='Save', command=self._on_file_save)
+        self.application.menu.file.insert_command(2, label='Open L5X', command=self._on_file_open)
+        self.application.menu.file.insert_command(3, label='Save L5X', command=self._on_file_save)
         self.application.menu.file.insert_separator(4)
         self.application.menu.file.insert_command(5, label='Exit', command=lambda: sys.exit(0))

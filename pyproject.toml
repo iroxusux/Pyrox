@@ -30,6 +30,7 @@ classifiers = [
 ]
 dependencies = [
   "lxml",
+  "openpyxl",
   "pandas",
   "platformdirs",
   "pyinstaller",

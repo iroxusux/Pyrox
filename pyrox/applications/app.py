@@ -1,16 +1,15 @@
 from __future__ import annotations
 
-from logging import INFO, WARNING, ERROR
 import os
 from pathlib import Path
 import platformdirs
-from typing import Optional
-from tkinter import PanedWindow, TclError
+from typing import Any, Optional
+from tkinter import PanedWindow
 
 
 from ..models import Application, ApplicationTask
 from ..models.plc import Controller
-from ..models.utkinter import FrameWithTreeViewAndScrollbar, LogWindow, PyroxFrame, TaskFrame
+from ..models.utkinter import FrameWithTreeViewAndScrollbar, LogWindow, PyroxFrame, TaskFrame, ContextMenu, MenuItem, ValueEditPopup
 from ..services import file
 from ..services.plc_services import dict_to_xml_file, l5x_dict_from_file
 from ..services.task_services import find_and_instantiate_class
@@ -195,6 +194,108 @@ class ApplicationDirectoryService:
                     file.remove_all_files(dir)
 
 
+class AppOrganizer(FrameWithTreeViewAndScrollbar):
+    """Organizer window for the Pyrox Application.
+
+    This class extends `FrameWithTreeViewAndScrollbar` to provide an organizer
+    window that can be used to manage tasks and other elements in the application.
+    It is intended to be used as a part of the main application frame.
+    """
+
+    class OrganizerContextMenu(ContextMenu):
+        """Context menu for the organizer window.
+
+        This class extends `ContextMenu` to provide a context menu specific to the organizer window.
+        It can be used to add, remove, or manage tasks and other elements in the organizer.
+        """
+
+        def __init__(self,
+                     *args,
+                     controller: Optional[Controller] = None,
+                     parent: AppOrganizer = None,
+                     **kwargs):
+            self._controller: Optional[Controller] = controller
+            self._parent: Optional[AppOrganizer] = parent
+            super().__init__(*args,
+                             tearoff=0,
+                             **kwargs)
+            self.logger.info('Organizer context menu initialized.')
+            self.on_refresh: list[callable] = []
+
+        def _on_modify(self,
+                       item: str = None,
+                       data: tuple[str, dict] = None) -> None:
+            """Handle the modify action in the context menu."""
+            if not item:
+                self.logger.error('No data provided for modification.')
+                return
+            self.logger.info(f'Modifying item: {item}')
+            ValueEditPopup(parent=self.master,
+                           value=data[0][data[1]],
+                           callback=lambda x: self._on_modify_accept(item=item, new_value=x, data=data),
+                           title='Modify Item')
+
+        def _on_modify_accept(self,
+                              item: str = None,
+                              new_value: Any = None,
+                              data: tuple[str, dict] = None) -> None:
+            data[0][data[1]] = new_value
+            self.logger.info(f'Value modified: {new_value} | item: {item}')
+            self._parent.tree.update_node_value(item, new_value)
+
+        def _on_refresh(self):
+            [x() for x in self.on_refresh if callable(x)]
+
+        def compile_menu_from_item(self,
+                                   item: str = None,
+                                   data: Any = None) -> list[MenuItem]:
+            """Compile the context menu from the given item."""
+            if not item:
+                self.logger.info('No item provided for context menu compilation.')
+                return []
+            return [
+                MenuItem(label='Modify',
+                         command=lambda: self._on_modify(item, data)),
+                MenuItem(label='Refresh',
+                         command=self._on_refresh,),
+            ]
+
+    def __init__(self,
+                 *args,
+                 controller: Optional[Controller] = None,
+                 **kwargs):
+        super().__init__(*args,
+                         context_menu=self.OrganizerContextMenu(controller=controller,
+                                                                parent=self),
+                         **kwargs)
+        self._controller: Optional[Controller] = controller
+        self.logger.info('Organizer initialized.')
+
+    @property
+    def context_menu(self) -> OrganizerContextMenu:
+        """Context menu for this organizer.
+
+        .. ------------------------------------------------------------
+
+        Returns
+        -----------
+            context_menu: :class:`OrganizerContextMenu`
+        """
+        return self.tree.context_menu
+
+    @property
+    def controller(self) -> Optional[Controller]:
+        """Controller associated with this organizer.
+
+        .. ------------------------------------------------------------
+
+        Returns
+        -----------
+            controller: Optional[:class:`Controller`]
+        """
+        return self._controller
+
+
 class App(Application, ApplicationDirectoryService):
     """Application class for Pyrox.
 
@@ -207,12 +308,12 @@ class App(Application, ApplicationDirectoryService):
                  *args,
                  **kwargs):
         super().__init__(*args,
-                         author_name='irox',
+                         author_name='physirox',
                          app_name='pyrox',
                          **kwargs)
 
         self._controller: Optional[Controller] = None
-        self._organizer: Optional[FrameWithTreeViewAndScrollbar] = None
+        self._organizer: Optional[AppOrganizer] = None
         self._log_window: Optional[LogWindow] = None
         self._paned_window: Optional[PanedWindow] = None
         self._workspace: Optional[PyroxFrame] = None
@@ -246,7 +347,7 @@ class App(Application, ApplicationDirectoryService):
             self.refresh()
 
     @property
-    def organizer(self) -> Optional[FrameWithTreeViewAndScrollbar]:
+    def organizer(self) -> Optional[AppOrganizer]:
         """The organizer window for this :class:`Application`.
 
         .. ------------------------------------------------------------
@@ -299,8 +400,11 @@ class App(Application, ApplicationDirectoryService):
 
         self._paned_window = PanedWindow(self.frame, orient='horizontal')
 
-        self._organizer = FrameWithTreeViewAndScrollbar(master=self._paned_window, text='Organizer')
+        self._organizer: AppOrganizer = AppOrganizer(master=self._paned_window,
+                                                     controller=self._controller,
+                                                     text='Organizer')
         self._organizer.pack(side='left', fill='y')
+        self._organizer.context_menu.on_refresh.append(self.refresh)
 
         self._paned_window.add(self._organizer)
 
@@ -405,28 +509,7 @@ class App(Application, ApplicationDirectoryService):
         if not self._log_window:
             return
 
-        severity = WARNING if '| WARNING | ' in message else \
-            ERROR if '| ERROR | ' in message else INFO
-
-        try:
-            self._log_window.log_text.config(state='normal')
-            msg_begin = self._log_window.log_text.index('end-1c')
-            self._log_window.log_text.insert('end', f'{message}\n')
-            msg_end = self._log_window.log_text.index('end-1c')
-            self._log_window.log_text.tag_add(message, msg_begin, msg_end)
-            self._log_window.log_text.tag_config(message,
-                                                 foreground='white' if severity == ERROR else 'black',
-                                                 background='yellow' if severity == WARNING else 'red' if severity == ERROR else 'white',
-                                                 font=('Courier New', 10, 'bold'))
-            self._log_window.log_text.see('end')
-            line_count = self._log_window.log_text.count('1.0', 'end', 'lines')[0]
-            if line_count > 100:
-                dlt_count = abs(line_count - 100) + 1
-                self._log_window.log_text.delete('1.0', float(dlt_count))
-            self._log_window.log_text.config(state='disabled')
-        except TclError as e:
-            print('Tcl error, original msg -> %s' % e)
-        self._log_window.update()
+        self._log_window.log(message)
 
     def refresh(self, **_):
         if not self.organizer:
