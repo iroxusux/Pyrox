@@ -115,6 +115,8 @@ class ControllerGuiObject(PlcGuiObject):
             ('datatypes', 'Data Types', None, False),
             ('tags', 'Tags', None, False),
             ('programs', 'Programs', None, False),
+            ('root_meta_data', 'Root Meta Data', tk.Text, False),
+
         ]
 
 

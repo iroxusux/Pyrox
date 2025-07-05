@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import copy
 import os
 from pathlib import Path
 import platformdirs
@@ -20,6 +21,7 @@ from ..models.gui import (
 )
 from ..models.gui.plc import PlcGuiObject
 from ..services import file
+from ..services.dictionary_services import remove_none_values_inplace
 from ..services.plc_services import dict_to_xml_file, l5x_dict_from_file, edit_plcobject_in_taskframe
 from ..services.task_services import find_and_instantiate_class
 
@@ -635,7 +637,12 @@ class App(Application, ApplicationDirectoryService):
         """
         if not file_location or not self.controller:
             return
-        dict_to_xml_file(self.controller.root_meta_data,
+
+        # create a copy of the controller's metadata
+        # because we don't want to modify the original controller's metadata
+        write_dict = copy.deepcopy(self.controller.root_meta_data)
+        remove_none_values_inplace(write_dict)
+        dict_to_xml_file(write_dict,
                          file_location)
 
     def set_frame(self,

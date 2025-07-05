@@ -12,6 +12,7 @@ from typing import Callable, Generic, get_args, Optional, Self, TypeVar, Union
 
 from ..abc.meta import EnforcesNaming, PyroxObject
 from ..abc.list import HashList
+from ...services.dictionary_services import insert_key_at_index
 from ...services.plc_services import l5x_dict_from_file
 from ...utils import replace_strings_in_dict
 
@@ -231,8 +232,10 @@ class PlcObject(EnforcesNaming, PyroxObject):
                  controller: 'Controller' = None,
                  **kwargs):
         super().__init__(**kwargs)
-        self._meta_data: Union[dict, str] = meta_data
+
+        self._meta_data = meta_data
         self._controller = controller
+        self._init_dict_order()
 
     def __repr__(self):
         return self.meta_data
@@ -245,6 +248,20 @@ class PlcObject(EnforcesNaming, PyroxObject):
 
     def __str__(self):
         return str(self.meta_data)
+
+    @property
+    def dict_key_order(self) -> list[str]:
+        """get the order of keys in the meta data dict.
+
+        This is intended to be overridden by subclasses to provide a specific order of keys.
+
+        .. -------------------------------
+
+        Returns
+        ----------
+            :class:`list[str]`
+        """
+        return []
 
     @property
     def config(self) -> Optional['ControllerConfiguration']:
@@ -282,6 +299,19 @@ class PlcObject(EnforcesNaming, PyroxObject):
             self._meta_data = value
         else:
             raise TypeError("Meta data must be a dict or a string!")
+
+    def _init_dict_order(self):
+        """initialize the dict order for this object.
+
+        This method relies on the child classes to define their own `dict_key_order` property.
+        """
+        if not self.dict_key_order:
+            return
+
+        if isinstance(self.meta_data, dict):
+            for index, key in enumerate(self.dict_key_order):
+                if key not in self.meta_data:
+                    insert_key_at_index(d=self.meta_data, key=key, index=index)
 
     def validate(self,
                  report: Optional[ControllerReportItem] = None) -> ControllerReportItem:
@@ -934,6 +964,27 @@ class AddOnInstruction(ContainsRoutines):
             self.name = name
 
     @property
+    def dict_key_order(self) -> list[str]:
+        return [
+            '@Name',
+            '@Class',
+            '@Revision',
+            '@ExecutePrescan',
+            '@ExecutePostscan',
+            '@ExecuteEnableInFalse',
+            '@CreatedDate',
+            '@CreatedBy',
+            '@EditedDate',
+            '@EditedBy',
+            '@SoftwareRevision',
+            'Description',
+            'RevisionNote',
+            'Parameters',
+            'LocalTags',
+            'Routines',
+        ]
+
+    @property
     def revision(self) -> str:
         return self['@Revision']
 
@@ -1174,6 +1225,16 @@ class Datatype(NamedPlcObject):
          for x in self.raw_members]
 
     @property
+    def dict_key_order(self) -> list[str]:
+        return [
+            '@Name',
+            '@Family',
+            '@Class',
+            'Description',
+            'Members',
+        ]
+
+    @property
     def family(self) -> str:
         return self['@Family']
 
@@ -1218,6 +1279,26 @@ class Module(NamedPlcObject):
 
         if name:
             self.name = name
+
+    @property
+    def dict_key_order(self) -> list[str]:
+        return [
+            '@Name',
+            '@CatalogNumber',
+            '@Vendor',
+            '@ProductType',
+            '@ProductCode',
+            '@Major',
+            '@Minor',
+            '@ParentModule',
+            '@ParentModPortId',
+            '@Inhibited',
+            '@MajorFault',
+            'Description',
+            'EKey',
+            'Ports',
+            'Communications',
+        ]
 
     @property
     def catalog_number(self) -> str:
@@ -1310,6 +1391,20 @@ class Program(ContainsRoutines):
 
         self._input_instructions: list[LogixInstruction] = []
         self._output_instructions: list[LogixInstruction] = []
+
+    @property
+    def dict_key_order(self) -> list[str]:
+        return [
+            '@Name',
+            '@TestEdits',
+            '@MainRoutineName',
+            '@Disabled',
+            '@Class',
+            '@UseAsFolder',
+            'Description',
+            'Tags',
+            'Routines',
+        ]
 
     @property
     def disabled(self) -> str:
@@ -1443,6 +1538,15 @@ class Routine(NamedPlcObject):
         self._output_instructions: list[LogixInstruction] = []
 
     @property
+    def dict_key_order(self) -> list[str]:
+        return [
+            '@Name',
+            '@Type',
+            'Description',
+            'RLLContent',
+        ]
+
+    @property
     def aoi(self) -> Optional[AddOnInstruction]:
         return self._aoi
 
@@ -1567,6 +1671,15 @@ class Rung(PlcObject):
         return self.text
 
     @property
+    def dict_key_order(self) -> list[str]:
+        return [
+            '@Number',
+            '@Type',
+            'Comment',
+            'Text'
+        ]
+
+    @property
     def comment(self) -> str:
         return self['Comment']
 
@@ -1683,6 +1796,21 @@ class Tag(NamedPlcObject):
 
     def __repr__(self):
         return self.name
+
+    @property
+    def dict_key_order(self) -> list[str]:
+        return [
+            '@Name',
+            '@Class',
+            '@TagType',
+            '@DataType',
+            '@Radix',
+            '@AliasFor',
+            '@Constant',
+            '@ExternalAccess',
+            'Description',
+            'Data'
+        ]
 
     @property
     def alias_for(self) -> str:

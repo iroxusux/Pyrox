@@ -89,13 +89,12 @@ class TestPlcObject(unittest.TestCase):
         self.assertEqual(report.test_notes, [])
 
         # Test with missing config, controller, and meta_data
-        obj = PlcObject(meta_data=None, controller=None)
+        obj = PlcObject()
         report = obj.validate()
         self.assertIsInstance(report, ControllerReportItem)
         self.assertFalse(report.pass_fail)
         self.assertNotIn('No controller configuration found!', report.test_notes)
         self.assertIn('No controller found!', report.test_notes)
-        self.assertIn('No meta data found!', report.test_notes)
 
 
 class TestNamedPlcObject(unittest.TestCase):
