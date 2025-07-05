@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 
+import tkinter as tk
+from tkinter import ttk
 from typing import Self
 
 
@@ -72,8 +74,17 @@ class PlcGuiObject(PyroxGuiObject):
         return cls(plc_object=data)
 
     def gui_interface_attributes(self) -> list[tuple[str, str]]:
-        """Get the attributes of the PLC object that should be displayed in the GUI."""
-        return [('meta_data', 'Meta Data'),]
+        """Get the attributes of the PLC object that should be displayed in the GUI.
+
+        This method is meant to be overridden by subclasses to provide
+        specific attributes that should be displayed in a GUI context.
+
+        Returns:
+        ----------
+            :type:`list[tuple[str, str, tk.Widget, bool]]`: A list of tuples where each tuple contains
+            the attribute name, its display name, the widget type to use for display, and a boolean indicating if it is editable.
+        """
+        return [('meta_data', 'Meta Data', tk.Label, False),]
 
 
 class ControllerGuiObject(PlcGuiObject):
@@ -92,19 +103,18 @@ class ControllerGuiObject(PlcGuiObject):
                          **kwargs)
 
     def gui_interface_attributes(self) -> list[tuple[str, str]]:
-        """Get the attributes of the Controller object that should be displayed in the GUI."""
         return [
-            ('name', 'Name'),
-            ('description', 'Description'),
-            ('file_location', 'File Location'),
-            ('comm_path', 'Communication Path'),
-            ('major_revision', 'Major Revision'),
-            ('minor_revision', 'Minor Revision'),
-            ('modules', 'Modules'),
-            ('aois', 'AOIs'),
-            ('datatypes', 'Data Types'),
-            ('tags', 'Tags'),
-            ('programs', 'Programs'),
+            ('name', 'Name', tk.Label, True),
+            ('description', 'Description', tk.Label, True),
+            ('file_location', 'File Location', tk.Label, False),
+            ('comm_path', 'Communication Path', tk.Label, True),
+            ('major_revision', 'Major Revision', tk.Label, True),
+            ('minor_revision', 'Minor Revision', tk.Label, True),
+            ('modules', 'Modules', None, False),
+            ('aois', 'AOIs', None, False),
+            ('datatypes', 'Data Types', None, False),
+            ('tags', 'Tags', None, False),
+            ('programs', 'Programs', None, False),
         ]
 
 
@@ -116,20 +126,20 @@ class AddOnInstructionGuiObject(PlcGuiObject):
 
     def gui_interface_attributes(self):
         return [
-            ('name', 'Name'),
-            ('description', 'Description'),
-            ('revision', 'Revision'),
-            ('execute_prescan', 'Execute Prescan'),
-            ('execute_postscan', 'Execute Postscan'),
-            ('execute_enable_in_false', 'Execute Enable In False'),
-            ('created_date', 'Created Date'),
-            ('created_by', 'Created By'),
-            ('edited_date', 'Edited Date'),
-            ('edited_by', 'Edited By'),
-            ('software_revision', 'Software Revision'),
-            ('revision_note', 'Revision Note'),
-            ('parameters', 'Parameters'),
-            ('local_tags', 'Local Tags'),
+            ('name', 'Name', tk.Label, True),
+            ('description', 'Description', tk.Label, True),
+            ('revision', 'Revision', tk.Label, True),
+            ('execute_prescan', 'Execute Prescan', tk.Checkbutton, True),
+            ('execute_postscan', 'Execute Postscan', tk.Checkbutton, True),
+            ('execute_enable_in_false', 'Execute Enable In False', tk.Checkbutton, True),
+            ('created_date', 'Created Date', tk.Label, False),
+            ('created_by', 'Created By', tk.Label, False),
+            ('edited_date', 'Edited Date', tk.Label, False),
+            ('edited_by', 'Edited By', tk.Label, False),
+            ('software_revision', 'Software Revision', tk.Label, False),
+            ('revision_note', 'Revision Note', tk.Text, True),
+            ('parameters', 'Parameters', None, False),
+            ('local_tags', 'Local Tags', None, False),
         ]
 
 
@@ -141,10 +151,10 @@ class DatatypeGuiObject(PlcGuiObject):
 
     def gui_interface_attributes(self):
         return [
-            ('name', 'Name'),
-            ('description', 'Description'),
-            ('family', 'Family'),
-            ('members', 'Members'),
+            ('name', 'Name', tk.Label, True),
+            ('description', 'Description', tk.Label, True),
+            ('family', 'Family', ttk.Combobox, True),
+            ('members', 'Members', None, False),
         ]
 
 
@@ -156,21 +166,21 @@ class ModuleGuiObject(PlcGuiObject):
 
     def gui_interface_attributes(self):
         return [
-            ('name', 'Name'),
-            ('description', 'Description'),
-            ('catalog_number', 'Catalog Number'),
-            ('vendor', 'Vendor'),
-            ('product_type', 'Product Type'),
-            ('product_code', 'Product Code'),
-            ('major', 'Major'),
-            ('minor', 'Minor'),
-            ('parent_module', 'Parent Module'),
-            ('parent_mod_port_id', 'Parent Mod Port Id'),
-            ('inhibited', 'Inhibited'),
-            ('major_fault', 'Major Fault'),
-            ('ekey', 'EKey'),
-            ('ports', 'Ports'),
-            ('communications', 'Communications'),
+            ('name', 'Name', tk.Label, True),
+            ('description', 'Description', tk.Label, True),
+            ('catalog_number', 'Catalog Number', tk.Label, True),
+            ('vendor', 'Vendor', tk.Label, True),
+            ('product_type', 'Product Type', tk.Label, True),
+            ('product_code', 'Product Code', tk.Label, True),
+            ('major', 'Major', tk.Label, True),
+            ('minor', 'Minor', tk.Label, True),
+            ('parent_module', 'Parent Module', tk.Label, False),
+            ('parent_mod_port_id', 'Parent Mod Port Id', tk.Label, False),
+            ('inhibited', 'Inhibited', tk.Checkbutton, True),
+            ('major_fault', 'Major Fault', tk.Checkbutton, True),
+            ('ekey', 'EKey', tk.Label, False),
+            ('ports', 'Ports', None, False),
+            ('communications', 'Communications', None, False),
         ]
 
 
@@ -182,16 +192,16 @@ class ProgramGuiObject(PlcGuiObject):
 
     def gui_interface_attributes(self):
         return [
-            ('name', 'Name'),
-            ('description', 'Description'),
-            ('disabled', 'Disabled'),
-            ('main_routine_name', 'Main Routine Name'),
-            ('test_edits', 'Test Edits'),
-            ('use_as_folder', 'Use As Folder'),
-            ('input_instructions', 'Input Instructions'),
-            ('output_instructions', 'Output Instructions'),
-            ('routines', 'Routines'),
-            ('tags', 'Tags'),
+            ('name', 'Name', tk.Label, True),
+            ('description', 'Description', tk.Label, True),
+            ('disabled', 'Disabled', tk.Checkbutton, True),
+            ('main_routine_name', 'Main Routine Name', tk.Label, True),
+            ('test_edits', 'Test Edits', tk.Checkbutton, True),
+            ('use_as_folder', 'Use As Folder', tk.Checkbutton, True),
+            ('input_instructions', 'Input Instructions', None, False),
+            ('output_instructions', 'Output Instructions', None, False),
+            ('routines', 'Routines', None, False),
+            ('tags', 'Tags', None, False),
         ]
 
 
@@ -203,13 +213,13 @@ class RoutineGuiObject(PlcGuiObject):
 
     def gui_interface_attributes(self):
         return [
-            ('name', 'Name'),
-            ('description', 'Description'),
-            ('input_instructions', 'Input Instructions'),
-            ('output_instructions', 'Output Instructions'),
-            ('instructions', 'Instructions'),
-            ('program', 'Program'),
-            ('rungs', 'Rungs'),
+            ('name', 'Name', tk.Label, True),
+            ('description', 'Description', tk.Label, True),
+            ('input_instructions', 'Input Instructions', None, False),
+            ('output_instructions', 'Output Instructions', None, False),
+            ('instructions', 'Instructions', None, False),
+            ('program', 'Program', tk.Label, False),
+            ('rungs', 'Rungs', None, False),
         ]
 
 
@@ -221,13 +231,13 @@ class RungGuiObject(PlcGuiObject):
 
     def gui_interface_attributes(self):
         return [
-            ('number', 'Number'),
-            ('comment', 'Comment'),
-            ('text', 'Text'),
-            ('type', 'Type'),
-            ('instructions', 'Instructions'),
-            ('input_instructions', 'Input Instructions'),
-            ('output_instructions', 'Output Instructions'),
+            ('number', 'Number', tk.Label, True),
+            ('comment', 'Comment', tk.Label, True),
+            ('text', 'Text', tk.Text, True),
+            ('type', 'Type', tk.Label, True),
+            ('instructions', 'Instructions', None, False),
+            ('input_instructions', 'Input Instructions', None, False),
+            ('output_instructions', 'Output Instructions', None, False),
         ]
 
 
@@ -239,20 +249,20 @@ class TagGuiObject(PlcGuiObject):
 
     def gui_interface_attributes(self):
         return [
-            ('name', 'Name'),
-            ('description', 'Description'),
-            ('alias_for', 'Alias For'),
-            ('class_', 'Class'),
-            ('constant', 'Constant'),
-            ('datatype', 'Data Type'),
-            ('external_access', 'External Access'),
-            ('opc_ua_access', 'OPC UA Access'),
-            ('scope', 'Scope'),
-            ('tag_type', 'Tag Type'),
-            ('data', 'Data'),
-            ('decorated_data', 'Decorated Data'),
-            ('l5k_data', 'L5K Data'),
-            ('datavalue_members', 'Data Value Members'),
+            ('name', 'Name', tk.Label, True),
+            ('description', 'Description', tk.Label, True),
+            ('alias_for', 'Alias For', tk.Label, True),
+            ('class_', 'Class', tk.Label, True),
+            ('constant', 'Constant', tk.Checkbutton, True),
+            ('datatype', 'Data Type', tk.Label, True),
+            ('external_access', 'External Access', tk.Label, True),
+            ('opc_ua_access', 'OPC UA Access', tk.Label, True),
+            ('scope', 'Scope', tk.Label, True),
+            ('tag_type', 'Tag Type', tk.Label, True),
+            ('data', 'Data', None, False),
+            ('decorated_data', 'Decorated Data', None, False),
+            ('l5k_data', 'L5K Data', None, False),
+            ('datavalue_members', 'Data Value Members', None, False),
         ]
 
 
@@ -264,11 +274,11 @@ class DataValueMemberGuiObject(PlcGuiObject):
 
     def gui_interface_attributes(self):
         return [
-            ('name', 'Name'),
-            ('description', 'Description'),
-            ('dimension', 'Dimension'),
-            ('hidden', 'Hidden'),
-            ('parent', 'Parent'),
+            ('name', 'Name', tk.Label, True),
+            ('description', 'Description', tk.Label, True),
+            ('dimension', 'Dimension', tk.Label, True),
+            ('hidden', 'Hidden', tk.Checkbutton, True),
+            ('parent', 'Parent', tk.Label, False),
         ]
 
 
@@ -280,7 +290,7 @@ class ProgramTagGuiObject(PlcGuiObject):
 
     def gui_interface_attributes(self):
         return [
-            ('name', 'Name'),
-            ('description', 'Description'),
-            ('program', 'Program'),
+            ('name', 'Name', tk.Label, True),
+            ('description', 'Description', tk.Label, True),
+            ('program', 'Program', tk.Label, False),
         ]

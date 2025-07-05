@@ -35,6 +35,7 @@ __all__ = (
 )
 
 ALLOWED_CHARS = re.compile(f'[^{r'a-zA-Z0-9_'}]')
+ALLOWED_REV_CHARS = re.compile(f'[^{r'0-9.'}]')
 DEF_VIEW_TYPE = 1
 DEF_THEME = 'black'
 DEF_WIN_TITLE = 'Pyrox Default Frame'
@@ -142,6 +143,22 @@ class EnforcesNaming:
             super().__init__(self.message)
 
     @staticmethod
+    def is_valid_rockwell_bool(text):
+        """Check if a string is valid according to the Rockwell boolean naming scheme.
+
+        .. ------------------------------------------------------------
+
+        Returns
+        ----------
+            :class:`bool` valid name
+        """
+        if not text:
+            return False
+        if text == 'true' or text == 'false':
+            return True
+        return False
+
+    @staticmethod
     def is_valid_string(text):
         """Check if a string is valid according to the naming scheme.
 
@@ -152,6 +169,20 @@ class EnforcesNaming:
             :class:`bool` valid name
         """
         if ALLOWED_CHARS.search(text):
+            return False
+        return True
+
+    @staticmethod
+    def is_valid_revision_string(text):
+        """Check if a string is valid according to the revision naming scheme.
+
+        .. ------------------------------------------------------------
+
+        Returns
+        ----------
+            :class:`bool` valid revision name
+        """
+        if ALLOWED_REV_CHARS.search(text):
             return False
         return True
 

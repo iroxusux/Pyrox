@@ -937,17 +937,51 @@ class AddOnInstruction(ContainsRoutines):
     def revision(self) -> str:
         return self['@Revision']
 
+    @revision.setter
+    def revision(self, value: str):
+        if not self.is_valid_revision_string(value):
+            raise self.InvalidNamingException
+
+        self['@Revision'] = value
+
     @property
     def execute_prescan(self) -> str:
         return self['@ExecutePrescan']
+
+    @execute_prescan.setter
+    def execute_prescan(self, value: str):
+        if isinstance(value, bool):
+            value = 'true' if value else 'false'
+        if not self.is_valid_rockwell_bool(value):
+            raise self.InvalidNamingException
+
+        self['@ExecutePrescan'] = value
 
     @property
     def execute_postscan(self) -> str:
         return self['@ExecutePostscan']
 
+    @execute_postscan.setter
+    def execute_postscan(self, value: str):
+        if isinstance(value, bool):
+            value = 'true' if value else 'false'
+        if not self.is_valid_rockwell_bool(value):
+            raise self.InvalidNamingException
+
+        self['@ExecutePostscan'] = value
+
     @property
     def execute_enable_in_false(self) -> str:
         return self['@ExecuteEnableInFalse']
+
+    @execute_enable_in_false.setter
+    def execute_enable_in_false(self, value: str):
+        if isinstance(value, bool):
+            value = 'true' if value else 'false'
+        if not self.is_valid_rockwell_bool(value):
+            raise self.InvalidNamingException
+
+        self['@ExecuteEnableInFalse'] = value
 
     @property
     def created_date(self) -> str:
@@ -969,9 +1003,23 @@ class AddOnInstruction(ContainsRoutines):
     def software_revision(self) -> str:
         return self['@SoftwareRevision']
 
+    @software_revision.setter
+    def software_revision(self, value: str):
+        if not self.is_valid_string(value):
+            raise self.InvalidNamingException
+
+        self['@SoftwareRevision'] = value
+
     @property
     def revision_note(self) -> str:
         return self['RevisionNote']
+
+    @revision_note.setter
+    def revision_note(self, value: str):
+        if not isinstance(value, str):
+            raise ValueError("Revision note must be a string!")
+
+        self['RevisionNote'] = value
 
     @property
     def parameters(self) -> list[dict]:

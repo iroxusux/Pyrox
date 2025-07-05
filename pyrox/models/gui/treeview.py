@@ -104,7 +104,7 @@ class LazyLoadingTreeView(Treeview):
                 self._item_hash[node] = (data, idx)  # Store reference to parent list and index
 
         elif isinstance(data, self._base_gui_class):
-            for attr, display_name in data.gui_interface_attributes():
+            for attr, display_name, _, _ in data.gui_interface_attributes():
                 value = getattr(data.pyrox_object, attr)
                 if isinstance(value, (dict, list, HashList, PyroxObject)):
                     node = self.insert(parent, 'end', text=display_name, values=['[...]'])

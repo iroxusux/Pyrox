@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 
+import tkinter as tk
 from typing import Any, Optional, Self
 
 
@@ -125,6 +126,21 @@ class PyroxGuiObject(Loggable):
         """
         return self.gui_interface_attributes()
 
+    def get_property_choices(self, property_name: str) -> list[str]:
+        """Get a list of choices for a given property.
+
+        This method is intended to be overridden by subclasses to provide
+        specific choices for a property that can be displayed in a GUI context.
+
+        Args:
+            property_name (str): The name of the property to get choices for.
+
+        Returns
+        ----------
+            :type:`list[str]`: List of choices for the property.
+        """
+        return []
+
     def gui_interface_attributes(self) -> list[tuple[str, str]]:
         """Return a set of attributes that are intended for GUI interface.
 
@@ -136,8 +152,8 @@ class PyroxGuiObject(Loggable):
             :type:`list[str]`: Set of attribute names.
         """
         return [
-            ('name', 'Name'),
-            ('description', 'Description'),
+            ('name', 'Name', tk.Label, True),
+            ('description', 'Description', tk.Label, True),
         ]
 
     def public_attributes(self) -> list[str]:

@@ -163,6 +163,7 @@ def edit_plcobject_in_taskframe(parent,
     """
     import tkinter as tk
     from tkinter import messagebox
+    from tkinter import ttk
 
     gui_object: PyroxGuiObject = resolver_method(plc_object)
     if not gui_object:
@@ -180,7 +181,8 @@ def edit_plcobject_in_taskframe(parent,
     # Build the form inside the content_frame
     content = frame.content_frame
     for idx, prop in enumerate(prop_names):
-        prop, prop_disp_name, prop_disp_type = prop[0], prop[1], prop[2] if isinstance(prop, tuple) else (prop, prop, tk.Label)
+        prop, prop_disp_name, prop_disp_type, editable = prop[0], prop[1], prop[2], prop[3] if isinstance(
+            prop, tuple) else (prop, prop, tk.Label, False)
 
         if prop_disp_type is tk.Label:
             tk.Label(content, text=prop_disp_name).grid(row=idx, column=0, sticky='w', padx=5, pady=2)
@@ -188,8 +190,51 @@ def edit_plcobject_in_taskframe(parent,
             var = tk.StringVar(value=str(value) if value is not None else "")
             entry = tk.Entry(content, textvariable=var, width=40)
             entry.grid(row=idx, column=1, sticky='ew', padx=5, pady=2)
+            entry.config(state='normal' if editable else 'disabled')
+            if editable:
+                prop_vars[prop] = var
 
-        prop_vars[prop] = var
+        elif prop_disp_type is tk.Text:
+            tk.Label(content, text=prop_disp_name).grid(row=idx, column=0, sticky='w', padx=5, pady=2)
+            value = getattr(plc_object, prop, "")
+            var = tk.StringVar(value=str(value) if value is not None else "")
+            entry = tk.Text(content, width=40, height=5)
+            entry.grid(row=idx, column=1, sticky='ew', padx=5, pady=2)
+            entry.insert(tk.END, var.get())
+            entry.config(state='normal' if editable else 'disabled')
+            if editable:
+                prop_vars[prop] = var
+
+        elif prop_disp_type is ttk.Entry:
+            tk.Label(content, text=prop_disp_name).grid(row=idx, column=0, sticky='w', padx=5, pady=2)
+            value = getattr(plc_object, prop, "")
+            var = tk.StringVar(value=str(value) if value is not None else "")
+            entry = ttk.Entry(content, textvariable=var, width=40)
+            entry.grid(row=idx, column=1, sticky='ew', padx=5, pady=2)
+            entry.config(state='normal' if editable else 'disabled')
+            if editable:
+                prop_vars[prop] = var
+
+        elif prop_disp_type is tk.Checkbutton:
+            tk.Label(content, text=prop_disp_name).grid(row=idx, column=0, sticky='w', padx=5, pady=2)
+            value = getattr(plc_object, prop, False)
+            var = tk.BooleanVar(value=value)
+            entry = tk.Checkbutton(content, variable=var)
+            entry.grid(row=idx, column=1, sticky='w', padx=5, pady=2)
+            entry.config(state='normal' if editable else 'disabled')
+            if editable:
+                prop_vars[prop] = var
+
+        elif prop_disp_type is ttk.Combobox:
+            tk.Label(content, text=prop_disp_name).grid(row=idx, column=0, sticky='w', padx=5, pady=2)
+            value = getattr(plc_object, prop, "")
+            var = tk.StringVar(value=str(value) if value is not None else "")
+            entry = ttk.Combobox(content, textvariable=var, width=40)
+            entry.grid(row=idx, column=1, sticky='ew', padx=5, pady=2)
+            entry['values'] = gui_object.get_property_choices(prop)
+            entry.config(state='normal' if editable else 'disabled')
+            if editable:
+                prop_vars[prop] = var
 
     # Accept and Cancel button handlers
     def on_accept():
@@ -199,7 +244,7 @@ def edit_plcobject_in_taskframe(parent,
                 setattr(plc_object, prop, var.get())
             except Exception as e:
                 messagebox.showerror("Error", f"Could not set {prop}: {e}")
-                return
+                break
         frame.destroy()
 
     def on_cancel():
