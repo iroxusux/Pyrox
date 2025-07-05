@@ -1,8 +1,8 @@
 from tkinter.ttk import Treeview
 
 from .menu import ContextMenu
-from pyrox.models.abc import PyroxObject, HashList
-from pyrox.models.plc import Controller
+from pyrox.models.abc import HashList, PyroxObject
+from pyrox.models.gui.pyroxguiobject import PyroxGuiObject
 
 UNITTEST_PLC_FILE = r'docs\controls\unittest.L5X'
 
@@ -17,10 +17,13 @@ class LazyLoadingTreeView(Treeview):
 
     def __init__(self,
                  *args,
+                 base_gui_class: type[PyroxGuiObject] = None,
                  context_menu: ContextMenu = None,
                  **kwargs):
         super().__init__(*args, **kwargs)
-        self._context_menu = context_menu or ContextMenu(self, tearoff=0)
+        self._base_gui_class: type[PyroxGuiObject] = base_gui_class or PyroxGuiObject
+        self._context_menu = context_menu or ContextMenu(master=self,
+                                                         tearoff=0)
         self.bind('<Button-3>', self.on_right_click)
         self.bind('<Button-1>', self.on_click)
         self._lazy_load_map = {}
@@ -67,11 +70,14 @@ class LazyLoadingTreeView(Treeview):
                       parent,
                       data,
                       container=None,
-                      key=None):
+                      key=None,):
         """
         Recursively populates a ttk.Treeview with keys and values from a dictionary, list, or custom class.
         Stores (container, key/index) for each node to allow modification.
         """
+        if isinstance(data, PyroxObject):
+            data = self._base_gui_class.from_data(data)
+
         if isinstance(data, dict):
             for k, v in data.items():
                 if isinstance(v, (dict, list, HashList, PyroxObject)):
@@ -88,7 +94,7 @@ class LazyLoadingTreeView(Treeview):
                 if isinstance(item, dict):
                     node_label = item.get('@Name') or item.get('name') or item.get('Name') or node_label
                 elif isinstance(item, PyroxObject):
-                    node_label = item.name or item.description or node_label
+                    node_label = getattr(item, 'name', None) or getattr(item, 'description', None) or node_label
                 if isinstance(item, (dict, list, HashList, PyroxObject)):
                     node = self.insert(parent, 'end', text=node_label, values=['[...]'])
                     self._lazy_load_map[node] = item
@@ -97,16 +103,15 @@ class LazyLoadingTreeView(Treeview):
                     node = self.insert(parent, 'end', text=node_label, values=(item,))
                 self._item_hash[node] = (data, idx)  # Store reference to parent list and index
 
-        elif isinstance(data, PyroxObject):
-            # Handle PyroxObject specifically
-            for attr in data.gui_interface_attributes():
-                value = getattr(data, attr)
+        elif isinstance(data, self._base_gui_class):
+            for attr, display_name in data.gui_interface_attributes():
+                value = getattr(data.pyrox_object, attr)
                 if isinstance(value, (dict, list, HashList, PyroxObject)):
-                    node = self.insert(parent, 'end', text=attr, values=['[...]'])
+                    node = self.insert(parent, 'end', text=display_name, values=['[...]'])
                     self._lazy_load_map[node] = value
                     self.insert(node, 'end', text='Empty...', values=['...'])
                 else:
-                    node = self.insert(parent, 'end', text=attr, values=(value,))
+                    node = self.insert(parent, 'end', text=display_name, values=(value,))
                 self._item_hash[node] = (data, attr)
 
         else:
@@ -123,13 +128,3 @@ class LazyLoadingTreeView(Treeview):
         """
         # Update the Treeview display (assumes value is in the first value column)
         self.item(node, values=(new_value,))
-
-
-if __name__ == "__main__":
-    from tkinter import Tk
-    root = Tk()
-    tree = LazyLoadingTreeView(root)
-    tree.pack(expand=True, fill='both')
-    controller = Controller.from_file(UNITTEST_PLC_FILE)
-    tree.populate_tree('', controller.l5x_meta_data)
-    root.mainloop()

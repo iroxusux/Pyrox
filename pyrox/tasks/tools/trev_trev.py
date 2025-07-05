@@ -5,7 +5,7 @@ from __future__ import annotations
 
 from pyrox.applications.app import App, AppTask
 from pyrox.models import View
-from pyrox.models.utkinter import FrameWithTreeViewAndScrollbar
+from pyrox.models.gui import FrameWithTreeViewAndScrollbar
 
 
 class TrevorView(View):

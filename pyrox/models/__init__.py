@@ -3,7 +3,7 @@
 from . import (
     abc,
     plc,
-    utkinter
+    gui
 )
 
 
@@ -15,12 +15,11 @@ from .abc import (
     ConsolePanelHandler,
     HashList,
     Loggable,
-    PyroxObject,
     SafeList,
     SnowFlake,
     ViewType,
     View)
-from .utkinter import ProgressBar
+from .gui import ProgressBar, PyroxGuiObject
 
 
 __all__ = (
@@ -35,12 +34,12 @@ __all__ = (
     'Loggable',
     'plc',
     'ProgressBar',
-    'PyroxObject',
+    'PyroxGuiObject',
     'SafeList',
     'SnowFlake',
     'test_models',
-    'utkinter',
+    'gui',
     'View',
     'ViewType',
-    'utkinter'
+    'gui'
 )

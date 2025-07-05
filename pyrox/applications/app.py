@@ -7,11 +7,20 @@ from typing import Any, Optional
 from tkinter import PanedWindow
 
 
-from ..models import Application, ApplicationTask
-from ..models.plc import Controller
-from ..models.utkinter import FrameWithTreeViewAndScrollbar, LogWindow, PyroxFrame, TaskFrame, ContextMenu, MenuItem, ValueEditPopup
+from ..models import Application, ApplicationTask, HashList
+from ..models.plc import Controller, PlcObject
+from ..models.gui import (
+    ContextMenu,
+    FrameWithTreeViewAndScrollbar,
+    LogWindow,
+    MenuItem,
+    PyroxFrame,
+    TaskFrame,
+    ValueEditPopup
+)
+from ..models.gui.plc import PlcGuiObject
 from ..services import file
-from ..services.plc_services import dict_to_xml_file, l5x_dict_from_file
+from ..services.plc_services import dict_to_xml_file, l5x_dict_from_file, edit_plcobject_in_taskframe
 from ..services.task_services import find_and_instantiate_class
 
 
@@ -194,7 +203,22 @@ class ApplicationDirectoryService:
                     file.remove_all_files(dir)
 
 
-class AppOrganizer(FrameWithTreeViewAndScrollbar):
+class AppFrameWithTreeViewAndScrollbar(FrameWithTreeViewAndScrollbar):
+    """A frame with a tree view and scrollbar for the Pyrox Application.
+
+    This class extends `FrameWithTreeViewAndScrollbar` to provide a specific
+    implementation for the Pyrox application, allowing for easy management of
+    tasks and other elements in the application.
+    """
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args,
+                         base_gui_class=PlcGuiObject,
+                         **kwargs)
+        self.logger.info('AppFrameWithTreeViewAndScrollbar initialized.')
+
+
+class AppOrganizer(AppFrameWithTreeViewAndScrollbar):
     """Organizer window for the Pyrox Application.
 
     This class extends `FrameWithTreeViewAndScrollbar` to provide an organizer
@@ -222,13 +246,22 @@ class AppOrganizer(FrameWithTreeViewAndScrollbar):
             self.logger.info('Organizer context menu initialized.')
             self.on_refresh: list[callable] = []
 
+        @property
+        def _default_menu_items(self) -> list[MenuItem]:
+            """Default menu items for the organizer context menu."""
+            return [
+                MenuItem(label='Refresh',
+                         command=self._on_refresh),
+            ]
+
         def _on_modify(self,
                        item: str = None,
-                       data: tuple[str, dict] = None) -> None:
+                       data: tuple[str, Any] = None) -> None:
             """Handle the modify action in the context menu."""
             if not item:
                 self.logger.error('No data provided for modification.')
                 return
+
             self.logger.info(f'Modifying item: {item}')
             ValueEditPopup(parent=self.master,
                            value=data[0][data[1]],
@@ -238,10 +271,23 @@ class AppOrganizer(FrameWithTreeViewAndScrollbar):
         def _on_modify_accept(self,
                               item: str = None,
                               new_value: Any = None,
-                              data: tuple[str, dict] = None) -> None:
+                              data: tuple[str, Any] = None) -> None:
             data[0][data[1]] = new_value
             self.logger.info(f'Value modified: {new_value} | item: {item}')
             self._parent.tree.update_node_value(item, new_value)
+
+        def _on_modify_plc_object(self,
+                                  item: str = None,
+                                  plc_object: PlcObject = None) -> None:
+            """Handle the modification of a PlcObject in the context menu."""
+            app = self._parent.application
+            frame = edit_plcobject_in_taskframe(app.workspace,
+                                                plc_object,
+                                                PlcGuiObject.from_data)
+            if not frame:
+                self.logger.error('Failed to create frame for editing PLC object.')
+                return
+            app.register_frame(frame, raise_=True)
 
         def _on_refresh(self):
             [x() for x in self.on_refresh if callable(x)]
@@ -250,26 +296,51 @@ class AppOrganizer(FrameWithTreeViewAndScrollbar):
                                    item: str = None,
                                    data: Any = None) -> list[MenuItem]:
             """Compile the context menu from the given item."""
-            if not item:
-                self.logger.info('No item provided for context menu compilation.')
-                return []
-            return [
-                MenuItem(label='Modify',
-                         command=lambda: self._on_modify(item, data)),
-                MenuItem(label='Refresh',
-                         command=self._on_refresh,),
-            ]
+            menu_list = self._default_menu_items
+
+            if not item or not data:
+                return menu_list
+
+            if isinstance(data[0], (list, HashList)):
+                obj = data[0][data[1]]
+            elif isinstance(data[0], dict):
+                obj = data[0].get(data[1], None)
+            elif isinstance(data[0], PlcObject):
+                obj = getattr(data[0], data[1], None)
+            else:
+                return menu_list
+
+            if isinstance(obj, PlcObject):
+                # If the data is a PlcObject, we can add specific actions
+                menu_list.insert(0, MenuItem(label='Modify',
+                                             command=lambda: self._on_modify_plc_object(item=item, plc_object=obj)))
+
+            return menu_list
 
     def __init__(self,
                  *args,
+                 application: Optional[App] = None,
                  controller: Optional[Controller] = None,
                  **kwargs):
         super().__init__(*args,
                          context_menu=self.OrganizerContextMenu(controller=controller,
                                                                 parent=self),
                          **kwargs)
+        self._application: Optional[App] = application
         self._controller: Optional[Controller] = controller
         self.logger.info('Organizer initialized.')
+
+    @property
+    def application(self) -> Optional[App]:
+        """Application associated with this organizer.
+
+        .. ------------------------------------------------------------
+
+        Returns
+        -----------
+            application: Optional[:class:`App`]
+        """
+        return self._application
 
     @property
     def context_menu(self) -> OrganizerContextMenu:
@@ -317,6 +388,7 @@ class App(Application, ApplicationDirectoryService):
         self._log_window: Optional[LogWindow] = None
         self._paned_window: Optional[PanedWindow] = None
         self._workspace: Optional[PyroxFrame] = None
+        self._registered_frames: HashList[TaskFrame] = HashList('name')
 
         self.logger.info('Pyrox Application initialized.')
 
@@ -378,6 +450,9 @@ class App(Application, ApplicationDirectoryService):
             self.unregister_frame(frame)
             self.logger.error('Frame does not exist or is not provided.')
             return
+        if frame not in self._registered_frames:
+            self.logger.error(f'Frame {frame.name} is not registered in this application.')
+            self.register_frame(frame, raise_=False)
         frame.master = self.workspace
         frame.pack(fill='both', expand=True, side='top')
         self._set_frame_selected(frame)
@@ -385,9 +460,7 @@ class App(Application, ApplicationDirectoryService):
     def _set_frame_selected(self, frame):
         """Set the selected frame in the view menubar."""
         cmds = self.menu.get_menu_commands(self.menu.view)
-        for entry in cmds:
-            self.menu.view.entryconfig(self.menu.view.index(entry), state='normal')
-
+        [self.menu.view.entryconfig(self.menu.view.index(entry), state='normal') for entry in cmds if entry != frame.name]
         self.menu.view.entryconfig(self.menu.view.index(frame.name), state='active')
 
     def build(self):
@@ -401,6 +474,7 @@ class App(Application, ApplicationDirectoryService):
         self._paned_window = PanedWindow(self.frame, orient='horizontal')
 
         self._organizer: AppOrganizer = AppOrganizer(master=self._paned_window,
+                                                     application=self,
                                                      controller=self._controller,
                                                      text='Organizer')
         self._organizer.pack(side='left', fill='y')
@@ -518,7 +592,8 @@ class App(Application, ApplicationDirectoryService):
         self.logger.info('Refreshing application gui...')
         self.clear_organizer()
         self.clear_workspace()
-        self._organizer.tree.populate_tree('', self.controller)
+        if self.controller:
+            self._organizer.tree.populate_tree('', self.controller)
         self.logger.info('Done!')
 
     def register_frame(self,
@@ -540,9 +615,11 @@ class App(Application, ApplicationDirectoryService):
         if not isinstance(frame, TaskFrame):
             raise TypeError(f'Expected TaskFrame, got {type(frame)}')
 
+        self._registered_frames.append(frame)
         self.menu.view.add_command(label=frame.name, command=lambda: self._raise_frame(frame))
         if raise_:
             self._raise_frame(frame)
+        frame.on_destroy.append(lambda: self.unregister_frame(frame))
 
     def save_controller(self,
                         file_location: str) -> None:
@@ -595,7 +672,14 @@ class App(Application, ApplicationDirectoryService):
         if not isinstance(frame, TaskFrame):
             raise TypeError(f'Expected TaskFrame, got {type(frame)}')
 
+        if frame not in self._registered_frames:
+            self.logger.warning(f'Frame {frame.name} is not registered in this application.')
+            return
+
+        self._registered_frames.remove(frame)
         self.menu.view.delete(frame.name)
+        if len(self._registered_frames) != 0:
+            self._raise_frame(self._registered_frames[0])
 
 
 class AppTask(ApplicationTask):

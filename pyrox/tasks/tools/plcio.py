@@ -12,7 +12,7 @@ from pylogix.lgx_response import Response
 
 from pyrox.applications.app import App, AppTask
 from pyrox.models.plc import ConnectionCommand, ConnectionParameters
-from pyrox.models.utkinter import FrameWithTreeViewAndScrollbar, TaskFrame
+from pyrox.models.gui import FrameWithTreeViewAndScrollbar, TaskFrame
 
 
 class PlcIoFrame(TaskFrame):
@@ -231,7 +231,6 @@ class PlcIoTask(AppTask):
             self._frame.disconnect_pb.config(command=self._on_disconnect)
             self._frame.get_tags_pb.config(command=self._get_controller_tags)
             self._on_connected(self._connected)
-            self._frame.on_destroy.append(lambda: self.application.unregister_frame(self._frame))
             self.application.register_frame(self._frame, raise_=True)
 
         self.application.logger.info('Starting plc io task...')

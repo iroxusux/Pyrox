@@ -8,7 +8,7 @@ import os
 
 from typing import Optional
 
-
+from pyrox.models.gui import TaskFrame, PyroxGuiObject
 import xmltodict
 import lxml.etree
 from xml.sax.saxutils import unescape
@@ -144,3 +144,71 @@ def preprocessor(key, value):
         elif isinstance(value, str):
             value = cdata(value)
     return key, value
+
+
+def edit_plcobject_in_taskframe(parent,
+                                plc_object,
+                                resolver_method=None):
+    """
+    Create a TaskFrame with a GUI to edit all GUI properties of a PlcObject.
+    Accepting changes updates the original object; canceling discards changes.
+
+    .. ------------------------------------------------
+
+    Args
+    ------------
+        parent (tk.Tk or tk.Frame): Parent widget for the TaskFrame.
+        plc_object (PlcObject): The PLC object to edit.
+        resolver_method (callable, optional): A method to resolve the GUI object from the PLC object.
+    """
+    import tkinter as tk
+    from tkinter import messagebox
+
+    gui_object: PyroxGuiObject = resolver_method(plc_object)
+    if not gui_object:
+        messagebox.showerror("Error", "Invalid PLC object provided.")
+        return None
+
+    # Get editable property names from PlcObject
+    prop_names = gui_object.gui_interface_attributes()
+    # Prepare a dict to hold StringVars for each property
+    prop_vars = {}
+
+    # Create the TaskFrame
+    frame = TaskFrame(parent, name=f"Edit {getattr(plc_object, 'name', plc_object.__class__.__name__)}")
+
+    # Build the form inside the content_frame
+    content = frame.content_frame
+    for idx, prop in enumerate(prop_names):
+        prop, prop_disp_name, prop_disp_type = prop[0], prop[1], prop[2] if isinstance(prop, tuple) else (prop, prop, tk.Label)
+
+        if prop_disp_type is tk.Label:
+            tk.Label(content, text=prop_disp_name).grid(row=idx, column=0, sticky='w', padx=5, pady=2)
+            value = getattr(plc_object, prop, "")
+            var = tk.StringVar(value=str(value) if value is not None else "")
+            entry = tk.Entry(content, textvariable=var, width=40)
+            entry.grid(row=idx, column=1, sticky='ew', padx=5, pady=2)
+
+        prop_vars[prop] = var
+
+    # Accept and Cancel button handlers
+    def on_accept():
+        for prop, var in prop_vars.items():
+            # Try to set the property if it has a setter
+            try:
+                setattr(plc_object, prop, var.get())
+            except Exception as e:
+                messagebox.showerror("Error", f"Could not set {prop}: {e}")
+                return
+        frame.destroy()
+
+    def on_cancel():
+        frame.destroy()
+
+    # Add buttons
+    btn_frame = tk.Frame(content)
+    btn_frame.grid(row=len(prop_names), column=0, columnspan=2, pady=10)
+    tk.Button(btn_frame, text="Accept", command=on_accept, width=10).pack(side='left', padx=5)
+    tk.Button(btn_frame, text="Cancel", command=on_cancel, width=10).pack(side='left', padx=5)
+
+    return frame

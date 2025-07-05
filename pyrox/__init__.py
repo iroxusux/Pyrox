@@ -24,7 +24,7 @@ from .services import (
     file
 )
 
-from .models.utkinter import (
+from .models.gui import (
     UserListbox,
     ContextMenu
 )

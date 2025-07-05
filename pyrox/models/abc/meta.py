@@ -5,6 +5,7 @@ from __future__ import annotations
 
 from enum import Enum
 import gc
+import inspect
 import logging
 from pathlib import Path
 import re
@@ -306,7 +307,6 @@ class Loggable(SnowFlake):
     __slots__ = ('_logger', '_log_handler')
 
     def __init__(self,
-                 *_,
                  name: Optional[str] = None,
                  add_to_globals: bool = False,
                  **kwargs):
@@ -466,31 +466,19 @@ class PyroxObject(Loggable):
                  **kwargs):
         super().__init__(**kwargs)
 
-    def gui_interface_attributes(self) -> list[str]:
-        """Return a set of attributes that are intended for GUI interface.
+    def get_all_properties(self) -> dict:
+        """Get all properties of this object.
 
-        This method is meant to be overridden by subclasses to provide
-        specific attributes that should be displayed in a GUI context.
-
-        Returns
-        ----------
-            :type:`list[str]`: Set of attribute names.
-        """
-        return self.public_attributes()
-
-    def public_attributes(self) -> list[str]:
-        """Return a set of public attributes for this object.
-
-        This method is meant to be overridden by subclasses to provide
-        specific attributes that should be considered public.
+        .. ------------------------------------------------------------
 
         Returns
-        ----------
-            :type:`list[str]`: Set of public attribute names.
+        -----------
+            :type:`dict`: A dictionary of all properties of this object.
         """
-        return {attr for attr in dir(self) if not attr.startswith('_')
-                and not callable(getattr(self, attr))
-                and not isinstance(getattr(self, attr), property)}
+        return {
+            name: getattr(self, name)
+            for name, _ in inspect.getmembers(type(self), lambda v: isinstance(v, property))
+        }
 
 
 class Buildable(PyroxObject):

@@ -127,6 +127,8 @@ class HashList(Subscribable):
         return self.by_key(getattr(item, self._hash_key, None))
 
     def __getitem__(self, key):
+        if isinstance(key, int):
+            return self.by_index(key)
         return self.hashes[key]
 
     def __iter__(self):

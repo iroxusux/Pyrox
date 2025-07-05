@@ -20,7 +20,7 @@ from typing import Optional
 from ..services.plc_services import dict_to_xml_file
 from ..models import Application, Model, ProgressBar, ViewModel, View
 from ..models.plc import Controller, ConnectionParameters
-from ..models.utkinter import DecoratedListboxFrame, TreeViewGridFrame
+from ..models.gui import DecoratedListboxFrame, TreeViewGridFrame
 
 
 DEF_WIN_TITLE = 'Indicon LLC Emulation Manager Frame'

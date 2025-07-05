@@ -6,8 +6,8 @@ from tkinter import Scrollbar, VERTICAL, Y, RIGHT
 from typing import Optional
 
 from pyrox.applications.app import App, AppTask
-from pyrox.models.utkinter import TaskFrame
-from pyrox.models.utkinter.treeview import LazyLoadingTreeView
+from pyrox.models.gui import TaskFrame
+from pyrox.models.gui.treeview import LazyLoadingTreeView
 
 
 class ControllerVerifyFrame(TaskFrame):
@@ -52,7 +52,6 @@ class ControllerVerifyTask(AppTask):
             return
         if not self._frame or not self._frame.winfo_exists():
             self._frame = ControllerVerifyFrame(self.application.workspace)
-            self._frame.on_destroy.append(lambda: self.application.unregister_frame(self._frame))
             self.application.register_frame(self._frame, raise_=True)
 
         self.application.logger.info('Verifying controller...')

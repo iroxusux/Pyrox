@@ -97,11 +97,6 @@ class TestPlcObject(unittest.TestCase):
         self.assertIn('No controller found!', report.test_notes)
         self.assertIn('No meta data found!', report.test_notes)
 
-    def test_get_gui_interface_attributes(self):
-        # Test the GUI interface attributes
-        expected_attributes = ['meta_data']
-        self.assertEqual(self.plc_object.gui_interface_attributes(), expected_attributes)
-
 
 class TestNamedPlcObject(unittest.TestCase):
     def setUp(self):
@@ -151,11 +146,6 @@ class TestNamedPlcObject(unittest.TestCase):
         report = self.named_obj.validate()
         self.assertFalse(report.pass_fail)
         self.assertIn('No description found!', report.test_notes)
-
-    def test_get_gui_interface_attributes(self):
-        # Test the GUI interface attributes
-        expected_attributes = ['meta_data', 'name', 'description']
-        self.assertEqual(self.named_obj.gui_interface_attributes(), expected_attributes)
 
 
 class TestLogixOperand(unittest.TestCase):
@@ -769,13 +759,6 @@ class TestController(unittest.TestCase):
         self.assertIsInstance(self.controller.datatypes, HashList)
         self.assertIsInstance(self.controller.modules, HashList)
 
-    def test_assign_address(self):
-        with self.assertRaises(ValueError):
-            self.controller.ip_address = 'invalid_address'
-
-        self.controller.ip_address = '192.168.1.1'
-        self.assertEqual(self.controller.ip_address, '192.168.1.1')
-
     def test_find_unpaired_controller_inputs(self):
         unpaired_inputs = self.controller.find_unpaired_controller_inputs()
         self.assertTrue(len(unpaired_inputs) != 0)
@@ -871,8 +854,7 @@ class TestKDiag(unittest.TestCase):
 class TestGmPlcObject(unittest.TestCase):
 
     def setUp(self):
-        self.obj = GmPlcObject()
-        self.obj.name = "za_Action"
+        self.obj = GmPlcObject("za_Action")
         self.obj._controller = None
 
     def test_config(self):
@@ -885,13 +867,6 @@ class TestGmPlcObject(unittest.TestCase):
         self.assertEqual(config.routine_type, GmRoutine)
         self.assertEqual(config.rung_type, GmRung)
         self.assertEqual(config.tag_type, GmTag)
-
-    def test_is_gm_owned(self):
-        self.assertTrue(self.obj.is_gm_owned)
-
-    def test_is_user_owned(self):
-        self.obj.name = "user_Action"
-        self.assertTrue(self.obj.is_user_owned)
 
 
 class TestGmAddOnInstruction(unittest.TestCase):

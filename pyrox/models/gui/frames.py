@@ -137,11 +137,13 @@ class LogWindow(PyroxFrame):
 class FrameWithTreeViewAndScrollbar(PyroxFrame):
     def __init__(self,
                  *args,
+                 base_gui_class: type = None,
                  **kwargs):
         super().__init__(*args,
                          **kwargs)
 
         self._tree: LazyLoadingTreeView = LazyLoadingTreeView(master=self,
+                                                              base_gui_class=base_gui_class,
                                                               columns=('Value',),
                                                               show='tree headings',
                                                               context_menu=kwargs.get('context_menu', None))

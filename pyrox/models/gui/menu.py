@@ -53,10 +53,8 @@ class ContextMenu(Loggable, Menu):
     """
 
     def __init__(self,
-                 *args,
                  **kwargs):
-        super().__init__(*args,
-                         **kwargs)
+        super().__init__(**kwargs)
 
     def _build_menu(self, items: list[MenuItem]) -> None:
         """Build the context menu with the given items.
@@ -76,15 +74,27 @@ class ContextMenu(Loggable, Menu):
     def compile_menu_from_item(self,
                                item: str = None,
                                data: Optional[Any] = None) -> list[MenuItem]:
-        """Compile the context menu from the given item."""
-        return [
-            MenuItem(label='Action 1',
-                     command=lambda: self.logger.info('Action 1 executed')),
-            MenuItem(label='Action 2',
-                     command=lambda: self.logger.info('Action 2 executed')),
-            MenuItem(label='Action 3',
-                     command=lambda: self.logger.info('Action 3 executed'))
-        ]
+        """Compile the context menu from the given item.
+
+        This method should be overridden in subclasses to provide specific menu items.
+
+        .. -------------------------------------------------------------
+
+        Args
+        -----------
+        item (str, optional): The item to compile the menu from.
+            Defaults to None.
+
+        data (Optional[Any], optional): Additional data to use for compiling the menu.
+            Defaults to None.
+
+        .. -------------------------------------------------------------
+
+        Returns
+        -----------
+        list[MenuItem]: A list of MenuItem objects to be added to the context menu.
+        """
+        return []
 
     def on_right_click(self,
                        x: int,

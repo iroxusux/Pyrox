@@ -11,6 +11,7 @@ from .plc import (
     Controller,
     Datatype,
     Module,
+    NamedPlcObject,
     Program,
     Routine,
     Rung,
@@ -191,6 +192,11 @@ class GmPlcObject(PlcObject):
                                            tag_type=GmTag)
         return self._controller._config
 
+
+class NamedGmPlcObject(GmPlcObject, NamedPlcObject):
+    """General Motors Named Plc Object
+    """
+
     @property
     def is_gm_owned(self) -> bool:
         return True if (self.name.lower().startswith(GM_CHAR)
@@ -202,17 +208,17 @@ class GmPlcObject(PlcObject):
                         or self.name.lower().startswith(USER_SAFE_CHAR)) else False
 
 
-class GmAddOnInstruction(GmPlcObject, AddOnInstruction):
+class GmAddOnInstruction(NamedGmPlcObject, AddOnInstruction):
     """General Motors AddOn Instruction Definition
     """
 
 
-class GmDatatype(GmPlcObject, Datatype):
+class GmDatatype(NamedGmPlcObject, Datatype):
     """General Motors Datatype
     """
 
 
-class GmModule(GmPlcObject, Module):
+class GmModule(NamedGmPlcObject, Module):
     """General Motors Module
     """
 
@@ -267,7 +273,7 @@ class GmRung(GmPlcObject, Rung):
         return ret_list
 
 
-class GmRoutine(GmPlcObject, Routine):
+class GmRoutine(NamedGmPlcObject, Routine):
     """General Motors Routine
     """
 
@@ -294,12 +300,12 @@ class GmRoutine(GmPlcObject, Routine):
         return x
 
 
-class GmTag(GmPlcObject, Tag):
+class GmTag(NamedGmPlcObject, Tag):
     """General Motors Tag
     """
 
 
-class GmProgram(GmPlcObject, Program):
+class GmProgram(NamedGmPlcObject, Program):
     """General Motors Program
     """
     PARAM_RTN_STR = 'B*_Parameters'
