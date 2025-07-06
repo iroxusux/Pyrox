@@ -35,6 +35,16 @@ class FileTask(ApplicationTask):
         super().__init__(*args,
                          **kwargs)
 
+    def _on_file_close(self):
+        """Close the current controller instance."""
+        if not self.application.controller:
+            self.logger.warning('No controller loaded, cannot close...')
+            return
+
+        self.logger.info('Closing current controller instance...')
+        self.application.controller = None
+        self.logger.info('Controller instance closed successfully.')
+
     def _on_file_new(self):
         """Create a new controller instance."""
         self.logger.info('Creating new controller instance...')
@@ -82,4 +92,6 @@ class FileTask(ApplicationTask):
         self.application.menu.file.insert_command(2, label='Open L5X', command=self._on_file_open)
         self.application.menu.file.insert_command(3, label='Save L5X', command=self._on_file_save)
         self.application.menu.file.insert_separator(4)
-        self.application.menu.file.insert_command(5, label='Exit', command=lambda: sys.exit(0))
+        self.application.menu.file.insert_command(5, label='Close Controller', command=self._on_file_close)
+        self.application.menu.file.insert_separator(6)
+        self.application.menu.file.insert_command(7, label='Exit', command=lambda: sys.exit(0))

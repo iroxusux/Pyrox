@@ -552,7 +552,7 @@ class Buildable(PyroxObject):
         """
         self._built = True
 
-    def refresh(self,
+    def refresh_gui(self,
                 **_):
         """Refresh this object.
         """

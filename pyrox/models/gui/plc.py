@@ -27,7 +27,7 @@ from ..plc import (
 class PlcGuiObject(PyroxGuiObject):
     """A GUI representation of a PLC object.
 
-    This class extends the `PyroxGuiObject` to provide a specific representation 
+    This class extends the `PyroxGuiObject` to provide a specific representation
 
     of PLC objects in the GUI. It can be used to display PLC properties and
 
@@ -105,7 +105,7 @@ class ControllerGuiObject(PlcGuiObject):
     def gui_interface_attributes(self) -> list[tuple[str, str]]:
         return [
             ('name', 'Name', tk.Label, True),
-            ('description', 'Description', tk.Label, True),
+            ('description', 'Description', tk.Text, True),
             ('file_location', 'File Location', tk.Label, False),
             ('comm_path', 'Communication Path', tk.Label, True),
             ('major_revision', 'Major Revision', tk.Label, True),
@@ -115,7 +115,7 @@ class ControllerGuiObject(PlcGuiObject):
             ('datatypes', 'Data Types', None, False),
             ('tags', 'Tags', None, False),
             ('programs', 'Programs', None, False),
-            ('root_meta_data', 'Root Meta Data', tk.Text, False),
+            ('root_meta_data', 'Root Meta Data', None, False),
 
         ]
 

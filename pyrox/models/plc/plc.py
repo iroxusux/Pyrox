@@ -2072,8 +2072,13 @@ class Controller(NamedPlcObject):
 
     @property
     def comm_path(self) -> str:
-
         return self['@CommPath']
+
+    @comm_path.setter
+    def comm_path(self, value: str):
+        if not isinstance(value, str):
+            raise ValueError('CommPath must be a string!')
+        self['@CommPath'] = value
 
     @property
     def content_meta_data(self) -> dict:
@@ -2142,9 +2147,17 @@ class Controller(NamedPlcObject):
     def major_revision(self) -> int:
         return int(self['@MajorRev'])
 
+    @major_revision.setter
+    def major_revision(self, value: int):
+        self['@MajorRev'] = int(value)
+
     @property
     def minor_revision(self) -> int:
         return int(self['@MinorRev'])
+
+    @minor_revision.setter
+    def minor_revision(self, value: int):
+        self['@MinorRev'] = int(value)
 
     @property
     def modules(self) -> HashList[Module]:

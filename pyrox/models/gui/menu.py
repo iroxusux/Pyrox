@@ -3,10 +3,10 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from tkinter import Menu
+from tkinter import Event, Menu
 from typing import Any, Optional
 
-from ..abc.meta import Loggable
+from ..abc.meta import Loggable, PyroxObject
 
 
 @dataclass
@@ -72,8 +72,10 @@ class ContextMenu(Loggable, Menu):
                               lambda event, cmd=item.command: cmd(event))
 
     def compile_menu_from_item(self,
-                               item: str = None,
-                               data: Optional[Any] = None) -> list[MenuItem]:
+                               event: Event,
+                               treeview_item: str,
+                               edit_object: PyroxObject,
+                               lookup_attribute: str) -> list[MenuItem]:
         """Compile the context menu from the given item.
 
         This method should be overridden in subclasses to provide specific menu items.
@@ -97,10 +99,13 @@ class ContextMenu(Loggable, Menu):
         return []
 
     def on_right_click(self,
-                       x: int,
-                       y: int,
-                       item: str = None,
-                       data: Optional[Any] = None) -> None:
+                       event: Event,
+                       treeview_item: str,
+                       edit_object: Any,
+                       lookup_attribute: str) -> None:
         """Handle right-click events to show the context menu"""
-        self._build_menu(self.compile_menu_from_item(item, data))
-        self.post(x, y)
+        self._build_menu(self.compile_menu_from_item(event=event,
+                                                     treeview_item=treeview_item,
+                                                     edit_object=edit_object,
+                                                     lookup_attribute=lookup_attribute))
+        self.post(event.x_root, event.y_root)

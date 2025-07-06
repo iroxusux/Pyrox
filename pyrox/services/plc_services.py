@@ -244,7 +244,6 @@ def edit_plcobject_in_taskframe(parent,
                 setattr(plc_object, prop, var.get())
             except Exception as e:
                 messagebox.showerror("Error", f"Could not set {prop}: {e}")
-                break
         frame.destroy()
 
     def on_cancel():

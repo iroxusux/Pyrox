@@ -147,7 +147,7 @@ class TestBuildable(unittest.TestCase):
 
     def test_refresh_method(self):
         buildable = Buildable()
-        buildable.refresh()
+        buildable.refresh_gui()
         self.assertFalse(buildable.built)  # Refresh should not change the built state
 
 

@@ -398,7 +398,8 @@ class TestRoutineContainer(unittest.TestCase):
         self.container = ContainsRoutines(meta_data=self.meta_data, controller=self.mock_controller)
 
     def test_raw_routines_multiple(self):
-        expected = [{'@Name': 'Routine1'}, {'@Name': 'Routine2'}]
+        expected = [{'@Name': 'Routine1', '@Type': None, 'Description': None, 'RLLContent': None},
+                    {'@Name': 'Routine2', '@Type': None, 'Description': None, 'RLLContent': None}]
         self.assertEqual(self.container.raw_routines, expected)
 
     def test_raw_routines_single(self):

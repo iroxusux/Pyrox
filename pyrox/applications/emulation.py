@@ -140,7 +140,7 @@ class EmulationView(View):
         self._build_l5x_frame()
         super().build()
 
-    def refresh(self):
+    def refresh_gui(self):
         self.tags_frame.listbox.delete(0, END)
         self._datatypes_frame.listbox.delete(0, END)
         self._aois_frame.listbox.delete(0, END)
@@ -228,7 +228,7 @@ class EmulationViewModel(ViewModel):
         # clear the view to rebuild
         # then, setup to regen hooks
         prog_bar.update('Rebuilding view...', 50)
-        self.view.refresh()
+        self.view.refresh_gui()
 
         prog_bar.update('Setting up view model...', 55)
 

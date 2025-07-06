@@ -1,11 +1,13 @@
 from __future__ import annotations
 
 import copy
+import datetime
 import os
+import json
 from pathlib import Path
 import platformdirs
 from typing import Any, Optional
-from tkinter import PanedWindow
+from tkinter import Event, PanedWindow
 
 
 from ..models import Application, ApplicationTask, HashList
@@ -90,6 +92,20 @@ class ApplicationDirectoryService:
         :class:`str`
         """
         return self._app_name
+
+    @property
+    def app_runtime_info_file(self) -> str:
+        """Application runtime info file.
+
+        This is the file where the application will store runtime information.
+
+        .. ---------------------------------------------------------------------------
+
+        Returns
+        ----------
+        :class:`str`
+        """
+        return os.path.join(self.user_data, f'{self._app_name}_runtime_info.json')
 
     @property
     def author_name(self) -> str:
@@ -295,27 +311,35 @@ class AppOrganizer(AppFrameWithTreeViewAndScrollbar):
             [x() for x in self.on_refresh if callable(x)]
 
         def compile_menu_from_item(self,
-                                   item: str = None,
-                                   data: Any = None) -> list[MenuItem]:
+                                   event: Event,
+                                   treeview_item: str,
+                                   edit_object: Any,
+                                   lookup_attribute: str) -> list[MenuItem]:
             """Compile the context menu from the given item."""
             menu_list = self._default_menu_items
 
-            if not item or not data:
+            if treeview_item is None or edit_object is None or lookup_attribute is None:
                 return menu_list
 
-            if isinstance(data[0], (list, HashList)):
-                obj = data[0][data[1]]
-            elif isinstance(data[0], dict):
-                obj = data[0].get(data[1], None)
-            elif isinstance(data[0], PlcObject):
-                obj = getattr(data[0], data[1], None)
+            if isinstance(edit_object, (list, HashList)):
+                obj = edit_object[lookup_attribute]
+            elif isinstance(edit_object, dict):
+                obj = edit_object.get(lookup_attribute, None)
+            elif isinstance(edit_object, PlcGuiObject):
+                obj = getattr(edit_object, lookup_attribute, None)
             else:
-                return menu_list
+                edit_object_parent = self._parent.tree.parent(treeview_item)
+                if not edit_object_parent:
+                    self.logger.error('No parent found for the item in the tree view.')
+                    return menu_list
+                return self._parent.tree.on_right_click(event=event,
+                                                        treeview_item=edit_object_parent,)
 
-            if isinstance(obj, PlcObject):
+            plc_obj = obj if isinstance(obj, PlcObject) else edit_object.pyrox_object
+            if isinstance(plc_obj, PlcObject):
                 # If the data is a PlcObject, we can add specific actions
                 menu_list.insert(0, MenuItem(label='Modify',
-                                             command=lambda: self._on_modify_plc_object(item=item, plc_object=obj)))
+                                             command=lambda: self._on_modify_plc_object(item=edit_object, plc_object=plc_obj)))
 
             return menu_list
 
@@ -389,9 +413,9 @@ class App(Application, ApplicationDirectoryService):
         self._organizer: Optional[AppOrganizer] = None
         self._log_window: Optional[LogWindow] = None
         self._paned_window: Optional[PanedWindow] = None
-        self._workspace: Optional[PyroxFrame] = None
         self._registered_frames: HashList[TaskFrame] = HashList('name')
-
+        self._runtime_info: Optional[AppRuntimeInfo] = None
+        self._workspace: Optional[PyroxFrame] = None
         self.logger.info('Pyrox Application initialized.')
 
         # clear log file
@@ -418,7 +442,9 @@ class App(Application, ApplicationDirectoryService):
                    value: Controller):
         if self.controller is not value:
             self._controller = value
-            self.refresh()
+            self.refresh_gui()
+
+        self._runtime_info.data['last_plc_file_location'] = value.file_location if value else None
 
     @property
     def organizer(self) -> Optional[AppOrganizer]:
@@ -480,7 +506,7 @@ class App(Application, ApplicationDirectoryService):
                                                      controller=self._controller,
                                                      text='Organizer')
         self._organizer.pack(side='left', fill='y')
-        self._organizer.context_menu.on_refresh.append(self.refresh)
+        self._organizer.context_menu.on_refresh.append(self.refresh_gui)
 
         self._paned_window.add(self._organizer)
 
@@ -512,6 +538,12 @@ class App(Application, ApplicationDirectoryService):
         self.add_tasks(tasks=tasks)
 
         self.build_directory()
+        self._runtime_info = AppRuntimeInfo(self)
+
+        last_plc_file_location = self._runtime_info.data.get('last_plc_file_location', None)
+        if last_plc_file_location and os.path.isfile(last_plc_file_location):
+            self.logger.info('Loading last PLC file location: %s', last_plc_file_location)
+            self.load_controller(last_plc_file_location)
 
     def clear_organizer(self) -> None:
         """Clear organizer of all children.
@@ -587,7 +619,7 @@ class App(Application, ApplicationDirectoryService):
 
         self._log_window.log(message)
 
-    def refresh(self, **_):
+    def refresh_gui(self, **_):
         if not self.organizer:
             return
 
@@ -616,6 +648,11 @@ class App(Application, ApplicationDirectoryService):
 
         if not isinstance(frame, TaskFrame):
             raise TypeError(f'Expected TaskFrame, got {type(frame)}')
+
+        if frame in self._registered_frames:
+            if raise_:
+                self._raise_frame(frame)
+            return
 
         self._registered_frames.append(frame)
         self.menu.view.add_command(label=frame.name, command=lambda: self._raise_frame(frame))
@@ -679,12 +716,13 @@ class App(Application, ApplicationDirectoryService):
         if not isinstance(frame, TaskFrame):
             raise TypeError(f'Expected TaskFrame, got {type(frame)}')
 
+        self.menu.view.delete(frame.name)
+
         if frame not in self._registered_frames:
             self.logger.warning(f'Frame {frame.name} is not registered in this application.')
             return
 
         self._registered_frames.remove(frame)
-        self.menu.view.delete(frame.name)
         if len(self._registered_frames) != 0:
             self._raise_frame(self._registered_frames[0])
 
@@ -704,3 +742,75 @@ class AppTask(ApplicationTask):
             application: :class:`App`
         """
         return super().application
+
+
+class AppRuntimeInfo:
+    """Application Runtime Information.
+
+    This class is used to store and manage runtime information for the application.
+    It is intended to be used as a part of the application configuration.
+    """
+
+    class RuntimeDict:
+        def __init__(self, parent):
+            self._parent = parent
+            self._data = {}
+
+        def __getitem__(self, key):
+            return self._data[key]
+
+        def __setitem__(self, key, value):
+            self._data[key] = value
+            self._parent.save()
+
+        def __delitem__(self, key):
+            del self._data[key]
+            self._parent.save()
+
+        @property
+        def data(self) -> dict:
+            return self._data
+
+        def get(self, key, default=None):
+            """Get an item from the runtime data dictionary."""
+            return self._data.get(key, default)
+
+        def update(self, *args, **kwargs):
+            self._data.update(*args, **kwargs)
+            self._parent.save()
+
+    def __init__(self, app: App):
+        self.app = app
+        self._data = self.RuntimeDict(self)
+        self.load()
+        self.data['last_start_time'] = datetime.datetime.now().isoformat()
+
+    @property
+    def data(self) -> dict:
+        return self._data
+
+    @data.setter
+    def data(self, value: dict):
+        if not isinstance(value, dict):
+            raise TypeError('Runtime information data must be a dictionary.')
+        self._data = self.RuntimeDict(self)
+        self._data.update(value)
+        self.save()
+
+    def load(self):
+        """Load runtime information from the application's runtime info file."""
+        if os.path.isfile(self.app.app_runtime_info_file):
+            try:
+                with open(self.app.app_runtime_info_file, 'r', encoding='utf-8') as f:
+                    self.data = json.load(f)
+            except json.JSONDecodeError as e:
+                self.app.logger.error(f'Error loading runtime info file: {e}')
+                self._data = self.RuntimeDict(self)
+        else:
+            self.app.logger.warning('Runtime info file does not exist, creating a new one.')
+            self._data = self.RuntimeDict(self)
+
+    def save(self):
+        """Save runtime information to the application's runtime info file."""
+        with open(self.app.app_runtime_info_file, 'w', encoding='utf-8') as f:
+            json.dump(self.data.data, f, indent=4)

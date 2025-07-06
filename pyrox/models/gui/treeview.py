@@ -1,3 +1,4 @@
+from tkinter import Event
 from tkinter.ttk import Treeview
 
 from .menu import ContextMenu
@@ -50,15 +51,19 @@ class LazyLoadingTreeView(Treeview):
             self.load_children(item)
             del self._lazy_load_map[item]  # Remove item from map after loading
 
-    def on_right_click(self, event):
-        item = self.identify_row(event.y)
-        if item:
-            self.selection_set(item)
-            self.focus(item)
-        self._context_menu.on_right_click(event.x_root,
-                                          event.y_root,
-                                          item=item,
-                                          data=self._item_hash.get(item, None))
+    def on_right_click(self,
+                       event: Event,
+                       treeview_item: str = None):
+        if not treeview_item:
+            treeview_item = self.identify_row(event.y)
+            if treeview_item:
+                self.selection_set(treeview_item)
+                self.focus(treeview_item)
+        edit_object, lookup_attribute = self._item_hash.get(treeview_item, (None, None))
+        self._context_menu.on_right_click(event=event,
+                                          treeview_item=treeview_item,
+                                          edit_object=edit_object,
+                                          lookup_attribute=lookup_attribute)
 
     def load_children(self, item):
         """Load children for the given item."""
