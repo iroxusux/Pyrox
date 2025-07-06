@@ -17,14 +17,15 @@ from ..models.gui import (
     FrameWithTreeViewAndScrollbar,
     LogWindow,
     MenuItem,
+    ObjectEditTaskFrame,
     PyroxFrame,
+    PyroxGuiObject,
     TaskFrame,
-    ValueEditPopup
 )
 from ..models.gui.plc import PlcGuiObject
 from ..services import file
 from ..services.dictionary_services import remove_none_values_inplace
-from ..services.plc_services import dict_to_xml_file, l5x_dict_from_file, edit_plcobject_in_taskframe
+from ..services.plc_services import dict_to_xml_file, l5x_dict_from_file
 from ..services.task_services import find_and_instantiate_class
 
 
@@ -272,40 +273,17 @@ class AppOrganizer(AppFrameWithTreeViewAndScrollbar):
                          command=self._on_refresh),
             ]
 
-        def _on_modify(self,
-                       item: str = None,
-                       data: tuple[str, Any] = None) -> None:
-            """Handle the modify action in the context menu."""
-            if not item:
-                self.logger.error('No data provided for modification.')
-                return
-
-            self.logger.info(f'Modifying item: {item}')
-            ValueEditPopup(parent=self.master,
-                           value=data[0][data[1]],
-                           callback=lambda x: self._on_modify_accept(item=item, new_value=x, data=data),
-                           title='Modify Item')
-
-        def _on_modify_accept(self,
-                              item: str = None,
-                              new_value: Any = None,
-                              data: tuple[str, Any] = None) -> None:
-            data[0][data[1]] = new_value
-            self.logger.info(f'Value modified: {new_value} | item: {item}')
-            self._parent.tree.update_node_value(item, new_value)
-
         def _on_modify_plc_object(self,
                                   item: str = None,
                                   plc_object: PlcObject = None) -> None:
             """Handle the modification of a PlcObject in the context menu."""
-            app = self._parent.application
-            frame = edit_plcobject_in_taskframe(app.workspace,
-                                                plc_object,
-                                                PlcGuiObject.from_data)
+            frame = ObjectEditTaskFrame(master=self._parent.application.workspace,
+                                        object_=plc_object,
+                                        properties=PlcGuiObject.from_data(plc_object).gui_interface_attributes())
             if not frame:
                 self.logger.error('Failed to create frame for editing PLC object.')
                 return
-            app.register_frame(frame, raise_=True)
+            self._parent.application.register_frame(frame, raise_=True)
 
         def _on_refresh(self):
             [x() for x in self.on_refresh if callable(x)]
@@ -335,7 +313,11 @@ class AppOrganizer(AppFrameWithTreeViewAndScrollbar):
                 return self._parent.tree.on_right_click(event=event,
                                                         treeview_item=edit_object_parent,)
 
-            plc_obj = obj if isinstance(obj, PlcObject) else edit_object.pyrox_object
+            if isinstance(edit_object, PyroxGuiObject):
+                plc_obj = obj if isinstance(obj, PlcObject) else edit_object.pyrox_object
+            else:
+                plc_obj = None
+
             if isinstance(plc_obj, PlcObject):
                 # If the data is a PlcObject, we can add specific actions
                 menu_list.insert(0, MenuItem(label='Modify',
@@ -440,11 +422,11 @@ class App(Application, ApplicationDirectoryService):
     @controller.setter
     def controller(self,
                    value: Controller):
-        if self.controller is not value:
-            self._controller = value
-            self.refresh_gui()
-
+        if not isinstance(value, Controller):
+            raise TypeError(f'Expected Controller, got {type(value)}')
+        self._controller = value
         self._runtime_info.data['last_plc_file_location'] = value.file_location if value else None
+        self.refresh_gui()
 
     @property
     def organizer(self) -> Optional[AppOrganizer]:
@@ -627,7 +609,10 @@ class App(Application, ApplicationDirectoryService):
         self.clear_organizer()
         self.clear_workspace()
         if self.controller:
+            self._tk_app.title(f'{self.config.title} - [{self.controller.name}] - [{self.controller.file_location}]')
             self._organizer.tree.populate_tree('', self.controller)
+        else:
+            self._tk_app.title(self.config.title)
         self.logger.info('Done!')
 
     def register_frame(self,
@@ -675,12 +660,15 @@ class App(Application, ApplicationDirectoryService):
         if not file_location or not self.controller:
             return
 
+        self.controller.file_location = file_location
+
         # create a copy of the controller's metadata
         # because we don't want to modify the original controller's metadata
         write_dict = copy.deepcopy(self.controller.root_meta_data)
         remove_none_values_inplace(write_dict)
         dict_to_xml_file(write_dict,
                          file_location)
+        self.controller = self.controller  # reassign to update gui and other references
 
     def set_frame(self,
                   frame: TaskFrame) -> None:

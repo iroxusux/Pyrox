@@ -170,6 +170,39 @@ class HashList(Subscribable):
         self._hashes[getattr(value, self._hash_key)] = value
         self.emit()
 
+    def as_list_names(self) -> list[str]:
+        """Get this hash as a list of keys.
+
+        .. ------------------------------------------------------------
+
+        Returns
+        --------
+            list: :type:`list`
+        """
+        return list(self._hashes.keys())
+
+    def as_list_values(self) -> list[T]:
+        """Get this hash as a list of values.
+
+        .. ------------------------------------------------------------
+
+        Returns
+        --------
+            list: :type:`list`
+        """
+        return list(self._hashes.values())
+
+    def as_named_list(self) -> list[tuple[str, T]]:
+        """Get this hash as a list of tuples with key and value.
+
+        .. ------------------------------------------------------------
+
+        Returns
+        --------
+            list: :type:`list`
+        """
+        return [(key, value) for key, value in self._hashes.items()]
+
     def by_attr(self,
                 attr_name: str,
                 attr_value: Any) -> Optional[T]:

@@ -1,11 +1,12 @@
 """tkinter user made frames
     """
 from __future__ import annotations
+from dataclasses import dataclass
 import tkinter as tk
-
-
+from tkinter import ttk, messagebox
+from tkinter.ttk import Widget
 from logging import INFO, WARNING, ERROR
-from typing import Optional
+from typing import Any, Optional
 from tkinter import (
     BOTH,
     Button,
@@ -288,6 +289,113 @@ class ToplevelWithTreeViewAndScrollbar(PyroxTopLevelFrame):
         return self._tree
 
 
+@dataclass
+class ObjectEditField:
+    property_name: str
+    display_name: str
+    display_type: Widget
+    editable: bool = False
+
+
+class ObjectEditTaskFrame(TaskFrame):
+    """A task frame for editing objects.
+
+    This frame is intended to be used as a base class for object-specific edit frames.
+    It inherits from `TaskFrame` and can be extended with additional functionality.
+
+    .. ------------------------------------------------------------
+
+    .. package:: models.gui.frames
+
+    .. ------------------------------------------------------------
+    """
+
+    def __init__(self,
+                 master: Optional[Widget],
+                 object_: Any,
+                 properties: list[ObjectEditField]):
+        super().__init__(master=master,
+                         name=f"Edit {getattr(object_, 'name', object_.__class__.__name__)}")
+        if object_ is None:
+            raise ValueError("Object to edit cannot be None")
+        self._object = object_
+        self._properties = properties
+        self._property_vars = {}
+        self._populate_entries(self._object, self._properties)
+        btn_frame = tk.Frame(self.content_frame)
+        btn_frame.grid(row=len(self._properties), column=0, columnspan=2, pady=10)
+        tk.Button(btn_frame, text="Accept", command=self._on_accept, width=10).pack(side='left', padx=5)
+        tk.Button(btn_frame, text="Cancel", command=self._on_cancel, width=10).pack(side='left', padx=5)
+
+    def _on_accept(self):
+        for prop, var in self._property_vars.items():
+            # Try to set the property if it has a setter
+            try:
+                setattr(self._object, prop, var.get())
+            except Exception as e:
+                messagebox.showerror("Error", f"Could not set {prop}: {e}")
+        self.destroy()
+
+    def _on_cancel(self):
+        self.destroy()
+
+    def _populate_entries(self,
+                          object_: Any,
+                          properties: list[ObjectEditField]):
+        for idx, prop in enumerate(properties):
+            if prop.display_type is tk.Label:
+                tk.Label(self.content_frame, text=prop.display_name).grid(row=idx, column=0, sticky='w', padx=5, pady=2)
+                value = getattr(object_, prop.property_name, "")
+                var = tk.StringVar(value=str(value) if value is not None else "")
+                entry = tk.Entry(self.content_frame, textvariable=var, width=40)
+                entry.grid(row=idx, column=1, sticky='ew', padx=5, pady=2)
+                entry.config(state='normal' if prop.editable else 'disabled')
+                if prop.editable:
+                    self._property_vars[prop.property_name] = var
+
+            elif prop.display_type is tk.Text:
+                tk.Label(self.content_frame, text=prop.display_name).grid(row=idx, column=0, sticky='w', padx=5, pady=2)
+                value = getattr(object_, prop.property_name, "")
+                var = tk.StringVar(value=str(value) if value is not None else "")
+                entry = tk.Text(self.content_frame, width=40, height=5)
+                entry.grid(row=idx, column=1, sticky='ew', padx=5, pady=2)
+                entry.insert(tk.END, var.get())
+                entry.config(state='normal' if prop.editable else 'disabled')
+                if prop.editable:
+                    self._property_vars[prop.property_name] = var
+
+            elif prop.display_type is ttk.Entry:
+                tk.Label(self.content_frame, text=prop.display_name).grid(row=idx, column=0, sticky='w', padx=5, pady=2)
+                value = getattr(object_, prop.property_name, "")
+                var = tk.StringVar(value=str(value) if value is not None else "")
+                entry = ttk.Entry(self.content_frame, textvariable=var, width=40)
+                entry.grid(row=idx, column=1, sticky='ew', padx=5, pady=2)
+                entry.config(state='normal' if prop.editable else 'disabled')
+                if prop.editable:
+                    self._property_vars[prop.property_name] = var
+
+            elif prop.display_type is tk.Checkbutton:
+                tk.Label(self.content_frame, text=prop.display_name).grid(row=idx, column=0, sticky='w', padx=5, pady=2)
+                value = getattr(object_, prop.property_name, False)
+                var = tk.BooleanVar(value=value)
+                entry = tk.Checkbutton(self.content_frame, variable=var)
+                entry.grid(row=idx, column=1, sticky='w', padx=5, pady=2)
+                entry.config(state='normal' if prop.editable else 'disabled')
+                if prop.editable:
+                    self._property_vars[prop.property_name] = var
+
+            elif prop.display_type is ttk.Combobox:
+                tk.Label(self.content_frame, text=prop.display_name).grid(row=idx, column=0, sticky='w', padx=5, pady=2)
+                value = getattr(object_, prop.property_name, "")
+                var = tk.StringVar(value=str(value) if value is not None else "")
+                entry = ttk.Combobox(self.content_frame, textvariable=var, width=40)
+                entry.grid(row=idx, column=1, sticky='ew', padx=5, pady=2)
+                entry['values'] = []  # this needs to be updated later with actual choices
+                entry.config(state='normal' if prop.editable else 'disabled')
+                if prop.editable:
+                    self._property_vars[prop.property_name] = var
+
+
 class ValueEditPopup(PyroxTopLevelFrame):
     """
     Popup dialog for editing a value.
@@ -340,3 +448,81 @@ class ValueEditPopup(PyroxTopLevelFrame):
 
     def on_cancel(self):
         self.destroy()
+
+
+class WatchTableTaskFrame(TaskFrame):
+    """
+    A task frame that behaves like a watch table for programming.
+    Each entry is a drop-down (combobox) with auto-complete and allows text entry.
+    """
+
+    def __init__(self, master, watch_items=None, all_symbols=None, name="Watch Table"):
+        """
+        Args:
+            master: Parent widget.
+            watch_items: List of initial watched symbols (strings).
+            all_symbols: List of all possible symbols for auto-complete.
+            name: Frame name.
+        """
+        super().__init__(master=master, name=name)
+        self._watch_items = watch_items or []
+        self._all_symbols = all_symbols or []
+        self._comboboxes = []
+        self._setup_table()
+
+    def _setup_table(self):
+        header = tk.Frame(self.content_frame)
+        header.pack(fill=tk.X, pady=(5, 0))
+        tk.Label(header, text="Symbol", width=30, anchor='w').pack(side=tk.LEFT, padx=5)
+        tk.Label(header, text="Value", width=20, anchor='w').pack(side=tk.LEFT, padx=5)
+        tk.Button(header, text="+", command=self._add_row, width=3).pack(side=tk.LEFT, padx=5)
+
+        self._rows_frame = tk.Frame(self.content_frame)
+        self._rows_frame.pack(fill=tk.BOTH, expand=True)
+
+        for symbol in self._watch_items:
+            self._add_row(symbol)
+
+    def _add_row(self, symbol=""):
+        row = tk.Frame(self._rows_frame)
+        row.pack(fill=tk.X, pady=2)
+
+        symbol_var = tk.StringVar(value=symbol)
+        value_var = tk.StringVar(value="")
+
+        # Combobox with auto-complete and text entry
+        combo = ttk.Combobox(row, textvariable=symbol_var, values=self._all_symbols, width=30)
+        combo.pack(side=tk.LEFT, padx=5)
+        combo['state'] = 'normal'  # allow text entry
+
+        # Optional: implement auto-complete on key release
+        combo.bind('<KeyRelease>', lambda e, cb=combo: self._autocomplete(cb))
+
+        value_entry = ttk.Entry(row, textvariable=value_var, width=20)
+        value_entry.pack(side=tk.LEFT, padx=5)
+
+        remove_btn = tk.Button(row, text="–", command=lambda: self._remove_row(row), width=3)
+        remove_btn.pack(side=tk.LEFT, padx=5)
+
+        self._comboboxes.append((combo, value_entry, symbol_var, value_var))
+
+    def _remove_row(self, row):
+        row.destroy()
+
+    def _autocomplete(self, combobox):
+        pattern = combobox.get()
+        if not pattern:
+            combobox['values'] = self._all_symbols
+            return
+        filtered = [s for s in self._all_symbols if pattern.lower() in s.lower()]
+        combobox['values'] = filtered
+
+    def get_watch_table(self):
+        """Return a list of (symbol, value) for all rows."""
+        result = []
+        for combo, value_entry, symbol_var, value_var in self._comboboxes:
+            symbol = symbol_var.get()
+            value = value_var.get()
+            if symbol:
+                result.append((symbol, value))
+        return result

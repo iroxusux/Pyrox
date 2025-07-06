@@ -88,7 +88,7 @@ class LazyLoadingTreeView(Treeview):
                 if isinstance(v, (dict, list, HashList, PyroxObject)):
                     node = self.insert(parent, 'end', text=str(k), values=['[...]'])
                     self._lazy_load_map[node] = v
-                    self.insert(node, 'end', text='Empty...', values=['...'])
+                    self.insert(node, 'end', text='Empty...', values=['[...]'])
                 else:
                     node = self.insert(parent, 'end', text=str(k), values=(v,))
                 self._item_hash[node] = (data, k)  # Store reference to parent dict and key
@@ -109,15 +109,15 @@ class LazyLoadingTreeView(Treeview):
                 self._item_hash[node] = (data, idx)  # Store reference to parent list and index
 
         elif isinstance(data, self._base_gui_class):
-            for attr, display_name, _, _ in data.gui_interface_attributes():
-                value = getattr(data.pyrox_object, attr)
+            for edit_field in data.gui_interface_attributes():
+                value = getattr(data.pyrox_object, edit_field.property_name, None)
                 if isinstance(value, (dict, list, HashList, PyroxObject)):
-                    node = self.insert(parent, 'end', text=display_name, values=['[...]'])
+                    node = self.insert(parent, 'end', text=edit_field.display_name, values=['[...]'])
                     self._lazy_load_map[node] = value
                     self.insert(node, 'end', text='Empty...', values=['...'])
                 else:
-                    node = self.insert(parent, 'end', text=display_name, values=(value,))
-                self._item_hash[node] = (data, attr)
+                    node = self.insert(parent, 'end', text=edit_field.display_name, values=(value,))
+                self._item_hash[node] = (data, edit_field.property_name)  # Store reference to parent object and property name
 
         else:
             node = self.insert(parent, 'end', text=str(data), values=['...'])

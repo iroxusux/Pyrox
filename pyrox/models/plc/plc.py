@@ -1304,25 +1304,67 @@ class Module(NamedPlcObject):
     def catalog_number(self) -> str:
         return self['@CatalogNumber']
 
+    @catalog_number.setter
+    def catalog_number(self, value: str):
+        if not self.is_valid_module_string(value):
+            raise self.InvalidNamingException
+
+        self['@CatalogNumber'] = value
+
     @property
     def vendor(self) -> str:
         return self['@Vendor']
+
+    @vendor.setter
+    def vendor(self, value: str):
+        if not isinstance(int(value), int):
+            raise ValueError("Vendor must be an integer!")
+
+        self['@Vendor'] = value
 
     @property
     def product_type(self) -> str:
         return self['@ProductType']
 
+    @product_type.setter
+    def product_type(self, value: str):
+        if not isinstance(int(value), int):
+            raise ValueError("Product type must be an integer!")
+
+        self['@ProductType'] = value
+
     @property
     def product_code(self) -> str:
         return self['@ProductCode']
+
+    @product_code.setter
+    def product_code(self, value: str):
+        if not isinstance(int(value), int):
+            raise ValueError("Product code must be an integer!")
+
+        self['@ProductCode'] = value
 
     @property
     def major(self) -> str:
         return self['@Major']
 
+    @major.setter
+    def major(self, value: str):
+        if not isinstance(int(value), int):
+            raise ValueError("Major version must be an integer!")
+
+        self['@Major'] = value
+
     @property
     def minor(self) -> str:
         return self['@Minor']
+
+    @minor.setter
+    def minor(self, value: str):
+        if not isinstance(int(value), int):
+            raise ValueError("Minor version must be an integer!")
+
+        self['@Minor'] = value
 
     @property
     def parent_module(self) -> str:
@@ -1336,9 +1378,29 @@ class Module(NamedPlcObject):
     def inhibited(self) -> str:
         return self['@Inhibited']
 
+    @inhibited.setter
+    def inhibited(self, value: Union[str, bool]):
+        if isinstance(value, bool):
+            value = 'true' if value else 'false'
+
+        if not self.is_valid_rockwell_bool(value):
+            raise self.InvalidNamingException
+
+        self['@Inhibited'] = value
+
     @property
     def major_fault(self) -> str:
         return self['@MajorFault']
+
+    @major_fault.setter
+    def major_fault(self, value: Union[str, bool]):
+        if isinstance(value, bool):
+            value = 'true' if value else 'false'
+
+        if not self.is_valid_rockwell_bool(value):
+            raise self.InvalidNamingException
+
+        self['@MajorFault'] = value
 
     @property
     def ekey(self) -> dict:

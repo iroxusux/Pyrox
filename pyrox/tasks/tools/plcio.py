@@ -12,7 +12,7 @@ from pylogix.lgx_response import Response
 
 from pyrox.applications.app import App, AppTask
 from pyrox.models.plc import ConnectionCommand, ConnectionParameters
-from pyrox.models.gui import FrameWithTreeViewAndScrollbar, TaskFrame
+from pyrox.models.gui import FrameWithTreeViewAndScrollbar, TaskFrame, WatchTableTaskFrame
 
 
 class PlcIoFrame(TaskFrame):
@@ -51,6 +51,9 @@ class PlcIoFrame(TaskFrame):
 
         self._get_tags_pb = Button(self._plccmdframe, text='Read Tags')
         self._get_tags_pb.pack(side=LEFT, fill=X)
+
+        self._watch_table_pb = Button(self._plccmdframe, text='Watch Table')
+        self._watch_table_pb.pack(side=LEFT, fill=X)
 
         self._tags_frame = FrameWithTreeViewAndScrollbar(self.content_frame, text='PLC Tags')
         self._tags_frame.pack(side=TOP, fill='both', expand=True)
@@ -91,6 +94,12 @@ class PlcIoFrame(TaskFrame):
         """
         return self._tags_frame
 
+    @property
+    def watch_table_pb(self) -> Button:
+        """Returns the watch table button.
+        """
+        return self._watch_table_pb
+
 
 class PlcIoTask(AppTask):
     """Controller verification task for the PLC verification Application.
@@ -105,6 +114,7 @@ class PlcIoTask(AppTask):
         self._commands: list[ConnectionCommand] = []
         self._frame: Optional[PlcIoFrame] = None
         self._params: Optional[ConnectionParameters] = None
+        self._watch_table_frame: Optional[WatchTableTaskFrame] = None
 
     def _connect(self,
                  params: ConnectionParameters) -> None:
@@ -167,13 +177,30 @@ class PlcIoTask(AppTask):
             else:
                 self.logger.error('Failed to fetch tags: %s', tags.Status)
 
-        tag_dict = {}
-        for tag in self._tags:
-            tag_dict[tag.TagName] = tag.__dict__
-            tag_dict[tag.TagName]['@Name'] = tag.TagName  # add @Name for compatibility with tree view
-
         self._frame.tags_frame.tree.clear()
-        self._frame.tags_frame.tree.populate_tree('', tag_dict)
+        self._frame.tags_frame.tree.populate_tree('', self._tag_list_as_dict())
+
+    def _launch_watch_table(self) -> None:
+        """Launch the watch table for PLC tags.
+        """
+        if self._watch_table_frame and self._watch_table_frame.winfo_exists():
+            self.application.set_frame(self._watch_table_frame)
+            return
+
+        if not self._frame:
+            self.logger.error('PLC I/O frame not initialized.')
+            return
+
+        if self._tags:
+            self.logger.info('Launching watch table with %d tags from "read tags"', len(self._tags))
+            tags = self._tag_list_as_dict()
+        else:
+            self.logger.info('Launching watch table with %d tags from "get controller tags"', len(self.application.controller.tags))
+            tags = self.application.controller.tags.as_list_names() if self.application.controller else {}
+
+        self._watch_table_frame = WatchTableTaskFrame(self.application.workspace,
+                                                      all_symbols=tags)
+        self.application.register_frame(self._watch_table_frame, raise_=True)
 
     def _on_connected(self, connected: bool):
         self._connected = connected
@@ -210,6 +237,14 @@ class PlcIoTask(AppTask):
 
             self._connecting = False
 
+    def _tag_list_as_dict(self) -> dict:
+        tag_dict = {}
+        for tag in self._tags:
+            tag_dict[tag.TagName] = tag.__dict__
+            tag_dict[tag.TagName]['@Name'] = tag.TagName  # add @Name for compatibility with tree view
+
+        return tag_dict
+
     @property
     def connected(self) -> bool:
         """Returns the connection status.
@@ -230,6 +265,7 @@ class PlcIoTask(AppTask):
             self._frame.connect_pb.config(command=self._on_connect)
             self._frame.disconnect_pb.config(command=self._on_disconnect)
             self._frame.get_tags_pb.config(command=self._get_controller_tags)
+            self._frame.watch_table_pb.config(command=self._launch_watch_table)
             self._on_connected(self._connected)
             self.application.register_frame(self._frame, raise_=True)
 

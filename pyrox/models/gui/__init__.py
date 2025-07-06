@@ -1,10 +1,13 @@
 from .frames import (
     FrameWithTreeViewAndScrollbar,
     LogWindow,
+    ObjectEditField,
+    ObjectEditTaskFrame,
     PyroxFrame,
     TaskFrame,
     ToplevelWithTreeViewAndScrollbar,
-    ValueEditPopup
+    ValueEditPopup,
+    WatchTableTaskFrame
 )
 from .listbox import UserListbox
 from .menu import ContextMenu, MenuItem
@@ -15,6 +18,8 @@ __all__ = (
     'FrameWithTreeViewAndScrollbar',
     'LogWindow',
     'MenuItem',
+    'ObjectEditField',
+    'ObjectEditTaskFrame',
     'PyroxFrame',
     'UserListbox',
     'ContextMenu',
@@ -22,5 +27,6 @@ __all__ = (
     'PyroxGuiObject',
     'TaskFrame',
     'ToplevelWithTreeViewAndScrollbar',
-    'ValueEditPopup'
+    'ValueEditPopup',
+    'WatchTableTaskFrame'
 )

@@ -69,10 +69,16 @@ class FileTask(ApplicationTask):
         self.application.load_controller(file_location)
 
     def _on_file_save(self,
-                      file_location: Optional[str] = None):
+                      file_location: Optional[str] = None,
+                      save_as: bool = False):
         if not self.application.controller:
             self.logger.warning('No controller loaded, cannot save...')
             return
+
+        if not save_as and self.application.controller.file_location:
+            file_location = file_location or self.application.controller.file_location
+        elif save_as:
+            file_location = None
 
         if not file_location:
             file_location = get_save_file([("L5X XML Files", ".L5X")])
@@ -91,7 +97,8 @@ class FileTask(ApplicationTask):
         self.application.menu.file.insert_separator(1)
         self.application.menu.file.insert_command(2, label='Open L5X', command=self._on_file_open)
         self.application.menu.file.insert_command(3, label='Save L5X', command=self._on_file_save)
-        self.application.menu.file.insert_separator(4)
-        self.application.menu.file.insert_command(5, label='Close Controller', command=self._on_file_close)
-        self.application.menu.file.insert_separator(6)
-        self.application.menu.file.insert_command(7, label='Exit', command=lambda: sys.exit(0))
+        self.application.menu.file.insert_command(4, label='Save L5X As...', command=lambda: self._on_file_save(save_as=True))
+        self.application.menu.file.insert_separator(5)
+        self.application.menu.file.insert_command(6, label='Close Controller', command=self._on_file_close)
+        self.application.menu.file.insert_separator(7)
+        self.application.menu.file.insert_command(8, label='Exit', command=lambda: sys.exit(0))

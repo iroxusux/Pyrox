@@ -7,7 +7,7 @@ import tkinter as tk
 from tkinter import ttk
 from typing import Self
 
-
+from .frames import ObjectEditField
 from .pyroxguiobject import PyroxGuiObject
 from ..plc import (
     PlcObject,
@@ -73,7 +73,7 @@ class PlcGuiObject(PyroxGuiObject):
 
         return cls(plc_object=data)
 
-    def gui_interface_attributes(self) -> list[tuple[str, str]]:
+    def gui_interface_attributes(self) -> list[ObjectEditField]:
         """Get the attributes of the PLC object that should be displayed in the GUI.
 
         This method is meant to be overridden by subclasses to provide
@@ -81,10 +81,15 @@ class PlcGuiObject(PyroxGuiObject):
 
         Returns:
         ----------
-            :type:`list[tuple[str, str, tk.Widget, bool]]`: A list of tuples where each tuple contains
-            the attribute name, its display name, the widget type to use for display, and a boolean indicating if it is editable.
+            :type:`list[ObjectEditField]`: A list of `ObjectEditField` instances
+            representing the attributes of the PLC object that should be displayed
         """
-        return [('meta_data', 'Meta Data', tk.Label, False),]
+        return [ObjectEditField(
+            property_name='meta_data',
+            display_name='Meta Data',
+            display_type=tk.Label,
+            editable=False
+        )]
 
 
 class ControllerGuiObject(PlcGuiObject):
@@ -104,18 +109,18 @@ class ControllerGuiObject(PlcGuiObject):
 
     def gui_interface_attributes(self) -> list[tuple[str, str]]:
         return [
-            ('name', 'Name', tk.Label, True),
-            ('description', 'Description', tk.Text, True),
-            ('file_location', 'File Location', tk.Label, False),
-            ('comm_path', 'Communication Path', tk.Label, True),
-            ('major_revision', 'Major Revision', tk.Label, True),
-            ('minor_revision', 'Minor Revision', tk.Label, True),
-            ('modules', 'Modules', None, False),
-            ('aois', 'AOIs', None, False),
-            ('datatypes', 'Data Types', None, False),
-            ('tags', 'Tags', None, False),
-            ('programs', 'Programs', None, False),
-            ('root_meta_data', 'Root Meta Data', None, False),
+            ObjectEditField('name', 'Name', tk.Label, True),
+            ObjectEditField('description', 'Description', tk.Text, True),
+            ObjectEditField('file_location', 'File Location', tk.Label, False),
+            ObjectEditField('comm_path', 'Communication Path', tk.Label, True),
+            ObjectEditField('major_revision', 'Major Revision', tk.Label, True),
+            ObjectEditField('minor_revision', 'Minor Revision', tk.Label, True),
+            ObjectEditField('modules', 'Modules', None, False),
+            ObjectEditField('aois', 'AOIs', None, False),
+            ObjectEditField('datatypes', 'Data Types', None, False),
+            ObjectEditField('tags', 'Tags', None, False),
+            ObjectEditField('programs', 'Programs', None, False),
+            ObjectEditField('root_meta_data', 'Root Meta Data', None, False),
 
         ]
 
@@ -128,20 +133,20 @@ class AddOnInstructionGuiObject(PlcGuiObject):
 
     def gui_interface_attributes(self):
         return [
-            ('name', 'Name', tk.Label, True),
-            ('description', 'Description', tk.Label, True),
-            ('revision', 'Revision', tk.Label, True),
-            ('execute_prescan', 'Execute Prescan', tk.Checkbutton, True),
-            ('execute_postscan', 'Execute Postscan', tk.Checkbutton, True),
-            ('execute_enable_in_false', 'Execute Enable In False', tk.Checkbutton, True),
-            ('created_date', 'Created Date', tk.Label, False),
-            ('created_by', 'Created By', tk.Label, False),
-            ('edited_date', 'Edited Date', tk.Label, False),
-            ('edited_by', 'Edited By', tk.Label, False),
-            ('software_revision', 'Software Revision', tk.Label, False),
-            ('revision_note', 'Revision Note', tk.Text, True),
-            ('parameters', 'Parameters', None, False),
-            ('local_tags', 'Local Tags', None, False),
+            ObjectEditField('name', 'Name', tk.Label, True),
+            ObjectEditField('description', 'Description', tk.Label, True),
+            ObjectEditField('revision', 'Revision', tk.Label, True),
+            ObjectEditField('execute_prescan', 'Execute Prescan', tk.Checkbutton, True),
+            ObjectEditField('execute_postscan', 'Execute Postscan', tk.Checkbutton, True),
+            ObjectEditField('execute_enable_in_false', 'Execute Enable In False', tk.Checkbutton, True),
+            ObjectEditField('created_date', 'Created Date', tk.Label, False),
+            ObjectEditField('created_by', 'Created By', tk.Label, False),
+            ObjectEditField('edited_date', 'Edited Date', tk.Label, False),
+            ObjectEditField('edited_by', 'Edited By', tk.Label, False),
+            ObjectEditField('software_revision', 'Software Revision', tk.Label, False),
+            ObjectEditField('revision_note', 'Revision Note', tk.Text, True),
+            ObjectEditField('parameters', 'Parameters', None, False),
+            ObjectEditField('local_tags', 'Local Tags', None, False),
         ]
 
 
@@ -153,10 +158,10 @@ class DatatypeGuiObject(PlcGuiObject):
 
     def gui_interface_attributes(self):
         return [
-            ('name', 'Name', tk.Label, True),
-            ('description', 'Description', tk.Label, True),
-            ('family', 'Family', ttk.Combobox, True),
-            ('members', 'Members', None, False),
+            ObjectEditField('name', 'Name', tk.Label, True),
+            ObjectEditField('description', 'Description', tk.Label, True),
+            ObjectEditField('family', 'Family', ttk.Combobox, True),
+            ObjectEditField('members', 'Members', None, False),
         ]
 
 
@@ -168,21 +173,21 @@ class ModuleGuiObject(PlcGuiObject):
 
     def gui_interface_attributes(self):
         return [
-            ('name', 'Name', tk.Label, True),
-            ('description', 'Description', tk.Label, True),
-            ('catalog_number', 'Catalog Number', tk.Label, True),
-            ('vendor', 'Vendor', tk.Label, True),
-            ('product_type', 'Product Type', tk.Label, True),
-            ('product_code', 'Product Code', tk.Label, True),
-            ('major', 'Major', tk.Label, True),
-            ('minor', 'Minor', tk.Label, True),
-            ('parent_module', 'Parent Module', tk.Label, False),
-            ('parent_mod_port_id', 'Parent Mod Port Id', tk.Label, False),
-            ('inhibited', 'Inhibited', tk.Checkbutton, True),
-            ('major_fault', 'Major Fault', tk.Checkbutton, True),
-            ('ekey', 'EKey', tk.Label, False),
-            ('ports', 'Ports', None, False),
-            ('communications', 'Communications', None, False),
+            ObjectEditField('name', 'Name', tk.Label, True),
+            ObjectEditField('description', 'Description', tk.Label, True),
+            ObjectEditField('catalog_number', 'Catalog Number', tk.Label, True),
+            ObjectEditField('vendor', 'Vendor', tk.Label, True),
+            ObjectEditField('product_type', 'Product Type', tk.Label, True),
+            ObjectEditField('product_code', 'Product Code', tk.Label, True),
+            ObjectEditField('major', 'Major', tk.Label, True),
+            ObjectEditField('minor', 'Minor', tk.Label, True),
+            ObjectEditField('parent_module', 'Parent Module', tk.Label, False),
+            ObjectEditField('parent_mod_port_id', 'Parent Mod Port Id', tk.Label, False),
+            ObjectEditField('inhibited', 'Inhibited', tk.Checkbutton, True),
+            ObjectEditField('major_fault', 'Major Fault', tk.Checkbutton, True),
+            ObjectEditField('ekey', 'EKey', tk.Label, False),
+            ObjectEditField('ports', 'Ports', None, False),
+            ObjectEditField('communications', 'Communications', None, False),
         ]
 
 
@@ -194,16 +199,16 @@ class ProgramGuiObject(PlcGuiObject):
 
     def gui_interface_attributes(self):
         return [
-            ('name', 'Name', tk.Label, True),
-            ('description', 'Description', tk.Label, True),
-            ('disabled', 'Disabled', tk.Checkbutton, True),
-            ('main_routine_name', 'Main Routine Name', tk.Label, True),
-            ('test_edits', 'Test Edits', tk.Checkbutton, True),
-            ('use_as_folder', 'Use As Folder', tk.Checkbutton, True),
-            ('input_instructions', 'Input Instructions', None, False),
-            ('output_instructions', 'Output Instructions', None, False),
-            ('routines', 'Routines', None, False),
-            ('tags', 'Tags', None, False),
+            ObjectEditField('name', 'Name', tk.Label, True),
+            ObjectEditField('description', 'Description', tk.Label, True),
+            ObjectEditField('disabled', 'Disabled', tk.Checkbutton, True),
+            ObjectEditField('main_routine_name', 'Main Routine Name', tk.Label, True),
+            ObjectEditField('test_edits', 'Test Edits', tk.Checkbutton, True),
+            ObjectEditField('use_as_folder', 'Use As Folder', tk.Checkbutton, True),
+            ObjectEditField('input_instructions', 'Input Instructions', None, False),
+            ObjectEditField('output_instructions', 'Output Instructions', None, False),
+            ObjectEditField('routines', 'Routines', None, False),
+            ObjectEditField('tags', 'Tags', None, False),
         ]
 
 
@@ -215,13 +220,13 @@ class RoutineGuiObject(PlcGuiObject):
 
     def gui_interface_attributes(self):
         return [
-            ('name', 'Name', tk.Label, True),
-            ('description', 'Description', tk.Label, True),
-            ('input_instructions', 'Input Instructions', None, False),
-            ('output_instructions', 'Output Instructions', None, False),
-            ('instructions', 'Instructions', None, False),
-            ('program', 'Program', tk.Label, False),
-            ('rungs', 'Rungs', None, False),
+            ObjectEditField('name', 'Name', tk.Label, True),
+            ObjectEditField('description', 'Description', tk.Label, True),
+            ObjectEditField('input_instructions', 'Input Instructions', None, False),
+            ObjectEditField('output_instructions', 'Output Instructions', None, False),
+            ObjectEditField('instructions', 'Instructions', None, False),
+            ObjectEditField('program', 'Program', tk.Label, False),
+            ObjectEditField('rungs', 'Rungs', None, False),
         ]
 
 
@@ -233,13 +238,13 @@ class RungGuiObject(PlcGuiObject):
 
     def gui_interface_attributes(self):
         return [
-            ('number', 'Number', tk.Label, True),
-            ('comment', 'Comment', tk.Label, True),
-            ('text', 'Text', tk.Text, True),
-            ('type', 'Type', tk.Label, True),
-            ('instructions', 'Instructions', None, False),
-            ('input_instructions', 'Input Instructions', None, False),
-            ('output_instructions', 'Output Instructions', None, False),
+            ObjectEditField('number', 'Number', tk.Label, True),
+            ObjectEditField('comment', 'Comment', tk.Label, True),
+            ObjectEditField('text', 'Text', tk.Text, True),
+            ObjectEditField('type', 'Type', tk.Label, True),
+            ObjectEditField('instructions', 'Instructions', None, False),
+            ObjectEditField('input_instructions', 'Input Instructions', None, False),
+            ObjectEditField('output_instructions', 'Output Instructions', None, False),
         ]
 
 
@@ -251,20 +256,20 @@ class TagGuiObject(PlcGuiObject):
 
     def gui_interface_attributes(self):
         return [
-            ('name', 'Name', tk.Label, True),
-            ('description', 'Description', tk.Label, True),
-            ('alias_for', 'Alias For', tk.Label, True),
-            ('class_', 'Class', tk.Label, True),
-            ('constant', 'Constant', tk.Checkbutton, True),
-            ('datatype', 'Data Type', tk.Label, True),
-            ('external_access', 'External Access', tk.Label, True),
-            ('opc_ua_access', 'OPC UA Access', tk.Label, True),
-            ('scope', 'Scope', tk.Label, True),
-            ('tag_type', 'Tag Type', tk.Label, True),
-            ('data', 'Data', None, False),
-            ('decorated_data', 'Decorated Data', None, False),
-            ('l5k_data', 'L5K Data', None, False),
-            ('datavalue_members', 'Data Value Members', None, False),
+            ObjectEditField('name', 'Name', tk.Label, True),
+            ObjectEditField('description', 'Description', tk.Label, True),
+            ObjectEditField('alias_for', 'Alias For', tk.Label, True),
+            ObjectEditField('class_', 'Class', tk.Label, True),
+            ObjectEditField('constant', 'Constant', tk.Checkbutton, True),
+            ObjectEditField('datatype', 'Data Type', tk.Label, True),
+            ObjectEditField('external_access', 'External Access', tk.Label, True),
+            ObjectEditField('opc_ua_access', 'OPC UA Access', tk.Label, True),
+            ObjectEditField('scope', 'Scope', tk.Label, True),
+            ObjectEditField('tag_type', 'Tag Type', tk.Label, True),
+            ObjectEditField('data', 'Data', None, False),
+            ObjectEditField('decorated_data', 'Decorated Data', None, False),
+            ObjectEditField('l5k_data', 'L5K Data', None, False),
+            ObjectEditField('datavalue_members', 'Data Value Members', None, False),
         ]
 
 
@@ -276,11 +281,11 @@ class DataValueMemberGuiObject(PlcGuiObject):
 
     def gui_interface_attributes(self):
         return [
-            ('name', 'Name', tk.Label, True),
-            ('description', 'Description', tk.Label, True),
-            ('dimension', 'Dimension', tk.Label, True),
-            ('hidden', 'Hidden', tk.Checkbutton, True),
-            ('parent', 'Parent', tk.Label, False),
+            ObjectEditField('name', 'Name', tk.Label, True),
+            ObjectEditField('description', 'Description', tk.Label, True),
+            ObjectEditField('dimension', 'Dimension', tk.Label, True),
+            ObjectEditField('hidden', 'Hidden', tk.Checkbutton, True),
+            ObjectEditField('parent', 'Parent', tk.Label, False),
         ]
 
 
@@ -292,7 +297,7 @@ class ProgramTagGuiObject(PlcGuiObject):
 
     def gui_interface_attributes(self):
         return [
-            ('name', 'Name', tk.Label, True),
-            ('description', 'Description', tk.Label, True),
-            ('program', 'Program', tk.Label, False),
+            ObjectEditField('name', 'Name', tk.Label, True),
+            ObjectEditField('description', 'Description', tk.Label, True),
+            ObjectEditField('program', 'Program', tk.Label, False),
         ]

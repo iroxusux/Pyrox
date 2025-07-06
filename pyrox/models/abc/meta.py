@@ -36,6 +36,7 @@ __all__ = (
 
 ALLOWED_CHARS = re.compile(f'[^{r'a-zA-Z0-9_'}]')
 ALLOWED_REV_CHARS = re.compile(f'[^{r'0-9.'}]')
+ALLOWED_MOD_CHARS = re.compile(f'[^{r'a-zA-Z0-9_.-'}]')
 DEF_VIEW_TYPE = 1
 DEF_THEME = 'black'
 DEF_WIN_TITLE = 'Pyrox Default Frame'
@@ -127,6 +128,9 @@ class EnforcesNaming:
     .. package:: models.abc.meta
 
     """
+    # store the last allowed characters for reference when showing exception message
+    # this keeps the user from having to manually do this, but it IS just a best guess when the exception is raised
+    _last_allowed_chars = ALLOWED_CHARS
 
     class InvalidNamingException(Exception):
         """Helper exception class to raise invalid naming exceptions.
@@ -138,8 +142,8 @@ class EnforcesNaming:
         """
 
         def __init__(self,
-                     message='Invalid naming scheme! Allowed chars are %s' % ALLOWED_CHARS):
-            self.message = message
+                     message='Invalid naming scheme! Allowed chars are: '):
+            self.message = message + f'{EnforcesNaming._last_allowed_chars.pattern}'
             super().__init__(self.message)
 
     @staticmethod
@@ -152,6 +156,7 @@ class EnforcesNaming:
         ----------
             :class:`bool` valid name
         """
+        EnforcesNaming._last_allowed_chars = re.compile(f'[^{r'true|false'}]')
         if not text:
             return False
         if text == 'true' or text == 'false':
@@ -168,7 +173,23 @@ class EnforcesNaming:
         ----------
             :class:`bool` valid name
         """
+        EnforcesNaming._last_allowed_chars = ALLOWED_CHARS
         if ALLOWED_CHARS.search(text):
+            return False
+        return True
+
+    @staticmethod
+    def is_valid_module_string(text):
+        """Check if a string is valid according to the module naming scheme.
+
+        .. ------------------------------------------------------------
+
+        Returns
+        ----------
+            :class:`bool` valid module name
+        """
+        EnforcesNaming._last_allowed_chars = ALLOWED_MOD_CHARS
+        if ALLOWED_MOD_CHARS.search(text):
             return False
         return True
 
@@ -182,6 +203,7 @@ class EnforcesNaming:
         ----------
             :class:`bool` valid revision name
         """
+        EnforcesNaming._last_allowed_chars = ALLOWED_REV_CHARS
         if ALLOWED_REV_CHARS.search(text):
             return False
         return True
@@ -553,7 +575,7 @@ class Buildable(PyroxObject):
         self._built = True
 
     def refresh_gui(self,
-                **_):
+                    **_):
         """Refresh this object.
         """
 
