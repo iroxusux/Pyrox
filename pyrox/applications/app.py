@@ -396,7 +396,6 @@ class App(Application, ApplicationDirectoryService):
         self._log_window: Optional[LogWindow] = None
         self._paned_window: Optional[PanedWindow] = None
         self._registered_frames: HashList[TaskFrame] = HashList('name')
-        self._runtime_info: Optional[AppRuntimeInfo] = None
         self._workspace: Optional[PyroxFrame] = None
         self.logger.info('Pyrox Application initialized.')
 
@@ -518,13 +517,10 @@ class App(Application, ApplicationDirectoryService):
                                            parent_class=ApplicationTask,
                                            application=self)
         self.add_tasks(tasks=tasks)
-
         self.build_directory()
-        self._runtime_info = AppRuntimeInfo(self)
 
         last_plc_file_location = self._runtime_info.data.get('last_plc_file_location', None)
         if last_plc_file_location and os.path.isfile(last_plc_file_location):
-            self.logger.info('Loading last PLC file location: %s', last_plc_file_location)
             self.load_controller(last_plc_file_location)
 
     def clear_organizer(self) -> None:

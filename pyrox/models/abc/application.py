@@ -4,7 +4,10 @@ from __future__ import annotations
 
 
 from dataclasses import dataclass, field
+import datetime
 import gc
+import json
+import os
 from tkinter import Frame, TclError
 from typing import Optional, Self, Union
 
@@ -424,6 +427,83 @@ class ApplicationConfiguration:
                                                          application=ThemedTk)
 
 
+class ApplicationRuntimeInfo:
+    """Application Runtime Information.
+
+    This class is used to store and manage runtime information for the application.
+    """
+
+    class RuntimeDict:
+        """A dictionary-like class to store runtime data for the application.
+        This class provides a way to store key-value pairs and automatically save the data
+        to the application's runtime info file whenever an item is added, updated, or deleted."""
+
+        def __init__(self, parent: ApplicationRuntimeInfo):
+            self._parent: ApplicationRuntimeInfo = parent
+            self._data = {}
+
+        def __getitem__(self, key):
+            return self._data[key]
+
+        def __setitem__(self, key, value):
+            self._data[key] = value
+            self._parent.save()
+
+        def __delitem__(self, key):
+            del self._data[key]
+            self._parent.save()
+
+        @property
+        def data(self) -> dict:
+            """Get the runtime data dictionary."""
+            return self._data
+
+        def get(self, key, default=None):
+            """Get an item from the runtime data dictionary."""
+            return self._data.get(key, default)
+
+        def update(self, *args, **kwargs):
+            """Update the runtime data dictionary with new items."""
+            self._data.update(*args, **kwargs)
+            self._parent.save()
+
+    def __init__(self, app: Application):
+        self._app: Application = app
+        self._data = self.RuntimeDict(self)
+        self.load()
+        self._data['last_start_time'] = datetime.datetime.now().isoformat()
+
+    @property
+    def data(self) -> dict:
+        return self._data
+
+    @data.setter
+    def data(self, value: dict):
+        if not isinstance(value, dict):
+            raise TypeError('Runtime information data must be a dictionary.')
+        self._data = self.RuntimeDict(self)
+        self._data.update(value)
+        self.save()
+
+    def load(self):
+        """Load runtime information from the application's runtime info file."""
+        if os.path.isfile(self._app.app_runtime_info_file):
+            try:
+                with open(self._app.app_runtime_info_file, 'r', encoding='utf-8') as f:
+                    self.data = json.load(f)
+            except json.JSONDecodeError as e:
+                self._app.logger.error(f'Error loading runtime info file: {e}')
+                self._data = self.RuntimeDict(self)
+        else:
+            self._app.logger.warning('Runtime info file does not exist, creating a new one.')
+            self._data = self.RuntimeDict(self)
+
+    def save(self):
+        """Save runtime information to the application's runtime info file."""
+        with open(self._app.app_runtime_info_file, 'w', encoding='utf-8') as f:
+            json.dump(self.data.data, f, indent=4)
+
+
 class Application(Runnable):
     """A :class:`PartialApplication` to contain the tk GUI instance, as well as reference to child views.
 
@@ -461,22 +541,22 @@ class Application(Runnable):
 
         super().__init__(add_to_globals=True,
                          **kwargs)
-
         self._config: ApplicationConfiguration = config or ApplicationConfiguration.root()
         self._frame: Frame = None
         self._menu: MainApplicationMenu = None
+        self._runtime_info: ApplicationRuntimeInfo = None
         self._tasks: HashList[ApplicationTask] = None
-        self._tk_app: Union[Tk, ThemedTk, None] = None
+        self._tk_app: Union[Tk, ThemedTk] = None
 
     @property
-    def tk_app(self) -> Union[Tk, ThemedTk, None]:
+    def tk_app(self) -> Union[Tk, ThemedTk]:
         """The tk application instance for this :class:`Application`.
 
         .. ------------------------------------------------------------
 
         Returns
         -----------
-            application: Union[:class:`Tk`, :class:`ThemedTk`, None]
+            application: Union[:class:`Tk`, :class:`ThemedTk`]
         """
         return self._tk_app
 
@@ -552,6 +632,7 @@ class Application(Runnable):
 
         self._tasks: HashList[ApplicationTask] = HashList('id')
         self._menu = MainApplicationMenu(self.tk_app) if self.config.headless is False else None
+        self._runtime_info = ApplicationRuntimeInfo(self)
 
         super().build()
 

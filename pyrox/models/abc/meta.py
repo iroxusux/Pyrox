@@ -7,9 +7,10 @@ from enum import Enum
 import gc
 import inspect
 import logging
+import json
 from pathlib import Path
 import re
-from typing import Callable, Optional, Union
+from typing import Any, Callable, Optional, Union
 from tkinter import Tk, Toplevel, Frame, LabelFrame, TclError, Widget
 from ttkthemes import ThemedTk
 
@@ -47,14 +48,54 @@ DEF_DATE_FMT = "%m/%d/%Y, %H:%M:%S"
 
 
 class TK_CURSORS:
-    """Static class python tkinter cursors.
-
+    """.. description::
+    Static class for python tkinter cursors.
     .. ------------------------------------------------------------
-
-    .. package:: models.abc.meta
-
+    .. package::
+    models.abc.meta
+    .. ------------------------------------------------------------
+    .. attributes::
+    ARROW: :class:`str`
+        Arrow cursor.
+    CIRCLE: :class:`str`
+        Circle cursor.
+    CLOCK: :class:`str`
+        Clock cursor.
+    CROSS: :class:`str`
+        Cross cursor.
+    DOTBOX: :class:`str`
+        Dotbox cursor.
+    EXCHANGE: :class:`str`
+        Exchange cursor.
+    FLEUR: :class:`str`
+        Fleur cursor.
+    HEART: :class:`str`
+        Heart cursor.
+    MAN: :class:`str`
+        Man cursor.
+    MOUSE: :class:`str`
+        Mouse cursor.
+    PIRATE: :class:`str`
+        Pirate cursor.
+    PLUS: :class:`str`
+        Plus cursor.
+    SHUTTLE: :class:`str`
+        Shuttle cursor.
+    SIZING: :class:`str`
+        Sizing cursor.
+    SPIDER: :class:`str`
+        Spider cursor.
+    SPRAYCAN: :class:`str`
+        Spraycan cursor.
+    STAR: :class:`str`
+        Star cursor.
+    TARGET: :class:`str`
+        Target cursor.
+    TCROSS: :class:`str`
+        T-cross cursor.
+    TREK: :class:`str`
+        Trek cursor.
     """
-
     ARROW = "arrow"
     CIRCLE = "circle"
     CLOCK = "clock"
@@ -78,28 +119,22 @@ class TK_CURSORS:
 
 
 class _IdGenerator:
-    """Static class for id generation for :class:`SnowFlake`.
-
+    """.. description::
+    Static class for id generation for :class:`SnowFlake`.
     Hosts a unique identifier `id` generator.
-
     .. ------------------------------------------------------------
-
-    .. package:: models.abc.meta
-
+    .. package::
+    models.abc.meta
     """
-
     __slots__ = ()
-
     _ctr = 0
 
     @staticmethod
     def get_id() -> int:
-        """get a unique ID from the :class:`_IdGenerator`.
-
+        """.. description::
+        get a unique ID from the :class:`_IdGenerator`.
         .. ------------------------------------------------------------
-
-        Returns
-        -----------
+        .. returns::
             :type:`int`: Unique ID for a :class:`SnowFlake` object.
         """
         _IdGenerator._ctr += 1
@@ -108,37 +143,30 @@ class _IdGenerator:
     @staticmethod
     def curr_value() -> int:
         """Retrieve the current value of the ID generator
-
         .. ------------------------------------------------------------
-
-        Returns
-        ----------
+        .. returns::
             :class:`int` current value
         """
         return _IdGenerator._ctr
 
 
 class EnforcesNaming:
-    """Helper meta class to enforce naming schemes across objects.
-
-    Valid naming scheme is alphanumeric and underscores only.
-
+    """.. description::
+    Helper meta class to enforce naming schemes across objects.
     .. ------------------------------------------------------------
-
-    .. package:: models.abc.meta
-
+    .. package::
+    models.abc.meta
     """
     # store the last allowed characters for reference when showing exception message
     # this keeps the user from having to manually do this, but it IS just a best guess when the exception is raised
     _last_allowed_chars = ALLOWED_CHARS
 
     class InvalidNamingException(Exception):
-        """Helper exception class to raise invalid naming exceptions.
-
+        """.. description::
+        Helper exception class to raise invalid naming exceptions.
         .. ------------------------------------------------------------
-
-        .. package:: models.abc.meta
-
+        .. package::
+        models.abc.meta
         """
 
         def __init__(self,
@@ -149,11 +177,8 @@ class EnforcesNaming:
     @staticmethod
     def is_valid_rockwell_bool(text):
         """Check if a string is valid according to the Rockwell boolean naming scheme.
-
         .. ------------------------------------------------------------
-
-        Returns
-        ----------
+        .. returns::
             :class:`bool` valid name
         """
         EnforcesNaming._last_allowed_chars = re.compile(f'[^{r'true|false'}]')
@@ -166,11 +191,8 @@ class EnforcesNaming:
     @staticmethod
     def is_valid_string(text):
         """Check if a string is valid according to the naming scheme.
-
         .. ------------------------------------------------------------
-
-        Returns
-        ----------
+        .. returns::
             :class:`bool` valid name
         """
         EnforcesNaming._last_allowed_chars = ALLOWED_CHARS
@@ -181,11 +203,8 @@ class EnforcesNaming:
     @staticmethod
     def is_valid_module_string(text):
         """Check if a string is valid according to the module naming scheme.
-
         .. ------------------------------------------------------------
-
-        Returns
-        ----------
+        .. returns::
             :class:`bool` valid module name
         """
         EnforcesNaming._last_allowed_chars = ALLOWED_MOD_CHARS
@@ -196,11 +215,8 @@ class EnforcesNaming:
     @staticmethod
     def is_valid_revision_string(text):
         """Check if a string is valid according to the revision naming scheme.
-
         .. ------------------------------------------------------------
-
-        Returns
-        ----------
+        .. returns::
             :class:`bool` valid revision name
         """
         EnforcesNaming._last_allowed_chars = ALLOWED_REV_CHARS
@@ -210,21 +226,16 @@ class EnforcesNaming:
 
 
 class SnowFlake:
-    """A meta class for all classes to derive from to obtain unique IDs.
-
+    """.. description::
+    A meta class for all classes to derive from to obtain unique IDs.
     .. ------------------------------------------------------------
-
-    .. package:: models.abc.meta
-
+    .. package::
+    models.abc.meta
     .. ------------------------------------------------------------
-
-    Attributes
-    -----------
+    .. attributes::
     id: :type:`int`
         Unique identifer.
-
     """
-
     __slots__ = ('_id',)
 
     def __eq__(self, other: SnowFlake):
@@ -235,26 +246,260 @@ class SnowFlake:
     def __hash__(self):
         return hash(self._id)
 
-    def __init__(self,
-                 **kwargs):
+    def __init__(self):
         self._id = _IdGenerator.get_id()
-        super().__init__(**kwargs)
 
     def __str__(self):
         return str(self.id)
 
     @property
     def id(self) -> int:
-        """id: :type:`int`
-        Unique identifer.
-
+        """id of this object.
         .. ------------------------------------------------------------
-
-        Returns
-        -----------
-            :type:`int`: unique identifier
+        .. returns::
+            :type:`int`: Unique identifier for this object.
         """
         return self._id
+
+
+class SupportsLoading:
+    """.. description::
+    A meta class for all classes to derive from to obtain loading capabilities.
+    .. ------------------------------------------------------------
+    .. package::
+    models.abc.meta
+    .. ------------------------------------------------------------
+    .. attributes::
+    load_path: :type:`Path`
+        Path to load the object from.
+    load_data_callback: Optional[:class:`Callable`]
+        Callback to call when loading data.
+    """
+
+    __slots__ = ('_load_path', '_load_data_callback')
+
+    def __init__(self,
+                 load_path: Optional[Path] = None,
+                 load_data_callback: Optional[Callable] = None):
+        self._load_path: Optional[Path] = load_path
+        self._load_data_callback: Optional[Callable] = load_data_callback
+
+    @property
+    def load_path(self) -> Optional[Path]:
+        """Path to load the object from.
+        .. ------------------------------------------------------------
+        .. returns::
+            load_path: :type:`Path`
+        """
+        return self._load_path
+
+    @load_path.setter
+    def load_path(self, value: Optional[Path]) -> None:
+        """Set the path to load the object from.
+        .. ------------------------------------------------------------
+        .. arguments::
+        value: Optional[:class:`Path`]
+            Path to set for loading the object.
+        .. ------------------------------------------------------------
+        .. raises::
+            TypeError: If the value is not a Path or None.
+        """
+        if isinstance(value, Path) or value is None:
+            self._load_path = value
+        else:
+            raise TypeError(f'Expected Path, got {type(value)}')
+
+    @property
+    def load_data_callback(self) -> Optional[Callable]:
+        """Callback to call when loading data.
+        .. ------------------------------------------------------------
+        .. returns::
+            load_data_callback: :type:`Callable`
+        """
+        return self._load_data_callback
+
+    @load_data_callback.setter
+    def load_data_callback(self, value: Optional[Callable]) -> None:
+        """Set the callback to call when loading data.
+        .. ------------------------------------------------------------
+        .. arguments::
+        value: Optional[:class:`Callable`]
+            Callback to set for loading data.
+        .. ------------------------------------------------------------
+        .. raises::
+            TypeError: If the value is not a Callable or None.
+        """
+        if callable(value) or value is None:
+            self._load_data_callback = value
+        else:
+            raise TypeError(f'Expected Callable, got {type(value)}')
+
+    def load(self,
+             path: Optional[Path] = None) -> Any:
+        """Load the object from a file.
+        .. arguments::
+        path: Optional[:class:`Path`]
+            Path to load the object from. If not provided, uses the `load_path` attribute
+        .. ------------------------------------------------------------
+        .. raises::
+            NotImplementedError: This method and this doc-string should be implemented in subclasses.
+        """
+        raise NotImplementedError("This method should be implemented in subclasses.")
+
+
+class SupportSaving:
+    """.. description::
+    A meta class for all classes to derive from to obtain saving capabilities.
+    .. ------------------------------------------------------------
+    .. package::
+    models.abc.meta
+    .. ------------------------------------------------------------
+    .. attributes::
+    save_path: :type:`Path`
+        Path to save the object to.
+    save_data_callback: Optional[:class:`Callable`]
+        Callback to call when saving data.
+    """
+    __slots__ = ('_save_path', '_save_data_callback')
+
+    def __init__(self,
+                 save_path: Optional[Path] = None,
+                 save_data_callback: Optional[Callable] = None):
+        self._save_path: Optional[Path] = save_path
+        self._save_data_callback: Optional[Callable] = save_data_callback
+
+    @property
+    def save_path(self) -> Optional[Path]:
+        """Path to save the object to.
+        .. ------------------------------------------------------------
+        .. returns::
+            save_path: :type:`Path`
+        """
+        return self._save_path
+
+    @save_path.setter
+    def save_path(self, value: Optional[Path]) -> None:
+        """Set the path to save the object to.
+        .. ------------------------------------------------------------
+        .. arguments::
+        value: Optional[:class:`Path`]
+            Path to set for saving the object.
+        .. ------------------------------------------------------------
+        .. raises::
+            TypeError: If the value is not a Path or None.
+        """
+        if isinstance(value, Path) or value is None:
+            self._save_path = value
+        else:
+            raise TypeError(f'Expected Path, got {type(value)}')
+
+    @property
+    def save_data_callback(self) -> Optional[Callable]:
+        """Callback to call when saving data.
+        .. ------------------------------------------------------------
+        .. returns::
+            save_data_callback: :type:`Callable`
+        """
+        return self._save_data_callback
+
+    @save_data_callback.setter
+    def save_data_callback(self, value: Optional[Callable]) -> None:
+        """Set the callback to call when saving data.
+        .. ------------------------------------------------------------
+        .. arguments::
+        value: Optional[:class:`Callable`]
+            Callback to set for saving data.
+        .. ------------------------------------------------------------
+        .. raises::
+            TypeError: If the value is not a Callable or None.
+        """
+        if callable(value) or value is None:
+            self._save_data_callback = value
+        else:
+            raise TypeError(f'Expected Callable, got {type(value)}')
+
+    def save(self,
+             path: Optional[Path] = None,
+             data: Optional[Any] = None) -> None:
+        """Save the object to a file.
+        .. ------------------------------------------------------------
+        .. arguments::
+        path: Optional[:class:`Path`]
+            Path to save the object to. If not provided, uses the `save_path` attribute
+        data: Optional[Any]
+            Data to save. If not provided, uses the `save_data_callback` attribute.
+        .. ------------------------------------------------------------
+        .. raises::
+            NotImplementedError: This method and this doc-string should be implemented in subclasses.
+        """
+        raise NotImplementedError("This method should be implemented in subclasses.")
+
+
+class SupportsJsonSaving(SupportSaving):
+    """.. description::
+    A meta class for all classes to derive from to obtain JSON saving capabilities.
+    .. ------------------------------------------------------------
+    .. package::
+    models.abc.meta
+    .. ------------------------------------------------------------
+    .. attributes::
+    save_path: :type:`Path`
+        Path to save the object to.
+    save_data_callback: Optional[:class:`Callable`]
+        Callback to call when saving data. If not provided, uses the `data` attribute of the object.
+    """
+    __slots__ = ()
+
+    def save_to_json(self,
+                     path: Optional[Path] = None,
+                     data: Optional[dict] = None) -> None:
+        """Save the object to a JSON file.
+        .. ------------------------------------------------------------
+        .. arguments::
+        path: Optional[:class:`Path`]
+            Path to save the object to. If not provided, uses the `save_path` attribute
+        data: Optional[:class:`dict`]
+            Data to save. If not provided, uses the `save_data_callback` attribute.
+        .. ------------------------------------------------------------
+        .. raises::
+            ValueError: If no path or data is provided for saving JSON data.
+        """
+        if not path and not self._save_path:
+            raise ValueError("No path provided for saving JSON data.")
+        if not data and not self._save_data_callback:
+            raise ValueError("No data provided for saving JSON data.")
+        with open(path or self._save_path, 'w', encoding='utf-8') as f:
+            json.dump(data or self.save_data_callback(), f, indent=4)
+
+
+class SupportsJsonLoading(SupportsLoading):
+    """.. description::
+    A meta class for all classes to derive from to obtain JSON loading capabilities.
+    .. ------------------------------------------------------------
+    .. package:: models.abc.meta
+    .. ------------------------------------------------------------
+    .. attributes::
+    load_path: :type:`Path`
+        Path to load the object from.
+    load_data_callback: Optional[:class:`Callable`]
+        Callback to call when loading data. If not provided, uses the `data` attribute of the object.
+    """
+
+    __slots__ = ()
+
+    def load_from_json(self,
+                       path: Optional[Path] = None) -> Any:
+        """Load the object from a JSON file.
+        .. ------------------------------------------------------------
+        .. arguments::
+        path: Optional[:class:`Path`]
+            Path to load the object from. If not provided, uses the `load_path` attribute
+        .. ------------------------------------------------------------
+        .. returns::
+            :type:`Any`: Loaded data from the JSON file.
+        """
+        with open(path or self._load_path, 'r', encoding='utf-8') as f:
+            return json.load(f)
 
 
 class ConsolePanelHandler(logging.Handler):
@@ -336,7 +581,7 @@ class Loggable(SnowFlake):
     Arguments
     -----------
 
-    name: Optional[:class:`str`]
+    name: Optional[str]
         Name to assign to this handler.
 
         Otherwise, defaults to `self.__class__.__name__`.
@@ -410,7 +655,7 @@ class Loggable(SnowFlake):
         _logger = logging.getLogger(name)
         _logger.setLevel(logging.INFO)
 
-        cons = logging.StreamHandler()
+        cons = logging.streamHandler()
         cons.setLevel(logging.INFO)
 
         formatter = logging.Formatter(fmt=DEF_FORMATTER, datefmt=DEF_DATE_FMT)
@@ -453,7 +698,7 @@ class Loggable(SnowFlake):
 
         Arguments
         --------
-        msg: :class:`str`
+        msg: str
             Message to post to handler.
 
         """
@@ -470,7 +715,7 @@ class Loggable(SnowFlake):
 
         Arguments
         --------
-        msg: :class:`str`
+        msg: str
             Message to post to handler.
 
         """
@@ -491,7 +736,7 @@ class Loggable(SnowFlake):
 
         Arguments
         --------
-        msg: :class:`str`
+        msg: str
             Message to post to handler.
 
         """
