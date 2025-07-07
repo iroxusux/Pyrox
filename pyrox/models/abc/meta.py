@@ -8,6 +8,7 @@ import gc
 import inspect
 import logging
 import json
+import os
 from pathlib import Path
 import re
 from typing import Any, Callable, Optional, Union
@@ -18,26 +19,34 @@ from ttkthemes import ThemedTk
 __all__ = (
     'Buildable',
     'ConsolePanelHandler',
+    'DEF_APP_NAME',
+    'DEF_AUTHOR_NAME',
+    'DEF_DATE_FMT',
+    'DEF_FORMATTER',
+    'DEF_ICON',
+    'DEF_THEME',
+    'DEF_VIEW_TYPE',
+    'DEF_WIN_TITLE',
+    'DEF_WIN_SIZE',
     'EnforcesNaming',
     'Loggable',
     'PyroxObject',
     'Runnable',
     'SnowFlake',
+    'SupportsJsonLoading',
+    'SupportsJsonSaving',
+    'SupportsLoading',
+    'SupportSaving',
+    'TK_CURSORS',
     'View',
     'ViewType',
-    'DEF_VIEW_TYPE',
-    'DEF_THEME',
-    'DEF_WIN_TITLE',
-    'DEF_WIN_SIZE',
-    'DEF_ICON',
-    'DEF_FORMATTER',
-    'DEF_DATE_FMT',
-    'TK_CURSORS',
 )
 
 ALLOWED_CHARS = re.compile(f'[^{r'a-zA-Z0-9_'}]')
 ALLOWED_REV_CHARS = re.compile(f'[^{r'0-9.'}]')
 ALLOWED_MOD_CHARS = re.compile(f'[^{r'a-zA-Z0-9_.-'}]')
+DEF_APP_NAME = 'Pyrox Application'
+DEF_AUTHOR_NAME = 'Pyrox Author'
 DEF_VIEW_TYPE = 1
 DEF_THEME = 'black'
 DEF_WIN_TITLE = 'Pyrox Default Frame'
@@ -159,6 +168,7 @@ class EnforcesNaming:
     """
     # store the last allowed characters for reference when showing exception message
     # this keeps the user from having to manually do this, but it IS just a best guess when the exception is raised
+    __slots__ = ()
     _last_allowed_chars = ALLOWED_CHARS
 
     class InvalidNamingException(Exception):
@@ -262,27 +272,120 @@ class SnowFlake:
         return self._id
 
 
-class SupportsLoading:
+class RuntimeDict:
+    """.. description::
+    A dictionary-like class to store data.
+    This class provides a way to store key-value pairs and automatically save the data
+    whenever an item is added, updated, or deleted.
+    .. ------------------------------------------------------------
+    .. package::
+    meta.models.application
+    .. ------------------------------------------------------------
+    .. attributes::
+    callback: :type:`Callable`
+        A callback function that is called whenever the data is modified.
+    data: :type:`dict`
+        The dictionary that stores the runtime data.
+    """
+    __slots__ = ('_callback', '_data')
+
+    def __init__(self, callback: Callable):
+        if not callback or not callable(callback):
+            raise ValueError('A valid callback function must be provided to RuntimeDict.')
+        self._callback: Callable = callback
+        self._data = {}
+
+    def __getitem__(self, key):
+        return self._data[key]
+
+    def __setitem__(self, key, value):
+        self._data[key] = value
+        self._callback()
+
+    def __delitem__(self, key):
+        del self._data[key]
+        self._callback()
+
+    @property
+    def callback(self) -> Callable:
+        """Get the callback function."""
+        return self._callback
+
+    @callback.setter
+    def callback(self, value: Callable):
+        """Set the callback function."""
+        if not value or not callable(value):
+            raise ValueError('A valid callback function must be provided to RuntimeDict.')
+        self._callback = value
+
+    @property
+    def data(self) -> dict:
+        """Get the runtime data dictionary."""
+        return self._data
+
+    @data.setter
+    def data(self, value: dict):
+        """Set the runtime data dictionary."""
+        if not isinstance(value, dict):
+            raise TypeError('Runtime data must be a dictionary.')
+        self._data = value
+        self._callback()
+
+    def clear(self):
+        """Clear the runtime data dictionary."""
+        self._data.clear()
+        self._callback()
+
+    def get(self, key, default=None):
+        """Get an item from the runtime data dictionary."""
+        return self._data.get(key, default)
+
+    def update(self, *args, **kwargs):
+        """Update the runtime data dictionary with new items."""
+        self._data.update(*args, **kwargs)
+        self._callback()
+
+
+class PyroxObject(SnowFlake):
+    """.. description::
+    A base class for all Pyrox objects.
+    .. ------------------------------------------------------------
+    .. package::
+    models.abc.meta
+    """
+    __slots__ = ()
+
+    def __init__(self):
+        super().__init__()
+
+    def __repr__(self):
+        return self.__class__.__name__
+
+    def get_all_properties(self) -> dict:
+        """Get all properties of this object.
+        .. ------------------------------------------------------------
+        .. returns::
+            :type:`dict`: A dictionary of all properties of this object.
+        """
+        return {
+            name: getattr(self, name)
+            for name, _ in inspect.getmembers(type(self), lambda v: isinstance(v, property))
+        }
+
+
+class SupportsLoading(PyroxObject):
     """.. description::
     A meta class for all classes to derive from to obtain loading capabilities.
     .. ------------------------------------------------------------
     .. package::
     models.abc.meta
     .. ------------------------------------------------------------
-    .. attributes::
-    load_path: :type:`Path`
-        Path to load the object from.
-    load_data_callback: Optional[:class:`Callable`]
-        Callback to call when loading data.
     """
 
-    __slots__ = ('_load_path', '_load_data_callback')
+    __slots__ = ()
 
-    def __init__(self,
-                 load_path: Optional[Path] = None,
-                 load_data_callback: Optional[Callable] = None):
-        self._load_path: Optional[Path] = load_path
-        self._load_data_callback: Optional[Callable] = load_data_callback
+    def __init__(self):
+        super().__init__()
 
     @property
     def load_path(self) -> Optional[Path]:
@@ -291,48 +394,7 @@ class SupportsLoading:
         .. returns::
             load_path: :type:`Path`
         """
-        return self._load_path
-
-    @load_path.setter
-    def load_path(self, value: Optional[Path]) -> None:
-        """Set the path to load the object from.
-        .. ------------------------------------------------------------
-        .. arguments::
-        value: Optional[:class:`Path`]
-            Path to set for loading the object.
-        .. ------------------------------------------------------------
-        .. raises::
-            TypeError: If the value is not a Path or None.
-        """
-        if isinstance(value, Path) or value is None:
-            self._load_path = value
-        else:
-            raise TypeError(f'Expected Path, got {type(value)}')
-
-    @property
-    def load_data_callback(self) -> Optional[Callable]:
-        """Callback to call when loading data.
-        .. ------------------------------------------------------------
-        .. returns::
-            load_data_callback: :type:`Callable`
-        """
-        return self._load_data_callback
-
-    @load_data_callback.setter
-    def load_data_callback(self, value: Optional[Callable]) -> None:
-        """Set the callback to call when loading data.
-        .. ------------------------------------------------------------
-        .. arguments::
-        value: Optional[:class:`Callable`]
-            Callback to set for loading data.
-        .. ------------------------------------------------------------
-        .. raises::
-            TypeError: If the value is not a Callable or None.
-        """
-        if callable(value) or value is None:
-            self._load_data_callback = value
-        else:
-            raise TypeError(f'Expected Callable, got {type(value)}')
+        raise NotImplementedError("This property should be implemented in subclasses.")
 
     def load(self,
              path: Optional[Path] = None) -> Any:
@@ -346,8 +408,19 @@ class SupportsLoading:
         """
         raise NotImplementedError("This method should be implemented in subclasses.")
 
+    def on_loaded(self,
+                  data: Any) -> None:
+        """Method to be called after the object has been loaded.
+        This method can be overridden in subclasses to perform additional actions after loading.
+        .. ------------------------------------------------------------
+        .. arguments::
+        data: :type:`Any`
+            Data that was loaded from the file.
+        """
+        ...
 
-class SupportSaving:
+
+class SupportSaving(PyroxObject):
     """.. description::
     A meta class for all classes to derive from to obtain saving capabilities.
     .. ------------------------------------------------------------
@@ -360,13 +433,10 @@ class SupportSaving:
     save_data_callback: Optional[:class:`Callable`]
         Callback to call when saving data.
     """
-    __slots__ = ('_save_path', '_save_data_callback')
+    __slots__ = ()
 
-    def __init__(self,
-                 save_path: Optional[Path] = None,
-                 save_data_callback: Optional[Callable] = None):
-        self._save_path: Optional[Path] = save_path
-        self._save_data_callback: Optional[Callable] = save_data_callback
+    def __init__(self):
+        super().__init__()
 
     @property
     def save_path(self) -> Optional[Path]:
@@ -375,23 +445,7 @@ class SupportSaving:
         .. returns::
             save_path: :type:`Path`
         """
-        return self._save_path
-
-    @save_path.setter
-    def save_path(self, value: Optional[Path]) -> None:
-        """Set the path to save the object to.
-        .. ------------------------------------------------------------
-        .. arguments::
-        value: Optional[:class:`Path`]
-            Path to set for saving the object.
-        .. ------------------------------------------------------------
-        .. raises::
-            TypeError: If the value is not a Path or None.
-        """
-        if isinstance(value, Path) or value is None:
-            self._save_path = value
-        else:
-            raise TypeError(f'Expected Path, got {type(value)}')
+        raise NotImplementedError("This property should be implemented in subclasses.")
 
     @property
     def save_data_callback(self) -> Optional[Callable]:
@@ -400,23 +454,7 @@ class SupportSaving:
         .. returns::
             save_data_callback: :type:`Callable`
         """
-        return self._save_data_callback
-
-    @save_data_callback.setter
-    def save_data_callback(self, value: Optional[Callable]) -> None:
-        """Set the callback to call when saving data.
-        .. ------------------------------------------------------------
-        .. arguments::
-        value: Optional[:class:`Callable`]
-            Callback to set for saving data.
-        .. ------------------------------------------------------------
-        .. raises::
-            TypeError: If the value is not a Callable or None.
-        """
-        if callable(value) or value is None:
-            self._save_data_callback = value
-        else:
-            raise TypeError(f'Expected Callable, got {type(value)}')
+        raise NotImplementedError("This property should be implemented in subclasses.")
 
     def save(self,
              path: Optional[Path] = None,
@@ -464,12 +502,12 @@ class SupportsJsonSaving(SupportSaving):
         .. raises::
             ValueError: If no path or data is provided for saving JSON data.
         """
-        if not path and not self._save_path:
+        path = path or self.save_path
+        data = data or self.save_data_callback()
+        if not path:
             raise ValueError("No path provided for saving JSON data.")
-        if not data and not self._save_data_callback:
-            raise ValueError("No data provided for saving JSON data.")
-        with open(path or self._save_path, 'w', encoding='utf-8') as f:
-            json.dump(data or self.save_data_callback(), f, indent=4)
+        with open(path, 'w', encoding='utf-8') as f:
+            json.dump(data, f, indent=4)
 
 
 class SupportsJsonLoading(SupportsLoading):
@@ -478,13 +516,7 @@ class SupportsJsonLoading(SupportsLoading):
     .. ------------------------------------------------------------
     .. package:: models.abc.meta
     .. ------------------------------------------------------------
-    .. attributes::
-    load_path: :type:`Path`
-        Path to load the object from.
-    load_data_callback: Optional[:class:`Callable`]
-        Callback to call when loading data. If not provided, uses the `data` attribute of the object.
     """
-
     __slots__ = ()
 
     def load_from_json(self,
@@ -498,30 +530,28 @@ class SupportsJsonLoading(SupportsLoading):
         .. returns::
             :type:`Any`: Loaded data from the JSON file.
         """
-        with open(path or self._load_path, 'r', encoding='utf-8') as f:
-            return json.load(f)
+        path = path or self.load_path
+        if not os.path.isfile(path):
+            return None
+        with open(path, 'r', encoding='utf-8') as f:
+            self.on_loaded(json.load(f))
 
 
 class ConsolePanelHandler(logging.Handler):
-    """A handler for logging that emits messages to specified callbacks.
-
+    """.. description::
+    A handler for logging that emits messages to specified callbacks.
     .. ------------------------------------------------------------
-
-    .. package:: models.abc.meta
-
+    .. package::
+    models.abc.meta
     .. ------------------------------------------------------------
-
-    Arguments
-    -----------
-
+    .. attributes::
     callback: :class:`Callable`
         Callback to call when emitting a message
-
     """
+    __slots__ = ('_callback', '_formatter')
 
-    __slots__ = ('_callback',)
-
-    def __init__(self, callback: Callable):
+    def __init__(self,
+                 callback: Optional[Callable] = None):
         super().__init__()
         self._callback: Callable = callback
         self._formatter: logging.Formatter = logging.Formatter(fmt=DEF_FORMATTER, datefmt=DEF_DATE_FMT)
@@ -529,23 +559,17 @@ class ConsolePanelHandler(logging.Handler):
     @property
     def formatter(self) -> logging.Formatter:
         """Get the formatter for this handler.
-
         .. ------------------------------------------------------------
-
-        Returns
-        -----------
-            formatter: :class:`logging.Formatter`
+        .. returns::
+        formatter: :class:`logging.Formatter`
         """
         return self._formatter
 
     @formatter.setter
     def formatter(self, value: logging.Formatter) -> None:
         """Set the formatter for this handler.
-
         .. ------------------------------------------------------------
-
-        Arguments
-        ----------
+        .. arguments::
         value: :class:`logging.Formatter`
             Formatter to set for this handler.
         """
@@ -555,48 +579,43 @@ class ConsolePanelHandler(logging.Handler):
             raise TypeError(f'Expected logging.Formatter, got {type(value)}')
 
     def emit(self, record) -> None:
+        """ Emit a log record to the callback.
+        .. ------------------------------------------------------------
+        .. arguments::
+        record: :class:`logging.LogRecord`
+            The log record to emit.
+        """
         if self._callback:
             self._callback(self.format(record))
 
     def set_callback(self, callback: Callable) -> None:
         """Set the callback for this handler's emit method
-
-        Arguments
-        ----------
+        .. ------------------------------------------------------------
+        .. arguments::
         callback: :def:`callable`
             Callback to set for this class's `emit` method.
         """
         self._callback = callback
 
 
-class Loggable(SnowFlake):
-    """A loggable entity, using the `logging.Loggable` class.
-
+class Loggable(PyroxObject):
+    """.. description::
+    A loggable entity, using the `logging.Loggable` class.
     .. ------------------------------------------------------------
-
-    .. package:: models.abc.meta
-
+    .. package::
+    models.abc.meta
     .. ------------------------------------------------------------
-
-    Arguments
-    -----------
-
+    .. arguments::
     name: Optional[str]
-        Name to assign to this handler.
-
-        Otherwise, defaults to `self.__class__.__name__`.
-
-    Attributes
-    -----------
+        Name to assign to this handler. Otherwise, defaults to `self.__class__.__name__`.
+    add_to_globals: bool
+        Whether to add this loggable's handler to the global handlers list.
+    .. ------------------------------------------------------------
+    .. attributes::
     logger: :class:`logging.Logger`
         `Logger` for this loggable object.
-
     log_handler: :class:`logging.Handler`
         User 'Handler' for this loggable object.
-
-        Meant for user to modify with their own callbacks, for easy log displaying.
-
-
     """
 
     global_handlers: list[logging.Handler] = []
@@ -606,11 +625,10 @@ class Loggable(SnowFlake):
 
     def __init__(self,
                  name: Optional[str] = None,
-                 add_to_globals: bool = False,
-                 **kwargs):
-        super().__init__(**kwargs)
-        self._logger: logging.Logger = self._get(name=name if name else self.__class__.__name__)
-        self._log_handler: ConsolePanelHandler = ConsolePanelHandler(None)
+                 add_to_globals: bool = False):
+        super().__init__()
+        self._logger: logging.Logger = self._get(name=name or self.__class__.__name__)
+        self._log_handler: ConsolePanelHandler = ConsolePanelHandler()
 
         # check in case we got a hashed logger with the handler already attached (somehow?)
         if self._log_handler not in self._logger.handlers:
@@ -622,13 +640,9 @@ class Loggable(SnowFlake):
     @property
     def log_handler(self) -> ConsolePanelHandler:
         """User 'Handler' for this loggable object.
-
         Meant for user to modify with their own callbacks, for easy log displaying.
-
         .. -------------------------------------------------------------------------
-
-        Returns
-        ----------
+        .. returns::
         log_handler: :class:`logging.Handler`
         """
         return self._log_handler
@@ -636,11 +650,8 @@ class Loggable(SnowFlake):
     @property
     def logger(self) -> logging.Logger:
         """`Logger` for this loggable object.
-
         .. ------------------------------------------------------------
-
-        Returns
-        --------
+        .. returns::
             logger: :class:`logging.Logger`
         """
         return self._logger
@@ -655,7 +666,7 @@ class Loggable(SnowFlake):
         _logger = logging.getLogger(name)
         _logger.setLevel(logging.INFO)
 
-        cons = logging.streamHandler()
+        cons = logging.StreamHandler()
         cons.setLevel(logging.INFO)
 
         formatter = logging.Formatter(fmt=DEF_FORMATTER, datefmt=DEF_DATE_FMT)
@@ -672,130 +683,31 @@ class Loggable(SnowFlake):
 
         return _logger
 
-    def add_handler(self,
-                    handler: logging.Handler):
-        """Add a log :class:`logging.Handler` to this logger object.
-
-        .. ------------------------------------------------------------
-
-        Arguments
-        --------
-        handler: :class:`logging.Handler`
-            Handler to add to this logging object.
-
-        """
-        if handler not in self._logger.handlers:
-            self._logger.addHandler(handler)
-
-        # re-assign the hashed local list of loggers
-        Loggable._curr_loggers[self._logger.name] = self._logger
-
-    def error(self,
-              msg: str):
-        """Send `error` message to logger handler.
-
-        .. ------------------------------------------------------------
-
-        Arguments
-        --------
-        msg: str
-            Message to post to handler.
-
-        """
-        try:
-            self._logger.error(msg)
-        except TclError:
-            pass
-
-    def info(self,
-             msg: str):
-        """Send `info` message to logger handler.
-
-        .. ------------------------------------------------------------
-
-        Arguments
-        --------
-        msg: str
-            Message to post to handler.
-
-        """
-        self._logger.info(msg)
-
     @staticmethod
     def set_logging_level(log_level: int = logging.INFO):
+        """Set the logging level for all current loggers.
+        .. ------------------------------------------------------------
+        .. arguments::
+        log_level: :type:`int`
+            The logging level to set for all current loggers. Defaults to `logging.INFO`.
+        """
         for logger in Loggable._curr_loggers.values():
             logger.setLevel(log_level)
             for handler in logger.handlers:
                 handler.setLevel(log_level)
 
-    def warning(self,
-                msg: str):
-        """Send `warning` message to logger handler.
 
-        .. ------------------------------------------------------------
-
-        Arguments
-        --------
-        msg: str
-            Message to post to handler.
-
-        """
-        self._logger.warning(msg)
-
-
-class PyroxObject(Loggable):
-    """A base class for all Pyrox objects.
-
+class Buildable(Loggable):
+    """.. description::
+    Denotes object is 'buildable' and supports `build` and `refresh` methods.
     .. ------------------------------------------------------------
-
-    .. package:: models.abc.meta
-
+    .. package::
+    models.abc.meta
     .. ------------------------------------------------------------
-
-    Attributes
-    -----------
-    logger: :class:`logging.Logger`
-        Logger for this object.
-    """
-
-    __slots__ = ()
-
-    def __init__(self,
-                 **kwargs):
-        super().__init__(**kwargs)
-
-    def get_all_properties(self) -> dict:
-        """Get all properties of this object.
-
-        .. ------------------------------------------------------------
-
-        Returns
-        -----------
-            :type:`dict`: A dictionary of all properties of this object.
-        """
-        return {
-            name: getattr(self, name)
-            for name, _ in inspect.getmembers(type(self), lambda v: isinstance(v, property))
-        }
-
-
-class Buildable(PyroxObject):
-    """Denotes object is 'buildable' and supports `build` and `refresh` methods.
-
-    Also, supports `built` property.
-
-    .. ------------------------------------------------------------
-
-    .. package:: models.abc.meta
-
-    .. ------------------------------------------------------------
-
-    Attributes
-    -----------
+    .. attributes::
     built: :type:`bool`
         The object has previously been built.
     """
-
     __slots__ = ('_built',)
 
     def __init__(self,
@@ -806,42 +718,33 @@ class Buildable(PyroxObject):
     @property
     def built(self) -> bool:
         """The object has previously been built.
-
-        Returns
-        -----------
+        .. ------------------------------------------------------------
+        .. returns::
             built: :type:`bool`
         """
         return self._built
 
-    def build(self,
-              **_):
+    def build(self) -> None:
         """Build this object
         """
         self._built = True
 
-    def refresh_gui(self,
-                    **_):
+    def refresh(self) -> None:
         """Refresh this object.
         """
 
 
 class Runnable(Buildable):
-    """Denotes object is 'runnable' and supports `run` method.
-
-    Also, supports `running` property.
-
+    """.. description::
+    Denotes object is 'runnable' and supports `run` method.
     .. ------------------------------------------------------------
-
-    .. package:: models.abc.meta
-
+    .. package::
+    models.abc.meta
     .. ------------------------------------------------------------
-
-    Attributes
-    -----------
+    .. attributes::
     running: :type:`bool`
         The object is currently in a `running` state.
     """
-
     __slots__ = ('_running', )
 
     def __init__(self,
@@ -852,9 +755,8 @@ class Runnable(Buildable):
     @property
     def running(self) -> bool:
         """The object is currently in a `running` state.
-
-        Returns
-        ----------
+        .. ------------------------------------------------------------
+        .. returns::
             running: :type:`bool`
         """
         return self._running

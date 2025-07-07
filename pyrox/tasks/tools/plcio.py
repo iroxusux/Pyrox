@@ -193,10 +193,10 @@ class PlcIoTask(AppTask):
 
         if self._tags:
             self.logger.info('Launching watch table with %d tags from "read tags"', len(self._tags))
-            tags = self._tag_list_as_dict()
+            tags = self._tag_list_as_names()
         else:
             self.logger.info('Launching watch table with %d tags from "get controller tags"', len(self.application.controller.tags))
-            tags = self.application.controller.tags.as_list_names() if self.application.controller else {}
+            tags = self.application.controller.tags.as_list_names() if self.application.controller else []
 
         self._watch_table_frame = WatchTableTaskFrame(self.application.workspace,
                                                       all_symbols=tags)
@@ -244,6 +244,11 @@ class PlcIoTask(AppTask):
             tag_dict[tag.TagName]['@Name'] = tag.TagName  # add @Name for compatibility with tree view
 
         return tag_dict
+
+    def _tag_list_as_names(self) -> list[str]:
+        """Returns a list of tag names from the PLC tags.
+        """
+        return [tag.TagName for tag in self._tags]
 
     @property
     def connected(self) -> bool:

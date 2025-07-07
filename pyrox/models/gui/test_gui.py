@@ -27,8 +27,7 @@ class TestPyroxOGuibject(unittest.TestCase):
         obj = PyroxGuiObject(PyroxObject())
         attrs = obj.public_attributes()
         self.assertIn('id', attrs)
-        self.assertIn('logger', attrs)
-        self.assertNotIn('_logger', attrs)  # Private attribute should not be included
+        self.assertNotIn('_id', attrs)  # Private attribute should not be included
 
 
 class TestTypes(unittest.TestCase):

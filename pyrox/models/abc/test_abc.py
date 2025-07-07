@@ -44,6 +44,8 @@ from .viewmodel import (
 
 
 from .meta import (
+    DEF_APP_NAME,
+    DEF_AUTHOR_NAME,
     DEF_ICON,
     DEF_THEME,
     DEF_WIN_SIZE,
@@ -116,24 +118,6 @@ class TestLoggable(unittest.TestCase):
         self.assertIsInstance(loggable.logger, logging.Logger)
         self.assertIsInstance(loggable.log_handler, ConsolePanelHandler)
 
-    def test_add_handler(self):
-        loggable = Loggable()
-        handler = logging.StreamHandler()
-        loggable.add_handler(handler)
-        self.assertIn(handler, loggable.logger.handlers)
-
-    def test_logging_methods(self):
-        messages = []
-        handler = ConsolePanelHandler(callback=messages.append)
-        loggable = Loggable()
-        loggable.add_handler(handler)
-        loggable.info('Info message')
-        loggable.warning('Warning message')
-        loggable.error('Error message')
-        self.assertIn('Info message', messages[0])
-        self.assertIn('Warning message', messages[1])
-        self.assertIn('Error message', messages[2])
-
 
 class TestBuildable(unittest.TestCase):
     def test_initial_built_state(self):
@@ -147,7 +131,7 @@ class TestBuildable(unittest.TestCase):
 
     def test_refresh_method(self):
         buildable = Buildable()
-        buildable.refresh_gui()
+        buildable.refresh()
         self.assertFalse(buildable.built)  # Refresh should not change the built state
 
 
@@ -231,6 +215,8 @@ class TestApplicationConfiguration(unittest.TestCase):
 
     def test_common_assembly(self):
         config = ApplicationConfiguration._common_assembly(application=Tk(),
+                                                           application_name=DEF_APP_NAME,
+                                                           author_name=DEF_AUTHOR_NAME,
                                                            headless=False,
                                                            tasks=[],
                                                            title=DEF_WIN_TITLE,

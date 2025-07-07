@@ -6,63 +6,63 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 import datetime
 import gc
-import json
 import os
+import platformdirs
+from pyrox.services import file
 from tkinter import Frame, TclError
-from typing import Optional, Self, Union
-
-
 from tkinter import (
     Event,
     Menu,
     Tk,
     Toplevel,
 )
-
-
 from ttkthemes import ThemedTk
+from typing import Any, Callable, Optional, Self, Union
 
-
+from .list import HashList
 from .meta import (
     Buildable,
     Runnable,
+    RuntimeDict,
+    SupportsJsonLoading,
+    SupportsJsonSaving,
     ViewType,
+    DEF_APP_NAME,
+    DEF_AUTHOR_NAME,
     DEF_WIN_SIZE,
     DEF_WIN_TITLE,
     DEF_THEME,
     DEF_ICON,
 )
 
-from .list import HashList
-
 
 __all__ = (
     'BaseMenu',
     'ApplicationTask',
     'ApplicationConfiguration',
+    'ApplicationDirectoryService',
+    'ApplicationRuntimeInfo',
     'Application',
 )
 
 
 class BaseMenu(Buildable):
-    """Base menu for use in a ui :class:`Application`.
-
+    """.. description::
+    Base menu for use in a ui :class:`Application`.
     .. ------------------------------------------------------------
-
-    .. package:: models.abc.application
-
+    .. package::
+    models.abc.application
     .. ------------------------------------------------------------
-
-    Attributes
-    -----------
+    .. arguments::
+    root: Union[:class:`Tk`, :class:`Toplevel`]
+        The root tk object this menu belongs to.
+    .. ------------------------------------------------------------
+    .. attributes::
     menu: :type:`Tk.Menu`
         The Tk value member for this :class:`BaseMenu`.
-
     root: Union[:class:`Tk`, :class:`TopLevel`]
         The parent root item of this menu.
-
     """
-
     __slots__ = ('_root', '_menu')
 
     def __init__(self,
@@ -74,64 +74,46 @@ class BaseMenu(Buildable):
     @property
     def menu(self) -> Menu:
         """The Tk value member for this :class:`BaseMenu`.
-
         .. ------------------------------------------------------------
-
-        Returns
-        -----------
-            menu: :type:`Tk.Menu`
+        .. returns::
+        menu: :type:`Tk.Menu`    
         """
         return self._menu
 
     @property
     def root(self) -> Union[Tk, Toplevel]:
         """The parent root item of this :class:`BaseMenu`.
-
         .. ------------------------------------------------------------
-
-        Returns
-        -----------
-            root: Union[:class:`Tk`, :class:`TopLevel`]
+        .. returns::
+        root: Union[:class:`Tk`, :class:`TopLevel`]
         """
         return self._root
 
 
 class MainApplicationMenu(BaseMenu):
-    """Application `Main` Menu.
-
+    """.. description::
+    Application `Main` Menu.
     Inherited from :class:`BaseMenu`, this parent class acts as the main menu for a root application
-
     .. ------------------------------------------------------------
-
-    .. package:: models.abc.application
-
+    .. package::
+    models.abc.application
     .. ------------------------------------------------------------
-
-    Arguments
-    -----------
+    .. arguments::
     root: Union[:class:`Tk`, :class:`Toplevel`]
         The root tk object this menu belongs to.
-
     .. ------------------------------------------------------------
-
-    Attributes
-    -----------
+    .. attributes::
     edit: :class:`Menu`
         The Edit :class:`Menu` for this :class:`MainApplicationMenu`.
-
     file: :class:`Menu`
         The File :class:`Menu` for this :class:`MainApplicationMenu`
-
     help: :class:`Menu`
         The Help :class:`Menu` for this :class:`MainApplicationMenu`
-
     tools: :class:`Menu`
         The Tools :class:`Menu` for this :class:`MainApplicationMenu`
-
     view: :class:`Menu`
         The View :class:`Menu` for this :class:`MainApplicationMenu`
     """
-
     __slots__ = ('_file', '_edit', '_tools', '_view', '_help',)
 
     def __init__(self,
@@ -153,81 +135,60 @@ class MainApplicationMenu(BaseMenu):
 
     @property
     def edit(self) -> Menu:
-        """
-        The Edit :class:`Menu` for this :class:`MainApplicationMenu`.
-
+        """The Edit :class:`Menu` for this :class:`MainApplicationMenu`.
         .. ------------------------------------------------------------
-
-        Returns
-        -----------
-            edit: :class:`Menu`
+        .. returns::
+        edit: :class:`Menu`
         """
         return self._edit
 
     @property
     def file(self) -> Menu:
-        """
-        The File :class:`Menu` for this :class:`MainApplicationMenu`.
-
+        """The File :class:`Menu` for this :class:`MainApplicationMenu`.
         .. ------------------------------------------------------------
-
-        Returns
-        -----------
-            file: :class:`Menu`
+        .. returns::
+        file: :class:`Menu`
         """
         return self._file
 
     @property
     def help(self) -> Menu:
-        """
-        The Help :class:`Menu` for this :class:`MainApplicationMenu`.
-
+        """The Help :class:`Menu` for this :class:`MainApplicationMenu`.
         .. ------------------------------------------------------------
-
-        Returns
-        -----------
-            help: :class:`Menu`
+        .. returns::
+        help: :class:`Menu`
         """
         return self._help
 
     @property
     def tools(self) -> Menu:
-        """
-        The Tools :class:`Menu` for this :class:`MainApplicationMenu`.
-
+        """The Tools :class:`Menu` for this :class:`MainApplicationMenu`.
         .. ------------------------------------------------------------
-
-        Returns
-        -----------
-            tools: :class:`Menu`
+        .. returns::
+        tools: :class:`Menu`
         """
         return self._tools
 
     @property
     def view(self) -> Menu:
-        """
-        The View :class:`Menu` for this :class:`MainApplicationMenu`.
-
+        """The View :class:`Menu` for this :class:`MainApplicationMenu`.
         .. ------------------------------------------------------------
-
-        Returns
-        -----------
-            view: :class:`Menu`
+        .. returns::
+        view: :class:`Menu`
         """
         return self._view
 
     @staticmethod
     def get_menu_commands(menu: Menu) -> dict:
         """Get all menu commands for a specified tk :class:`Menu`.
-
         .. ------------------------------------------------------------
-
-        Arguments
-        -----------
-
+        .. arguments::
         menu: :class:`Menu`
             Menu to get all commands for.
-
+        .. ------------------------------------------------------------
+        .. returns::
+        :class:`dict`
+            Dictionary of menu commands, where the key is the label and the value is the command.
         """
         cmds = {}
         try:
@@ -243,29 +204,23 @@ class MainApplicationMenu(BaseMenu):
 
 
 class ApplicationTask(Runnable):
-    """model task for injecting functionality into an existing model.
-
+    """.. description::
+    Application task to add additional functionality to the application.
+    Normally, these tasks are injected into the application's main menu toolbar.
     .. ------------------------------------------------------------
-
-    .. package:: models.abc.application
-
+    .. package::
+    models.abc.application
     .. ------------------------------------------------------------
-
-    Attributes
-    -----------
+    .. attributes::
     application: :class:`PartialApplication`
         The parent application of this task.
     """
-
     __slots__ = ('_application')
 
     def __init__(self,
                  application: 'Application'):
         super().__init__()
         self._application: 'Application' = application
-
-    def __repr__(self):
-        return self.__class__.__name__
 
     @property
     def application(self) -> 'Application':
@@ -290,51 +245,41 @@ class ApplicationTask(Runnable):
         """
         raise NotImplementedError('This method should be overridden in a subclass.')
 
-    def start(self) -> None:
-        """Run this task
-        """
-        raise NotImplementedError('This method should be overridden in a subclass.')
-
 
 @dataclass
 class ApplicationConfiguration:
-    """application configuration
-
+    """.. description::
+    Application configuration
     .. ------------------------------------------------------------
-
-    .. package:: models.abc.application
-
+    .. package::
+    models.abc.application
     .. ------------------------------------------------------------
-
-    Attributes
-    --------
-
+    .. attributes::
     headless: :type:`bool`
         If True, the application will not create a main window.
-
+    application_name: :type:`str`
+        The name of the application, used for directory naming and logging.
+    author_name: :type:`str`
+        The name of the author, used for directory naming and logging.
     title: :type:`str`
         The title of the application window.
-
     theme: :type:`str`
         The theme to use for the application window.
-
     type_: :class:`ViewType`
         The type of the application view, which can be one of the predefined view types.
-
     icon: :type:`str`
         The icon to use for the application window.
-
     size_: :type:`str`
         The size of the application window, specified as a string (e.g., "800x600").
-
     tasks: :type:`list[PartialApplicationTask]`
         A list of tasks to be executed by the application.
-
     application: :class:`Union[Tk, ThemedTk, None]`
         The tkinter application instance for this configuration. It can be a `Tk`, `ThemedTk`, or `Toplevel` instance.
-
     """
+    __slots__ = ()
     headless: bool = False
+    application_name: Optional[str] = DEF_APP_NAME
+    author_name: Optional[str] = DEF_AUTHOR_NAME
     title: Optional[str] = DEF_WIN_TITLE
     theme: Optional[str] = DEF_THEME
     type_: ViewType = ViewType.ROOT
@@ -346,6 +291,8 @@ class ApplicationConfiguration:
     @classmethod
     def _common_assembly(cls,
                          headless: bool,
+                         application_name: str,
+                         author_name: str,
                          title: str,
                          theme: str,
                          type_: ViewType,
@@ -355,6 +302,8 @@ class ApplicationConfiguration:
                          application: Union[Tk, ThemedTk, None]) -> Self:
         return cls(
             headless=headless,
+            application_name=application_name,
+            author_name=author_name,
             title=title,
             theme=theme,
             type_=type_,
@@ -366,18 +315,13 @@ class ApplicationConfiguration:
 
     @classmethod
     def toplevel(cls) -> Self:
-        """get a generic version of an application configuration
-
-        for a toplevel application
-
+        """get a generic version of a toplevel application configuration
         .. ------------------------------------------------------------
-
-        Returns
-        --------
-        ::
-
+        .. returns::
             ApplicationConfiguration._common_assembly(
                 headless=False,
+                application_name=DEF_APP_NAME,
+                author_name=DEF_AUTHOR_NAME,
                 title=DEF_WIN_TITLE,
                 theme=DEF_THEME,
                 type_=ViewType.TOPLEVEL,
@@ -387,6 +331,8 @@ class ApplicationConfiguration:
                 application=Toplevel)
         """
         return ApplicationConfiguration._common_assembly(headless=False,
+                                                         application_name=DEF_APP_NAME,
+                                                         author_name=DEF_AUTHOR_NAME,
                                                          title=DEF_WIN_TITLE,
                                                          theme=DEF_THEME,
                                                          type_=ViewType.TOPLEVEL,
@@ -397,18 +343,13 @@ class ApplicationConfiguration:
 
     @classmethod
     def root(cls) -> Self:
-        """get a generic version of an application configuration
-
-        for a root application
-
+        """get a generic version of a root application configuration.
         .. ------------------------------------------------------------
-
-        Returns
-        --------
-        ::
-
+        .. returns::
             ApplicationConfiguration._common_assembly(
                 headless=False,
+                application_name=DEF_APP_NAME,
+                author_name=DEF_AUTHOR_NAME,
                 title=DEF_WIN_TITLE,
                 theme=DEF_THEME,
                 type_=ViewType.ROOT,
@@ -419,6 +360,8 @@ class ApplicationConfiguration:
         """
         return ApplicationConfiguration._common_assembly(headless=False,
                                                          title=DEF_WIN_TITLE,
+                                                         application_name=DEF_APP_NAME,
+                                                         author_name=DEF_AUTHOR_NAME,
                                                          theme=DEF_THEME,
                                                          type_=ViewType.ROOT,
                                                          icon=DEF_ICON,
@@ -427,171 +370,380 @@ class ApplicationConfiguration:
                                                          application=ThemedTk)
 
 
-class ApplicationRuntimeInfo:
-    """Application Runtime Information.
-
-    This class is used to store and manage runtime information for the application.
+class ApplicationDirectoryService:
+    """.. description::
+    Application Directory Service
+    Manage Application Directories with this service class
+    .. ------------------------------------------------------------
+    .. package::
+    meta.models.application
+    .. ------------------------------------------------------------
+    .. attributes::
+    app_name: :type:`str`
+        The name of the application, used for directory naming and logging.
+    author_name: :type:`str`
+        The name of the author, used for directory naming and logging.
+    user_cache: :type:`str`
+        The path to the user cache directory for the application.
+    user_config: :type:`str`
+        The path to the user config directory for the application.
+    user_data: :type:`str`
+        The path to the user data directory for the application.
+    user_documents: :type:`str`
+        The path to the user documents directory for the application.
+    user_downloads: :type:`str`
+        The path to the user downloads directory for the application.
+    user_log: :type:`str`
+        The path to the user log directory for the application.
+    user_log_file: :type:`str`
+        The path to the application's log file.
     """
+    __slots__ = ('_app_name', '_author_name')
 
-    class RuntimeDict:
-        """A dictionary-like class to store runtime data for the application.
-        This class provides a way to store key-value pairs and automatically save the data
-        to the application's runtime info file whenever an item is added, updated, or deleted."""
+    def __init__(self,
+                 author_name: str,
+                 app_name: str):
+        if not author_name or author_name == '':
+            raise ValueError('A valid, non-null author name must be supplied for this class!')
 
-        def __init__(self, parent: ApplicationRuntimeInfo):
-            self._parent: ApplicationRuntimeInfo = parent
-            self._data = {}
+        if not app_name or app_name == '':
+            raise ValueError('A valid, non-null application name must be supplied for this class!')
 
-        def __getitem__(self, key):
-            return self._data[key]
+        self._app_name = app_name
+        self._author_name = author_name
+        self.build_directory()
 
-        def __setitem__(self, key, value):
-            self._data[key] = value
-            self._parent.save()
+    @property
+    def all_directories(self) -> dict:
+        """All directories for this service class.
+        .. ------------------------------------------------
+        .. returns::
+        :class:`dict`
+            Dictionary of all directories for this service class.
+        """
+        return {
+            'user_cache': self.user_cache,
+            'user_config': self.user_config,
+            'user_data': self.user_data,
+            'user_documents': self.user_documents,
+            'user_downloads': self.user_downloads,
+            'user_log': self.user_log
+        }
 
-        def __delitem__(self, key):
-            del self._data[key]
-            self._parent.save()
+    @property
+    def app_name(self) -> str:
+        """Application Name supplied to this service class.
+        .. ------------------------------------------------
+        .. returns::
+        :class:`str`
+            The name of the application, used for directory naming and logging.
+        """
+        return self._app_name
 
-        @property
-        def data(self) -> dict:
-            """Get the runtime data dictionary."""
-            return self._data
+    @property
+    def app_runtime_info_file(self) -> str:
+        """Application runtime info file.
+        This is the file where the application will store runtime information.
+        .. ---------------------------------------------------------------------------
+        .. returns::
+        :class:`str`
+            The path to the application's runtime info file.
+        """
+        return os.path.join(self.user_data, f'{self._app_name}_runtime_info.json')
 
-        def get(self, key, default=None):
-            """Get an item from the runtime data dictionary."""
-            return self._data.get(key, default)
+    @property
+    def author_name(self) -> str:
+        """Author Name supplied to this service class.
+        .. ------------------------------------------------
+        .. returns::
+        :class:`str`
+            The name of the author, used for directory naming and logging.
+        """
+        return self._author_name
 
-        def update(self, *args, **kwargs):
-            """Update the runtime data dictionary with new items."""
-            self._data.update(*args, **kwargs)
-            self._parent.save()
+    @property
+    def user_cache(self):
+        """User cache directory.
+        .. ---------------------------------------------------------------------------
+        .. returns::
+        :class:`str`
+            The path to the user cache directory for the application.
+        """
+        return platformdirs.user_cache_dir(self._app_name, self._author_name, ensure_exists=True)
 
-    def __init__(self, app: Application):
-        self._app: Application = app
-        self._data = self.RuntimeDict(self)
-        self.load()
+    @property
+    def user_config(self):
+        """User config directory.
+        .. ---------------------------------------------------------------------------
+        .. returns::
+        :class:`str`
+            The path to the user config directory for the application.
+        """
+        return platformdirs.user_config_dir(self._app_name, self._author_name, ensure_exists=True)
+
+    @property
+    def user_data(self):
+        """User data directory.
+        Example >>> 'C:/Users/JohnSmith/AppData/Local/JSmithEnterprises/MyApplication'
+        .. ---------------------------------------------------------------------------
+        .. returns::
+        :class:`str`
+            The path to the user data directory for the application.
+        """
+        return platformdirs.user_data_dir(self._app_name, self._author_name, ensure_exists=True)
+
+    @property
+    def user_documents(self):
+        """User documents directory.
+        .. ---------------------------------------------------------------------------
+        .. returns::
+        :class:`str`
+            The path to the user documents directory for the application.
+        """
+        return platformdirs.user_documents_dir()
+
+    @property
+    def user_downloads(self):
+        """User downloads directory.
+        .. ---------------------------------------------------------------------------
+        .. returns::
+        :class:`str`
+            The path to the user downloads directory for the application.
+        """
+        return platformdirs.user_downloads_dir()
+
+    @property
+    def user_log(self):
+        """User log directory.
+        .. ---------------------------------------------------------------------------
+        .. returns::
+        :class:`str`
+            The path to the user log directory for the application.
+        """
+        return platformdirs.user_log_dir(self._app_name, self._author_name)
+
+    @property
+    def user_log_file(self) -> str:
+        """User log file.
+        This is the file where the application will log messages.
+        .. ---------------------------------------------------------------------------
+        .. returns::
+        :class:`str`
+            The path to the application's log file.
+        """
+        return os.path.join(self.user_log, f'{self._app_name}.log')
+
+    def build_directory(self,
+                        as_refresh: bool = False):
+        """Build the directory for the parent application.
+        Uses the supplied name for directory naming.
+        .. ------------------------------------------------------------
+        .. arguments::
+        as_refresh: :type:`bool`
+            If True, the directories will be refreshed, removing all files in them.
+        """
+        for dir in self.all_directories.values():
+            if not os.path.isdir(dir):
+                os.makedirs(dir, exist_ok=True)
+            else:
+                if as_refresh:
+                    file.remove_all_files(dir)
+
+
+class ApplicationRuntimeInfo(SupportsJsonSaving, SupportsJsonLoading):
+    """.. description::
+    Application Runtime Information.
+    This class is used to store and manage runtime information for the application.
+    .. ------------------------------------------------------------
+    .. package::
+    meta.models.application
+    .. ------------------------------------------------------------
+    .. attributes::
+    application: :class:`Application`
+        The application instance associated with this runtime info.
+    data: :class:`RuntimeDict`
+        The runtime information data, stored as a `RuntimeDict`.
+    load_path: :class:`str`
+        The path to the runtime info file.
+    save_path: :class:`str`
+        The path to the runtime info file.
+    save_data_callback: :class:`Callable[[], dict]`
+        Callback function to get the data to be saved.
+    """
+    __slots__ = ('_application', '_data')
+
+    def __init__(self, application: Application):
+        self._application: Application = application
+        self._data = RuntimeDict(self.save_to_json)
+        self.load_from_json()
         self._data['last_start_time'] = datetime.datetime.now().isoformat()
 
     @property
-    def data(self) -> dict:
+    def application(self) -> Application:
+        """The application instance associated with this runtime info.
+        .. ------------------------------------------------------------
+        .. returns::
+            app: :class:`Application`
+        """
+        return self._application
+
+    @property
+    def application_runtime_info_file(self) -> str:
+        """Application runtime info file.
+        This is the file where the application will store runtime information.
+        .. ---------------------------------------------------------------------------
+        .. returns::
+        :class:`str`
+            The path to the application's runtime info file.
+        """
+        return os.path.join(self.application.directory_service.user_data, f'{self.application.directory_service.app_name}_runtime_info.json')
+
+    @property
+    def data(self) -> RuntimeDict:
         return self._data
 
     @data.setter
     def data(self, value: dict):
         if not isinstance(value, dict):
-            raise TypeError('Runtime information data must be a dictionary.')
-        self._data = self.RuntimeDict(self)
+            raise TypeError('Runtime information data must be a RuntimeDict.')
+        self._data.clear()
         self._data.update(value)
-        self.save()
+        self.save_to_json()
 
-    def load(self):
-        """Load runtime information from the application's runtime info file."""
-        if os.path.isfile(self._app.app_runtime_info_file):
-            try:
-                with open(self._app.app_runtime_info_file, 'r', encoding='utf-8') as f:
-                    self.data = json.load(f)
-            except json.JSONDecodeError as e:
-                self._app.logger.error(f'Error loading runtime info file: {e}')
-                self._data = self.RuntimeDict(self)
-        else:
-            self._app.logger.warning('Runtime info file does not exist, creating a new one.')
-            self._data = self.RuntimeDict(self)
+    @property
+    def load_path(self) -> str:
+        """The path to the runtime info file.
+        This is used for loading the runtime information from a JSON file.
+        .. ---------------------------------------------------------------------------
+        .. returns::
+        :class:`str`
+            The path to the runtime info file.
+        """
+        return self.application_runtime_info_file
 
-    def save(self):
-        """Save runtime information to the application's runtime info file."""
-        with open(self._app.app_runtime_info_file, 'w', encoding='utf-8') as f:
-            json.dump(self.data.data, f, indent=4)
+    @property
+    def save_path(self) -> str:
+        """The path to the runtime info file.
+        This is used for saving the runtime information to a JSON file.
+        .. ---------------------------------------------------------------------------
+        .. returns::
+        :class:`str`
+            The path to the runtime info file.
+        """
+        return self.application_runtime_info_file
+
+    @property
+    def save_data_callback(self) -> Callable[[], dict]:
+        """Callback function to get the data to be saved.
+        This function is called when saving the runtime information to a JSON file.
+        .. ---------------------------------------------------------------------------
+        .. returns::
+        :class:`Callable[[], dict]`
+            A callable that returns the data to be saved.
+        """
+        return lambda: self.data.data
+
+    def on_loaded(self,
+                  data: Any) -> None:
+        if data is None:
+            self.application.logger.warning('No data loaded from the runtime info file, initializing with empty RuntimeDict.')
+            self._data = RuntimeDict(self.save_to_json)
+
+        if not isinstance(data, dict):
+            raise TypeError('Loaded data must be a RuntimeDict.')
+        self.data = data
 
 
 class Application(Runnable):
-    """A :class:`PartialApplication` to contain the tk GUI instance, as well as reference to child views.
-
+    """.. description::
+    A :class:`Application` to manage running application data and services.
     .. ------------------------------------------------------------
-
-    .. package:: models.abc.application
-
+    .. package::
+    models.abc.application
     .. ------------------------------------------------------------
-
-
-    Attributes
-    --------
-    tk_app :class:`Union[Tk, ThemedTk, None]`
-        tkinter application instance for this :class:`Application`.
-
-    config :class:`PartialApplicationConfiguration`
-        Configuration for this :class:`Application`.
-
-    frame :class:`Frame`
-        The frame for this :class:`Application`.
-
-    menu :class:`MainApplicationMenu`
-        Main Tk :class:`Menu` for this :class:`Application`.
-
-    tasks :class:`HashList` [:class:`ApplicationTask`]
-        Hashed list of tasks for this :class:`Application`.
-
+    .. attributes::
+    config: :class:`ApplicationConfiguration`
+        The configuration for this :class:`Application`.
+    directory_service: :class:`ApplicationDirectoryService`
+        The directory service for this :class:`Application`.
+    frame: :class:`Frame`
+        The main frame for this :class:`Application`.
+    menu: :class:`MainApplicationMenu`
+        The main Tk :class:`Menu` for this :class:`Application`.
+    runtime_info: :class:`ApplicationRuntimeInfo`
+        The runtime information for this :class:`Application`.
+    tasks: :class:`HashList` [:class:`ApplicationTask`]
+        A hashed list of tasks for this :class:`Application`.
+    tk_app: Union[:class:`Tk`, :class:`ThemedTk`]
+        The tk application instance for this :class:`Application`.
+    .. ------------------------------------------------------------
+    .. arguments::
+    config: :class:`ApplicationConfiguration`
+        The configuration for this :class:`Application`.
+        If not provided, a default configuration will be created using :meth:`ApplicationConfiguration.root`.
     """
 
-    __slots__ = ('_config', '_frame', '_menu', '_tasks', '_tk_app')
+    __slots__ = ('_config', '_directory_service', '_frame', '_menu', '_runtime_info', '_tasks', '_tk_app')
 
     def __init__(self,
-                 config: ApplicationConfiguration,
-                 **kwargs) -> None:
+                 config: ApplicationConfiguration) -> None:
 
-        super().__init__(add_to_globals=True,
-                         **kwargs)
+        super().__init__(add_to_globals=True)
         self._config: ApplicationConfiguration = config or ApplicationConfiguration.root()
+        self._directory_service: ApplicationDirectoryService = ApplicationDirectoryService(
+            author_name=self._config.author_name,
+            app_name=self._config.application_name
+        )
         self._frame: Frame = None
         self._menu: MainApplicationMenu = None
         self._runtime_info: ApplicationRuntimeInfo = None
         self._tasks: HashList[ApplicationTask] = None
         self._tk_app: Union[Tk, ThemedTk] = None
+        self._log_handler.set_callback(self.log)
 
     @property
     def tk_app(self) -> Union[Tk, ThemedTk]:
         """The tk application instance for this :class:`Application`.
-
         .. ------------------------------------------------------------
-
-        Returns
-        -----------
-            application: Union[:class:`Tk`, :class:`ThemedTk`]
+        .. returns::
+        tk_app: Union[:class:`Tk`, :class:`ThemedTk`]
+            This property returns the tkinter application instance.
         """
         return self._tk_app
 
     @property
     def config(self) -> ApplicationConfiguration:
         """Configuration for this :class:`Application`.
-
         .. ------------------------------------------------------------
-
-        Returns
-        --------
+        .. returns::
             config :class:`ApplicationConfiguration`
         """
         return self._config
 
     @property
+    def directory_service(self) -> ApplicationDirectoryService:
+        """Directory service for this :class:`Application`.
+        This service provides access to various directories used by the application.
+        .. ------------------------------------------------------------
+        .. returns::
+            directory_service: :class:`ApplicationDirectoryService`
+        """
+        return self._directory_service
+
+    @property
     def frame(self) -> Frame:
         """The frame for this :class:`Application`.
-
         .. ------------------------------------------------------------
-
-        Returns
-        -----------
-            frame: :class:`Frame`
+        .. returns::
+        frame: :class:`Frame`
         """
         return self._frame
 
     @property
     def menu(self) -> MainApplicationMenu:
         """Main Tk :class:`Menu` for this :class:`Application`.
-
         .. ------------------------------------------------------------
-
-        Returns
-        --------
+        .. returns::
             menu: :class:`MainApplicationMenu`
         """
         return self._menu
@@ -599,11 +751,8 @@ class Application(Runnable):
     @property
     def tasks(self) -> HashList[ApplicationTask]:
         """Hashed list of tasks for this :class:`Application`.
-
         .. ------------------------------------------------------------
-
-        Returns
-        --------
+        .. returns::
             tasks: :class:`HashList` [:class:`ApplicationTask`]
         """
         return self._tasks
@@ -611,7 +760,12 @@ class Application(Runnable):
     def build(self) -> None:
         """Build this :class:`Application`.
         This method initializes the tkinter application instance, sets up the main window,
-        and prepares the main frame and menu."""
+        and prepares the main frame and menu.
+        .. ------------------------------------------------------------
+        .. raises::
+        ValueError
+            If the application type is not supported. Only `Tk`, `ThemedTk`, or `Toplevel` are allowed.
+        """
         if self.config.application == Tk:
             self._tk_app = Tk()
         elif self.config.application == ThemedTk:
@@ -633,6 +787,8 @@ class Application(Runnable):
         self._tasks: HashList[ApplicationTask] = HashList('id')
         self._menu = MainApplicationMenu(self.tk_app) if self.config.headless is False else None
         self._runtime_info = ApplicationRuntimeInfo(self)
+        self._directory_service.build_directory()
+        self.clear_log_file()
 
         super().build()
 
@@ -705,6 +861,17 @@ class Application(Runnable):
         y = (self.tk_app.winfo_screenheight() - self.tk_app.winfo_reqheight()) // 2
         self.tk_app.geometry(f'+{x}+{y}')
 
+    def clear_log_file(self) -> None:
+        """Clear the log file for this :class:`Application`.
+
+        This method removes all content from the log file, effectively clearing it.
+        """
+        try:
+            with open(self._directory_service.user_log_file, 'w', encoding='utf-8') as f:
+                f.write('')
+        except IOError as e:
+            print(f'Error clearing log file {self._directory_service.user_log_file}: {e}')
+
     def close(self) -> None:
         """Close this application.
         """
@@ -719,6 +886,20 @@ class Application(Runnable):
             self.logger.error('TclError: Could not destroy the parent window')
         finally:
             gc.collect()  # process garbage collection for tk/tcl elements
+
+    def log(self,
+            message: str) -> None:
+        """Post a message to this :class:`Application`'s  log text file.
+        .. ------------------------------------------------------------
+        .. arguments::
+        message: :class:`str`
+            Message to be sent to this :class:`Application`'s log frame and to be appended to the log text file.
+        """
+        try:
+            with open(self._directory_service.user_log_file, 'a', encoding='utf-8') as f:
+                f.write(f'{message}\n')
+        except IOError as e:
+            print(f'Error writing to log file {self._directory_service.user_log_file}: {e}')
 
     def on_pre_run(self) -> None:
         """Method that is called directly before calling parent Tk `mainloop`.

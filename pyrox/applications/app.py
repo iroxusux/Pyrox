@@ -1,11 +1,9 @@
 from __future__ import annotations
 
 import copy
-import datetime
 import os
-import json
 from pathlib import Path
-import platformdirs
+
 from typing import Any, Optional
 from tkinter import Event, PanedWindow
 
@@ -23,203 +21,10 @@ from ..models.gui import (
     TaskFrame,
 )
 from ..models.gui.plc import PlcGuiObject
-from ..services import file
+
 from ..services.dictionary_services import remove_none_values_inplace
 from ..services.plc_services import dict_to_xml_file, l5x_dict_from_file
 from ..services.task_services import find_and_instantiate_class
-
-
-class ApplicationDirectoryService:
-    """Application Directory Service
-
-    Manage Application Directories with this service class
-
-    .. ------------------------------------------------------------
-
-    .. package:: applications.app
-
-    .. ------------------------------------------------------------
-
-    Attributes
-    -----------
-    root: :class:`str`
-        Root directory for this service.
-    """
-
-    def __init__(self,
-                 author_name: str,
-                 app_name: str,
-                 **kwargs):
-        if not author_name or author_name == '':
-            raise ValueError('A valid, non-null author name must be supplied for this class!')
-
-        if not app_name or app_name == '':
-            raise ValueError('A valid, non-null application name must be supplied for this class!')
-
-        self._app_name = app_name
-        self._author_name = author_name
-        self.build_directory()
-
-        super().__init__(**kwargs)
-
-    @property
-    def all_directories(self) -> dict:
-        """All directories for this service class.
-
-        .. ------------------------------------------------
-
-        Returns
-        ----------
-        :class:`dict`
-            Dictionary of all directories for this service class.
-        """
-        return {
-            'user_cache': self.user_cache,
-            'user_config': self.user_config,
-            'user_data': self.user_data,
-            'user_documents': self.user_documents,
-            'user_downloads': self.user_downloads,
-            'user_log': self.user_log
-        }
-
-    @property
-    def app_name(self) -> str:
-        """Application Name supplied to this service class
-
-        .. ------------------------------------------------
-
-        Returns
-        ----------
-        :class:`str`
-        """
-        return self._app_name
-
-    @property
-    def app_runtime_info_file(self) -> str:
-        """Application runtime info file.
-
-        This is the file where the application will store runtime information.
-
-        .. ---------------------------------------------------------------------------
-
-        Returns
-        ----------
-        :class:`str`
-        """
-        return os.path.join(self.user_data, f'{self._app_name}_runtime_info.json')
-
-    @property
-    def author_name(self) -> str:
-        """Author Name supplied to this service class
-
-        .. ------------------------------------------------
-
-        Returns
-        ----------
-        :class:`str`
-        """
-        return self._author_name
-
-    @property
-    def user_cache(self):
-        """User cache directory.
-
-        .. ---------------------------------------------------------------------------
-
-        Returns
-        ----------
-        :class:`str`
-        """
-        return platformdirs.user_cache_dir(self._app_name, self._author_name, ensure_exists=True)
-
-    @property
-    def user_config(self):
-        """User config directory.
-
-        .. ---------------------------------------------------------------------------
-
-        Returns
-        ----------
-        :class:`str`
-        """
-        return platformdirs.user_config_dir(self._app_name, self._author_name, ensure_exists=True)
-
-    @property
-    def user_data(self):
-        """User data directory.
-
-        Example >>> 'C:/Users/JohnSmith/AppData/Local/JSmithEnterprises/MyApplication'
-
-        .. ---------------------------------------------------------------------------
-
-        Returns
-        ----------
-        :class:`str`
-        """
-        return platformdirs.user_data_dir(self._app_name, self._author_name, ensure_exists=True)
-
-    @property
-    def user_documents(self):
-        """User documents directory.
-
-        .. ---------------------------------------------------------------------------
-
-        Returns
-        ----------
-        :class:`str`
-        """
-        return platformdirs.user_documents_dir()
-
-    @property
-    def user_downloads(self):
-        """User downloads directory.
-
-        .. ---------------------------------------------------------------------------
-
-        Returns
-        ----------
-        :class:`str`
-        """
-        return platformdirs.user_downloads_dir()
-
-    @property
-    def user_log(self):
-        """User log directory.
-
-        .. ---------------------------------------------------------------------------
-
-        Returns
-        ----------
-        :class:`str`
-        """
-        return platformdirs.user_log_dir(self._app_name, self._author_name)
-
-    @property
-    def user_log_file(self) -> str:
-        """User log file.
-
-        This is the file where the application will log messages.
-
-        .. ---------------------------------------------------------------------------
-
-        Returns
-        ----------
-        :class:`str`
-        """
-        return os.path.join(self.user_log, f'{self._app_name}.log')
-
-    def build_directory(self,
-                        as_refresh: bool = False):
-        """Build the directory for the parent application.
-
-        Uses the supplied name for directory naming.
-        """
-        for dir in self.all_directories.values():
-            if not os.path.isdir(dir):
-                os.makedirs(dir, exist_ok=True)
-            else:
-                if as_refresh:
-                    file.remove_all_files(dir)
 
 
 class AppFrameWithTreeViewAndScrollbar(FrameWithTreeViewAndScrollbar):
@@ -375,7 +180,7 @@ class AppOrganizer(AppFrameWithTreeViewAndScrollbar):
         return self._controller
 
 
-class App(Application, ApplicationDirectoryService):
+class App(Application):
     """Application class for Pyrox.
 
     This class is used to create and manage the application instance.
@@ -387,8 +192,7 @@ class App(Application, ApplicationDirectoryService):
                  *args,
                  **kwargs):
         super().__init__(*args,
-                         author_name='physirox',
-                         app_name='pyrox',
+
                          **kwargs)
 
         self._controller: Optional[Controller] = None
@@ -398,13 +202,6 @@ class App(Application, ApplicationDirectoryService):
         self._registered_frames: HashList[TaskFrame] = HashList('name')
         self._workspace: Optional[PyroxFrame] = None
         self.logger.info('Pyrox Application initialized.')
-
-        # clear log file
-        try:
-            with open(self.user_log_file, 'w', encoding='utf-8') as log_file:
-                log_file.write('')  # Create an empty log file
-        except IOError as e:
-            self.logger.error(f'Error creating log file {self.user_log_file}: {e}')
 
     @property
     def controller(self) -> Optional[Controller]:
@@ -421,11 +218,11 @@ class App(Application, ApplicationDirectoryService):
     @controller.setter
     def controller(self,
                    value: Controller):
-        if not isinstance(value, Controller):
+        if not isinstance(value, Controller) and value is not None:
             raise TypeError(f'Expected Controller, got {type(value)}')
         self._controller = value
         self._runtime_info.data['last_plc_file_location'] = value.file_location if value else None
-        self.refresh_gui()
+        self.refresh()
 
     @property
     def organizer(self) -> Optional[AppOrganizer]:
@@ -487,7 +284,7 @@ class App(Application, ApplicationDirectoryService):
                                                      controller=self._controller,
                                                      text='Organizer')
         self._organizer.pack(side='left', fill='y')
-        self._organizer.context_menu.on_refresh.append(self.refresh_gui)
+        self._organizer.context_menu.on_refresh.append(self.refresh)
 
         self._paned_window.add(self._organizer)
 
@@ -500,7 +297,6 @@ class App(Application, ApplicationDirectoryService):
 
         self._log_window = LogWindow(sub_frame)
         self._log_window.pack(side='bottom', fill='x')
-        self._log_handler.set_callback(self.log)
 
         sub_frame.add(self._log_window)
         sub_frame.pack(fill='both', expand=True)
@@ -517,7 +313,6 @@ class App(Application, ApplicationDirectoryService):
                                            parent_class=ApplicationTask,
                                            application=self)
         self.add_tasks(tasks=tasks)
-        self.build_directory()
 
         last_plc_file_location = self._runtime_info.data.get('last_plc_file_location', None)
         if last_plc_file_location and os.path.isfile(last_plc_file_location):
@@ -577,27 +372,12 @@ class App(Application, ApplicationDirectoryService):
 
     def log(self,
             message: str) -> None:
-        """Post a message to this :class:`Application`'s logger frame.
-        Additionally, append the message to this application's log text file.
-
-        Arguments
-        ----------
-        message: :type:`str`
-            Message to be sent to this :class:`Application`'s log frame and to be appended to the log text file.
-        """
-        try:
-            with open(self.user_log_file, 'a', encoding='utf-8') as log_file:
-                log_file.write(f'{message}\n')
-        except IOError as e:
-            print(f'Error writing to log file {self.user_log_file}: {e}')
-            return
-
+        super().log(message)
         if not self._log_window:
             return
-
         self._log_window.log(message)
 
-    def refresh_gui(self, **_):
+    def refresh(self, **_):
         if not self.organizer:
             return
 
@@ -726,75 +506,3 @@ class AppTask(ApplicationTask):
             application: :class:`App`
         """
         return super().application
-
-
-class AppRuntimeInfo:
-    """Application Runtime Information.
-
-    This class is used to store and manage runtime information for the application.
-    It is intended to be used as a part of the application configuration.
-    """
-
-    class RuntimeDict:
-        def __init__(self, parent):
-            self._parent = parent
-            self._data = {}
-
-        def __getitem__(self, key):
-            return self._data[key]
-
-        def __setitem__(self, key, value):
-            self._data[key] = value
-            self._parent.save()
-
-        def __delitem__(self, key):
-            del self._data[key]
-            self._parent.save()
-
-        @property
-        def data(self) -> dict:
-            return self._data
-
-        def get(self, key, default=None):
-            """Get an item from the runtime data dictionary."""
-            return self._data.get(key, default)
-
-        def update(self, *args, **kwargs):
-            self._data.update(*args, **kwargs)
-            self._parent.save()
-
-    def __init__(self, app: App):
-        self.app = app
-        self._data = self.RuntimeDict(self)
-        self.load()
-        self.data['last_start_time'] = datetime.datetime.now().isoformat()
-
-    @property
-    def data(self) -> dict:
-        return self._data
-
-    @data.setter
-    def data(self, value: dict):
-        if not isinstance(value, dict):
-            raise TypeError('Runtime information data must be a dictionary.')
-        self._data = self.RuntimeDict(self)
-        self._data.update(value)
-        self.save()
-
-    def load(self):
-        """Load runtime information from the application's runtime info file."""
-        if os.path.isfile(self.app.app_runtime_info_file):
-            try:
-                with open(self.app.app_runtime_info_file, 'r', encoding='utf-8') as f:
-                    self.data = json.load(f)
-            except json.JSONDecodeError as e:
-                self.app.logger.error(f'Error loading runtime info file: {e}')
-                self._data = self.RuntimeDict(self)
-        else:
-            self.app.logger.warning('Runtime info file does not exist, creating a new one.')
-            self._data = self.RuntimeDict(self)
-
-    def save(self):
-        """Save runtime information to the application's runtime info file."""
-        with open(self.app.app_runtime_info_file, 'w', encoding='utf-8') as f:
-            json.dump(self.data.data, f, indent=4)

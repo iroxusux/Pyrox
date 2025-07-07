@@ -10,7 +10,7 @@ from enum import Enum
 import re
 from typing import Callable, Generic, get_args, Optional, Self, TypeVar, Union
 
-from ..abc.meta import EnforcesNaming, PyroxObject
+from ..abc.meta import EnforcesNaming, Loggable
 from ..abc.list import HashList
 from ...services.dictionary_services import insert_key_at_index
 from ...services.plc_services import l5x_dict_from_file
@@ -217,7 +217,7 @@ class LogixAssetType(Enum):
     ALL = 9
 
 
-class PlcObject(EnforcesNaming, PyroxObject):
+class PlcObject(EnforcesNaming, Loggable):
     """base class for a l5x plc object.
     """
 
@@ -2544,7 +2544,7 @@ class ControllerReportItem:
         }
 
 
-class ControllerReport(PyroxObject):
+class ControllerReport(Loggable):
     """Controller status report
 
     Get detailed information about a controller, showing problem areas, etc.
