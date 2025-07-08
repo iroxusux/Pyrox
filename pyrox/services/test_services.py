@@ -133,7 +133,7 @@ class TestPreprocessor(unittest.TestCase):
 
 class TestFindAndInstantiateClass(unittest.TestCase):
     def test_find_and_instantiate_class(self):
-        from .task_services import find_and_instantiate_class
+        from .class_services import find_and_instantiate_class
         from pyrox.models import ApplicationTask
 
         my_objects = find_and_instantiate_class(directory_path=r"pyrox\\tasks\\builtin",

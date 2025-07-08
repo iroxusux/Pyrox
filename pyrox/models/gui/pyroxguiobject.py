@@ -68,16 +68,6 @@ class PyroxGuiObject(Loggable):
         self._pyrox_object = pyrox_object
 
     @property
-    def name(self) -> str:
-        """        Name of this object.
-
-        Returns:
-            str: Name of the object, which is the class name of the
-            underlying Pyrox object if it exists, otherwise 'PyroxOGuibject'.
-        """
-        return getattr(self._pyrox_object, 'name', 'PyroxGuiObject')
-
-    @property
     def description(self) -> str:
         """Description of this object.
 

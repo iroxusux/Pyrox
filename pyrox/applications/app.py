@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import copy
 import os
-from pathlib import Path
 
 from typing import Any, Optional
 from tkinter import Event, PanedWindow
@@ -24,7 +23,6 @@ from ..models.gui.plc import PlcGuiObject
 
 from ..services.dictionary_services import remove_none_values_inplace
 from ..services.plc_services import dict_to_xml_file, l5x_dict_from_file
-from ..services.task_services import find_and_instantiate_class
 
 
 class AppFrameWithTreeViewAndScrollbar(FrameWithTreeViewAndScrollbar):
@@ -278,7 +276,6 @@ class App(Application):
         super().build()
 
         self._paned_window = PanedWindow(self.frame, orient='horizontal')
-
         self._organizer: AppOrganizer = AppOrganizer(master=self._paned_window,
                                                      application=self,
                                                      controller=self._controller,
@@ -305,14 +302,6 @@ class App(Application):
         self._paned_window.add(sub_frame)
         self._paned_window.pack(fill='both', expand=True)
         self._paned_window.configure(sashrelief='groove', sashwidth=5, sashpad=5)
-
-        tasks = find_and_instantiate_class(directory_path=str(Path(__file__).parent.parent) + '/tasks',
-                                           class_name="ApplicationTask",
-                                           as_subclass=True,
-                                           ignoring_classes=['ApplicationTask', 'AppTask'],
-                                           parent_class=ApplicationTask,
-                                           application=self)
-        self.add_tasks(tasks=tasks)
 
         last_plc_file_location = self._runtime_info.data.get('last_plc_file_location', None)
         if last_plc_file_location and os.path.isfile(last_plc_file_location):

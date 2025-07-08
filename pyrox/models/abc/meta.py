@@ -373,6 +373,34 @@ class PyroxObject(SnowFlake):
         }
 
 
+class NamedPyroxObject(PyroxObject):
+    """.. description::
+    A base class for all Pyrox objects that have a name.
+    .. ------------------------------------------------------------
+    .. package::
+    models.abc.meta
+    .. ------------------------------------------------------------
+    .. attributes::
+    name: :type:`str`
+        Name of the object.
+    """
+    __slots__ = ('_name',)
+
+    def __init__(self,
+                 name: Optional[str] = None):
+        super().__init__()
+        self._name = name or self.__class__.__name__
+
+    @property
+    def name(self) -> str:
+        """Name of the object.
+        .. ------------------------------------------------------------
+        .. returns::
+            :type:`str`: Name of the object.
+        """
+        return self._name
+
+
 class SupportsLoading(PyroxObject):
     """.. description::
     A meta class for all classes to derive from to obtain loading capabilities.
@@ -598,7 +626,7 @@ class ConsolePanelHandler(logging.Handler):
         self._callback = callback
 
 
-class Loggable(PyroxObject):
+class Loggable(NamedPyroxObject):
     """.. description::
     A loggable entity, using the `logging.Loggable` class.
     .. ------------------------------------------------------------
@@ -624,10 +652,9 @@ class Loggable(PyroxObject):
     __slots__ = ('_logger', '_log_handler')
 
     def __init__(self,
-                 name: Optional[str] = None,
                  add_to_globals: bool = False):
         super().__init__()
-        self._logger: logging.Logger = self._get(name=name or self.__class__.__name__)
+        self._logger: logging.Logger = self._get(name=self.name)
         self._log_handler: ConsolePanelHandler = ConsolePanelHandler()
 
         # check in case we got a hashed logger with the handler already attached (somehow?)

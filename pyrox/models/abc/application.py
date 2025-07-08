@@ -7,8 +7,9 @@ from dataclasses import dataclass, field
 import datetime
 import gc
 import os
+from pathlib import Path
 import platformdirs
-from pyrox.services import file
+from pyrox.services import file, class_services
 from tkinter import Frame, TclError
 from tkinter import (
     Event,
@@ -276,7 +277,6 @@ class ApplicationConfiguration:
     application: :class:`Union[Tk, ThemedTk, None]`
         The tkinter application instance for this configuration. It can be a `Tk`, `ThemedTk`, or `Toplevel` instance.
     """
-    __slots__ = ()
     headless: bool = False
     application_name: Optional[str] = DEF_APP_NAME
     author_name: Optional[str] = DEF_AUTHOR_NAME
@@ -766,6 +766,7 @@ class Application(Runnable):
         ValueError
             If the application type is not supported. Only `Tk`, `ThemedTk`, or `Toplevel` are allowed.
         """
+        self.clear_log_file()
         if self.config.application == Tk:
             self._tk_app = Tk()
         elif self.config.application == ThemedTk:
@@ -783,75 +784,46 @@ class Application(Runnable):
         self._tk_app.geometry(self.config.size_)
         self._frame: Frame = Frame(master=self._tk_app)
         self._frame.pack(fill='both', expand=True)
-
         self._tasks: HashList[ApplicationTask] = HashList('id')
         self._menu = MainApplicationMenu(self.tk_app) if self.config.headless is False else None
         self._runtime_info = ApplicationRuntimeInfo(self)
         self._directory_service.build_directory()
-        self.clear_log_file()
+
+        self.add_tasks(tasks=class_services.find_and_instantiate_class(directory_path=Path(__file__).parent.parent + '/tasks',
+                                                                       class_name=ApplicationTask.__name__,
+                                                                       as_subclass=True,
+                                                                       ignoring_classes=['ApplicationTask', 'AppTask'],
+                                                                       parent_class=ApplicationTask,
+                                                                       application=self))
 
         super().build()
 
     def add_task(self,
-                 task: Union[ApplicationTask, type[ApplicationTask]]) -> Optional[ApplicationTask]:
-        """Add an :class:`ApplicationTask` to this `Application`.
-
-        This method calls the task's `inject` method.
-
-        .. ---------------------------------------------------------------------
-
-        Arguments
-        ----------
+                 task: Union[ApplicationTask, type[ApplicationTask]]) -> None:
+        """Add a task to this :class:`Application`.
+        This method can accept either an instance of :class:`ApplicationTask` or a class type of :class:`ApplicationTask`.
+        .. ------------------------------------------------------------
+        .. arguments::
         task: Union[:class:`ApplicationTask`, type[:class:`ApplicationTask`]]
-            :class:`ApplicationTask` to add.
-
-        .. ---------------------------------------------------------------------
-
-        Returns
-        ----------
-        task: :class:`ApplicationTask` | `None`
-            The built / injected task
-
-
+            :class:`ApplicationTask` to add. If a class type is provided, an instance will be created.
         """
         if isinstance(task, ApplicationTask):
-            self._tasks.append(task)
             task.inject()
             return task
 
         if isinstance(task, type):
-            tsk = task(self)
-            self._tasks.append(tsk)
-            tsk.inject()
+            tsk = task(self).inject()
             return tsk
-
-        return None
 
     def add_tasks(self,
                   tasks: Union[list[ApplicationTask], list[type[ApplicationTask]]]) -> None:
         """Add a list of :class:`ApplicationTask`s to this `Application`.
-
         This method calls the task's `inject` method.
-
         .. ---------------------------------------------------------------------
-
-        Arguments
-        ----------
+        .. arguments::
         task: Union[:class:`ApplicationTask`, type[:class:`ApplicationTask`]]
             :class:`ApplicationTask` to add.
-
-        .. ---------------------------------------------------------------------
-
-        Returns
-        ----------
-        task: :class:`ApplicationTask` | `None`
-            The built / injected task
-
-
         """
-        if not tasks:
-            return
-
         _ = [self.add_task(x) for x in tasks]
 
     def center(self) -> None:
