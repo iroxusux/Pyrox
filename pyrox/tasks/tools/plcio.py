@@ -6,12 +6,9 @@ from tkinter import Button, DISABLED, Entry, LabelFrame, NORMAL, StringVar, TOP,
 
 from typing import Optional
 
-from pylogix import PLC
-from pylogix.lgx_tag import Tag
 from pylogix.lgx_response import Response
-
-from pyrox.applications.app import App, AppTask
-from pyrox.models.plc import ConnectionCommand, ConnectionParameters
+from pyrox.applications import App, AppTask, PlcControllerConnectionModel, PlcWatchTableModel
+from pyrox.models.plc import ConnectionParameters
 from pyrox.models.gui import FrameWithTreeViewAndScrollbar, TaskFrame, WatchTableTaskFrame
 
 
@@ -108,103 +105,33 @@ class PlcIoTask(AppTask):
     def __init__(self,
                  application: App):
         super().__init__(application=application)
-        self._connected: bool = False
-        self._connecting: bool = False
-        self._tags: list[Tag] = []
-        self._commands: list[ConnectionCommand] = []
+        self._connection_model: PlcControllerConnectionModel = PlcControllerConnectionModel(application)
+        self._connection_model.on_connection.append(self._on_connected)
+        self._connection_model.on_new_tags.append(self._clear_and_populate_tags)
         self._frame: Optional[PlcIoFrame] = None
-        self._params: Optional[ConnectionParameters] = None
+        self._plc_watch_table_model: PlcWatchTableModel = PlcWatchTableModel(application, self._connection_model)
         self._watch_table_frame: Optional[WatchTableTaskFrame] = None
 
-    def _connect(self,
-                 params: ConnectionParameters) -> None:
-        """Connect to the PLC.
-        """
-        self.logger.info('Connecting to PLC...')
-        if self._connected:
-            self.logger.warning('PLC connection already running...')
-            return
-
-        if not params:
-            self.logger.error('no parameters, cannot connect')
-            return
-
-        self._params = params
-        self.logger.info('connecting to -> %s | %s',
-                         self._params.ip_address,
-                         str(self._params.slot))
-        self._commands.clear()  # clear out command buffer for any left-over commands
-        self._connecting = True
-        self._connection_loop()
-
-    def _connection_loop(self) -> None:
-        """Main connection loop for the PLC.
-        """
-        if not self._connected and not self._connecting:
-            self.logger.info('PLC connection not established or lost...')
-            self.connected = False
-            return
-
-        try:
-            self._strobe_plc()
-        except Exception as e:
-            self.logger.error('Error during PLC connection: %s', str(e))
-            self.connected = False
-
-        self.application.tk_app.after(self._params.rpi, self._connection_loop)
-
-    def _get_controller_tags(self) -> None:
-        """Fetch tags from the PLC controller.
-        """
-        if not self._params:
-            self.logger.error('No connection parameters set.')
-            return
-
-        if self._connecting:
-            self.logger.warning('PLC is still connecting, cannot fetch tags.')
-            return
-
-        if not self._connected:
-            self.logger.error('PLC is not connected, cannot fetch tags.')
-            return
-
-        with PLC(ip_address=self._params.ip_address,
-                 slot=self._params.slot) as comm:
-            tags = comm.GetTagList()
-            if tags.Status == 'Success':
-                self._tags = [tag for tag in tags.Value]
-                self.logger.info('Fetched %d tags from PLC', len(self._tags))
-            else:
-                self.logger.error('Failed to fetch tags: %s', tags.Status)
-
+    def _clear_and_populate_tags(self,
+                                 _) -> None:
         self._frame.tags_frame.tree.clear()
-        self._frame.tags_frame.tree.populate_tree('', self._tag_list_as_dict())
+        self._frame.tags_frame.tree.populate_tree('', self._connection_model.tag_list_as_dict())
 
     def _launch_watch_table(self) -> None:
         """Launch the watch table for PLC tags.
         """
-        if self._watch_table_frame and self._watch_table_frame.winfo_exists():
-            self.application.set_frame(self._watch_table_frame)
-            return
-
-        if not self._frame:
-            self.logger.error('PLC I/O frame not initialized.')
-            return
-
-        if self._tags:
-            self.logger.info('Launching watch table with %d tags from "read tags"', len(self._tags))
-            tags = self._tag_list_as_names()
+        if not self._watch_table_frame or not self._watch_table_frame.winfo_exists():
+            self._watch_table_frame = WatchTableTaskFrame(self.application.workspace,
+                                                          all_symbols=self._connection_model.tag_list_as_names())
+            self._connection_model.on_new_tags.append(
+                lambda: self._watch_table_frame.update_symbols(self._connection_model.tag_list_as_names()))
+            self._connection_model.on_tick.append(lambda: self._plc_watch_table_model.on_tick(self._watch_table_frame.get_watch_table()))
+            self._plc_watch_table_model.on_tag_value_update.append(self._update_watch_table_value)
+            self.application.register_frame(self._watch_table_frame, raise_=True)
         else:
-            self.logger.info('Launching watch table with %d tags from "get controller tags"', len(self.application.controller.tags))
-            tags = self.application.controller.tags.as_list_names() if self.application.controller else []
-
-        self._watch_table_frame = WatchTableTaskFrame(self.application.workspace,
-                                                      all_symbols=tags)
-        self.application.register_frame(self._watch_table_frame, raise_=True)
+            self.application.set_frame(self._watch_table_frame)
 
     def _on_connected(self, connected: bool):
-        self._connected = connected
-        self._connecting = False
         if connected:
             self._frame.connect_pb.configure(state=DISABLED)
             self._frame.disconnect_pb.configure(state=NORMAL)
@@ -212,71 +139,30 @@ class PlcIoTask(AppTask):
             self._frame.connect_pb.configure(state=NORMAL)
             self._frame.disconnect_pb.configure(state=DISABLED)
 
-    def _on_connect(self) -> None:
-        ip_addr = self._frame.ip_addr_entry.get()
-        slot = self._frame.slot_entry.get()
-        self._connect(ConnectionParameters(ip_addr, slot, 500))
-
-    def _on_disconnect(self) -> None:
-        """disconnect process from plc
+    def _update_watch_table_value(self, response):
+        """Update the watch table with the value of a tag.
+        This method is called when a read command response is received.
         """
-        self.logger.info('Disconnecting...')
-        self.connected = False
+        if not isinstance(response, Response):
+            raise TypeError(f'Expected Response, got {type(response)}')
 
-    def _strobe_plc(self) -> Response:
-        with PLC(ip_address=self._params.ip_address,
-                 slot=self._params.slot) as comm:
-            sts = comm.GetPLCTime()
-
-            if not sts.Value:
-                self.connected = False
-                self.logger.error('Disonnected. PLC Status Error -> %s', sts.Status)
-            elif self._connecting:
-                self.connected = True
-                self.logger.info('Status -> %s | PlcTime -> %s', str(sts.Status), str(sts.Value))
-
-            self._connecting = False
-
-    def _tag_list_as_dict(self) -> dict:
-        tag_dict = {}
-        for tag in self._tags:
-            tag_dict[tag.TagName] = tag.__dict__
-            tag_dict[tag.TagName]['@Name'] = tag.TagName  # add @Name for compatibility with tree view
-
-        return tag_dict
-
-    def _tag_list_as_names(self) -> list[str]:
-        """Returns a list of tag names from the PLC tags.
-        """
-        return [tag.TagName for tag in self._tags]
-
-    @property
-    def connected(self) -> bool:
-        """Returns the connection status.
-        """
-        return self._connected
-
-    @connected.setter
-    def connected(self, value: bool) -> None:
-        """Sets the connection status.
-        """
-        if not isinstance(value, bool):
-            raise TypeError(f'Expected bool, got {type(value)}')
-        self._on_connected(value)
+        # Notify the watch table model to update the value
+        self._watch_table_frame.update_row_by_name(response.TagName, response.Value)
 
     def run(self):
         if not self._frame or not self._frame.winfo_exists():
             self._frame = PlcIoFrame(self.application.workspace)
-            self._frame.connect_pb.config(command=self._on_connect)
-            self._frame.disconnect_pb.config(command=self._on_disconnect)
-            self._frame.get_tags_pb.config(command=self._get_controller_tags)
+            self._frame.connect_pb.config(command=lambda: self._connection_model.connect(ConnectionParameters(
+                self._frame.ip_addr_entry.get(),
+                self._frame.slot_entry.get(),
+                500)))
+            self._frame.disconnect_pb.config(command=self._connection_model.disconnect)
+            self._frame.get_tags_pb.config(command=self._connection_model.get_controller_tags)
             self._frame.watch_table_pb.config(command=self._launch_watch_table)
-            self._on_connected(self._connected)
+            self._on_connected(self._connection_model.connected)
             self.application.register_frame(self._frame, raise_=True)
-
-        self.application.logger.info('Starting plc io task...')
-        # some custom logic
-        self.application.set_frame(self._frame)
+        else:
+            self.application.set_frame(self._frame)
 
     def inject(self) -> None:
         self.application.menu.tools.add_command(label='PLC I/O', command=self.run)

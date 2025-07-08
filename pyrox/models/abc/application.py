@@ -789,7 +789,7 @@ class Application(Runnable):
         self._runtime_info = ApplicationRuntimeInfo(self)
         self._directory_service.build_directory()
 
-        self.add_tasks(tasks=class_services.find_and_instantiate_class(directory_path=Path(__file__).parent.parent + '/tasks',
+        self.add_tasks(tasks=class_services.find_and_instantiate_class(directory_path=str(Path(__file__).parent.parent.parent) + '\\tasks',
                                                                        class_name=ApplicationTask.__name__,
                                                                        as_subclass=True,
                                                                        ignoring_classes=['ApplicationTask', 'AppTask'],

@@ -1,5 +1,4 @@
 """ plc_services
-    Create and manage PLC specific l5x (xml) modules/services, etc.
     """
 from __future__ import annotations
 

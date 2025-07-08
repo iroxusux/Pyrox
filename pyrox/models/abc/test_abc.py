@@ -34,7 +34,7 @@ from .meta import (
 
 
 from .model import (
-    PartialModel,
+    Model,
 )
 
 
@@ -151,11 +151,6 @@ class TestRunnable(unittest.TestCase):
         runnable.start()
         runnable.stop()
         self.assertFalse(runnable.running)
-
-    def test_run_method(self):
-        runnable = Runnable()
-        runnable.run()
-        self.assertFalse(runnable.running)  # Run method does not change running state
 
 
 class TestViewType(unittest.TestCase):
@@ -397,27 +392,27 @@ class TestPartialModel(unittest.TestCase):
     def test_initialization(self):
         application = Application(ApplicationConfiguration())
         view_model = PartialViewModel()
-        model = PartialModel(application=application, view_model=view_model)
+        model = Model(application=application, view_model=view_model)
         self.assertEqual(model.application, application)
         self.assertEqual(model.view_model, view_model)
 
     def test_initialization_with_view_model_class(self):
         application = Application(ApplicationConfiguration())
-        model = PartialModel(application=application, view_model=PartialViewModel)
+        model = Model(application=application, view_model=PartialViewModel)
         self.assertEqual(model.application, application)
         self.assertIsInstance(model.view_model, PartialViewModel)
 
     def test_initialization_with_invalid_view_model(self):
         with self.assertRaises(ValueError):
-            PartialModel(view_model="invalid_view_model")
+            Model(view_model="invalid_view_model")
 
     def test_str_method(self):
-        model = PartialModel()
-        self.assertEqual(str(model), "PartialModel")
+        model = Model()
+        self.assertEqual(str(model), "Model")
 
     def test_set_application(self):
         application = Application(ApplicationConfiguration())
-        model = PartialModel()
+        model = Model()
         result = model.set_application(application)
         self.assertTrue(result)
         self.assertEqual(model.application, application)
@@ -425,28 +420,28 @@ class TestPartialModel(unittest.TestCase):
 
     def test_set_application_already_set(self):
         application = Application(ApplicationConfiguration())
-        model = PartialModel(application=application)
+        model = Model(application=application)
         result = model.set_application(application)
         self.assertFalse(result)
         application.stop()
 
     def test_view_model_deleter(self):
         view_model = PartialViewModel()
-        model = PartialModel(view_model=view_model)
+        model = Model(view_model=view_model)
         del model.view_model
         self.assertIsNone(model.view_model)
 
 
 class TestPartialViewModel(unittest.TestCase):
     def test_initialization(self):
-        model = PartialModel()
+        model = Model()
         view = View()
         view_model = PartialViewModel(model=model, view=view)
         self.assertEqual(view_model.model, model)
         self.assertEqual(view_model.view, view)
 
     def test_initialization_with_view_class(self):
-        model = PartialModel()
+        model = Model()
         view_model = PartialViewModel(model=model, view=View)
         self.assertEqual(view_model.model, model)
         self.assertIsInstance(view_model.view, View)
@@ -456,7 +451,7 @@ class TestPartialViewModel(unittest.TestCase):
             PartialViewModel(view="invalid_view")
 
     def test_model_property(self):
-        model = PartialModel()
+        model = Model()
         view_model = PartialViewModel(model=model)
         self.assertEqual(view_model.model, model)
 

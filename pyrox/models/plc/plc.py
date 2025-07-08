@@ -24,6 +24,7 @@ __all__ = (
     'ConnectionParameters',
     'Controller',
     'Datatype',
+    'DatatypeMember',
     'DataValueMember',
     'Module',
     'Program',
@@ -32,6 +33,17 @@ __all__ = (
     'Rung',
     'Tag',
 )
+
+ATOMIC_DATATYPES = [
+    'BIT',
+    'BOOL',
+    'SINT',
+    'INT',
+    'DINT',
+    'LINT',
+    'REAL',
+    'LREAL',
+]
 
 T = TypeVar('T')
 
@@ -231,11 +243,10 @@ class PlcObject(EnforcesNaming, Loggable):
                  meta_data: Union[dict, str] = defaultdict(None),
                  controller: 'Controller' = None,
                  **kwargs):
-        super().__init__(**kwargs)
-
         self._meta_data = meta_data
         self._controller = controller
         self._init_dict_order()
+        super().__init__(**kwargs)
 
     def __repr__(self):
         return self.meta_data
@@ -1175,7 +1186,7 @@ class ConnectionCommand:
 class DatatypeMember(NamedPlcObject):
     def __init__(self,
                  l5x_meta_data: dict,
-                 datatype: 'Datatype',
+                 parent_datatype: 'Datatype',
                  controller: Controller):
         """type class for plc Datatype Member
 
@@ -1186,11 +1197,16 @@ class DatatypeMember(NamedPlcObject):
         """
         super().__init__(meta_data=l5x_meta_data,
                          controller=controller)
-        self._datatype = datatype
+        self._parent_datatype = parent_datatype
 
     @property
-    def datatype(self) -> 'Datatype':
-        return self._datatype
+    def datatype(self) -> str:
+        """get the datatype of this member
+
+        Returns:
+            :class:`str`: datatype of this member
+        """
+        return self['@DataType']
 
     @property
     def dimension(self) -> str:
@@ -1199,6 +1215,19 @@ class DatatypeMember(NamedPlcObject):
     @property
     def hidden(self) -> str:
         return self['@Hidden']
+
+    @property
+    def is_atomic(self) -> bool:
+        """check if this member is atomic
+
+        Returns:
+            :class:`bool`: True if atomic, False otherwise
+        """
+        return self.datatype in ATOMIC_DATATYPES
+
+    @property
+    def parent_datatype(self) -> 'Datatype':
+        return self._parent_datatype
 
 
 class Datatype(NamedPlcObject):
@@ -1221,8 +1250,39 @@ class Datatype(NamedPlcObject):
         if name:
             self.name = name
         self._members: list[DatatypeMember] = []
-        [self._members.append(DatatypeMember(l5x_meta_data=x, controller=self.controller, datatype=self))
+        [self._members.append(DatatypeMember(l5x_meta_data=x, controller=self.controller, parent_datatype=self))
          for x in self.raw_members]
+
+    @property
+    def endpoint_operands(self) -> list[str]:
+        """get the endpoint operands for this datatype
+        for example, for a datatype with members like:
+        <Datatype Name="MyDatatype" ...>
+            <Member Name="MyAtomicMember" @Datatype="BOOL" ... />
+            <Member Name="MyMember" @Datatype="SomeOtherDatatype" ...>
+                <Member Name"MyChildMember" @Datatype="BOOL" ... />
+            </Member>
+        the endpoint operands would be:
+            ['.MyAtomicMember', '.MyMember.MyChildMember']
+
+        .. -------------------------------
+        .. returns::
+        :class:`list[str]`:
+            list of endpoint operands
+        """
+        operands = []
+        for member in self.members:
+            if member.hidden == 'true':
+                continue
+            if member.is_atomic:
+                operands.append(f'.{member.name}')
+            else:
+                datatype = self.controller.datatypes.get(member['@Datatype'], None)
+                if not datatype:
+                    self.logger.warning(f"Datatype {member['@Datatype']} not found for member {member.name} in {self.name}.")
+                    continue
+                operands.extend(datatype.endpoint_operands)
+        return operands
 
     @property
     def dict_key_order(self) -> list[str]:

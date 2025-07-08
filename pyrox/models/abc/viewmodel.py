@@ -10,7 +10,7 @@ from .meta import Buildable, View
 
 
 if TYPE_CHECKING:
-    from .model import PartialModel
+    from .model import Model
 
 
 __all__ = (
@@ -39,7 +39,7 @@ class PartialViewModel(Buildable):
     __slots__ = ('_model', '_view')
 
     def __init__(self,
-                 model: Optional[PartialModel] = None,
+                 model: Optional[Model] = None,
                  view: Optional[Union[View, type[View]]] = None):
         super().__init__()
         self._model = model
@@ -55,7 +55,7 @@ class PartialViewModel(Buildable):
             raise ValueError('Could not discern type of %s!' % view)
 
     @property
-    def model(self) -> PartialModel:
+    def model(self) -> Model:
         """The parent :class:`Model` this :class:`PartialViewModel`.
 
         .. ------------------------------------------------------------

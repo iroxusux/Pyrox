@@ -15,11 +15,17 @@ from .abc import (
     ConsolePanelHandler,
     HashList,
     Loggable,
+    Model,
     SafeList,
     SnowFlake,
     ViewType,
     View)
 from .gui import ProgressBar, PyroxGuiObject
+from .plc import (
+    ConnectionCommand,
+    ConnectionParameters,
+    Controller,
+)
 
 
 __all__ = (
@@ -28,10 +34,14 @@ __all__ = (
     'ApplicationTask',
     'ApplicationConfiguration',
     'Buildable',
+    'ConnectionCommand',
+    'ConnectionParameters',
     'ConsolePanelHandler',
+    'Controller',
     'HashList',
     'LaunchableModel',
     'Loggable',
+    'Model',
     'plc',
     'ProgressBar',
     'PyroxGuiObject',

@@ -16,24 +16,20 @@ if TYPE_CHECKING:
 
 
 __all__ = (
-    'PartialModel',
+    'Model',
 )
 
 
-class PartialModel(Runnable):
-    """A partial model for use in an application.
-
+class Model(Runnable):
+    """.. description::
+    A logical partial for use in an application.
     .. ------------------------------------------------------------
-
-    .. package:: types.abc.model
-
+    .. package::
+    models.abc.model
     .. ------------------------------------------------------------
-
-    Attributes
-    -----------
+    .. attributes::
     application: Optional[:class:`PartialApplication`]
         The parent application of this :class:`Model`, if any.
-
     view_model: Optional[:class:`PartialViewModel`]
         The :class:`PartialViewModel` this :class:`Model` is associated with, if any.
     """

@@ -7,6 +7,7 @@ from .plc import (
     ConnectionParameters,
     Controller,
     Datatype,
+    DatatypeMember,
     DataValueMember,
     LogixAssetType,
     Module,
@@ -18,8 +19,6 @@ from .plc import (
     Tag,
 )
 
-__version__ = "1.0.0"
-
 __all__ = (
     'AddOnInstruction',
     'BASE_FILES',
@@ -27,6 +26,7 @@ __all__ = (
     'ConnectionParameters',
     'Controller',
     'Datatype',
+    'DatatypeMember',
     'DataValueMember',
     'LogixAssetType',
     'Module',

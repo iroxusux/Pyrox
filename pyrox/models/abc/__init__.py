@@ -28,7 +28,7 @@ from .meta import (
 )
 
 from .model import (
-    PartialModel
+    Model
 )
 
 from .viewmodel import (
@@ -45,7 +45,7 @@ __all__ = (
     'EnforcesNaming',
     'HashList',
     'Loggable',
-    'PartialModel',
+    'Model',
     'PartialViewModel',
     'PyroxObject',
     'Runnable',

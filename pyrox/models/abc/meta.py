@@ -788,10 +788,6 @@ class Runnable(Buildable):
         """
         return self._running
 
-    def run(self) -> None:
-        """Run this object.
-        """
-
     def start(self) -> None:
         """Start this object.
         """

@@ -467,7 +467,7 @@ class WatchTableTaskFrame(TaskFrame):
         super().__init__(master=master, name=name)
         self._watch_items = watch_items or []
         self._all_symbols = all_symbols or []
-        self._comboboxes = []
+        self._comboboxes: list[tuple[Widget, ttk.Entry, tk.StringVar, tk.StringVar]] = []
         self._setup_table()
 
     def _setup_table(self):
@@ -506,8 +506,16 @@ class WatchTableTaskFrame(TaskFrame):
 
         self._comboboxes.append((combo, value_entry, symbol_var, value_var))
 
-    def _remove_row(self, row):
-        row.destroy()
+    def _remove_row(self, row: Widget):
+        for cb in self._comboboxes:
+            parent = cb[0].master
+            exists = cb[0].winfo_exists()
+            if parent == row or exists is False:
+                self._comboboxes.remove(cb)
+                row.destroy()
+                break
+
+        # self._comboboxes = [cb for cb in self._comboboxes if cb[0].winfo_exists()]
 
     def _autocomplete(self, combobox):
         pattern = combobox.get()
@@ -526,3 +534,17 @@ class WatchTableTaskFrame(TaskFrame):
             if symbol:
                 result.append((symbol, value))
         return result
+
+    def update_row_by_name(self, symbol_name: str, new_value: str):
+        """Update the value of a row by its symbol name."""
+        for combo, value_entry, symbol_var, value_var in self._comboboxes:
+            if symbol_var.get() == symbol_name:
+                value_var.set(new_value)
+                return
+
+    def update_symbols(self, new_symbols: list[str]):
+        """Update the list of all symbols for auto-complete."""
+        self._all_symbols = new_symbols
+        for combo, _, _, _ in self._comboboxes:
+            combo['values'] = new_symbols
+            self._autocomplete(combo)

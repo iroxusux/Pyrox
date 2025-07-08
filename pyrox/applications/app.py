@@ -8,7 +8,7 @@ from tkinter import Event, PanedWindow
 
 
 from ..models import Application, ApplicationTask, HashList
-from ..models.plc import Controller, PlcObject
+from ..models.plc import Controller, DatatypeMember, PlcObject
 from ..models.gui import (
     ContextMenu,
     FrameWithTreeViewAndScrollbar,
@@ -76,6 +76,11 @@ class AppOrganizer(AppFrameWithTreeViewAndScrollbar):
                          command=self._on_refresh),
             ]
 
+        def _on_insert_to_watch_table(self,
+                                      plc_object: PlcObject) -> None:
+            """Handle the insertion of a PlcObject to the watch table."""
+            pass
+
         def _on_modify_plc_object(self,
                                   item: str = None,
                                   plc_object: PlcObject = None) -> None:
@@ -118,6 +123,8 @@ class AppOrganizer(AppFrameWithTreeViewAndScrollbar):
 
             if isinstance(edit_object, PyroxGuiObject):
                 plc_obj = obj if isinstance(obj, PlcObject) else edit_object.pyrox_object
+            elif isinstance(obj, PlcObject):
+                plc_obj = obj
             else:
                 plc_obj = None
 
@@ -125,6 +132,11 @@ class AppOrganizer(AppFrameWithTreeViewAndScrollbar):
                 # If the data is a PlcObject, we can add specific actions
                 menu_list.insert(0, MenuItem(label='Modify',
                                              command=lambda: self._on_modify_plc_object(item=edit_object, plc_object=plc_obj)))
+
+            if isinstance(plc_obj, DatatypeMember):
+                if plc_obj.is_atomic:
+                    menu_list.insert(0, MenuItem(label='Insert to Watch Table',
+                                                 command=lambda x=plc_obj: self._on_insert_to_watch_table(plc_object=x)))
 
             return menu_list
 
