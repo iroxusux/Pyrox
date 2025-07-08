@@ -525,6 +525,14 @@ class WatchTableTaskFrame(TaskFrame):
         filtered = [s for s in self._all_symbols if pattern.lower() in s.lower()]
         combobox['values'] = filtered
 
+    def add_tag(self, symbol: str, value: str = ""):
+        """Add a new row with the given symbol and value."""
+        if not symbol:
+            messagebox.showerror("Error", "Symbol cannot be empty.")
+            return
+        self._add_row(symbol)
+        self.update_row_by_name(symbol, value)
+
     def get_watch_table(self):
         """Return a list of (symbol, value) for all rows."""
         result = []

@@ -149,7 +149,19 @@ class PlcIoTask(AppTask):
         # Notify the watch table model to update the value
         self._watch_table_frame.update_row_by_name(response.TagName, response.Value)
 
-    def run(self):
+    def add_tag_to_watch_table(self, tag_name: str) -> None:
+        """Add a tag to the watch table.
+
+        Args:
+            tag_name (str): The name of the tag to add.
+        """
+        if not self._watch_table_frame or not self._watch_table_frame.winfo_exists():
+            return
+
+        # Add the tag to the watch table
+        self._watch_table_frame.add_tag(tag_name)
+
+    def start(self):
         if not self._frame or not self._frame.winfo_exists():
             self._frame = PlcIoFrame(self.application.workspace)
             self._frame.connect_pb.config(command=lambda: self._connection_model.connect(ConnectionParameters(
@@ -163,6 +175,7 @@ class PlcIoTask(AppTask):
             self.application.register_frame(self._frame, raise_=True)
         else:
             self.application.set_frame(self._frame)
+        super().start()
 
     def inject(self) -> None:
-        self.application.menu.tools.add_command(label='PLC I/O', command=self.run)
+        self.application.menu.tools.add_command(label='PLC I/O', command=self.start)

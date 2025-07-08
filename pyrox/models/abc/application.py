@@ -784,7 +784,7 @@ class Application(Runnable):
         self._tk_app.geometry(self.config.size_)
         self._frame: Frame = Frame(master=self._tk_app)
         self._frame.pack(fill='both', expand=True)
-        self._tasks: HashList[ApplicationTask] = HashList('id')
+        self._tasks: HashList[ApplicationTask] = HashList('name')
         self._menu = MainApplicationMenu(self.tk_app) if self.config.headless is False else None
         self._runtime_info = ApplicationRuntimeInfo(self)
         self._directory_service.build_directory()
@@ -809,11 +809,11 @@ class Application(Runnable):
         """
         if isinstance(task, ApplicationTask):
             task.inject()
-            return task
+            self.tasks.append(task)
 
         if isinstance(task, type):
             tsk = task(self).inject()
-            return tsk
+            self.tasks.append(tsk)
 
     def add_tasks(self,
                   tasks: Union[list[ApplicationTask], list[type[ApplicationTask]]]) -> None:

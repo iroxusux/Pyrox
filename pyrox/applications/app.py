@@ -56,15 +56,13 @@ class AppOrganizer(AppFrameWithTreeViewAndScrollbar):
         """
 
         def __init__(self,
-                     *args,
                      controller: Optional[Controller] = None,
                      parent: AppOrganizer = None,
                      **kwargs):
+            super().__init__(tearoff=0,
+                             **kwargs)
             self._controller: Optional[Controller] = controller
             self._parent: Optional[AppOrganizer] = parent
-            super().__init__(*args,
-                             tearoff=0,
-                             **kwargs)
             self.logger.info('Organizer context menu initialized.')
             self.on_refresh: list[callable] = []
 
@@ -75,11 +73,6 @@ class AppOrganizer(AppFrameWithTreeViewAndScrollbar):
                 MenuItem(label='Refresh',
                          command=self._on_refresh),
             ]
-
-        def _on_insert_to_watch_table(self,
-                                      plc_object: PlcObject) -> None:
-            """Handle the insertion of a PlcObject to the watch table."""
-            pass
 
         def _on_modify_plc_object(self,
                                   item: str = None,
@@ -134,9 +127,10 @@ class AppOrganizer(AppFrameWithTreeViewAndScrollbar):
                                              command=lambda: self._on_modify_plc_object(item=edit_object, plc_object=plc_obj)))
 
             if isinstance(plc_obj, DatatypeMember):
-                if plc_obj.is_atomic:
+                task: 'AppTask' = self._parent.application.tasks.get('PlcIoTask')
+                if task and task.running and plc_obj.is_atomic:
                     menu_list.insert(0, MenuItem(label='Insert to Watch Table',
-                                                 command=lambda x=plc_obj: self._on_insert_to_watch_table(plc_object=x)))
+                                                 command=lambda x=plc_obj: task.add_tag_to_watch_table(x.name)))
 
             return menu_list
 
