@@ -652,8 +652,10 @@ class Loggable(NamedPyroxObject):
     __slots__ = ('_logger', '_log_handler')
 
     def __init__(self,
-                 add_to_globals: bool = False):
-        super().__init__()
+                 add_to_globals: bool = False,
+                 name: Optional[str] = None,
+                 **_):
+        super().__init__(name=name)
         self._logger: logging.Logger = self._get(name=self.name)
         self._log_handler: ConsolePanelHandler = ConsolePanelHandler()
 

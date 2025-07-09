@@ -8,7 +8,7 @@ from tkinter import Event, PanedWindow
 
 
 from ..models import Application, ApplicationTask, HashList
-from ..models.plc import Controller, DatatypeMember, PlcObject
+from ..models.plc import Controller, PlcObject, TagEndpoint
 from ..models.gui import (
     ContextMenu,
     FrameWithTreeViewAndScrollbar,
@@ -81,9 +81,6 @@ class AppOrganizer(AppFrameWithTreeViewAndScrollbar):
             frame = ObjectEditTaskFrame(master=self._parent.application.workspace,
                                         object_=plc_object,
                                         properties=PlcGuiObject.from_data(plc_object).gui_interface_attributes())
-            if not frame:
-                self.logger.error('Failed to create frame for editing PLC object.')
-                return
             self._parent.application.register_frame(frame, raise_=True)
 
         def _on_refresh(self):
@@ -92,43 +89,41 @@ class AppOrganizer(AppFrameWithTreeViewAndScrollbar):
         def compile_menu_from_item(self,
                                    event: Event,
                                    treeview_item: str,
-                                   edit_object: Any,
+                                   hash_item: Any,
                                    lookup_attribute: str) -> list[MenuItem]:
-            """Compile the context menu from the given item."""
             menu_list = self._default_menu_items
 
-            if treeview_item is None or edit_object is None or lookup_attribute is None:
+            if None in [treeview_item, hash_item, lookup_attribute]:
                 return menu_list
 
-            if isinstance(edit_object, (list, HashList)):
-                obj = edit_object[lookup_attribute]
-            elif isinstance(edit_object, dict):
-                obj = edit_object.get(lookup_attribute, None)
-            elif isinstance(edit_object, PlcGuiObject):
-                obj = getattr(edit_object, lookup_attribute, None)
+            clicked_obj = None
+            plc_obj = None
+
+            if isinstance(hash_item, (list, HashList)):
+                clicked_obj = hash_item[lookup_attribute]
+            elif isinstance(hash_item, dict):
+                clicked_obj = hash_item.get(lookup_attribute, None)
+            elif isinstance(hash_item, PlcGuiObject):
+                clicked_obj = getattr(hash_item, lookup_attribute, None)
             else:
-                edit_object_parent = self._parent.tree.parent(treeview_item)
-                if not edit_object_parent:
-                    self.logger.error('No parent found for the item in the tree view.')
+                clicked_obj_parent = self._parent.tree.parent(treeview_item)
+                if not clicked_obj_parent:
                     return menu_list
                 return self._parent.tree.on_right_click(event=event,
-                                                        treeview_item=edit_object_parent,)
+                                                        treeview_item=clicked_obj_parent,)
 
-            if isinstance(edit_object, PyroxGuiObject):
-                plc_obj = obj if isinstance(obj, PlcObject) else edit_object.pyrox_object
-            elif isinstance(obj, PlcObject):
-                plc_obj = obj
-            else:
-                plc_obj = None
+            if isinstance(hash_item, PyroxGuiObject):
+                plc_obj = clicked_obj if isinstance(clicked_obj, PlcObject) else hash_item.pyrox_object
+            elif isinstance(clicked_obj, PlcObject):
+                plc_obj = clicked_obj
 
             if isinstance(plc_obj, PlcObject):
-                # If the data is a PlcObject, we can add specific actions
                 menu_list.insert(0, MenuItem(label='Modify',
-                                             command=lambda: self._on_modify_plc_object(item=edit_object, plc_object=plc_obj)))
+                                             command=lambda: self._on_modify_plc_object(item=hash_item, plc_object=plc_obj)))
 
-            if isinstance(plc_obj, DatatypeMember):
+            if isinstance(plc_obj, TagEndpoint):
                 task: 'AppTask' = self._parent.application.tasks.get('PlcIoTask')
-                if task and task.running and plc_obj.is_atomic:
+                if task and task.running:
                     menu_list.insert(0, MenuItem(label='Insert to Watch Table',
                                                  command=lambda x=plc_obj: task.add_tag_to_watch_table(x.name)))
 

@@ -32,6 +32,7 @@ __all__ = (
     'Routine',
     'Rung',
     'Tag',
+    'TagEndpoint',
 )
 
 ATOMIC_DATATYPES = [
@@ -43,6 +44,12 @@ ATOMIC_DATATYPES = [
     'LINT',
     'REAL',
     'LREAL',
+    'USINT',
+    'UINT',
+    'UDINT',
+    'ULINT',
+    'STRING',
+    'TIMER',
 ]
 
 T = TypeVar('T')
@@ -240,13 +247,16 @@ class PlcObject(EnforcesNaming, Loggable):
             return self.meta_data
 
     def __init__(self,
-                 meta_data: Union[dict, str] = defaultdict(None),
                  controller: 'Controller' = None,
+                 default_loader: Callable = lambda: defaultdict(None),
+                 meta_data: Union[dict, str] = defaultdict(None),
                  **kwargs):
-        self._meta_data = meta_data
+        self._meta_data = meta_data or default_loader()
         self._controller = controller
         self._init_dict_order()
-        super().__init__(**kwargs)
+        EnforcesNaming.__init__(self)
+        Loggable.__init__(self,
+                          **kwargs)
 
     def __repr__(self):
         return self.meta_data
@@ -353,8 +363,9 @@ class NamedPlcObject(PlcObject):
                  meta_data=defaultdict(None),
                  controller=None,
                  **kwargs):
-        super().__init__(meta_data=meta_data,
-                         controller=controller,
+        super().__init__(controller=controller,
+                         meta_data=meta_data,
+                         name=meta_data.get('@Name', None),
                          **kwargs)
 
     def __repr__(self):
@@ -888,7 +899,7 @@ class ContainsTags(NamedPlcObject):
                          controller)
 
         self._tags: HashList = HashList('name')
-        [self._tags.append(self.config.tag_type(l5x_meta_data=x, controller=self.controller, container=self))
+        [self._tags.append(self.config.tag_type(meta_data=x, controller=self.controller, container=self))
          for x in self.raw_tags]
 
     @property
@@ -1231,24 +1242,23 @@ class DatatypeMember(NamedPlcObject):
 
 
 class Datatype(NamedPlcObject):
-    def __init__(self,
-                 name: str = None,
-                 l5x_meta_data: dict = None,
-                 controller: Controller = None):
-        """type class for plc Datatype
-
-        Args:
-            l5x_meta_data (str): meta data
-            controller (Self): controller dictionary
+    """.. description::
+        Datatype for a rockwell plc
+        .. --------------------------------
+        .. package::
+        models.plc.plc
+        .. --------------------------------
+        .. attributes::
+        :class:`list[str]` endpoint_operands:
+            list of endpoint operands for this datatype
         """
-        if not l5x_meta_data:
-            l5x_meta_data = l5x_dict_from_file(PLC_DT_FILE)['DataType']
 
-        super().__init__(meta_data=l5x_meta_data,
-                         controller=controller)
+    def __init__(self,
+                 **kwargs):
 
-        if name:
-            self.name = name
+        super().__init__(default_loader=lambda: l5x_dict_from_file(PLC_DT_FILE)['DataType'],
+                         **kwargs)
+        self._endpoint_operands: list[str] = []
         self._members: list[DatatypeMember] = []
         [self._members.append(DatatypeMember(l5x_meta_data=x, controller=self.controller, parent_datatype=self))
          for x in self.raw_members]
@@ -1256,12 +1266,15 @@ class Datatype(NamedPlcObject):
     @property
     def endpoint_operands(self) -> list[str]:
         """get the endpoint operands for this datatype
-        for example, for a datatype with members like:
+        for example, for a datatype with members like::
+        .. code-block:: xml
         <Datatype Name="MyDatatype" ...>
             <Member Name="MyAtomicMember" @Datatype="BOOL" ... />
             <Member Name="MyMember" @Datatype="SomeOtherDatatype" ...>
                 <Member Name"MyChildMember" @Datatype="BOOL" ... />
             </Member>
+        </Datatype>
+
         the endpoint operands would be:
             ['.MyAtomicMember', '.MyMember.MyChildMember']
 
@@ -1270,19 +1283,23 @@ class Datatype(NamedPlcObject):
         :class:`list[str]`:
             list of endpoint operands
         """
-        operands = []
+        if self.is_atomic:
+            return ['']
+        if self._endpoint_operands:
+            return self._endpoint_operands
+        self._endpoint_operands = []
         for member in self.members:
             if member.hidden == 'true':
                 continue
             if member.is_atomic:
-                operands.append(f'.{member.name}')
+                self._endpoint_operands.append(f'.{member.name}')
             else:
-                datatype = self.controller.datatypes.get(member['@Datatype'], None)
+                datatype = self.controller.datatypes.get(member['@DataType'], None)
                 if not datatype:
-                    self.logger.warning(f"Datatype {member['@Datatype']} not found for member {member.name} in {self.name}.")
+                    self.logger.warning(f"Datatype {member['@DataType']} not found for member {member.name} in {self.name}.")
                     continue
-                operands.extend(datatype.endpoint_operands)
-        return operands
+                self._endpoint_operands.extend([f'.{member.name}{x}' for x in datatype.endpoint_operands])
+        return self._endpoint_operands
 
     @property
     def dict_key_order(self) -> list[str]:
@@ -1297,6 +1314,15 @@ class Datatype(NamedPlcObject):
     @property
     def family(self) -> str:
         return self['@Family']
+
+    @property
+    def is_atomic(self) -> bool:
+        """check if this member is atomic
+
+        Returns:
+            :class:`bool`: True if atomic, False otherwise
+        """
+        return self.name in ATOMIC_DATATYPES
 
     @property
     def members(self) -> list[DatatypeMember]:
@@ -1892,12 +1918,30 @@ class Rung(PlcObject):
         return report
 
 
+class TagEndpoint(PlcObject):
+    def __init__(self,
+                 meta_data: str,
+                 controller: Controller,
+                 parent_tag: 'Tag'):
+        super().__init__(meta_data=meta_data,
+                         name=meta_data,
+                         controller=controller)
+        self._parent_tag: 'Tag' = parent_tag
+
+    @property
+    def name(self) -> str:
+        """get the name of this tag endpoint
+
+        Returns:
+            :class:`str`: name of this tag endpoint
+        """
+        return self._meta_data
+
+
 class Tag(NamedPlcObject):
     def __init__(self,
-                 name: str = None,
-                 l5x_meta_data: dict = None,
-                 controller: 'Controller' = None,
-                 container: Union[Program, AddOnInstruction, Controller] = None):
+                 container: Union[Program, AddOnInstruction, Controller] = None,
+                 **kwargs):
         """type class for plc Tag
 
         Args:
@@ -1905,19 +1949,9 @@ class Tag(NamedPlcObject):
             controller (Self): controller dictionary
         """
 
-        if not l5x_meta_data:
-            l5x_meta_data = l5x_dict_from_file(PLC_TAG_FILE)['Tag']
-
-        super().__init__(meta_data=l5x_meta_data,
-                         controller=controller)
-
-        if name:
-            self.name = name
-
+        super().__init__(default_loader=lambda: l5x_dict_from_file(PLC_TAG_FILE)['Tag'],
+                         **kwargs)
         self._container = container
-
-    def __repr__(self):
-        return self.name
 
     @property
     def dict_key_order(self) -> list[str]:
@@ -1931,7 +1965,7 @@ class Tag(NamedPlcObject):
             '@Constant',
             '@ExternalAccess',
             'Description',
-            'Data'
+            'Data',
         ]
 
     @property
@@ -1984,6 +2018,9 @@ class Tag(NamedPlcObject):
         if not self.decorated_data.get('Structure', None):
             return []
 
+        if not self.decorated_data['Structure'].get('DataValueMember', None):
+            return []
+
         return [DataValueMember(l5x_meta_data=x,
                                 controller=self.controller,
                                 parent=self)
@@ -1992,6 +2029,30 @@ class Tag(NamedPlcObject):
     @property
     def decorated_data(self) -> dict:
         return next((x for x in self.data if x and x['@Format'] == 'Decorated'), None)
+
+    @property
+    def endpoint_operands(self) -> list[str]:
+        """get the endpoint operands for this tag
+
+        Returns:
+            :class:`list[str]`: list of endpoint operands
+        """
+        if not self.datatype:
+            return []
+
+        datatype = self.controller.datatypes.get(self.datatype, None)
+        if not datatype:
+            self.logger.warning(f"Datatype {self.datatype} not found for tag {self.name}.")
+            return []
+
+        endpoints = datatype.endpoint_operands
+        if not endpoints:
+            self.logger.warning(f"No endpoint operands found for datatype {self.datatype} in tag {self.name}.")
+            return []
+
+        return [TagEndpoint(meta_data=f'{self.name}{x}',
+                            controller=self.controller,
+                            parent_tag=self) for x in endpoints]
 
     @property
     def external_access(self) -> str:
@@ -2161,7 +2222,8 @@ class Controller(NamedPlcObject):
 
         self.logger.info('Generating datatypes...')
         self._datatypes: HashList = HashList('name')
-        [self._datatypes.append(self.config.datatype_type(l5x_meta_data=x, controller=self))
+        self._compile_atomic_datatypes()
+        [self._datatypes.append(self.config.datatype_type(meta_data=x, controller=self))
          for x in self.raw_datatypes]
 
         self.logger.info('Generating modules...')
@@ -2176,7 +2238,7 @@ class Controller(NamedPlcObject):
 
         self.logger.info('Generating tags...')
         self._tags: HashList = HashList('name')
-        [self._tags.append(self.config.tag_type(l5x_meta_data=x, controller=self, container=self))
+        [self._tags.append(self.config.tag_type(meta_data=x, controller=self, container=self))
          for x in self.raw_tags]
 
     @property
@@ -2376,6 +2438,30 @@ class Controller(NamedPlcObject):
 
         return cls(root_data)
 
+    def _compile_atomic_datatypes(self) -> None:
+        """Compile atomic datatypes from the controller's datatypes."""
+        self.datatypes.append(Datatype(meta_data={'@Name': 'BOOL'}, controller=self))
+        self.datatypes.append(Datatype(meta_data={'@Name': 'BIT'}, controller=self))
+        self.datatypes.append(Datatype(meta_data={'@Name': 'SINT'}, controller=self))
+        self.datatypes.append(Datatype(meta_data={'@Name': 'INT'}, controller=self))
+        self.datatypes.append(Datatype(meta_data={'@Name': 'DINT'}, controller=self))
+        self.datatypes.append(Datatype(meta_data={'@Name': 'LINT'}, controller=self))
+        self.datatypes.append(Datatype(meta_data={'@Name': 'USINT'}, controller=self))
+        self.datatypes.append(Datatype(meta_data={'@Name': 'UINT'}, controller=self))
+        self.datatypes.append(Datatype(meta_data={'@Name': 'UDINT'}, controller=self))
+        self.datatypes.append(Datatype(meta_data={'@Name': 'ULINT'}, controller=self))
+        self.datatypes.append(Datatype(meta_data={'@Name': 'REAL'}, controller=self))
+        self.datatypes.append(Datatype(meta_data={'@Name': 'LREAL'}, controller=self))
+        self.datatypes.append(Datatype(meta_data={'@Name': 'STRING'}, controller=self))
+        self.datatypes.append(Datatype(meta_data={'@Name': 'TIMER',
+                                                  'Members': {'Member': [
+                                                      {'@Name': 'PRE'},
+                                                      {'@Name': 'ACC'},
+                                                      {'@Name': 'EN'},
+                                                      {'@Name': 'TT'},
+                                                      {'@Name': 'DN'}
+                                                  ]}}, controller=self))
+
     def _assign_address(self,
                         address: str):
         octets = address.split('.')
@@ -2533,12 +2619,6 @@ class ControllerReportItem:
         self._pass_fail: bool = pass_fail
         self._test_notes: list[str] = test_notes if test_notes is not None else []
         self._child_reports: list['ControllerReportItem'] = []
-
-    def __repr__(self):
-        return f'ControllerReportItem(plc_object={self._plc_object},)'\
-            f'test_description={self._test_description}, '\
-            f'pass_fail={self._pass_fail}, '\
-            f'report_description={self._test_notes})'
 
     @property
     def child_reports(self) -> list['ControllerReportItem']:

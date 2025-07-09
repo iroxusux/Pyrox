@@ -229,20 +229,37 @@ class PlcControllerConnectionModel(Model):
 
         with PLC(ip_address=self.params.ip_address,
                  slot=self.params.slot) as comm:
-            for command in self._commands:
-                if command.type == ConnectionCommandType.READ:
-                    try:
-                        command.response_cb(comm.Read(command.tag_name, datatype=command.data_type))
-                    except KeyError as e:
-                        self.logger.error('Error reading tag %s: %s', command.tag_name, str(e))
-                        command.response_cb(Response(tag_name=command.tag_name, value=None, status='Error'))
-                elif command.type == ConnectionCommandType.WRITE:
-                    try:
-                        command.response_cb(comm.Write(command.tag_name, command.tag_value, datatype=command.data_type))
-                    except KeyError as e:
-                        self.logger.error('Error writing tag %s: %s', command.tag_name, str(e))
-                        command.response_cb(Response(tag_name=command.tag_name, value=None, status='Error'))
+            self._run_commands_read(comm)
+            self._run_commands_write(comm)
         self._commands.clear()
+
+    def _run_commands_read(self, comm: PLC):
+        """Run read commands from the command buffer.
+        """
+        for command in self._commands:
+            if command.type == ConnectionCommandType.READ:
+                try:
+                    response = comm.Read(command.tag_name, datatype=command.data_type)
+                    command.response_cb(response)
+                except KeyError as e:
+                    self.logger.error('Error reading tag %s: %s', command.tag_name, str(e))
+                    command.response_cb(Response(tag_name=command.tag_name, value=None, status='Error'))
+
+    def _run_commands_write(self, comm: PLC):
+        """Run write commands from the command buffer.
+        """
+        for command in self._commands:
+            if command.type == ConnectionCommandType.WRITE:
+                try:
+                    try:
+                        tag_value = int(command.tag_value)
+                    except (ValueError, TypeError):
+                        tag_value = command.tag_value  # keep as string if conversion fails
+                    response = comm.Write(command.tag_name, tag_value, datatype=command.data_type)
+                    command.response_cb(response)
+                except KeyError as e:
+                    self.logger.error('Error writing tag %s: %s', command.tag_name, str(e))
+                    command.response_cb(Response(tag_name=command.tag_name, value=None, status='Error'))
 
     def _strobe_plc(self) -> Response:
         with PLC(ip_address=self._params.ip_address,
@@ -351,6 +368,9 @@ class PlcWatchTableModel(Model):
         if not isinstance(response, Response):
             raise TypeError(f'Expected Response, got {type(response)}')
 
+        if response.Status != 'Success':
+            self.logger.error('Error updating tag value: %s', response.Status)
+
         [x(response) for x in self._on_tag_value_update]
 
     def on_tick(self,
@@ -366,10 +386,27 @@ class PlcWatchTableModel(Model):
             return
 
         for item, _ in active_watch_items:
-            tag = next((tag for tag in self._connection_model.tags if tag.TagName == item), None)
-            if tag:
-                self._connection_model.add_command(ConnectionCommand(ConnectionCommandType.READ,
-                                                                     tag.TagName,
-                                                                     0,  # value is not used for read commands
-                                                                     tag.DataTypeValue,
-                                                                     self._update_tag_value))
+            self._connection_model.add_command(ConnectionCommand(ConnectionCommandType.READ,
+                                                                 item,
+                                                                 0,  # value is not used for read commands
+                                                                 None,
+                                                                 self._update_tag_value))
+
+    def write_value(self, tag, value):
+        """Write a value to a tag in the watch table.
+        This method is called to update the value of a tag in the watch table.
+        .. ------------------------------------------------------------
+        .. arguments::
+        tag :class:`str`
+            The name of the tag to write to.
+        value :class:`int`
+            The value to write to the tag.
+        """
+        if not isinstance(tag, str) or not isinstance(value, str):
+            raise TypeError(f'Expected str and str, got {type(tag)} and {type(value)}')
+
+        self._connection_model.add_command(ConnectionCommand(ConnectionCommandType.WRITE,
+                                                             tag,
+                                                             value,
+                                                             None,  # data_type is not used for write commands
+                                                             self._update_tag_value))

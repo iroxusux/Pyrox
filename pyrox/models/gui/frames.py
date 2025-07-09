@@ -6,7 +6,7 @@ import tkinter as tk
 from tkinter import ttk, messagebox
 from tkinter.ttk import Widget
 from logging import INFO, WARNING, ERROR
-from typing import Any, Optional
+from typing import Any, Optional, Union
 from tkinter import (
     BOTH,
     Button,
@@ -454,20 +454,23 @@ class WatchTableTaskFrame(TaskFrame):
     """
     A task frame that behaves like a watch table for programming.
     Each entry is a drop-down (combobox) with auto-complete and allows text entry.
+    Now supports writing data back to the PLC via a Write button per row.
     """
 
-    def __init__(self, master, watch_items=None, all_symbols=None, name="Watch Table"):
+    def __init__(self, master, watch_items=None, all_symbols=None, name="Watch Table", on_write=None):
         """
         Args:
             master: Parent widget.
             watch_items: List of initial watched symbols (strings).
             all_symbols: List of all possible symbols for auto-complete.
             name: Frame name.
+            on_write: Optional callback(symbol, value) for writing data.
         """
         super().__init__(master=master, name=name)
         self._watch_items = watch_items or []
         self._all_symbols = all_symbols or []
-        self._comboboxes: list[tuple[Widget, ttk.Entry, tk.StringVar, tk.StringVar]] = []
+        self._comboboxes: list[tuple[Widget, ttk.Entry, tk.StringVar, tk.StringVar, tk.Button]] = []
+        self._on_write = on_write  # callback for writing data
         self._setup_table()
 
     def _setup_table(self):
@@ -475,6 +478,7 @@ class WatchTableTaskFrame(TaskFrame):
         header.pack(fill=tk.X, pady=(5, 0))
         tk.Label(header, text="Symbol", width=30, anchor='w').pack(side=tk.LEFT, padx=5)
         tk.Label(header, text="Value", width=20, anchor='w').pack(side=tk.LEFT, padx=5)
+        tk.Label(header, text="Write", width=6, anchor='w').pack(side=tk.LEFT, padx=5)
         tk.Button(header, text="+", command=self._add_row, width=3).pack(side=tk.LEFT, padx=5)
 
         self._rows_frame = tk.Frame(self.content_frame)
@@ -494,17 +498,23 @@ class WatchTableTaskFrame(TaskFrame):
         combo = ttk.Combobox(row, textvariable=symbol_var, values=self._all_symbols, width=30)
         combo.pack(side=tk.LEFT, padx=5)
         combo['state'] = 'normal'  # allow text entry
-
-        # Optional: implement auto-complete on key release
-        combo.bind('<KeyRelease>', lambda e, cb=combo: self._autocomplete(cb))
+        combo.bind('<KeyRelease>', lambda e, cb=combo: self._autocomplete(cb, e))
+        combo.bind('<Return>', lambda e: self._on_enter_pressed(combo))
+        combo.bind('<Tab>', lambda e: self._on_enter_pressed(combo))
 
         value_entry = ttk.Entry(row, textvariable=value_var, width=20)
         value_entry.pack(side=tk.LEFT, padx=5)
+        value_entry.bind('<Return>', lambda e: self._on_enter_pressed(value_entry))
+        value_entry.bind('<Tab>', lambda e: self._on_enter_pressed(value_entry))
+
+        write_btn = tk.Button(row, text="Write", width=6,
+                              command=lambda: self._on_write_click(symbol_var, value_var))
+        write_btn.pack(side=tk.LEFT, padx=5)
 
         remove_btn = tk.Button(row, text="–", command=lambda: self._remove_row(row), width=3)
         remove_btn.pack(side=tk.LEFT, padx=5)
 
-        self._comboboxes.append((combo, value_entry, symbol_var, value_var))
+        self._comboboxes.append((combo, value_entry, symbol_var, value_var, write_btn))
 
     def _remove_row(self, row: Widget):
         for cb in self._comboboxes:
@@ -515,15 +525,40 @@ class WatchTableTaskFrame(TaskFrame):
                 row.destroy()
                 break
 
-        # self._comboboxes = [cb for cb in self._comboboxes if cb[0].winfo_exists()]
+    def _autocomplete(self,
+                      combobox: ttk.Combobox,
+                      event: Optional[tk.Event] = None):
+        if event and event.keysym in ('BackSpace', 'Left', 'Right', 'Up', 'Down', 'Shift_L', 'Shift_R', 'Control_L', 'Control_R'):
+            return
 
-    def _autocomplete(self, combobox):
+        if len(event.keysym) > 1:  # Ignore non-character keys
+            return
+
         pattern = combobox.get()
         if not pattern:
             combobox['values'] = self._all_symbols
             return
+
         filtered = [s for s in self._all_symbols if pattern.lower() in s.lower()]
         combobox['values'] = filtered
+
+        if filtered:
+            for match in filtered:
+                if match.lower().startswith(pattern.lower()) and match != pattern:
+                    # Only autocomplete if the user hasn't already typed the match
+                    def do_autocomplete():
+                        combobox.set(match)
+                        combobox.icursor(len(pattern))
+                        combobox.selection_range(len(pattern), tk.END)
+                    combobox.after_idle(do_autocomplete)
+                    break
+
+    def _on_enter_pressed(self, widget: Union[ttk.Combobox, ttk.Entry]):
+        """Handle Enter key press to focus the next widget."""
+        widget.icursor(tk.END)
+        widget.selection_range(tk.END, tk.END)
+        widget.master.focus_set()
+        return 'break'
 
     def add_tag(self, symbol: str, value: str = ""):
         """Add a new row with the given symbol and value."""
@@ -536,7 +571,15 @@ class WatchTableTaskFrame(TaskFrame):
     def get_watch_table(self):
         """Return a list of (symbol, value) for all rows."""
         result = []
-        for combo, value_entry, symbol_var, value_var in self._comboboxes:
+        try:
+            focus_widget = self.master.winfo_toplevel().focus_get()
+        except KeyError:
+            return result
+        for combo, value_entry, symbol_var, value_var, _ in self._comboboxes:
+            if not value_entry.winfo_exists() or not combo.winfo_exists():
+                continue
+            if focus_widget == value_entry or focus_widget == combo:
+                continue
             symbol = symbol_var.get()
             value = value_var.get()
             if symbol:
@@ -545,14 +588,31 @@ class WatchTableTaskFrame(TaskFrame):
 
     def update_row_by_name(self, symbol_name: str, new_value: str):
         """Update the value of a row by its symbol name."""
-        for combo, value_entry, symbol_var, value_var in self._comboboxes:
+        for combo, value_entry, symbol_var, value_var, _ in self._comboboxes:
             if symbol_var.get() == symbol_name:
+                if not value_entry.winfo_exists():
+                    return
+                if value_entry == value_entry.focus_get():
+                    return
                 value_var.set(new_value)
                 return
 
     def update_symbols(self, new_symbols: list[str]):
         """Update the list of all symbols for auto-complete."""
         self._all_symbols = new_symbols
-        for combo, _, _, _ in self._comboboxes:
+        for combo, *_ in self._comboboxes:
             combo['values'] = new_symbols
             self._autocomplete(combo)
+
+    def _on_write_click(self, symbol_var: tk.StringVar, value_var: tk.StringVar):
+        """Called when the Write button is pressed for a row."""
+        symbol = symbol_var.get()
+        value = value_var.get()
+        if not symbol:
+            messagebox.showerror("Error", "Symbol cannot be empty.")
+            return
+        if self._on_write:
+            self._on_write(symbol, value)
+        else:
+            messagebox.showinfo("Write", f"Would write value '{value}' to symbol '{symbol}'.")
+        self.master.focus_set()  # Return focus to the main window

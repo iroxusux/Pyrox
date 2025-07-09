@@ -107,13 +107,15 @@ class PlcIoTask(AppTask):
         super().__init__(application=application)
         self._connection_model: PlcControllerConnectionModel = PlcControllerConnectionModel(application)
         self._connection_model.on_connection.append(self._on_connected)
-        self._connection_model.on_new_tags.append(self._clear_and_populate_tags)
-        self._frame: Optional[PlcIoFrame] = None
+        self._connection_model.on_new_tags.append(lambda _: self._clear_and_populate_tags())
         self._plc_watch_table_model: PlcWatchTableModel = PlcWatchTableModel(application, self._connection_model)
+        self._frame: Optional[PlcIoFrame] = None
         self._watch_table_frame: Optional[WatchTableTaskFrame] = None
 
-    def _clear_and_populate_tags(self,
-                                 _) -> None:
+        self._on_new_tags_lambda = lambda _: self._watch_table_frame.update_symbols(self._connection_model.tag_list_as_names())
+        self._on_tick_lambda = lambda: self._plc_watch_table_model.on_tick(self._watch_table_frame.get_watch_table())
+
+    def _clear_and_populate_tags(self) -> None:
         self._frame.tags_frame.tree.clear()
         self._frame.tags_frame.tree.populate_tree('', self._connection_model.tag_list_as_dict())
 
@@ -122,11 +124,15 @@ class PlcIoTask(AppTask):
         """
         if not self._watch_table_frame or not self._watch_table_frame.winfo_exists():
             self._watch_table_frame = WatchTableTaskFrame(self.application.workspace,
-                                                          all_symbols=self._connection_model.tag_list_as_names())
-            self._connection_model.on_new_tags.append(
-                lambda: self._watch_table_frame.update_symbols(self._connection_model.tag_list_as_names()))
-            self._connection_model.on_tick.append(lambda: self._plc_watch_table_model.on_tick(self._watch_table_frame.get_watch_table()))
-            self._plc_watch_table_model.on_tag_value_update.append(self._update_watch_table_value)
+                                                          all_symbols=self._connection_model.tag_list_as_names(),
+                                                          on_write=self._plc_watch_table_model.write_value)
+            if self._on_new_tags_lambda not in self._connection_model.on_new_tags:
+                self._connection_model.on_new_tags.append(self._on_new_tags_lambda)
+            if self._on_tick_lambda not in self._connection_model.on_tick:
+                self._connection_model.on_tick.append(self._on_tick_lambda)
+            if self._update_watch_table_value not in self._plc_watch_table_model.on_tag_value_update:
+                self._plc_watch_table_model.on_tag_value_update.append(self._update_watch_table_value)
+
             self.application.register_frame(self._watch_table_frame, raise_=True)
         else:
             self.application.set_frame(self._watch_table_frame)

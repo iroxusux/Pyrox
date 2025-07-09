@@ -19,6 +19,7 @@ from ..plc import (
     Routine,
     Rung,
     Tag,
+    TagEndpoint,
     DataValueMember,
     ProgramTag
 )
@@ -248,6 +249,18 @@ class RungGuiObject(PlcGuiObject):
         ]
 
 
+class TagEndpointGuiObject(PlcGuiObject):
+    """A GUI representation of a TagEndpoint object."""
+
+    def __init__(self, tag_endpoint: TagEndpoint = None, **kwargs):
+        super().__init__(plc_object=tag_endpoint, **kwargs)
+
+    def gui_interface_attributes(self):
+        return [
+            ObjectEditField('name', 'Name', tk.Label, True),
+        ]
+
+
 class TagGuiObject(PlcGuiObject):
     """A GUI representation of a Tag object."""
 
@@ -262,6 +275,7 @@ class TagGuiObject(PlcGuiObject):
             ObjectEditField('class_', 'Class', tk.Label, True),
             ObjectEditField('constant', 'Constant', tk.Checkbutton, True),
             ObjectEditField('datatype', 'Data Type', tk.Label, True),
+            ObjectEditField('endpoint_operands', 'Endpoint Operands', tk.Text, False),
             ObjectEditField('external_access', 'External Access', tk.Label, True),
             ObjectEditField('opc_ua_access', 'OPC UA Access', tk.Label, True),
             ObjectEditField('scope', 'Scope', tk.Label, True),

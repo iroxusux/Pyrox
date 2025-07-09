@@ -734,6 +734,15 @@ class TestTag(unittest.TestCase):
         self.assertTrue(report_item.pass_fail)
         self.assertEqual(report_item.plc_object, self.tag)
 
+    def test_endpoint_operands(self):
+        # Test that the tag has no endpoint operands
+        operands = self.tag.endpoint_operands
+        self.assertIsInstance(operands, list)
+        self.assertTrue(len(operands) == 1)
+        tag = self.controller.tags.get('SomeStruct')
+        operands = tag.endpoint_operands
+        self.assertTrue(len(operands) == 5)
+
 
 class TestController(unittest.TestCase):
 

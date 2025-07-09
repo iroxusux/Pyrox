@@ -75,38 +75,37 @@ class ContextMenu(Loggable, Menu):
     def compile_menu_from_item(self,
                                event: Event,
                                treeview_item: str,
-                               edit_object: PyroxObject,
+                               hash_item: PyroxObject,
                                lookup_attribute: str) -> list[MenuItem]:
         """Compile the context menu from the given item.
-
-        This method should be overridden in subclasses to provide specific menu items.
-
-        .. -------------------------------------------------------------
-
-        Args
-        -----------
-        item (str, optional): The item to compile the menu from.
-            Defaults to None.
-
-        data (Optional[Any], optional): Additional data to use for compiling the menu.
-            Defaults to None.
-
-        .. -------------------------------------------------------------
-
-        Returns
-        -----------
-        list[MenuItem]: A list of MenuItem objects to be added to the context menu.
+        .. ------------------------------------------------------------
+        .. package::
+        models.utkinter.menu
+        .. ------------------------------------------------------------
+        .. arguments::
+        :class:`Event`
+            The event that triggered the context menu.
+        :class:`str`
+            The treeview item that was right-clicked.
+        :class:`PyroxObject`
+            The hash item associated with the treeview item.
+        :class:`str`
+            The attribute to look up in the hash item.
+        .. ------------------------------------------------------------
+        .. returns::
+        :class:`list[MenuItem]`
+            A list of MenuItem objects to be added to the context menu.
         """
         return []
 
     def on_right_click(self,
                        event: Event,
                        treeview_item: str,
-                       edit_object: Any,
+                       hash_item: Any,
                        lookup_attribute: str) -> None:
         """Handle right-click events to show the context menu"""
         self._build_menu(self.compile_menu_from_item(event=event,
                                                      treeview_item=treeview_item,
-                                                     edit_object=edit_object,
+                                                     hash_item=hash_item,
                                                      lookup_attribute=lookup_attribute))
         self.post(event.x_root, event.y_root)

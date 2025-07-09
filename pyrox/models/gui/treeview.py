@@ -59,10 +59,10 @@ class LazyLoadingTreeView(Treeview):
             if treeview_item:
                 self.selection_set(treeview_item)
                 self.focus(treeview_item)
-        edit_object, lookup_attribute = self._item_hash.get(treeview_item, (None, None))
+        hash_item, lookup_attribute = self._item_hash.get(treeview_item, (None, None))
         self._context_menu.on_right_click(event=event,
                                           treeview_item=treeview_item,
-                                          edit_object=edit_object,
+                                          hash_item=hash_item,
                                           lookup_attribute=lookup_attribute)
 
     def load_children(self, item):

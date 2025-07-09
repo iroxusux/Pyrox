@@ -17,6 +17,7 @@ from .plc import (
     Routine,
     Rung,
     Tag,
+    TagEndpoint,
 )
 
 __all__ = (
@@ -36,4 +37,5 @@ __all__ = (
     'Routine',
     'Rung',
     'Tag',
+    'TagEndpoint',
 )
