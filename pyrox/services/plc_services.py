@@ -96,6 +96,44 @@ def dict_to_xml_file(controller: dict,
                                              pretty=True))))
 
 
+def get_ip_address_from_comm_path(comm_path: str) -> Optional[str]:
+    """Extract IP address from a communication path string
+
+    Args:
+        comm_path (str): Communication path string
+
+    Returns:
+        Optional[str]: Extracted IP address or None if not found
+    """
+    if not comm_path:
+        return None
+
+    parts = comm_path.split('\\')
+    for part in reversed(parts):
+        ip_address = get_ip_address_from_string(part.strip())
+        if ip_address:
+            return ip_address
+    return None
+
+
+def get_ip_address_from_string(ip_string: str) -> Optional[str]:
+    """Extract IP address from a string
+
+    Args:
+        ip_string (str): String containing an IP address
+
+    Returns:
+        Optional[str]: Extracted IP address or None if not found
+    """
+    if not ip_string:
+        return None
+
+    parts = ip_string.split('.')
+    if len(parts) == 4 and all(part.isdigit() and 0 <= int(part) < 256 for part in parts):
+        return ip_string
+    return None
+
+
 def get_rung_text(rung):
     """Extract readable text from a rung if available"""
     text_element = rung.find("./Text")

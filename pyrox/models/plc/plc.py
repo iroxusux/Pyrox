@@ -10,7 +10,7 @@ from enum import Enum
 import re
 from typing import Callable, Generic, get_args, Optional, Self, TypeVar, Union
 
-from ..abc.meta import EnforcesNaming, Loggable
+from ..abc.meta import EnforcesNaming, Loggable, NamedPyroxObject
 from ..abc.list import HashList
 from ...services.dictionary_services import insert_key_at_index
 from ...services.plc_services import l5x_dict_from_file
@@ -236,7 +236,7 @@ class LogixAssetType(Enum):
     ALL = 9
 
 
-class PlcObject(EnforcesNaming, Loggable):
+class PlcObject(EnforcesNaming, NamedPyroxObject):
     """base class for a l5x plc object.
     """
 
@@ -255,8 +255,8 @@ class PlcObject(EnforcesNaming, Loggable):
         self._controller = controller
         self._init_dict_order()
         EnforcesNaming.__init__(self)
-        Loggable.__init__(self,
-                          **kwargs)
+        NamedPyroxObject.__init__(self,
+                                  **kwargs)
 
     def __repr__(self):
         return self.meta_data
@@ -433,6 +433,10 @@ class LogixOperand(PlcObject):
                  instruction: 'LogixInstruction',
                  arg_position: int,
                  controller: 'Controller'):
+        super().__init__(meta_data=meta_data,
+                         controller=controller)
+        if isinstance(self._meta_data, defaultdict):
+            raise TypeError("Meta data must be a a string!")
         self._aliased_parents: list[str] = None
         self._arg_position = arg_position
         self._as_aliased: str = None
@@ -444,9 +448,6 @@ class LogixOperand(PlcObject):
         self._instruction_type: LogixInstructionType = None
         self._parents: list[str] = None
         self._qualified_parents: list[str] = None
-
-        super().__init__(meta_data=meta_data,
-                         controller=controller)
 
     @property
     def aliased_parents(self) -> list[str]:
@@ -659,8 +660,12 @@ class LogixOperand(PlcObject):
             report.test_notes.append(f'Invalid argument position for operand {self.meta_data}!')
             report.pass_fail = False
 
-        if not self.as_aliased:
-            report.test_notes.append(f'No qualified name found for operand {self.meta_data}!')
+        try:
+            if not self.as_aliased:
+                report.test_notes.append(f'No qualified name found for operand {self.meta_data}!')
+                report.pass_fail = False
+        except ValueError as e:
+            report.test_notes.append(f'Error getting aliased name for operand {self.meta_data}: {str(e)}')
             report.pass_fail = False
 
         if not self.base_name:
@@ -683,8 +688,12 @@ class LogixOperand(PlcObject):
             report.test_notes.append(f'No parents found for operand {self.meta_data}!')
             report.pass_fail = False
 
-        if not self.aliased_parents:
-            report.test_notes.append(f'No aliased parents found for operand {self.meta_data}!')
+        try:
+            if not self.aliased_parents:
+                report.test_notes.append(f'No aliased parents found for operand {self.meta_data}!')
+                report.pass_fail = False
+        except ValueError as e:
+            report.test_notes.append(f'Error getting aliased parents for operand {self.meta_data}: {str(e)}')
             report.pass_fail = False
 
         return report
@@ -698,17 +707,15 @@ class LogixInstruction(PlcObject):
                  meta_data: str,
                  rung: Optional['Rung'],
                  controller: 'Controller'):
+        super().__init__(meta_data=meta_data,
+                         controller=controller)
         self._aliased_meta_data: str = None
         self._qualified_meta_data: str = None
         self._instruction_name: str = None
         self._rung = rung
         self._type: LogixInstructionType = None
-        self._operands: list[LogixOperand] = None
-        super().__init__(meta_data=meta_data,
-                         controller=controller)
-
-    def __repr__(self):
-        return self._meta_data
+        self._operands: list[LogixOperand] = []
+        self._get_operands()
 
     @property
     def aliased_meta_data(self) -> str:
@@ -762,14 +769,6 @@ class LogixInstruction(PlcObject):
         ----------
             :class:`list[LogixOperand]`
         """
-        if self._operands:
-            return self._operands
-
-        matches = re.findall(INST_OPER_RE_PATTERN, self._meta_data)
-        if not matches or len(matches) < 1:
-            raise ValueError("Corrupt meta data for instruction, no operands found!")
-
-        self._operands = [LogixOperand(match, self, index, self.controller) for index, match in enumerate(matches[0].split(','))]
         return self._operands
 
     @property
@@ -823,6 +822,19 @@ class LogixInstruction(PlcObject):
         self._type = LogixInstructionType.INPUT if self.instruction_name in INPUT_INSTRUCTIONS else LogixInstructionType.OUTPUT
         return self._type
 
+    def _get_operands(self):
+        """get the operands for this instruction
+        """
+        matches = re.findall(INST_OPER_RE_PATTERN, self.meta_data)
+        if not matches or len(matches) < 1:
+            raise ValueError("Corrupt meta data for instruction, no operands found!")
+
+        self._operands = []
+        for index, match in enumerate(matches[0].split(',')):
+            if not match:
+                continue
+            self._operands.append(LogixOperand(match, self, index, self.controller))
+
     def as_report_dict(self) -> dict:
         """get this operand as a report dictionary
 
@@ -839,31 +851,9 @@ class LogixInstruction(PlcObject):
     def validate(self) -> ControllerReportItem:
         report = ControllerReportItem(self,
                                       f'Validating {self.__class__.__name__} object: {self.meta_data}')
-
-        if not self.instruction_name:
-            report.test_notes.append('No instruction name found!')
-            report.pass_fail = False
-
-        if not self.operands:
-            report.test_notes.append('No operands found for instruction!')
-            report.pass_fail = False
-
-        if not self.container:
-            report.test_notes.append('No container found for instruction!')
-            report.pass_fail = False
-
-        if not self.rung:
-            report.test_notes.append('No rung found for instruction!')
-            report.pass_fail = False
-
         if not self.type or self.type == LogixInstructionType.UNKOWN:
             report.test_notes.append('No instruction type found for instruction!')
             report.pass_fail = False
-
-        for operand in self.operands:
-            child_report = operand.validate()
-            report.pass_fail = report.pass_fail and child_report.pass_fail
-            report.child_reports.append(child_report)
 
         return report
 
@@ -925,10 +915,21 @@ class ContainsRoutines(ContainsTags):
                  meta_data=defaultdict(None), controller=None):
         super().__init__(meta_data, controller)
 
+        self._input_instructions: list[LogixInstruction] = []
+        self._output_instructions: list[LogixInstruction] = []
         self._instructions: list[LogixInstruction] = []
         self._routines: HashList = HashList('name')
-        [self._routines.append(self.config.routine_type(l5x_meta_data=x, controller=self.controller, program=self))
+        [self._routines.append(self.config.routine_type(meta_data=x, controller=self.controller, program=self))
          for x in self.raw_routines]
+
+    @property
+    def input_instructions(self) -> list[LogixInstruction]:
+        if self._input_instructions:
+            return self._input_instructions
+
+        self._input_instructions = []
+        [self._input_instructions.extend(x.input_instructions) for x in self.routines]
+        return self._input_instructions
 
     @property
     def instructions(self) -> list[LogixInstruction]:
@@ -945,6 +946,15 @@ class ContainsRoutines(ContainsTags):
         self._instructions = []
         [self._instructions.extend(x.instructions) for x in self.routines]
         return self._instructions
+
+    @property
+    def output_instructions(self) -> list[LogixInstruction]:
+        if self._output_instructions:
+            return self._output_instructions
+
+        self._output_instructions = []
+        [self._output_instructions.extend(x.output_instructions) for x in self.routines]
+        return self._output_instructions
 
     @property
     def routines(self) -> list[Routine]:
@@ -1519,7 +1529,6 @@ class Module(NamedPlcObject):
 
 class Program(ContainsRoutines):
     def __init__(self,
-                 name: str = None,
                  meta_data: dict = None,
                  controller: Controller = None):
         """type class for plc Program
@@ -1528,17 +1537,9 @@ class Program(ContainsRoutines):
             l5x_meta_data (str): meta data
             controller (Self): controller dictionary
         """
-        if not meta_data:
-            meta_data = l5x_dict_from_file(PLC_PROG_FILE)['Program']
 
-        super().__init__(meta_data=meta_data,
+        super().__init__(meta_data=meta_data or l5x_dict_from_file(PLC_PROG_FILE)['Program'],
                          controller=controller)
-
-        if name:
-            self.name = name
-
-        self._input_instructions: list[LogixInstruction] = []
-        self._output_instructions: list[LogixInstruction] = []
 
     @property
     def dict_key_order(self) -> list[str]:
@@ -1559,26 +1560,8 @@ class Program(ContainsRoutines):
         return self['@Disabled']
 
     @property
-    def input_instructions(self) -> list[LogixInstruction]:
-        if self._input_instructions:
-            return self._input_instructions
-
-        self._input_instructions = []
-        [self._input_instructions.extend(x.input_instructions) for x in self.routines]
-        return self._input_instructions
-
-    @property
     def main_routine_name(self) -> str:
         return self['@MainRoutineName']
-
-    @property
-    def output_instructions(self) -> list[LogixInstruction]:
-        if self._output_instructions:
-            return self._output_instructions
-
-        self._output_instructions = []
-        [self._output_instructions.extend(x.output_instructions) for x in self.routines]
-        return self._output_instructions
 
     @property
     def test_edits(self) -> str:
@@ -1588,50 +1571,12 @@ class Program(ContainsRoutines):
     def use_as_folder(self) -> str:
         return self['@UseAsFolder']
 
-    def find_unpaired_inputs(self):
-        inputs = defaultdict(list)
-        outputs = set()
-
-        for instruction in self.input_instructions:
-            pass
-
-        for instruction in self.output_instructions:
-            pass
-
-        for instruction in self.instructions:
-            for operand in [x for x in instruction.operands]:
-                if operand.instruction_type is LogixInstructionType.INPUT:
-                    inputs[operand.as_aliased].append(operand)
-                elif operand.instruction_type is LogixInstructionType.OUTPUT:
-                    outputs.add(operand.as_aliased)
-        unpaired_inputs = {}
-
-        for operand, locations in inputs.items():
-            if operand not in outputs:
-                if not any(item in outputs for item in locations[0].qualified_parents):
-                    unpaired_inputs[operand] = locations
-
-        return unpaired_inputs
-
     def validate(self) -> ControllerReportItem:
         report = super().validate()
-
-        if not self.input_instructions:
-            report.test_notes.append('No input instructions found in program!')
-            report.pass_fail = False
-
-        if not self.output_instructions:
-            report.test_notes.append('No output instructions found in program!')
-            report.pass_fail = False
 
         if not self.main_routine_name:
             report.test_notes.append('No main routine name found in program!')
             report.pass_fail = False
-
-        for routine in self.routines:
-            routine_report = routine.validate()
-            report.pass_fail = report.pass_fail and routine_report.pass_fail
-            report.child_reports.append(routine_report)
 
         return report
 
@@ -1658,8 +1603,7 @@ class ProgramTag(NamedPlcObject):
 
 class Routine(NamedPlcObject):
     def __init__(self,
-                 name: str = None,
-                 l5x_meta_data: dict = None,
+                 meta_data: dict = None,
                  controller: Controller = None,
                  program: Optional[Program] = None,
                  aoi: Optional[AddOnInstruction] = None):
@@ -1669,21 +1613,20 @@ class Routine(NamedPlcObject):
             l5x_meta_data (str): meta data
             controller (Self): controller dictionary
         """
-        if not l5x_meta_data:
-            l5x_meta_data = l5x_dict_from_file(PLC_ROUT_FILE)['Routine']
 
-        super().__init__(meta_data=l5x_meta_data,
+        super().__init__(meta_data=meta_data or l5x_dict_from_file(PLC_ROUT_FILE)['Routine'],
                          controller=controller)
-
-        if name:
-            self.name = name
 
         self._program: Optional[Program] = program
         self._aoi: Optional[AddOnInstruction] = aoi
-        self._rungs: list[Rung] = []
         self._instructions: list[LogixInstruction] = []
         self._input_instructions: list[LogixInstruction] = []
         self._output_instructions: list[LogixInstruction] = []
+        self._rungs: list[Rung] = []
+        [self._rungs.append(self.config.rung_type(meta_data=x,
+                                                  controller=self.controller,
+                                                  routine=self))
+         for x in self.raw_rungs]
 
     @property
     def dict_key_order(self) -> list[str]:
@@ -1740,12 +1683,6 @@ class Routine(NamedPlcObject):
 
     @property
     def rungs(self) -> list[Rung]:
-        if self._rungs:
-            return self._rungs
-        self._rungs = [self.config.rung_type(l5x_meta_data=x,
-                                             controller=self.controller,
-                                             routine=self)
-                       for x in self.raw_rungs]
         return self._rungs
 
     @property
@@ -1761,15 +1698,6 @@ class Routine(NamedPlcObject):
     def validate(self) -> ControllerReportItem:
         report = ControllerReportItem(self,
                                       f'Validating {self.__class__.__name__} object: {self.name}')
-
-        if not self.output_instructions:
-            report.test_notes.append('No output instructions found in routine!')
-            report.pass_fail = False
-
-        if not self.program:
-            report.test_notes.append('No program found for routine!')
-            report.pass_fail = False
-
         if not self.rungs:
             report.test_notes.append('No rungs found in routine!')
             report.pass_fail = False
@@ -1784,7 +1712,7 @@ class Routine(NamedPlcObject):
 
 class Rung(PlcObject):
     def __init__(self,
-                 l5x_meta_data: dict = None,
+                 meta_data: dict = None,
                  controller: Controller = None,
                  routine: Optional[Routine] = None):
         """type class for plc Rung
@@ -1793,15 +1721,12 @@ class Rung(PlcObject):
             l5x_meta_data (str): meta data
             controller (Self): controller dictionary
         """
-
-        if not l5x_meta_data:
-            l5x_meta_data = l5x_dict_from_file(PLC_RUNG_FILE)['Rung']
-
-        super().__init__(meta_data=l5x_meta_data,
+        super().__init__(meta_data=meta_data or l5x_dict_from_file(PLC_RUNG_FILE)['Rung'],
                          controller=controller)
 
         self._routine: Optional[Routine] = routine
         self._instructions: list[LogixInstruction] = []
+        self._get_instructions()
         self._input_instructions: list[LogixInstruction] = []
         self._output_instructions: list[LogixInstruction] = []
 
@@ -1848,7 +1773,7 @@ class Rung(PlcObject):
 
     @property
     def instructions(self) -> list[LogixInstruction]:
-        return self._get_instructions()
+        return self._instructions
 
     @property
     def output_instructions(self) -> list[LogixInstruction]:
@@ -1883,37 +1808,18 @@ class Rung(PlcObject):
         return self['@Type']
 
     def _get_instructions(self):
-        if self._instructions:
-            return self._instructions
-
         matches = re.findall(INST_RE_PATTERN, self.text)
         if not matches:
             return []
 
         self._instructions = [LogixInstruction(x, self, self.controller) for x in matches]
 
-        return self._instructions
-
     def validate(self) -> ControllerReportItem:
         report = ControllerReportItem(self,
                                       f'Validating {self.__class__.__name__} object: {self.meta_data}')
-
-        if not self.output_instructions:
-            report.test_notes.append('No output instructions found in rung!')
-            report.pass_fail = False
-
-        if not self.routine:
-            report.test_notes.append('No routine found for rung!')
-            report.pass_fail = False
-
         if not self.instructions:
             report.test_notes.append('No instructions found in rung!')
             report.pass_fail = False
-
-        for instruction in self.instructions:
-            instruction_report = instruction.validate()
-            report.pass_fail = report.pass_fail and instruction_report.pass_fail
-            report.child_reports.append(instruction_report)
 
         return report
 
@@ -1985,7 +1891,7 @@ class Tag(NamedPlcObject):
         if not self.alias_for:
             return None
 
-        return self.alias_for.split('.')[0]
+        return self.alias_for.split('.')[0].split(':')[0]
 
     @property
     def class_(self) -> str:
@@ -2097,7 +2003,7 @@ class Tag(NamedPlcObject):
 
         parent_tag = self.get_parent_tag(self)
         if not parent_tag:
-            raise ValueError(f'Tag {self.name} has an alias for {self.alias_for_base_name} but no parent tag found!')
+            return f'{self.alias_for}{additional_elements}'
 
         alias_element_pointer = self.alias_for.find('.')
         if alias_element_pointer != -1:
@@ -2113,6 +2019,9 @@ class Tag(NamedPlcObject):
             return tag
 
         alias = tag.get_parent_tag(tag)
+
+        if not alias:
+            return tag
 
         if alias.alias_for:
             return self.get_base_tag(tracked_tag=alias)
@@ -2184,7 +2093,7 @@ class ControllerConfiguration:
     tag_type: type = Tag
 
 
-class Controller(NamedPlcObject):
+class Controller(NamedPlcObject, Loggable):
     """Controller container for Allen Bradley L5X Files.
     .. ------------------------------------------------------------
 
@@ -2211,9 +2120,11 @@ class Controller(NamedPlcObject):
         self._file_location, self._ip_address, self._slot = '', '', 0
         self._config = config if config else ControllerConfiguration()
 
-        super().__init__(meta_data=self.l5x_meta_data,
-                         controller=self,
-                         **kwargs)
+        NamedPlcObject.__init__(self,
+                                meta_data=self.l5x_meta_data,
+                                controller=self,
+                                **kwargs)
+        Loggable.__init__(self)
 
         self.logger.info('Generating add-on instructions...')
         self._aois: HashList = HashList('name')
@@ -2548,19 +2459,26 @@ class Controller(NamedPlcObject):
         inputs = defaultdict(list)
         outputs = set()
 
-        [inputs[operand.as_qualified].append(operand) for instr in self.input_instructions for operand in instr.operands]
-        [outputs.add(operand.as_qualified) for instr in self.output_instructions for operand in instr.operands]
+        # Collect all input and output operands
+        for instr in self.input_instructions:
+            for operand in instr.operands:
+                inputs[operand.as_qualified].append(operand)
+        for instr in self.output_instructions:
+            for operand in instr.operands:
+                outputs.add(operand.as_qualified)
 
         unpaired_inputs = {}
 
         for key, value in inputs.items():
-            if key not in outputs and not any(item in outputs for item in value[0].qualified_parents):
-                unpaired_inputs[key] = [x.as_report_dict() for x in value]
+            if key not in outputs:
+                # Use set intersection for fast check
+                qualified_parents = set(value[0].qualified_parents)
+                if qualified_parents.isdisjoint(outputs):
+                    unpaired_inputs[key] = [x.as_report_dict() for x in value]
 
-        # these are common used hardware flags from the PLC, there are no outputs for these
+        # Remove common hardware flags
         for key in ['S:FS', 'S:Fs', 'S:fs', 's:fs', 's:FS']:
-            if key in unpaired_inputs:
-                del unpaired_inputs[key]
+            unpaired_inputs.pop(key, None)
 
         return unpaired_inputs
 

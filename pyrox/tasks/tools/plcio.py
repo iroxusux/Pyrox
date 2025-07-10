@@ -2,7 +2,17 @@
     """
 from __future__ import annotations
 
-from tkinter import Button, DISABLED, Entry, LabelFrame, NORMAL, StringVar, TOP, LEFT, X
+from tkinter import (
+    Button,
+    Canvas,
+    DISABLED,
+    Entry,
+    LabelFrame,
+    NORMAL,
+    StringVar,
+    TOP,
+    LEFT,
+    X)
 
 from typing import Optional
 
@@ -28,6 +38,10 @@ class PlcIoFrame(TaskFrame):
 
         self._plccfgframe = LabelFrame(self.content_frame, text='PLC Connection Configuration')
         self._plccfgframe.pack(side=TOP, fill=X)
+
+        self._status_canvas = Canvas(self._plccfgframe, width=20, height=20, highlightthickness=0)
+        self._status_canvas.pack(side=LEFT, padx=8)
+        self._status_led = self._status_canvas.create_oval(4, 4, 16, 16, fill="grey", outline="black")
 
         _ip_addr = StringVar(self._plccfgframe, self._conn_params.ip_address, 'PLC IP Address')
         self._ip_addr_entry = Entry(self._plccfgframe, textvariable=_ip_addr)
@@ -74,10 +88,22 @@ class PlcIoFrame(TaskFrame):
         return self._get_tags_pb
 
     @property
+    def ip_addr(self) -> str:
+        """Returns the IP address variable.
+        """
+        return self._ip_addr_entry.get()
+
+    @property
     def ip_addr_entry(self) -> Entry:
         """Returns the IP address entry.
         """
         return self._ip_addr_entry
+
+    @property
+    def slot(self) -> str:
+        """Returns the slot number variable.
+        """
+        return self._slot_entry.get()
 
     @property
     def slot_entry(self) -> Entry:
@@ -97,6 +123,11 @@ class PlcIoFrame(TaskFrame):
         """
         return self._watch_table_pb
 
+    def set_status_led(self, connected: bool):
+        """Set the status LED color."""
+        color = "light green" if connected else "grey"
+        self._status_canvas.itemconfig(self._status_led, fill=color)
+
 
 class PlcIoTask(AppTask):
     """Controller verification task for the PLC verification Application.
@@ -112,6 +143,10 @@ class PlcIoTask(AppTask):
         self._frame: Optional[PlcIoFrame] = None
         self._watch_table_frame: Optional[WatchTableTaskFrame] = None
 
+        self._on_connect_lambda = lambda: self._connection_model.connect(ConnectionParameters(
+            self._frame.ip_addr,
+            self._frame.slot,
+            500))
         self._on_new_tags_lambda = lambda _: self._watch_table_frame.update_symbols(self._connection_model.tag_list_as_names())
         self._on_tick_lambda = lambda: self._plc_watch_table_model.on_tick(self._watch_table_frame.get_watch_table())
 
@@ -141,9 +176,14 @@ class PlcIoTask(AppTask):
         if connected:
             self._frame.connect_pb.configure(state=DISABLED)
             self._frame.disconnect_pb.configure(state=NORMAL)
+            self._frame.ip_addr_entry.configure(state=DISABLED)
+            self._frame.slot_entry.configure(state=DISABLED)
         else:
             self._frame.connect_pb.configure(state=NORMAL)
             self._frame.disconnect_pb.configure(state=DISABLED)
+            self._frame.ip_addr_entry.configure(state=NORMAL)
+            self._frame.slot_entry.configure(state=NORMAL)
+        self._frame.set_status_led(connected)
 
     def _update_watch_table_value(self, response):
         """Update the watch table with the value of a tag.
@@ -169,11 +209,11 @@ class PlcIoTask(AppTask):
 
     def start(self):
         if not self._frame or not self._frame.winfo_exists():
-            self._frame = PlcIoFrame(self.application.workspace)
-            self._frame.connect_pb.config(command=lambda: self._connection_model.connect(ConnectionParameters(
-                self._frame.ip_addr_entry.get(),
-                self._frame.slot_entry.get(),
-                500)))
+            self._frame = PlcIoFrame(self.application.workspace,
+                                     ConnectionParameters(self.application.runtime_info.get('connection_params_ip_address', '192.168.1.2'),
+                                                          self.application.runtime_info.get('connection_params_slot', '0')))
+
+            self._frame.connect_pb.config(command=self._on_connect_lambda)
             self._frame.disconnect_pb.config(command=self._connection_model.disconnect)
             self._frame.get_tags_pb.config(command=self._connection_model.get_controller_tags)
             self._frame.watch_table_pb.config(command=self._launch_watch_table)

@@ -264,9 +264,8 @@ class App(Application):
 
     def _set_frame_selected(self, frame):
         """Set the selected frame in the view menubar."""
-        cmds = self.menu.get_menu_commands(self.menu.view)
-        [self.menu.view.entryconfig(self.menu.view.index(entry), state='normal') for entry in cmds if entry != frame.name]
-        self.menu.view.entryconfig(self.menu.view.index(frame.name), state='active')
+        [frame.shown_var.set(False) for frame in self._registered_frames]
+        frame.shown_var.set(True)
 
     def build(self):
         """Build this :class:`Application`.
@@ -406,7 +405,9 @@ class App(Application):
             return
 
         self._registered_frames.append(frame)
-        self.menu.view.add_command(label=frame.name, command=lambda: self._raise_frame(frame))
+        self.menu.view.add_checkbutton(label=frame.name,
+                                       variable=frame.shown_var,
+                                       command=lambda: self._raise_frame(frame))
         if raise_:
             self._raise_frame(frame)
         frame.on_destroy.append(lambda: self.unregister_frame(frame))

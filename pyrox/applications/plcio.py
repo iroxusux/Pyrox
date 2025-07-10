@@ -18,6 +18,10 @@ if TYPE_CHECKING:
     from .app import App
 
 
+APP_RUNTIME_INFO_IP = 'connection_params_ip_address'
+APP_RUNTIME_INFO_SLOT = 'connection_params_slot'
+
+
 class ConnectionCommandType(Enum):
     NA = 0
     READ = 1
@@ -144,6 +148,17 @@ class PlcControllerConnectionModel(Model):
         """
         return self._params
 
+    @params.setter
+    def params(self, value: ConnectionParameters) -> None:
+        """Sets the connection parameters for this model.
+        """
+        if not isinstance(value, ConnectionParameters):
+            raise TypeError(f'Expected ConnectionParameters, got {type(value)}')
+        self._params = value
+        self.application.runtime_info.set(APP_RUNTIME_INFO_IP, str(self._params.ip_address))
+        self.application.runtime_info.set(APP_RUNTIME_INFO_SLOT, str(self._params.slot))
+        self.logger.info('Connection parameters set to %s', str(self._params))
+
     @property
     def tags(self) -> list[Tag]:
         """get the tags from the PLC controller.
@@ -176,7 +191,7 @@ class PlcControllerConnectionModel(Model):
             self.logger.error('no parameters, cannot connect')
             return
 
-        self._params = params
+        self.params = params
         self.logger.info('connecting to -> %s | %s',
                          self._params.ip_address,
                          str(self._params.slot))
@@ -305,12 +320,25 @@ class PlcControllerConnectionModel(Model):
         self._get_controller_tags()
 
     def tag_list_as_dict(self) -> dict:
-        tag_dict = {}
+        pylogix_dict = {
+            'Program Tags': {},
+            'Module Tags': {},
+            'Controller Tags': {},
+        }
         for tag in self._tags:
-            tag_dict[tag.TagName] = tag.__dict__
-            tag_dict[tag.TagName]['@Name'] = tag.TagName  # add @Name for compatibility with tree view
+            if 'Program:' in tag.TagName:
+                pylogix_dict['Program Tags'][tag.TagName] = tag.__dict__
+                pylogix_dict['Program Tags'][tag.TagName]['@Name'] = tag.TagName
+            elif ':' in tag.TagName:
+                pylogix_dict['Module Tags'][tag.TagName] = tag.__dict__
+                pylogix_dict['Module Tags'][tag.TagName]['@Name'] = tag.TagName
+            else:
+                pylogix_dict['Controller Tags'][tag.TagName] = tag.__dict__
+                pylogix_dict['Controller Tags'][tag.TagName]['@Name'] = tag.TagName
 
-        return tag_dict
+        return {
+            'pylogix': pylogix_dict,
+        }
 
     def tag_list_as_names(self) -> list[str]:
         """Returns a list of tag names from the PLC tags.

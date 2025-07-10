@@ -643,6 +643,21 @@ class ApplicationRuntimeInfo(SupportsJsonSaving, SupportsJsonLoading):
         """
         return lambda: self.data.data
 
+    def get(self, key: str, default: Any = None) -> Any:
+        """Get a value from the runtime information data.
+        .. ------------------------------------------------------------
+        .. arguments::
+        key: :type:`str`
+            The key to retrieve from the runtime information data.
+        default: :type:`Any`
+            The default value to return if the key is not found.
+        .. ------------------------------------------------------------
+        .. returns::
+        :class:`Any`
+            The value associated with the specified key, or the default value if the key is not found.
+        """
+        return self.data.get(key, default)
+
     def on_loaded(self,
                   data: Any) -> None:
         if data is None:
@@ -652,6 +667,17 @@ class ApplicationRuntimeInfo(SupportsJsonSaving, SupportsJsonLoading):
         if not isinstance(data, dict):
             raise TypeError('Loaded data must be a RuntimeDict.')
         self.data = data
+
+    def set(self, key: str, value: Any) -> None:
+        """Set a key-value pair in the runtime information data.
+        .. ------------------------------------------------------------
+        .. arguments::
+        key: :type:`str`
+            The key to set in the runtime information data.
+        value: :type:`Any`
+            The value to set for the specified key.
+        """
+        self.data[key] = value
 
 
 class Application(Runnable):
@@ -747,6 +773,16 @@ class Application(Runnable):
             menu: :class:`MainApplicationMenu`
         """
         return self._menu
+
+    @property
+    def runtime_info(self) -> ApplicationRuntimeInfo:
+        """Runtime information for this :class:`Application`.
+        This property provides access to the runtime information of the application.
+        .. ------------------------------------------------------------
+        .. returns::
+            runtime_info: :class:`ApplicationRuntimeInfo`
+        """
+        return self._runtime_info
 
     @property
     def tasks(self) -> HashList[ApplicationTask]:

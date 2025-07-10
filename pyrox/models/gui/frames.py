@@ -8,6 +8,7 @@ from tkinter.ttk import Widget
 from logging import INFO, WARNING, ERROR
 from typing import Any, Optional, Union
 from tkinter import (
+    BooleanVar,
     BOTH,
     Button,
     BOTTOM,
@@ -201,6 +202,8 @@ class TaskFrame(Frame):
                  **kwargs):
         super().__init__(*args, **kwargs)
         self._name = name or 'Task Frame'
+        self._shown: bool = False
+        self._shown_var: BooleanVar = BooleanVar(value=self._shown)
         self._title_bar = Frame(self, height=20, bg='lightgrey')
 
         self._close_button = Button(self._title_bar,
@@ -245,6 +248,35 @@ class TaskFrame(Frame):
             list[callable]: list of callbacks
         """
         return self._on_destroy
+
+    @property
+    def shown(self) -> bool:
+        """get the shown state of this task frame
+
+        Returns:
+            bool: True if the task frame is shown, False otherwise
+        """
+        return self._shown
+
+    @shown.setter
+    def shown(self, value: bool):
+        """set the shown state of this task frame
+
+        Args:
+            value (bool): True to show the task frame, False to hide it
+        """
+        if not isinstance(value, bool):
+            raise TypeError(f'Expected bool, got {type(value)}')
+        self._shown = value
+
+    @property
+    def shown_var(self) -> BooleanVar:
+        """get the BooleanVar that represents the shown state of this task frame
+
+        Returns:
+            BooleanVar: BooleanVar representing the shown state
+        """
+        return self._shown_var
 
     def destroy(self):
         """Destroy the task frame and call all registered callbacks."""
