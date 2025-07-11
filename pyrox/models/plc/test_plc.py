@@ -701,7 +701,7 @@ class TestRoutine(unittest.TestCase):
         post_len = len(self.routine.rungs)
         self.assertEqual(post_len, pre_len + 1)
         self.assertEqual(self.routine.rungs[-1].text, 'XIC(AlwaysOn);')
-        self.assertEqual(self.routine.rungs[-1].number, str(post_len))
+        self.assertEqual(self.routine.rungs[-1].number, str(post_len - 1))
 
 
 class TestRung(unittest.TestCase):

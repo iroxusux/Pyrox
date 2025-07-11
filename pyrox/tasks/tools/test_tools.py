@@ -1,10 +1,10 @@
 """Test tools module for Pyrox PLC models.
     """
 import unittest
-from unittest.mock import MagicMock, patch, mock_open
+from unittest.mock import MagicMock
 from pyrox.tasks.tools.generate import ControllerGenerateTask
 from pyrox.applications.app import App
-from pyrox.models.plc import Controller, Program, Routine, Rung
+from pyrox.models.plc import Controller, Program, Routine
 
 
 class TestControllerGenerateTask(unittest.TestCase):
