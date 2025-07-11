@@ -4,7 +4,8 @@ from __future__ import annotations
 
 
 from pyrox.applications.app import App, AppTask
-from pyrox.models.plc import Controller, Program, Routine, Rung, Tag
+from pyrox.models.plc import Controller, Datatype, Program, Routine, Rung, Tag
+from pyrox.services.plc_services import l5x_dict_from_file
 
 
 import json
@@ -63,6 +64,45 @@ class ControllerGenerateTask(AppTask):
             self.logger.info('creating...')
         elif jsr_rung and emulation_routine:
             self.logger.warning('Emulation routine already exists, skipping generation.')
+            return
+
+        ctrl_name = self.application.controller.name
+
+        siemens_drive_modules = [x for x in self.application.controller.modules if
+                                 x.catalog_number == 'ETHERNET-MODULE'
+                                 and x.communications['Connections']['Connection']['@InputCxnPoint'] == '101'
+                                 and x.communications['Connections']['Connection']['@OutputCxnPoint'] == '102'
+                                 and x.communications['Connections']['Connection']['@InputSize'] == '26'
+                                 and x.communications['Connections']['Connection']['@OutputSize'] == '4']
+
+        if len(siemens_drive_modules) != 0:
+            self.logger.info('Found %d Siemens drive modules...', len(siemens_drive_modules))
+            if 'Demo3D_G115D_Drive' not in self.application.controller.datatypes:
+                self.logger.info('Siemens drive datatype not found in controller, importing from L5X file...')
+                dt_dict = l5x_dict_from_file(r'docs\controls\emu\Demo3D_G115D_Drive_DataType.L5X')
+                if not dt_dict:
+                    self.logger.error('Failed to load Siemens drive datatype from L5X file.')
+                    return
+                for dt in dt_dict['RSLogix5000Content']['Controller']['DataTypes']['DataType']:
+                    datatype = Datatype(controller=self.application.controller,
+                                        meta_data=dt)
+                    self.application.controller.add_datatype(datatype, skip_compile=True)
+                    self.logger.info('Siemens drive datatype %s imported successfully.', datatype.name)
+            self.application.controller.compile()
+            if f'zz_Demo3D_{ctrl_name}_Siemens_Drives' not in self.application.controller.tags:
+                self.logger.info('Creating tag zz_Demo3D_%s_Siemens_Drives...', ctrl_name)
+                siemens_drives_tag = Tag(controller=self.application.controller)
+                siemens_drives_tag.name = f'zz_Demo3D_{ctrl_name}_Siemens_Drives'
+                siemens_drives_tag.tag_type = 'Base'
+                siemens_drives_tag.datatype = 'Demo3D_G115D_Drive'
+                siemens_drives_tag.dimensions = '150'
+                siemens_drives_tag.constant = False
+                siemens_drives_tag.external_access = 'Read/Write'
+                self.application.controller.add_tag(siemens_drives_tag)
+                self.logger.info('Tag zz_Demo3D_%s_Siemens_Drives created successfully.', ctrl_name)
+
+        safety_blocks = [x for x in self.application.controller.modules if
+                         '1732ES-IB' in x.catalog_number]
 
         emulation_routine = Routine(controller=self.application.controller)
         emulation_routine.name = 'aaa_Emulation'
@@ -84,6 +124,30 @@ class ControllerGenerateTask(AppTask):
             rung_x = Rung(controller=self.application.controller)
             rung_x.text = f'SSV(Module,{x.name},Mode,LocalMode);'
             emulation_routine.add_rung(rung_x)
+
+        for index, module in enumerate(siemens_drive_modules):
+            rung_x = Rung(controller=self.application.controller)
+            rung_x.text = f'[CPS(zz_Demo3D_{ctrl_name}_Siemens_Drives[{index}].Inputs.StatusWord1,{module.name}:I.Data[0],1)CPS(zz_Demo3D_{ctrl_name}_Siemens_Drives[{index}].Inputs.RPMRef,{module.name}:I.Data[1],1)CPS(zz_Demo3D_{ctrl_name}_Siemens_Drives[{index}].Inputs.AmpsRef,{module.name}:I.Data[2],1),CPS(zz_Demo3D_{ctrl_name}_Siemens_Drives[{index}].Inputs.TorqueRef,{module.name}:I.Data[3],1)CPS(zz_Demo3D_{ctrl_name}_Siemens_Drives[{index}].Inputs.AlarmCode,{module.name}:I.Data[4],1)CPS(zz_Demo3D_{ctrl_name}_Siemens_Drives[{index}].Inputs.FaultCode,{module.name}:I.Data[5],1),CPS(zz_Demo3D_{ctrl_name}_Siemens_Drives[{index}].Inputs.StatusWord4,{module.name}:I.Data[6],1)CPS(zz_Demo3D_{ctrl_name}_Siemens_Drives[{index}].Inputs.SpareInt1,{module.name}:I.Data[7],1)CPS(zz_Demo3D_{ctrl_name}_Siemens_Drives[{index}].Inputs.PowerUnitTempC,{module.name}:I.Data[8],1),CPS(zz_Demo3D_{ctrl_name}_Siemens_Drives[{index}].Inputs.StatusWord5,{module.name}:I.Data[9],1)CPS(zz_Demo3D_{ctrl_name}_Siemens_Drives[{index}].Inputs.MotorTempC,{module.name}:I.Data[10],1)CPS(zz_Demo3D_{ctrl_name}_Siemens_Drives[{index}].Inputs.SafetySTO_Out,{module.name}:I.Data[11],1),CPS(zz_Demo3D_{ctrl_name}_Siemens_Drives[{index}].Inputs.SafetySTOSts,{module.name}:I.Data[12],1),CPS({module.name}:O.Data[0],zz_Demo3D_{ctrl_name}_Siemens_Drives[{index}].Outputs.ControlWord1,1)CPS({module.name}:O.Data[1],zz_Demo3D_{ctrl_name}_Siemens_Drives[{index}].Outputs.Setpoint,1)];'  # noqa: E501
+            emulation_routine.add_rung(rung_x)
+
+        any_tags_added = False
+        for index, module in enumerate(safety_blocks):
+            rung_x = Rung(controller=self.application.controller)
+            rung_x.text = f'COP({module.name}:O,zz_Demo3D_{module.name}_O,1);'
+            emulation_routine.add_rung(rung_x)
+            if f'zz_Demo3D_{module.name}_O' not in self.application.controller.tags:
+                self.logger.info('Creating tag zz_Demo3D_%s_O...', module.name)
+                safety_tag = Tag(controller=self.application.controller)
+                safety_tag.name = f'zz_Demo3D_{module.name}_O'
+                safety_tag.tag_type = 'Base'
+                safety_tag.datatype = 'DINT'
+                safety_tag.constant = False
+                safety_tag.external_access = 'Read/Write'
+                self.application.controller.add_tag(safety_tag, skip_compile=True)
+                self.logger.info('Tag zz_Demo3D_%s_O created successfully.', module.name)
+                any_tags_added = True
+        if any_tags_added:
+            self.application.controller.compile()
 
         uninhibit_tag = Tag(controller=self.application.controller)
         uninhibit_tag.name = 'Uninhibit'
@@ -198,12 +262,11 @@ class ControllerGenerateTask(AppTask):
         raise NotImplementedError('Stellantis controller generation not implemented yet.')
 
     def inject(self) -> None:
-        drop_down = Menu(self.application.menu.file, name='new_from_template', tearoff=0)
-        file_new_item = self.application.menu.file.index('New Controller')  # Get the index of the 'New Controller' item
-        self.application.menu.file.insert_cascade(file_new_item+1, label='New From Template', menu=drop_down)
+        drop_down = Menu(self.application.menu.tools, name='generate_tasks', tearoff=0)
+        self.application.menu.tools.insert_cascade(0, label='Generate Tasks', menu=drop_down)
 
-        drop_down.add_command(label='GM', command=self.generate_gm)
-        drop_down.add_command(label='GM Emulation Routine', command=self.generate_gm_emulation_routine)
+        drop_down.add_command(label='Generate GM Controller', command=self.generate_gm)
+        drop_down.add_command(label='Create GM Emulation Routine', command=self.generate_gm_emulation_routine)
         drop_down.add_command(label='Remove GM Emulation Routine', command=self.remove_gm_emulation_routine)
-        drop_down.add_command(label='Ford', command=self.generate_ford)
-        drop_down.add_command(label='Stellantis', command=self.generate_stellantis)
+        drop_down.add_command(label='Ford (WIP)', command=self.generate_ford)
+        drop_down.add_command(label='Stellantis (WIP)', command=self.generate_stellantis)

@@ -254,7 +254,7 @@ class App(Application):
             self.unregister_frame(frame)
             self.logger.error('Frame does not exist or is not provided.')
             return
-        if frame not in self._registered_frames:
+        if frame.name not in self._registered_frames:
             self.logger.error(f'Frame {frame.name} is not registered in this application.')
             self.register_frame(frame, raise_=False)
         frame.master = self.workspace
@@ -398,7 +398,7 @@ class App(Application):
         if not isinstance(frame, TaskFrame):
             raise TypeError(f'Expected TaskFrame, got {type(frame)}')
 
-        if frame in self._registered_frames:
+        if frame.name in self._registered_frames:
             if raise_:
                 self._raise_frame(frame)
             return
@@ -472,7 +472,7 @@ class App(Application):
 
         self.menu.view.delete(frame.name)
 
-        if frame not in self._registered_frames:
+        if frame.name not in self._registered_frames:
             self.logger.warning(f'Frame {frame.name} is not registered in this application.')
             return
 

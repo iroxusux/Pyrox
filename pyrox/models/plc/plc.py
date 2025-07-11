@@ -321,6 +321,13 @@ class PlcObject(EnforcesNaming, NamedPyroxObject):
         else:
             raise TypeError("Meta data must be a dict or a string!")
 
+    def compile(self) -> Self:
+        """compile this object.
+        """
+        self._compile_from_meta_data()
+        self._init_dict_order()
+        return self
+
     def _compile_from_meta_data(self):
         """compile this object from its meta data
 
@@ -1510,6 +1517,10 @@ class Module(NamedPlcObject):
         self['@CatalogNumber'] = value
 
     @property
+    def communications(self) -> dict:
+        return self['Communications']
+
+    @property
     def vendor(self) -> str:
         return self['@Vendor']
 
@@ -1613,13 +1624,6 @@ class Module(NamedPlcObject):
             return [self['Ports']['Port']]
 
         return self['Ports']['Port']
-
-    @property
-    def communications(self) -> dict:
-        if not self['Communications']:
-            return None
-
-        return self['Communications']
 
     def validate(self) -> ControllerReportItem:
 
@@ -2034,6 +2038,7 @@ class Tag(NamedPlcObject):
             '@Class',
             '@TagType',
             '@DataType',
+            '@Dimensions',
             '@Radix',
             '@AliasFor',
             '@Constant',
@@ -2124,6 +2129,27 @@ class Tag(NamedPlcObject):
     @property
     def decorated_data(self) -> dict:
         return next((x for x in self.data if x and x['@Format'] == 'Decorated'), None)
+
+    @property
+    def dimensions(self) -> str:
+        """get the dimensions of this tag
+
+        Returns:
+            :class:`str`: dimensions of this datatype
+        """
+        return self['@Dimensions']
+
+    @dimensions.setter
+    def dimensions(self, value: Union[str, int]):
+        if isinstance(value, int):
+            if value < 0:
+                raise ValueError("Dimensions must be a positive integer!")
+            value = str(value)
+
+        if not isinstance(value, str):
+            raise ValueError("Dimensions must be a string or an integer!")
+
+        self['@Dimensions'] = value
 
     @property
     def endpoint_operands(self) -> list[str]:
@@ -2558,6 +2584,7 @@ class Controller(NamedPlcObject, Loggable):
 
     def _compile_from_meta_data(self):
         """Compile this controller from its meta data."""
+        self.logger.info('Compiling controller from meta data...')
         self._aois = HashList('name')
         [self._aois.append(self.config.aoi_type(meta_data=x, controller=self))
          for x in self.raw_aois]

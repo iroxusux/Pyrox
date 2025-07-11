@@ -275,6 +275,7 @@ class TagGuiObject(PlcGuiObject):
             ObjectEditField('class_', 'Class', tk.Label, True),
             ObjectEditField('constant', 'Constant', tk.Checkbutton, True),
             ObjectEditField('datatype', 'Data Type', tk.Label, True),
+            ObjectEditField('dimensions', 'Dimensions', tk.Label, True),
             ObjectEditField('endpoint_operands', 'Endpoint Operands', tk.Text, False),
             ObjectEditField('external_access', 'External Access', tk.Label, True),
             ObjectEditField('opc_ua_access', 'OPC UA Access', tk.Label, True),
