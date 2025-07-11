@@ -321,6 +321,13 @@ class PlcObject(EnforcesNaming, NamedPyroxObject):
         else:
             raise TypeError("Meta data must be a dict or a string!")
 
+    def _compile_from_meta_data(self):
+        """compile this object from its meta data
+
+        This method should be overridden by subclasses to provide specific compilation logic.
+        """
+        raise NotImplementedError("This method should be overridden by subclasses to compile from meta data.")
+
     def _init_dict_order(self):
         """initialize the dict order for this object.
 
@@ -888,23 +895,61 @@ class ContainsTags(NamedPlcObject):
         super().__init__(meta_data,
                          controller)
 
-        self._tags: HashList = HashList('name')
-        [self._tags.append(self.config.tag_type(meta_data=x, controller=self.controller, container=self))
-         for x in self.raw_tags]
+        self._tags: HashList
+        self._compile_from_meta_data()
 
     @property
     def raw_tags(self) -> list[dict]:
         if not self['Tags']:
-            return []
-
+            self['Tags'] = {'Tag': []}
         if not isinstance(self['Tags']['Tag'], list):
-            return [self['Tags']['Tag']]
-
+            self['Tags']['Tag'] = [self['Tags']['Tag']]
         return self['Tags']['Tag']
 
     @property
     def tags(self) -> HashList:
         return self._tags
+
+    def _compile_from_meta_data(self):
+        """compile this object from its meta data
+        """
+        self._tags: HashList = HashList('name')
+        [self._tags.append(self.config.tag_type(meta_data=x, controller=self.controller, container=self))
+         for x in self.raw_tags]
+
+    def add_tag(self, tag: 'Tag'):
+        """add a tag to this container
+
+        Args:
+            routine (Tag): tag to add
+        """
+        if not isinstance(tag, Tag):
+            raise TypeError("Tag must be of type Tag!")
+
+        if tag.name in self._tags:
+            self.raw_tags.remove(tag.meta_data)
+
+        self.raw_tags.append(tag.meta_data)
+        self._compile_from_meta_data()
+
+    def remove_tag(self, tag: Union['Tag', str]) -> None:
+        """remove a tag from this container
+
+        Args:
+            tag (Union[Tag, str]): tag to remove
+        """
+        if isinstance(tag, str):
+            tag_name = tag
+        elif isinstance(tag, Tag):
+            tag_name = tag.name
+        else:
+            raise TypeError("Tag must be of type Tag or str!")
+
+        if tag_name not in self._tags:
+            raise ValueError(f"Tag with name {tag_name} does not exist in this container!")
+
+        self.raw_tags.remove(self._tags[tag_name].meta_data)
+        self._compile_from_meta_data()
 
 
 class ContainsRoutines(ContainsTags):
@@ -919,8 +964,7 @@ class ContainsRoutines(ContainsTags):
         self._output_instructions: list[LogixInstruction] = []
         self._instructions: list[LogixInstruction] = []
         self._routines: HashList = HashList('name')
-        [self._routines.append(self.config.routine_type(meta_data=x, controller=self.controller, program=self))
-         for x in self.raw_routines]
+        self._compile_from_meta_data()
 
     @property
     def input_instructions(self) -> list[LogixInstruction]:
@@ -963,12 +1007,51 @@ class ContainsRoutines(ContainsTags):
     @property
     def raw_routines(self) -> list[dict]:
         if not self['Routines']:
-            return []
-
+            self['Routines'] = {'Routine': []}
         if not isinstance(self['Routines']['Routine'], list):
-            return [self['Routines']['Routine']]
-
+            self['Routines']['Routine'] = [self['Routines']['Routine']]
         return self['Routines']['Routine']
+
+    def _compile_from_meta_data(self):
+        """compile this object from its meta data
+        """
+        super()._compile_from_meta_data()
+        self._input_instructions = []
+        self._output_instructions = []
+        self._instructions = []
+        self._routines: HashList = HashList('name')
+        for routine in self.raw_routines:
+            self._routines.append(self.config.routine_type(meta_data=routine, controller=self.controller, program=self))
+
+    def add_routine(self, routine: 'Routine'):
+        """add a routine to this container
+
+        Args:
+            routine (Routine): routine to add
+        """
+        if not isinstance(routine, Routine):
+            raise TypeError("Routine must be of type Routine!")
+
+        if routine.name in self._routines:
+            raise ValueError(f"Routine with name {routine.name} already exists in this container!")
+
+        self.raw_routines.append(routine.meta_data)
+        self._compile_from_meta_data()
+
+    def remove_routine(self, routine: 'Routine'):
+        """remove a routine from this container
+
+        Args:
+            routine (Routine): routine to remove
+        """
+        if not isinstance(routine, Routine):
+            raise TypeError("Routine must be of type Routine!")
+
+        if routine.name not in self._routines:
+            raise ValueError(f"Routine with name {routine.name} does not exist in this container!")
+
+        self.raw_routines.remove(routine.meta_data)
+        self._compile_from_meta_data()
 
 
 class AddOnInstruction(ContainsRoutines):
@@ -976,8 +1059,7 @@ class AddOnInstruction(ContainsRoutines):
     """
 
     def __init__(self,
-                 name: str = None,
-                 l5x_meta_data: dict = None,
+                 meta_data: dict = None,
                  controller: 'Controller' = None):
         """type class for plc AddOn Instruction Definition
 
@@ -986,14 +1068,11 @@ class AddOnInstruction(ContainsRoutines):
             controller (Self): controller dictionary
         """
 
-        if not l5x_meta_data:
-            l5x_meta_data = l5x_dict_from_file(PLC_AOI_FILE)['AddOnInstructionDefinition']
-
-        super().__init__(meta_data=l5x_meta_data,
+        super().__init__(meta_data=meta_data or l5x_dict_from_file(PLC_AOI_FILE)['AddOnInstructionDefinition'],
                          controller=controller)
-
-        if name:
-            self.name = name
+        # this is due to a weird rockwell issue with the character '<' in the revision extension
+        if self.revision_extension is not None:
+            self.revision_extension = self.revision_extension  # force the setter logic to replace anything that is input
 
     @property
     def dict_key_order(self) -> list[str]:
@@ -1094,6 +1173,22 @@ class AddOnInstruction(ContainsRoutines):
         self['@SoftwareRevision'] = value
 
     @property
+    def revision_extension(self) -> str:
+        """get the revision extension for this AOI
+
+        Returns:
+            :class:`str`: revision extension
+        """
+        return self['@RevisionExtension']
+
+    @revision_extension.setter
+    def revision_extension(self, value: str):
+        if not isinstance(value, str):
+            raise ValueError("Revision extension must be a string!")
+
+        self['@RevisionExtension'] = value.replace('<', '&lt;')
+
+    @property
     def revision_note(self) -> str:
         return self['RevisionNote']
 
@@ -1120,6 +1215,15 @@ class AddOnInstruction(ContainsRoutines):
 
         if not isinstance(self['LocalTags']['LocalTag'], list):
             return [self['LocalTags']['LocalTag']]
+        return self['LocalTags']['LocalTag']
+
+    @property
+    def raw_tags(self) -> list[dict]:
+        # rockwell is weird and this is the only instance they use 'local tags' instead of 'tags'
+        if not self['LocalTags']:
+            self['LocalTags'] = {'LocalTag': []}
+        if not isinstance(self['LocalTags']['LocalTag'], list):
+            self['LocalTags']['LocalTag'] = [self['LocalTags']['LocalTag']]
         return self['LocalTags']['LocalTag']
 
     def validate(self):
@@ -1341,12 +1445,10 @@ class Datatype(NamedPlcObject):
     @property
     def raw_members(self) -> list[dict]:
         if not self['Members']:
-            return []
-
+            self['Members'] = {'Member': []}
         if not isinstance(self['Members']['Member'], list):
-            return [self['Members']['Member']]
-        else:
-            return self['Members']['Member']
+            self['Members']['Member'] = [self['Members']['Member']]
+        return self['Members']['Member']
 
     def validate(self):
         report = ControllerReportItem(self,
@@ -1560,6 +1662,20 @@ class Program(ContainsRoutines):
         return self['@Disabled']
 
     @property
+    def main_routine(self) -> Optional[Routine]:
+        """get the main routine for this program
+
+        .. -------------------------------
+
+        Returns
+        ----------
+            :class:`Routine`
+        """
+        if not self.main_routine_name:
+            return None
+        return self.routines.get(self.main_routine_name, None)
+
+    @property
     def main_routine_name(self) -> str:
         return self['@MainRoutineName']
 
@@ -1623,10 +1739,7 @@ class Routine(NamedPlcObject):
         self._input_instructions: list[LogixInstruction] = []
         self._output_instructions: list[LogixInstruction] = []
         self._rungs: list[Rung] = []
-        [self._rungs.append(self.config.rung_type(meta_data=x,
-                                                  controller=self.controller,
-                                                  routine=self))
-         for x in self.raw_rungs]
+        self._compile_from_meta_data()
 
     @property
     def dict_key_order(self) -> list[str]:
@@ -1688,12 +1801,60 @@ class Routine(NamedPlcObject):
     @property
     def raw_rungs(self) -> list[dict]:
         if not self['RLLContent']:
-            return []
-
+            self['RLLContent'] = {'Rung': []}
         if not isinstance(self['RLLContent']['Rung'], list):
-            return [self['RLLContent']['Rung']]
-
+            self['RLLContent']['Rung'] = [self['RLLContent']['Rung']]
         return self['RLLContent']['Rung']
+
+    def _compile_from_meta_data(self):
+        """compile this object from its meta data
+
+        This method should be overridden by subclasses to provide specific compilation logic.
+        """
+        self._rungs = []
+        self._instructions = []
+        self._input_instructions = []
+        self._output_instructions = []
+        [self._rungs.append(self.config.rung_type(meta_data=x,
+                                                  controller=self.controller,
+                                                  routine=self))
+         for x in self.raw_rungs]
+
+    def add_rung(self, rung: Rung):
+        """add a rung to this routine
+
+        Args:
+            rung (Rung): the rung to add
+        """
+        if not isinstance(rung, Rung):
+            raise ValueError("Rung must be an instance of Rung!")
+
+        rung.number = len(self.rungs)  # auto-increment rung number
+        self.raw_rungs.append(rung.meta_data)
+        self._compile_from_meta_data()
+
+    def remove_rung(self, rung: Union[Rung, int, str]):
+        """remove a rung from this routine
+
+        Args:
+            rung (Rung or int): the rung to remove, can be an instance of Rung or its index
+        """
+
+        # ideally, the rungs should be a HashList. This should be updated later
+
+        if isinstance(rung, str):
+            rung = next((x for x in self.rungs if x.number == rung), None)  # an extra check for out of bound rungs
+
+        if isinstance(rung, int):
+            if rung < 0 or rung >= len(self.rungs):
+                raise IndexError("Rung index out of range!")
+            rung = self.rungs[rung]
+
+        if not isinstance(rung, Rung):
+            raise ValueError("Rung must be an instance of Rung!")
+
+        self.raw_rungs.remove(rung.meta_data)
+        self._compile_from_meta_data()
 
     def validate(self) -> ControllerReportItem:
         report = ControllerReportItem(self,
@@ -1785,6 +1946,13 @@ class Rung(PlcObject):
     @property
     def number(self) -> str:
         return self['@Number']
+
+    @number.setter
+    def number(self, value: Union[int, str]):
+        if not isinstance(value, (str, int)):
+            raise ValueError("Rung number must be a string or int!")
+
+        self['@Number'] = str(value)
 
     @property
     def routine(self) -> Optional[Routine]:
@@ -1901,6 +2069,16 @@ class Tag(NamedPlcObject):
     def constant(self) -> str:
         return self['@Constant']
 
+    @constant.setter
+    def constant(self, value: Union[str, bool]):
+        if isinstance(value, bool):
+            value = 'true' if value else 'false'
+
+        if not self.is_valid_rockwell_bool(value):
+            raise self.InvalidNamingException
+
+        self['@Constant'] = value
+
     @property
     def container(self) -> Optional[Union[Program, AddOnInstruction, Controller]]:
         return self._container
@@ -1915,6 +2093,17 @@ class Tag(NamedPlcObject):
     @property
     def datatype(self) -> str:
         return self['@DataType']
+
+    @datatype.setter
+    def datatype(self, value: str):
+        if not isinstance(value, str):
+            raise ValueError("Datatype must be a string!")
+
+        if value not in self.controller.datatypes:
+            raise ValueError(f"Datatype {value} not found in controller datatypes!")
+
+        self['@DataType'] = value
+        self['Data'] = []
 
     @property
     def datavalue_members(self) -> list[DataValueMember]:
@@ -1964,6 +2153,16 @@ class Tag(NamedPlcObject):
     def external_access(self) -> str:
         return self['@ExternalAccess']
 
+    @external_access.setter
+    def external_access(self, value: str):
+        if not isinstance(value, str):
+            raise ValueError("External access must be a string!")
+
+        if value not in ['None', 'ReadOnly', 'Read/Write']:
+            raise ValueError("External access must be one of: None, ReadOnly, Read/Write!")
+
+        self['@ExternalAccess'] = value
+
     @property
     def l5k_data(self) -> dict:
         return next((x for x in self.data if x and x['@Format'] == 'L5K'), None)
@@ -1984,6 +2183,16 @@ class Tag(NamedPlcObject):
     @property
     def tag_type(self) -> str:
         return self['@TagType']
+
+    @tag_type.setter
+    def tag_type(self, value: str):
+        if not isinstance(value, str):
+            raise ValueError("Tag type must be a string!")
+
+        if value not in ['Base', 'Structure', 'Array']:
+            raise ValueError("Tag type must be one of: Atomic, Structure, Array!")
+
+        self['@TagType'] = value
 
     def get_alias_string(self,
                          additional_elements: str = None) -> str:
@@ -2125,32 +2334,12 @@ class Controller(NamedPlcObject, Loggable):
                                 controller=self,
                                 **kwargs)
         Loggable.__init__(self)
-
-        self.logger.info('Generating add-on instructions...')
-        self._aois: HashList = HashList('name')
-        [self._aois.append(self.config.aoi_type(l5x_meta_data=x, controller=self))
-         for x in self.raw_aois]
-
-        self.logger.info('Generating datatypes...')
-        self._datatypes: HashList = HashList('name')
-        self._compile_atomic_datatypes()
-        [self._datatypes.append(self.config.datatype_type(meta_data=x, controller=self))
-         for x in self.raw_datatypes]
-
-        self.logger.info('Generating modules...')
-        self._modules: HashList = HashList('name')
-        [self._modules.append(self.config.module_type(l5x_meta_data=x, controller=self))
-         for x in self.raw_modules]
-
-        self.logger.info('Generating programs...')
-        self._programs: HashList = HashList('name')
-        [self._programs.append(self.config.program_type(meta_data=x, controller=self))
-         for x in self.raw_programs]
-
-        self.logger.info('Generating tags...')
-        self._tags: HashList = HashList('name')
-        [self._tags.append(self.config.tag_type(meta_data=x, controller=self, container=self))
-         for x in self.raw_tags]
+        self._aois: HashList
+        self._datatypes: HashList
+        self._modules: HashList
+        self._programs: HashList
+        self._tags: HashList
+        self._compile_from_meta_data()
 
     @property
     def aois(self) -> HashList[AddOnInstruction]:
@@ -2159,11 +2348,11 @@ class Controller(NamedPlcObject, Loggable):
     @property
     def raw_aois(self) -> list[dict]:
         if not self['AddOnInstructionDefinitions']:
-            return []
+            self['AddOnInstructionDefinitions'] = {'AddOnInstructionDefinition': []}
         if not isinstance(self['AddOnInstructionDefinitions']['AddOnInstructionDefinition'], list):
-            return [self['AddOnInstructionDefinitions']['AddOnInstructionDefinition']]
-        else:
-            return self['AddOnInstructionDefinitions']['AddOnInstructionDefinition']
+            self['AddOnInstructionDefinitions']['AddOnInstructionDefinition'] = [
+                self['AddOnInstructionDefinitions']['AddOnInstructionDefinition']]
+        return self['AddOnInstructionDefinitions']['AddOnInstructionDefinition']
 
     @property
     def comm_path(self) -> str:
@@ -2187,11 +2376,10 @@ class Controller(NamedPlcObject, Loggable):
     def raw_datatypes(self) -> list[dict]:
 
         if not self['DataTypes']:
-            return []
+            self['DataTypes'] = {'DataType': []}
         if not isinstance(self['DataTypes']['DataType'], list):
-            return [self['DataTypes']['DataType']]
-        else:
-            return self['DataTypes']['DataType']
+            self['DataTypes']['DataType'] = [self['DataTypes']['DataType']]
+        return self['DataTypes']['DataType']
 
     @property
     def file_location(self) -> str:
@@ -2261,11 +2449,10 @@ class Controller(NamedPlcObject, Loggable):
     @property
     def raw_modules(self) -> list[dict]:
         if not self['Modules']:
-            return []
+            self['Modules'] = {'Module': []}
         if not isinstance(self['Modules']['Module'], list):
-            return [self['Modules']['Module']]
-        else:
-            return self['Modules']['Module']
+            self['Modules']['Module'] = [self['Modules']['Module']]
+        return self['Modules']['Module']
 
     @property
     def plc_module(self) -> dict:
@@ -2291,11 +2478,10 @@ class Controller(NamedPlcObject, Loggable):
     @property
     def raw_programs(self) -> list[dict]:
         if not self['Programs']:
-            return []
+            self['Programs'] = {'Program': []}
         if not isinstance(self['Programs']['Program'], list):
-            return [self['Programs']['Program']]
-        else:
-            return self['Programs']['Program']
+            self['Programs']['Program'] = [self['Programs']['Program']]
+        return self['Programs']['Program']
 
     @property
     def root_meta_data(self) -> dict:
@@ -2318,14 +2504,11 @@ class Controller(NamedPlcObject, Loggable):
 
     @property
     def raw_tags(self) -> list[dict]:
-        if not self._meta_data['Tags']:
-            return []
-        if not isinstance(self._meta_data['Tags'], dict):
-            raise ValueError('Tags must be a dictionary!')
-        if not isinstance(self._meta_data['Tags']['Tag'], list):
-            return [self._meta_data['Tags']['Tag']]
-        else:
-            return self._meta_data['Tags']['Tag']
+        if not self['Tags']:
+            self['Tags'] = {'Tag': []}
+        if not isinstance(self['Tags']['Tag'], list):
+            self['Tags']['Tag'] = [self['Tags']['Tag']]
+        return self['Tags']['Tag']
 
     @raw_tags.setter
     def raw_tags(self,
@@ -2373,6 +2556,29 @@ class Controller(NamedPlcObject, Loggable):
                                                       {'@Name': 'DN'}
                                                   ]}}, controller=self))
 
+    def _compile_from_meta_data(self):
+        """Compile this controller from its meta data."""
+        self._aois = HashList('name')
+        [self._aois.append(self.config.aoi_type(meta_data=x, controller=self))
+         for x in self.raw_aois]
+
+        self._datatypes = HashList('name')
+        self._compile_atomic_datatypes()
+        [self._datatypes.append(self.config.datatype_type(meta_data=x, controller=self))
+         for x in self.raw_datatypes]
+
+        self._modules = HashList('name')
+        [self._modules.append(self.config.module_type(l5x_meta_data=x, controller=self))
+         for x in self.raw_modules]
+
+        self._programs = HashList('name')
+        [self._programs.append(self.config.program_type(meta_data=x, controller=self))
+         for x in self.raw_programs]
+
+        self._tags = HashList('name')
+        [self._tags.append(self.config.tag_type(meta_data=x, controller=self, container=self))
+         for x in self.raw_tags]
+
     def _assign_address(self,
                         address: str):
         octets = address.split('.')
@@ -2386,21 +2592,18 @@ class Controller(NamedPlcObject, Loggable):
         self._ip_address = address
 
     def _add_common(self,
-                    plcobject: Union[PlcObject, str, dict],
-                    target_list: list,
-                    objecttype: type):
+                    item: NamedPlcObject,
+                    item_class: type,
+                    target_list: HashList,
+                    target_meta_list: list[dict]):
 
-        if isinstance(plcobject, PlcObject):
-            target_list.append(plcobject)
+        if not isinstance(item, item_class):
+            raise TypeError(f"{item.name} must be of type {item_class}!")
 
-        elif isinstance(plcobject, dict):
-            target_list.append(objecttype(meta_data=plcobject, controller=self))
+        if item.name in target_list:
+            raise ValueError(f"{item_class} with name {item.name} already exists in this list!")
 
-        elif isinstance(plcobject, str):
-            target_list.append(objecttype(name=plcobject, controller=self))
-
-        else:
-            raise TypeError('Invalid type for %s!' % objecttype.__name__)
+        target_meta_list.append(item.meta_data)
 
     def _remove_common(self,
                        plcobject: PlcObject,
@@ -2408,20 +2611,95 @@ class Controller(NamedPlcObject, Loggable):
         if plcobject in target_list:
             target_list.remove(plcobject)
 
-    def add_aoi(self, aoi: Union[AddOnInstruction, dict, str]):
-        self._add_common(aoi, self._aois, self._config.aoi_type)
+    def add_aoi(self,
+                aoi: AddOnInstruction,
+                skip_compile: Optional[bool] = False):
+        """Add an AOI to this controller.
+        .. -------------------------------
+        .. arguments::
+        :class:`AddOnInstruction` aoi:
+            the AOI to add
+        :class:`bool` skip_compile:
+            If True, skip the compilation step after adding the AOI.
+        """
+        self._add_common(aoi,
+                         self._config.aoi_type,
+                         self._aois,
+                         self.raw_aois)
+        if not skip_compile:
+            self._compile_from_meta_data()
 
-    def add_datatype(self, datatype: Union[Program, dict, str]):
-        self._add_common(datatype, self._datatypes, self._config.datatype_type)
+    def add_datatype(self,
+                     datatype: Datatype,
+                     skip_compile: Optional[bool] = False):
+        """Add a datatype to this controller.
+        .. -------------------------------
+        .. arguments::
+        :class:`Datatype` datatype:
+            the datatype to add
+        :class:`bool` skip_compile:
+            If True, skip the compilation step after adding the datatype.
+        """
+        self._add_common(datatype,
+                         self._config.datatype_type,
+                         self._datatypes,
+                         self.raw_datatypes)
+        if not skip_compile:
+            self._compile_from_meta_data()
 
-    def add_module(self, module: Union[Module, dict, str]):
-        self._add_common(module, self._modules, self._config.module_type)
+    def add_module(self,
+                   module: Module,
+                   skip_compile: Optional[bool] = False):
+        """Add a module to this controller.
+        .. -------------------------------
+        .. arguments::
+        :class:`Module` module:
+            the module to add
+        :class:`bool` skip_compile:
+            If True, skip the compilation step after adding the module.
+        """
+        self._add_common(module,
+                         self._config.module_type,
+                         self._modules,
+                         self.raw_modules)
+        if not skip_compile:
+            self._compile_from_meta_data()
 
-    def add_program(self, program: Union[Program, dict, str]):
-        self._add_common(program, self._programs, self._config.program_type)
+    def add_program(self,
+                    program: Program,
+                    skip_compile: Optional[bool] = False):
+        """Add a program to this controller.
+        .. -------------------------------
+        .. arguments::
+        :class:`Program` program:
+            the program to add
+        :class:`bool` skip_compile:
+            If True, skip the compilation step after adding the program.
+        """
+        self._add_common(program,
+                         self._config.program_type,
+                         self._programs,
+                         self.raw_programs)
+        if not skip_compile:
+            self._compile_from_meta_data()
 
-    def add_tag(self, tag: Union[Tag, dict, str]):
-        self._add_common(tag, self._tags, self._config.tag_type)
+    def add_tag(self,
+                tag: Tag,
+                skip_compile: Optional[bool] = False):
+        """Add a tag to this controller.
+        .. -------------------------------
+        .. arguments::
+        :class:`Tag` tag:
+            the tag to add
+        :class:`bool` skip_compile:
+            If True, skip the compilation step after adding the tag.
+        """
+        self._add_common(tag,
+                         self._config.tag_type,
+                         self._tags,
+                         self.raw_tags)
+        if not skip_compile:
+            self._compile_from_meta_data()
 
     def remove_aoi(self, aoi: AddOnInstruction):
         self._remove_common(aoi, self._aois)

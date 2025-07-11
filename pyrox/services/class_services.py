@@ -36,7 +36,7 @@ def find_and_instantiate_class(directory_path: str,
     ignoring_classes = ignoring_classes or []
 
     for filename in os.listdir(directory_path):
-        if filename == '__init__.py':
+        if filename == '__init__.py' or 'test_' in filename:
             continue
 
         if os.path.isdir(os.path.join(directory_path, filename)):

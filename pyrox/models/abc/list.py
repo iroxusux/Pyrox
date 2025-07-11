@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 
-from typing import Any, Callable, Optional, TypeVar
+from typing import Any, Callable, Optional, TypeVar, Union
 
 
 T = TypeVar('T')
@@ -123,8 +123,13 @@ class HashList(Subscribable):
         self._hash_key: str = hash_key
         self._hashes: dict = {}
 
-    def __contains__(self, item: dict):
-        return self.by_key(getattr(item, self._hash_key, None))
+    def __contains__(self, item: Union[dict, str]) -> bool:
+        if isinstance(item, dict):
+            return getattr(item, self._hash_key, None) in self._hashes
+        elif isinstance(item, str):
+            return item in self._hashes
+        else:
+            raise TypeError(f'Item must be a dict or str, got {type(item)}')
 
     def __getitem__(self, key):
         if isinstance(key, int):

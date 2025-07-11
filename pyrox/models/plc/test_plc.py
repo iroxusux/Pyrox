@@ -20,6 +20,8 @@ from .plc import (
     NamedPlcObject,
     PlcObject,
     Program,
+    Routine,
+    Rung,
     ContainsRoutines,
     ContainsTags
 )
@@ -95,6 +97,10 @@ class TestPlcObject(unittest.TestCase):
         self.assertFalse(report.pass_fail)
         self.assertNotIn('No controller configuration found!', report.test_notes)
         self.assertIn('No controller found!', report.test_notes)
+
+    def test_compile_from_meta_data(self):
+        with self.assertRaises(NotImplementedError):
+            self.plc_object._compile_from_meta_data()
 
 
 class TestNamedPlcObject(unittest.TestCase):
@@ -398,8 +404,8 @@ class TestRoutineContainer(unittest.TestCase):
         self.container = ContainsRoutines(meta_data=self.meta_data, controller=self.mock_controller)
 
     def test_raw_routines_multiple(self):
-        expected = [{'@Name': 'Routine1', '@Type': None, 'Description': None, 'RLLContent': None},
-                    {'@Name': 'Routine2', '@Type': None, 'Description': None, 'RLLContent': None}]
+        expected = [{'@Name': 'Routine1', '@Type': None, 'Description': None, 'RLLContent': {'Rung': []}},
+                    {'@Name': 'Routine2', '@Type': None, 'Description': None, 'RLLContent': {'Rung': []}}]
         self.assertEqual(self.container.raw_routines, expected)
 
     def test_raw_routines_single(self):
@@ -667,16 +673,35 @@ class TestProgram(unittest.TestCase):
         self.assertFalse(report_item.pass_fail)
         self.assertEqual(report_item.plc_object, program)
 
+    def test_add_routine(self):
+        pre_len = len(self.program.routines)
+        new_routine = Routine()
+        new_routine.name = 'NewRoutine'
+        self.program.add_routine(new_routine)
+        post_len = len(self.program.routines)
+        self.assertEqual(post_len, pre_len + 1)
+        self.assertIn('NewRoutine', self.program.routines)
+
 
 class TestRoutine(unittest.TestCase):
     def setUp(self):
         self.controller = Controller.from_file(UNITTEST_PLC_FILE)
-        self.program = self.controller.programs.get('MainProgram')
-        self.routine = self.program.routines.get('main')
+        self.program: Program = self.controller.programs.get('MainProgram')
+        self.routine: Routine = self.program.routines.get('main')
 
     def test_rungs_property(self):
         self.assertIsInstance(self.routine.raw_rungs, list)
         self.assertIsInstance(self.routine.rungs, list)
+
+    def test_add_rung(self):
+        pre_len = len(self.routine.rungs)
+        new_rung = Rung()
+        new_rung.text = 'XIC(AlwaysOn);'
+        self.routine.add_rung(new_rung)
+        post_len = len(self.routine.rungs)
+        self.assertEqual(post_len, pre_len + 1)
+        self.assertEqual(self.routine.rungs[-1].text, 'XIC(AlwaysOn);')
+        self.assertEqual(self.routine.rungs[-1].number, str(post_len))
 
 
 class TestRung(unittest.TestCase):

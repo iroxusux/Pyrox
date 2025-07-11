@@ -4,9 +4,8 @@ from __future__ import annotations
 
 
 import os
-
+import re
 from typing import Optional
-
 import xmltodict
 import lxml.etree
 from xml.sax.saxutils import unescape
@@ -91,9 +90,9 @@ def dict_to_xml_file(controller: dict,
     save_file(file_location,
               '.L5X',
               'w',
-              str(unescape(xmltodict.unparse(controller,
-                                             preprocessor=preprocessor,
-                                             pretty=True))))
+              unescape(xmltodict.unparse(controller,
+                                         preprocessor=preprocessor,
+                                         pretty=True)))
 
 
 def get_ip_address_from_comm_path(comm_path: str) -> Optional[str]:
@@ -164,19 +163,28 @@ def get_xml_string_from_file(file_path):
 
 
 def preprocessor(key, value):
-    '''Unneccessary if you've manually wrapped the values. For example,
-
-    xmltodict.unparse({
-        'node1': {'node2': '<![CDATA[test]]>', 'node3': 'test'}
-    })
-    '''
-
     if key in KEEP_CDATA_SECTION:
         if isinstance(value, dict) and '#text' in value:
             value['#text'] = cdata(value['#text'])
         elif isinstance(value, list):
-            for v in value:
-                preprocessor(key, v)
+            for i, v in enumerate(value):
+                _, value[i] = preprocessor(key, v)
         elif isinstance(value, str):
             value = cdata(value)
     return key, value
+
+
+def weird_rockwell_escape_sequence(xml_string: str) -> str:
+    """
+    Replace all '<' characters that are not inside CDATA sections with '&lt;'.
+    """
+    def replacer(match):
+        text = match.group(0)
+        if text.startswith('<![CDATA['):
+            return text  # leave CDATA untouched
+        else:
+            return text.replace('<', '&lt;')
+
+    # Regex: match CDATA sections or text between them
+    pattern = re.compile(r'<!\[CDATA\[.*?\]\]>|[^<]+|<', re.DOTALL)
+    return ''.join(replacer(m) for m in pattern.finditer(xml_string))

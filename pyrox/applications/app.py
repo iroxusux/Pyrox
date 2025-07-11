@@ -191,7 +191,6 @@ class App(Application):
                  *args,
                  **kwargs):
         super().__init__(*args,
-
                          **kwargs)
 
         self._controller: Optional[Controller] = None
