@@ -1824,7 +1824,9 @@ class Routine(NamedPlcObject):
                                                   routine=self))
          for x in self.raw_rungs]
 
-    def add_rung(self, rung: Rung):
+    def add_rung(self,
+                 rung: Rung,
+                 index: Optional[int] = None):
         """add a rung to this routine
 
         Args:
@@ -1833,9 +1835,15 @@ class Routine(NamedPlcObject):
         if not isinstance(rung, Rung):
             raise ValueError("Rung must be an instance of Rung!")
 
-        rung.number = len(self.rungs)  # auto-increment rung number
-        self.raw_rungs.append(rung.meta_data)
-        self._compile_from_meta_data()
+        if index is None:
+            rung.number = len(self.rungs)  # auto-increment rung number
+            self.raw_rungs.append(rung.meta_data)
+            self._compile_from_meta_data()
+        else:
+            self.raw_rungs.insert(index, rung.meta_data)
+            for i, rung_dict in enumerate(self.raw_rungs):
+                rung_dict['@Number'] = str(i)
+            self._compile_from_meta_data()
 
     def remove_rung(self, rung: Union[Rung, int, str]):
         """remove a rung from this routine
@@ -2069,6 +2077,16 @@ class Tag(NamedPlcObject):
     @property
     def class_(self) -> str:
         return self['@Class']
+
+    @class_.setter
+    def class_(self, value: str):
+        if not isinstance(value, str):
+            raise ValueError("Class must be a string!")
+
+        if value not in ['Standard', 'Safety']:
+            raise ValueError("Class must be one of: Standard, Safety!")
+
+        self['@Class'] = value
 
     @property
     def constant(self) -> str:
@@ -2637,6 +2655,50 @@ class Controller(NamedPlcObject, Loggable):
                        target_list: list):
         if plcobject in target_list:
             target_list.remove(plcobject)
+
+    def import_assets_from_file(self,
+                                file_location: str,):
+        """Import assets from a file into this controller.
+            .. -------------------------------
+            .. arguments::
+            :class:`str` file_location:
+                the file location to import from
+            """
+        assets = l5x_dict_from_file(file_location)
+        if not assets:
+            self.logger.warning(f'No assets found in file {file_location}.')
+            return
+
+        if 'RSLogix5000Content' not in assets:
+            self.logger.warning(f'No RSLogix5000Content found in file {file_location}.')
+            return
+        if 'Controller' not in assets['RSLogix5000Content']:
+            self.logger.warning(f'No Controller found in RSLogix5000Content in file {file_location}.')
+            return
+
+        # datatypes
+        if 'DataTypes' not in assets['RSLogix5000Content']['Controller']:
+            self.logger.warning(f'No DataTypes found in Controller in file {file_location}.')
+        else:
+            if 'DataType' not in assets['RSLogix5000Content']['Controller']['DataTypes']:
+                self.logger.warning(f'No DataType found in DataTypes in file {file_location}.')
+                return
+            dt_list = assets['RSLogix5000Content']['Controller']['DataTypes']['DataType']
+            if not isinstance(dt_list, list):
+                dt_list = [dt_list]
+            any_adds = False
+            for dt in dt_list:
+                datatype = Datatype(controller=self,
+                                    meta_data=dt)
+                try:
+                    self.add_datatype(datatype, skip_compile=True)
+                    any_adds = True
+                except ValueError as e:
+                    self.logger.warning(f'Failed to add datatype {datatype.name}:\n{e}')
+                    continue
+                self.logger.info('Datatype %s imported successfully.', datatype.name)
+            if any_adds:
+                self.compile()
 
     def add_aoi(self,
                 aoi: AddOnInstruction,

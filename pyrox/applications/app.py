@@ -263,8 +263,12 @@ class App(Application):
 
     def _set_frame_selected(self, frame):
         """Set the selected frame in the view menubar."""
-        [frame.shown_var.set(False) for frame in self._registered_frames]
+        self._unset_frames_selected()
         frame.shown_var.set(True)
+
+    def _unset_frames_selected(self):
+        """Unset all frames in the view menubar."""
+        [frame.shown_var.set(False) for frame in self._registered_frames]
 
     def build(self):
         """Build this :class:`Application`.
@@ -325,6 +329,7 @@ class App(Application):
 
         for child in self.workspace.winfo_children():
             child.pack_forget()
+        self._unset_frames_selected()
 
     def create_controller(self) -> Optional[Controller]:
         """Create a new :class:`Controller` instance for this :class:`Application`."""

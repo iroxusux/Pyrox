@@ -4,8 +4,7 @@ from __future__ import annotations
 
 
 from pyrox.applications.app import App, AppTask
-from pyrox.models.plc import Controller, Datatype, Program, Routine, Rung, Tag
-from pyrox.services.plc_services import l5x_dict_from_file
+from pyrox.models.plc import Controller, Program, Routine, Rung, Tag
 
 
 import json
@@ -57,59 +56,33 @@ class ControllerGenerateTask(AppTask):
             self.logger.error('Main routine %s not found in MCP program.', mcp_program.main_routine_name)
             return
 
-        emulation_routine: Routine = mcp_program.routines.get('aaa_Emulation', None)
-        jsr_rung: Rung = next((x for x in main_routine.rungs if 'JSR(aaa_Emulation,0)' in x.text), None)
-
-        if not jsr_rung or not emulation_routine:
-            self.logger.info('creating...')
-        elif jsr_rung and emulation_routine:
-            self.logger.warning('Emulation routine already exists, skipping generation.')
+        s_common_program: Program = self.application.controller.programs.get('s_Common', None)
+        if not s_common_program:
+            self.logger.error('s_Common program not found in the controller.')
             return
 
-        ctrl_name = self.application.controller.name
+        s_main_routine: Routine = s_common_program.routines.get(s_common_program.main_routine_name, None)
+        if not s_main_routine:
+            self.logger.error('Main routine %s not found in s_Common program.', s_common_program.main_routine_name)
+            return
 
-        siemens_drive_modules = [x for x in self.application.controller.modules if
-                                 x.catalog_number == 'ETHERNET-MODULE'
-                                 and x.communications['Connections']['Connection']['@InputCxnPoint'] == '101'
-                                 and x.communications['Connections']['Connection']['@OutputCxnPoint'] == '102'
-                                 and x.communications['Connections']['Connection']['@InputSize'] == '26'
-                                 and x.communications['Connections']['Connection']['@OutputSize'] == '4']
+        emulation_routine: Routine = mcp_program.routines.get('aaa_Emulation', None)
+        if emulation_routine:
+            mcp_program.remove_routine(emulation_routine)
+        s_emulation_routine: Routine = s_common_program.routines.get('s_aaa_Emulation', None)
+        if s_emulation_routine:
+            s_common_program.remove_routine(s_emulation_routine)
 
-        if len(siemens_drive_modules) != 0:
-            self.logger.info('Found %d Siemens drive modules...', len(siemens_drive_modules))
-            if 'Demo3D_G115D_Drive' not in self.application.controller.datatypes:
-                self.logger.info('Siemens drive datatype not found in controller, importing from L5X file...')
-                dt_dict = l5x_dict_from_file(r'docs\controls\emu\Demo3D_G115D_Drive_DataType.L5X')
-                if not dt_dict:
-                    self.logger.error('Failed to load Siemens drive datatype from L5X file.')
-                    return
-                for dt in dt_dict['RSLogix5000Content']['Controller']['DataTypes']['DataType']:
-                    datatype = Datatype(controller=self.application.controller,
-                                        meta_data=dt)
-                    self.application.controller.add_datatype(datatype, skip_compile=True)
-                    self.logger.info('Siemens drive datatype %s imported successfully.', datatype.name)
-            self.application.controller.compile()
-            if f'zz_Demo3D_{ctrl_name}_Siemens_Drives' not in self.application.controller.tags:
-                self.logger.info('Creating tag zz_Demo3D_%s_Siemens_Drives...', ctrl_name)
-                siemens_drives_tag = Tag(controller=self.application.controller)
-                siemens_drives_tag.name = f'zz_Demo3D_{ctrl_name}_Siemens_Drives'
-                siemens_drives_tag.tag_type = 'Base'
-                siemens_drives_tag.datatype = 'Demo3D_G115D_Drive'
-                siemens_drives_tag.dimensions = '150'
-                siemens_drives_tag.constant = False
-                siemens_drives_tag.external_access = 'Read/Write'
-                self.application.controller.add_tag(siemens_drives_tag)
-                self.logger.info('Tag zz_Demo3D_%s_Siemens_Drives created successfully.', ctrl_name)
-
-        safety_blocks = [x for x in self.application.controller.modules if
-                         '1732ES-IB' in x.catalog_number]
+        jsr_rung: Rung = next((x for x in main_routine.rungs if 'JSR(aaa_Emulation,0)' in x.text), None)
+        s_jsr_rung: Rung = next((x for x in s_main_routine.rungs if 'JSR(s_aaa_Emulation,0)' in x.text), None)
 
         emulation_routine = Routine(controller=self.application.controller)
         emulation_routine.name = 'aaa_Emulation'
-        emulation_routine.description = 'Emulation routine for GM controller'
+        emulation_routine.description = 'Emulation routine for GM controller. This routine is auto-generated by Indicon LLC. Do not modify.'
 
         rung_0 = Rung(controller=self.application.controller)
         rung_0.text = 'MOV(0,Uninhibit)MOV(4,Inhibit);'
+        rung_0.comment = 'This routine is auto-generated by Indicon LLC. Do not modify.'
         emulation_routine.add_rung(rung_0)
 
         rung_1 = Rung(controller=self.application.controller)
@@ -119,6 +92,62 @@ class ControllerGenerateTask(AppTask):
         rung_2 = Rung(controller=self.application.controller)
         rung_2.text = 'LBL(SusLoop)XIC(toggle_inhibit)LES(SusLoopPtr,DeviceDataSize)ADD(SusLoopPtr,1,SusLoopPtr)OTU(EnetStorage.DeviceData[SusLoopPtr].Connected)OTL(EnetStorage.DeviceData[SusLoopPtr].LinkStatusAvail)OTL(EnetStorage.DeviceData[SusLoopPtr].Link.Scanned)JMP(SusLoop);'  # noqa: E501
         emulation_routine.add_rung(rung_2)
+
+        s_emulation_routine = Routine(controller=self.application.controller)
+        s_emulation_routine.name = 's_aaa_Emulation'
+        s_emulation_routine.description = 'Emulation routine for GM controller in safety context. This routine is auto-generated by Indicon LLC. Do not modify.'  # noqa: E501
+
+        ctrl_name = self.application.controller.name
+        siemens_drive_modules = [x for x in self.application.controller.modules if
+                                 x.catalog_number == 'ETHERNET-MODULE'
+                                 and x.communications['Connections']['Connection']['@InputCxnPoint'] == '101'
+                                 and x.communications['Connections']['Connection']['@OutputCxnPoint'] == '102'
+                                 and x.communications['Connections']['Connection']['@InputSize'] == '26'
+                                 and x.communications['Connections']['Connection']['@OutputSize'] == '4']
+
+        if len(siemens_drive_modules) != 0:
+            self.logger.info('Found %d Siemens drive modules...', len(siemens_drive_modules))
+            self.application.controller.import_assets_from_file(r'docs\controls\emu\Demo3D_G115D_Drive_DataType.L5X')
+            if f'zz_Demo3D_{ctrl_name}_Siemens_Drives' not in self.application.controller.tags:
+                self.logger.info('Creating tag zz_Demo3D_%s_Siemens_Drives[150]...', ctrl_name)
+                siemens_drives_tag = Tag(controller=self.application.controller)
+                siemens_drives_tag.name = f'zz_Demo3D_{ctrl_name}_Siemens_Drives'
+                siemens_drives_tag.tag_type = 'Base'
+                siemens_drives_tag.datatype = 'Demo3D_G115D_Drive'
+                siemens_drives_tag.dimensions = '150'
+                siemens_drives_tag.constant = False
+                siemens_drives_tag.external_access = 'Read/Write'
+                self.application.controller.add_tag(siemens_drives_tag)
+                self.logger.info('Tag zz_Demo3D_%s_Siemens_Drives[150] created successfully.', ctrl_name)
+
+        safety_blocks = [x for x in self.application.controller.modules if
+                         '1732ES-IB' in x.catalog_number]
+
+        hmi_safe_input_cards = [x for x in self.application.controller.modules if
+                                '1734-IB8S' in x.catalog_number and 'ECS5022 HMI\nSlot 1 Safety Module' in x.description]
+
+        if len(hmi_safe_input_cards) != 0:
+            self.logger.info('Found %d HMI safety input cards...', len(hmi_safe_input_cards))
+            self.application.controller.import_assets_from_file(r'docs\controls\emu\Demo3D_HMI_IN_DataType.L5X')
+            any_tags_added = False
+            for card in hmi_safe_input_cards:
+                if f'sz_Demo3D_{card.name}_I' not in self.application.controller.tags:
+                    self.logger.info('Creating tag sz_Demo3D_%s_%s_I...', ctrl_name, card.name)
+                    hmi_safe_input_tag = Tag(controller=self.application.controller)
+                    hmi_safe_input_tag.name = f'sz_Demo3D_{card.name}_I'
+                    hmi_safe_input_tag.class_ = 'Safety'
+                    hmi_safe_input_tag.tag_type = 'Base'
+                    hmi_safe_input_tag.datatype = 'Demo3D_HMI_IN'
+                    hmi_safe_input_tag.constant = False
+                    hmi_safe_input_tag.external_access = 'Read/Write'
+                    self.application.controller.add_tag(hmi_safe_input_tag, skip_compile=True)
+                    any_tags_added = True
+                    self.logger.info('Tag zz_Demo3D_%s_I created successfully.', card.name)
+                rung_x = Rung(controller=self.application.controller)
+                rung_x.text = f'CLR({card.parent_module}:2:I.Fault)MOV(sz_Demo3D_{card.name}_I.S2.Word1,{card.parent_module}:2:I.Data);'  # noqa: E501
+                emulation_routine.add_rung(rung_x)
+            if any_tags_added:
+                self.application.controller.compile()
 
         for x in self.application.controller.modules:
             rung_x = Rung(controller=self.application.controller)
@@ -131,83 +160,127 @@ class ControllerGenerateTask(AppTask):
             emulation_routine.add_rung(rung_x)
 
         any_tags_added = False
-        for index, module in enumerate(safety_blocks):
-            rung_x = Rung(controller=self.application.controller)
-            rung_x.text = f'COP({module.name}:O,zz_Demo3D_{module.name}_O,1);'
-            emulation_routine.add_rung(rung_x)
-            if f'zz_Demo3D_{module.name}_O' not in self.application.controller.tags:
-                self.logger.info('Creating tag zz_Demo3D_%s_O...', module.name)
-                safety_tag = Tag(controller=self.application.controller)
-                safety_tag.name = f'zz_Demo3D_{module.name}_O'
-                safety_tag.tag_type = 'Base'
-                safety_tag.datatype = 'DINT'
-                safety_tag.constant = False
-                safety_tag.external_access = 'Read/Write'
-                self.application.controller.add_tag(safety_tag, skip_compile=True)
-                self.logger.info('Tag zz_Demo3D_%s_O created successfully.', module.name)
-                any_tags_added = True
-        if any_tags_added:
-            self.application.controller.compile()
+        if len(safety_blocks) != 0:
+            self.application.controller.import_assets_from_file(r'docs\controls\emu\Demo3D_WDint_DataType.L5X')
+            for index, module in enumerate(safety_blocks):
 
+                rung_x = Rung(controller=self.application.controller)
+                rung_x.text = f'COP({module.name}:O,zz_Demo3D_{module.name}_O,1);'
+                emulation_routine.add_rung(rung_x)
+
+                s_rung_x = Rung(controller=self.application.controller)
+                s_rung_x.text = f'COP(sz_Demo3D_{module.name}_I,{module.name}:I,1);'
+                s_emulation_routine.add_rung(s_rung_x)
+
+                if f'zz_Demo3D_{module.name}_O' not in self.application.controller.tags:
+                    self.logger.info('Creating tag zz_Demo3D_%s_O...', module.name)
+                    safety_tag = Tag(controller=self.application.controller)
+                    safety_tag.name = f'zz_Demo3D_{module.name}_O'
+                    safety_tag.tag_type = 'Base'
+                    safety_tag.datatype = 'DINT'
+                    safety_tag.constant = False
+                    safety_tag.external_access = 'Read/Write'
+                    self.application.controller.add_tag(safety_tag, skip_compile=True)
+                    self.logger.info('Tag zz_Demo3D_%s_O created successfully.', module.name)
+                    any_tags_added = True
+
+                if f'sz_Demo3D_{module.name}_I' not in self.application.controller.tags:
+                    self.logger.info('Creating tag sz_Demo3D_%s_I...', module.name)
+                    safety_input_tag = Tag(controller=self.application.controller)
+                    safety_input_tag.name = f'sz_Demo3D_{module.name}_I'
+                    safety_input_tag.class_ = 'Safety'
+                    safety_input_tag.tag_type = 'Base'
+                    safety_input_tag.datatype = 'Demo3D_WDint'
+                    safety_input_tag.constant = False
+                    safety_input_tag.external_access = 'Read/Write'
+                    self.application.controller.add_tag(safety_input_tag, skip_compile=True)
+                    self.logger.info('Tag sz_Demo3D_%s_I created successfully.', module.name)
+                    any_tags_added = True
+
+            if any_tags_added:
+                self.application.controller.compile()
+
+        mcp_program.add_routine(emulation_routine)
+        s_common_program.add_routine(s_emulation_routine)
+
+        uninhibit_tag = mcp_program.tags.get('Uninhibit', None)
+        if uninhibit_tag:
+            mcp_program.remove_tag(uninhibit_tag.name)
         uninhibit_tag = Tag(controller=self.application.controller)
         uninhibit_tag.name = 'Uninhibit'
         uninhibit_tag.tag_type = 'Base'
         uninhibit_tag.datatype = 'INT'
         uninhibit_tag.constant = False
         uninhibit_tag.external_access = 'Read/Write'
+        mcp_program.add_tag(uninhibit_tag)
 
+        inhibit_tag = mcp_program.tags.get('Inhibit', None)
+        if inhibit_tag:
+            mcp_program.remove_tag(inhibit_tag.name)
         inhibit_tag = Tag(controller=self.application.controller)
         inhibit_tag.name = 'Inhibit'
         inhibit_tag.tag_type = 'Base'
         inhibit_tag.datatype = 'INT'
         inhibit_tag.constant = False
         inhibit_tag.external_access = 'Read/Write'
+        mcp_program.add_tag(inhibit_tag)
 
+        toggle_inhibit_tag = mcp_program.tags.get('toggle_inhibit', None)
+        if toggle_inhibit_tag:
+            mcp_program.remove_tag(toggle_inhibit_tag.name)
         toggle_inhibit_tag = Tag(controller=self.application.controller)
         toggle_inhibit_tag.name = 'toggle_inhibit'
         toggle_inhibit_tag.tag_type = 'Base'
         toggle_inhibit_tag.datatype = 'BOOL'
         toggle_inhibit_tag.constant = False
         toggle_inhibit_tag.external_access = 'Read/Write'
+        mcp_program.add_tag(toggle_inhibit_tag)
 
+        local_mode_tag = mcp_program.tags.get('LocalMode', None)
+        if local_mode_tag:
+            mcp_program.remove_tag(local_mode_tag.name)
         local_mode_tag = Tag(controller=self.application.controller)
         local_mode_tag.name = 'LocalMode'
         local_mode_tag.tag_type = 'Base'
         local_mode_tag.datatype = 'INT'
         local_mode_tag.constant = False
         local_mode_tag.external_access = 'Read/Write'
+        mcp_program.add_tag(local_mode_tag)
 
+        device_data_size_tag = mcp_program.tags.get('DeviceDataSize', None)
+        if device_data_size_tag:
+            mcp_program.remove_tag(device_data_size_tag.name)
         device_data_size_tag = Tag(controller=self.application.controller)
         device_data_size_tag.name = 'DeviceDataSize'
         device_data_size_tag.tag_type = 'Base'
         device_data_size_tag.datatype = 'DINT'
         device_data_size_tag.constant = False
         device_data_size_tag.external_access = 'Read/Write'
+        mcp_program.add_tag(device_data_size_tag)
 
+        sus_loop_ptr_tag = mcp_program.tags.get('SusLoopPtr', None)
+        if sus_loop_ptr_tag:
+            mcp_program.remove_tag(sus_loop_ptr_tag.name)
         sus_loop_ptr_tag = Tag(controller=self.application.controller)
         sus_loop_ptr_tag.name = 'SusLoopPtr'
         sus_loop_ptr_tag.tag_type = 'Base'
         sus_loop_ptr_tag.datatype = 'DINT'
         sus_loop_ptr_tag.constant = False
         sus_loop_ptr_tag.external_access = 'Read/Write'
-
-        mcp_program.add_routine(emulation_routine)
-        mcp_program.add_tag(uninhibit_tag)
-        mcp_program.add_tag(inhibit_tag)
-        mcp_program.add_tag(toggle_inhibit_tag)
-        mcp_program.add_tag(local_mode_tag)
-        mcp_program.add_tag(device_data_size_tag)
         mcp_program.add_tag(sus_loop_ptr_tag)
 
         if not jsr_rung:
-            main_routine = mcp_program.routines.get(mcp_program.main_routine_name, None)
-            if not main_routine:
-                self.logger.error('Main routine %s not found in MCP program.', mcp_program.main_routine_name)
-            else:
-                jsr_rung = Rung(controller=self.application.controller)
-                jsr_rung.text = f'JSR({emulation_routine.name},0);'
-                main_routine.add_rung(jsr_rung)
+            jsr_rung = Rung(controller=self.application.controller)
+            jsr_rung.text = f'JSR({emulation_routine.name},0);'
+            main_routine.add_rung(jsr_rung)
 
+        if not s_jsr_rung:
+            s_jsr_rung = Rung(controller=self.application.controller)
+            s_jsr_rung.text = f'JSR(s_{emulation_routine.name},0);'
+            s_main_routine.add_rung(s_jsr_rung, 0)
+
+        self.application.controller.compile()
+        self.logger.info('GM emulation routine(s) generated successfully.')
         self.application.refresh()
 
     def remove_gm_emulation_routine(self):

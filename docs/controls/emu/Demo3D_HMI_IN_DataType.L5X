@@ -1,0 +1,24 @@
+﻿<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<RSLogix5000Content SchemaRevision="1.0" SoftwareRevision="34.03" TargetName="Demo3D_HMI_IN" TargetType="DataType" ContainsContext="true" Owner="EQUANS North America IT, CCG" ExportDate="Fri Jul 11 11:52:29 2025" ExportOptions="References NoRawData L5KData DecoratedData Context Dependencies ForceProtectedEncoding AllProjDocTrans">
+<Controller Use="Context" Name="CG_GDR02">
+<DataTypes Use="Context">
+<DataType Use="Target" Name="Demo3D_HMI_IN" Family="NoFamily" Class="User">
+<Members>
+<Member Name="S1" DataType="Demo3D_WDint" Dimension="0" Radix="NullType" Hidden="false" ExternalAccess="Read/Write"/>
+<Member Name="S2" DataType="Demo3D_WDint" Dimension="0" Radix="NullType" Hidden="false" ExternalAccess="Read/Write"/>
+</Members>
+<Dependencies>
+<Dependency Type="DataType" Name="Demo3D_WDint"/>
+<Dependency Type="DataType" Name="Demo3D_WDint"/>
+</Dependencies>
+</DataType>
+<DataType Name="Demo3D_WDint" Family="NoFamily" Class="User">
+<Members>
+<Member Name="Word1" DataType="DINT" Dimension="0" Radix="Decimal" Hidden="false" ExternalAccess="Read/Write"/>
+<Member Name="Word2" DataType="DINT" Dimension="0" Radix="Decimal" Hidden="false" ExternalAccess="Read/Write"/>
+<Member Name="Word3" DataType="DINT" Dimension="0" Radix="Decimal" Hidden="false" ExternalAccess="Read/Write"/>
+</Members>
+</DataType>
+</DataTypes>
+</Controller>
+</RSLogix5000Content>
