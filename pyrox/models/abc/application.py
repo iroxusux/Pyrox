@@ -821,11 +821,11 @@ class Application(Runnable):
         ValueError
             If the application type is not supported. Only `Tk`, `ThemedTk`, or `Toplevel` are allowed.
         """
-        self.clear_log_file()
+        self._runtime_info = ApplicationRuntimeInfo(self)
         if self.config.application == Tk:
             self._tk_app = Tk()
         elif self.config.application == ThemedTk:
-            self._tk_app = ThemedTk(theme=self.config.theme)
+            self._tk_app = ThemedTk(theme=self._runtime_info.get('theme', self.config.theme))
         elif self.config.application == Toplevel:
             self._tk_app = Toplevel()
         else:
@@ -845,7 +845,6 @@ class Application(Runnable):
         self._tasks: HashList[ApplicationTask] = HashList('name')
         self._menu = MainApplicationMenu(self.tk_app) if self.config.headless is False else None
 
-        self._runtime_info = ApplicationRuntimeInfo(self)
         try:
             self.toggle_fullscreen(self._runtime_info.get('full_screen', False))
             self._tk_app.geometry(self._runtime_info.get('window_size', self.config.size_))
@@ -864,7 +863,6 @@ class Application(Runnable):
                                                                            ignoring_classes=['ApplicationTask', 'AppTask'],
                                                                            parent_class=ApplicationTask,
                                                                            application=self))
-
         super().build()
 
     def add_task(self,
