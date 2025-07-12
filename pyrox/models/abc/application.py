@@ -608,7 +608,6 @@ class ApplicationRuntimeInfo(SupportsJsonSaving, SupportsJsonLoading):
             raise TypeError('Runtime information data must be a RuntimeDict.')
         self._data.clear()
         self._data.update(value)
-        self.save_to_json()
 
     @property
     def load_path(self) -> str:
@@ -793,6 +792,25 @@ class Application(Runnable):
         """
         return self._tasks
 
+    def _on_tk_configure(self,
+                         event: Event) -> None:
+        """Handle the Tk configure event.
+        This method is called when the Tk application is configured.
+        .. ------------------------------------------------------------
+        .. arguments::
+        event: :class:`Event`
+            The Tk event that triggered this method.
+        """
+        if event.widget != self.tk_app:
+            return
+        root = event.widget
+        self._runtime_info.data.inhibit()
+        self._runtime_info.data['window_size'] = f'{root.winfo_width()}x{root.winfo_height()}'
+        self._runtime_info.data['window_position'] = (root.winfo_x(), root.winfo_y())
+        self._runtime_info.data['full_screen'] = bool(root.attributes('-fullscreen'))
+        self._runtime_info.data['window_state'] = root.state()
+        self._runtime_info.data.uninhibit()
+
     def build(self) -> None:
         """Build this :class:`Application`.
         This method initializes the tkinter application instance, sets up the main window,
@@ -813,16 +831,29 @@ class Application(Runnable):
             raise ValueError('Application type is not supported. '
                              'Please use Tk, ThemedTk or Toplevel.')
 
+        if isinstance(self._tk_app, (ThemedTk, Tk)):
+            self._tk_app.bind('<Configure>', self._on_tk_configure)
+            self._tk_app.bind('<F11>', lambda _: self.toggle_fullscreen(not self._tk_app.attributes('-fullscreen')))
+
         self._tk_app.protocol('WM_DELETE_WINDOW', self.close)
         self._tk_app.title(self.config.title)
         self._tk_app.iconbitmap(self.config.icon)
         self._tk_app.iconbitmap(default=self.config.icon)
-        self._tk_app.geometry(self.config.size_)
         self._frame: Frame = Frame(master=self._tk_app)
         self._frame.pack(fill='both', expand=True)
         self._tasks: HashList[ApplicationTask] = HashList('name')
         self._menu = MainApplicationMenu(self.tk_app) if self.config.headless is False else None
+
         self._runtime_info = ApplicationRuntimeInfo(self)
+        try:
+            self.toggle_fullscreen(self._runtime_info.get('full_screen', False))
+            self._tk_app.geometry(self._runtime_info.get('window_size', self.config.size_))
+            self._tk_app.state(self._runtime_info.get('window_state', 'normal'))
+        except TclError as e:
+            self.logger.error(f'TclError: Could not set geometry or state for the application: {e}')
+            self._tk_app.geometry(self.config.size_)
+            self._tk_app.state('normal')
+
         self._directory_service.build_directory()
 
         if self.menu:
@@ -932,20 +963,21 @@ class Application(Runnable):
     def stop(self) -> None:
         super().stop()
 
-    def toggle_fullscreen(self, event: Optional[Event] = None) -> None:
-        """Toggle full-screen for this :class:`Application`.
+    def toggle_fullscreen(self, fullscreen: Optional[bool] = None) -> None:
+        """Toggle fullscreen mode for this :class:`Application`.
+
+        If `fullscreen` is None, it will toggle the current state.
+        If `fullscreen` is True, it will set the application to fullscreen.
+        If `fullscreen` is False, it will exit fullscreen mode.
 
         .. ------------------------------------------------------------
-
-        Arguments
-        -----------
-
-        event: Optional[:class:`Event`]
-            Optional key event passed to this method.
-
+        .. arguments::
+        fullscreen: Optional[:type:`bool`]
+            If True, the application will be set to fullscreen.
+            If False, the application will exit fullscreen mode.
+            If None, it will toggle the current state.
         """
-        if event.keysym == 'F11':
-            state = not self.view.parent.attributes('-fullscreen')
-            self.view.parent.attributes('-fullscreen', state)
-        elif self.view.parent.attributes('-fullscreen'):
-            self.view.parent.attributes('-fullscreen', False)
+        if fullscreen is None:
+            fullscreen = not self._runtime_info.get('full_screen', False)
+
+        self.tk_app.attributes('-fullscreen', fullscreen)

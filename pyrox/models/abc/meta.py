@@ -279,32 +279,39 @@ class RuntimeDict:
     whenever an item is added, updated, or deleted.
     .. ------------------------------------------------------------
     .. package::
-    meta.models.application
+    models.abc.meta
     .. ------------------------------------------------------------
     .. attributes::
     callback: :type:`Callable`
         A callback function that is called whenever the data is modified.
     data: :type:`dict`
         The dictionary that stores the runtime data.
+    inhibit_callback: :type:`bool`
+        Whether to inhibit the callback function from being called when data is modified.
     """
-    __slots__ = ('_callback', '_data')
+    __slots__ = ('_callback', '_data', '_inhibit_callback')
+
+    def __contains__(self, key):
+        """Check if a key exists in the runtime data dictionary."""
+        return key in self._data
+
+    def __getitem__(self, key):
+        return self._data.get(key, None)
 
     def __init__(self, callback: Callable):
         if not callback or not callable(callback):
             raise ValueError('A valid callback function must be provided to RuntimeDict.')
         self._callback: Callable = callback
         self._data = {}
-
-    def __getitem__(self, key):
-        return self._data[key]
+        self._inhibit_callback = False
 
     def __setitem__(self, key, value):
         self._data[key] = value
-        self._callback()
+        self._call()
 
     def __delitem__(self, key):
         del self._data[key]
-        self._callback()
+        self._call()
 
     @property
     def callback(self) -> Callable:
@@ -331,6 +338,26 @@ class RuntimeDict:
         self._data = value
         self._callback()
 
+    @property
+    def inhibit_callback(self) -> bool:
+        """Get whether the callback is inhibited."""
+        return self._inhibit_callback
+
+    @inhibit_callback.setter
+    def inhibit_callback(self, value: bool):
+        """Set whether the callback is inhibited."""
+        if not isinstance(value, bool):
+            raise TypeError('Inhibit callback must be a boolean value.')
+        self._inhibit_callback = value
+
+    def _call(self):
+        """Call the callback function if it is set and not inhibited."""
+        if not self._inhibit_callback:
+            if callable(self._callback):
+                self._callback()
+            else:
+                raise TypeError('Callback must be a callable function.')
+
     def clear(self):
         """Clear the runtime data dictionary."""
         self._data.clear()
@@ -340,9 +367,18 @@ class RuntimeDict:
         """Get an item from the runtime data dictionary."""
         return self._data.get(key, default)
 
+    def inhibit(self):
+        """Inhibit the callback function."""
+        self._inhibit_callback = True
+
     def update(self, *args, **kwargs):
         """Update the runtime data dictionary with new items."""
         self._data.update(*args, **kwargs)
+        self._callback()
+
+    def uninhibit(self):
+        """Uninhibit the callback function."""
+        self._inhibit_callback = False
         self._callback()
 
 
