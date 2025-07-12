@@ -711,9 +711,10 @@ class Application(Runnable):
     __slots__ = ('_config', '_directory_service', '_frame', '_menu', '_runtime_info', '_tasks', '_tk_app')
 
     def __init__(self,
-                 config: ApplicationConfiguration) -> None:
+                 config: ApplicationConfiguration,
+                 add_to_globals: bool = False) -> None:
 
-        super().__init__(add_to_globals=True)
+        super().__init__(add_to_globals=add_to_globals)
         self._config: ApplicationConfiguration = config or ApplicationConfiguration.root()
         self._directory_service: ApplicationDirectoryService = ApplicationDirectoryService(
             author_name=self._config.author_name,

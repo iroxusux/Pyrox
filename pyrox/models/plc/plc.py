@@ -2371,7 +2371,7 @@ class Controller(NamedPlcObject, Loggable):
 
         self._root_meta_data: dict = root_meta_data or l5x_dict_from_file(PLC_ROOT_FILE)
         self._file_location, self._ip_address, self._slot = '', '', 0
-        self._config = config if config else ControllerConfiguration()
+        self._config = config or ControllerConfiguration()
 
         NamedPlcObject.__init__(self,
                                 meta_data=self.l5x_meta_data,
@@ -2623,6 +2623,7 @@ class Controller(NamedPlcObject, Loggable):
         self._tags = HashList('name')
         [self._tags.append(self.config.tag_type(meta_data=x, controller=self, container=self))
          for x in self.raw_tags]
+        self.logger.info('Controller compiled successfully.')
 
     def _assign_address(self,
                         address: str):

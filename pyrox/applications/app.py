@@ -8,7 +8,7 @@ from tkinter import Event, PanedWindow
 
 
 from ..models import Application, ApplicationTask, HashList
-from ..models.plc import Controller, PlcObject, TagEndpoint
+from ..models.plc import BASE_FILES, Controller, PlcObject, TagEndpoint
 from ..models.gui import (
     ContextMenu,
     FrameWithTreeViewAndScrollbar,
@@ -191,6 +191,7 @@ class App(Application):
                  *args,
                  **kwargs):
         super().__init__(*args,
+                         add_to_globals=True,
                          **kwargs)
 
         self._controller: Optional[Controller] = None
@@ -309,6 +310,7 @@ class App(Application):
         last_plc_file_location = self._runtime_info.data.get('last_plc_file_location', None)
         if last_plc_file_location and os.path.isfile(last_plc_file_location):
             self.load_controller(last_plc_file_location)
+        self.refresh()
 
     def clear_organizer(self) -> None:
         """Clear organizer of all children.
@@ -330,11 +332,6 @@ class App(Application):
         for child in self.workspace.winfo_children():
             child.pack_forget()
         self._unset_frames_selected()
-
-    def create_controller(self) -> Optional[Controller]:
-        """Create a new :class:`Controller` instance for this :class:`Application`."""
-        self.logger.info('Creating new controller instance...')
-        return Controller()
 
     def load_controller(self,
                         file_location: str) -> None:
@@ -370,7 +367,15 @@ class App(Application):
             return
         self._log_window.log(message)
 
-    def refresh(self, **_):
+    def new_controller(self) -> None:
+        """Create a new controller instance."""
+        self.logger.info('Creating new controller instance...')
+        ctrl = Controller(l5x_dict_from_file(BASE_FILES[0]))
+        self.logger.info('New controller instance created: %s', ctrl.name)
+        self.controller = ctrl
+        self.logger.info('Controller instance set successfully.')
+
+    def refresh(self) -> None:
         if not self.organizer:
             return
 
@@ -382,6 +387,10 @@ class App(Application):
             self._organizer.tree.populate_tree('', self.controller)
         else:
             self._tk_app.title(self.config.title)
+        self._menu.file.entryconfig('Save L5X', state='disabled' if not self.controller else 'normal')
+        self._menu.file.entryconfig('Save L5X As...', state='disabled' if not self.controller else 'normal')
+        self._menu.file.entryconfig('Close L5X', state='disabled' if not self.controller else 'normal')
+
         self.logger.info('Done!')
 
     def register_frame(self,

@@ -24,7 +24,7 @@ class HelpTask(ApplicationTask):
         self._app_config.inc_organizer = False
         self._app_config.inc_workspace = False
 
-        self._app = Application(self._app_config)
+        self._app = None  # coming back to this later, this is causing issues with logging... Application(self._app_config)
 
     def about(self):
         self.logger.info('launching about page...')

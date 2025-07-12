@@ -692,11 +692,10 @@ class Loggable(NamedPyroxObject):
                  name: Optional[str] = None,
                  **_):
         super().__init__(name=name)
-        self._logger: logging.Logger = self._get(name=self.name)
-        self._log_handler: ConsolePanelHandler = ConsolePanelHandler()
-
-        # check in case we got a hashed logger with the handler already attached (somehow?)
-        if self._log_handler not in self._logger.handlers:
+        self._logger: logging.Logger = self._get(name=name or self.__class__.__name__,)
+        self._log_handler = next((hndl for hndl in self._logger.handlers if isinstance(hndl, ConsolePanelHandler)), None)
+        if not self._log_handler:
+            self._log_handler: ConsolePanelHandler = ConsolePanelHandler()
             self._logger.addHandler(self._log_handler)  # add handler for user to create custom callbacks with
 
         if add_to_globals is True and self._log_handler not in Loggable.global_handlers:
@@ -742,7 +741,8 @@ class Loggable(NamedPyroxObject):
         # additionally, apply any global handlers to the newly created logger
         if not ignore_globals:
             for glob in Loggable.global_handlers:
-                _logger.addHandler(glob)
+                if glob not in _logger.handlers:
+                    _logger.addHandler(glob)
 
         Loggable._curr_loggers[name] = _logger
 
