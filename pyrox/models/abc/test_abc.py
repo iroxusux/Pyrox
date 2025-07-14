@@ -1,14 +1,20 @@
 import unittest
+import json
 import logging
-from tkinter import Frame, Tk, Menu, Toplevel
+import os
+import tempfile
+from tkinter import Tk, Menu, Toplevel
 from ttkthemes import ThemedTk
 
 
 from .application import (
     BaseMenu,
     Application,
+    ApplicationConfiguration,
+    ApplicationDirectoryService,
+    ApplicationRuntimeInfo,
     ApplicationTask,
-    ApplicationConfiguration
+    ApplicationTkType,
 )
 
 
@@ -22,24 +28,24 @@ from .list import (
 
 from .meta import (
     _IdGenerator,
-    EnforcesNaming,
-    SnowFlake,
-    ConsolePanelHandler,
-    Loggable,
     Buildable,
+    ConsolePanelHandler,
+    EnforcesNaming,
+    Loggable,
+    NamedPyroxObject,
+    PyroxObject,
     Runnable,
-    ViewType,
-    View,
+    RuntimeDict,
+    SnowFlake,
+    SupportsJsonLoading,
+    SupportsJsonSaving,
+    SupportsLoading,
+    SupportSaving,
 )
 
 
 from .model import (
     Model,
-)
-
-
-from .viewmodel import (
-    PartialViewModel,
 )
 
 
@@ -76,6 +82,24 @@ class TestEnforcesNaming(unittest.TestCase):
         with self.assertRaises(EnforcesNaming.InvalidNamingException):
             raise EnforcesNaming.InvalidNamingException()
 
+    def test_valid_rockwell_bool(self):
+        valid_bool = 'true'
+        invalid_bool = "True"
+        self.assertTrue(EnforcesNaming.is_valid_rockwell_bool(valid_bool))
+        self.assertFalse(EnforcesNaming.is_valid_rockwell_bool(invalid_bool))
+
+    def test_valid_module_string(self):
+        valid_module = "valid_module-name"
+        invalid_module = "Invalid Module Name"
+        self.assertTrue(EnforcesNaming.is_valid_module_string(valid_module))
+        self.assertFalse(EnforcesNaming.is_valid_module_string(invalid_module))
+
+    def test_valid_revision_string(self):
+        valid_revision = "1.0.0"
+        invalid_revision = "1point0"
+        self.assertTrue(EnforcesNaming.is_valid_revision_string(valid_revision))
+        self.assertFalse(EnforcesNaming.is_valid_revision_string(invalid_revision))
+
 
 class TestSnowFlake(unittest.TestCase):
     def test_snowflake_id(self):
@@ -91,6 +115,332 @@ class TestSnowFlake(unittest.TestCase):
     def test_snowflake_hash(self):
         snowflake = SnowFlake()
         self.assertEqual(hash(snowflake), hash(snowflake.id))
+
+    def test_snowflake_string(self):
+        snowflake = SnowFlake()
+        self.assertIsInstance(str(snowflake), str)
+        self.assertIn(str(snowflake.id), str(snowflake))
+
+
+class TestRuntimeDict(unittest.TestCase):
+    def setUp(self):
+        self.callback_called = False
+
+        def callback():
+            self.callback_called = True
+        self.runtime_dict = RuntimeDict(callback=callback)
+
+    def test_set_and_get_item(self):
+        self.runtime_dict['key'] = 'value'
+        self.assertEqual(self.runtime_dict['key'], 'value')
+        self.assertTrue(self.callback_called)
+
+    def test_del_item(self):
+        self.runtime_dict['key'] = 'value'
+        self.callback_called = False
+        del self.runtime_dict['key']
+        self.assertIsNone(self.runtime_dict['key'])
+        self.assertTrue(self.callback_called)
+
+    def test_contains(self):
+        self.runtime_dict['key'] = 'value'
+        self.assertIn('key', self.runtime_dict)
+        self.assertNotIn('missing', self.runtime_dict)
+
+    def test_data_property(self):
+        data = {'a': 1, 'b': 2}
+        self.runtime_dict.data = data
+        self.assertEqual(self.runtime_dict.data, data)
+        self.assertTrue(self.callback_called)
+
+    def test_inhibit_and_uninhibit(self):
+        self.runtime_dict.inhibit()
+        self.callback_called = False
+        self.runtime_dict['key'] = 'value'
+        self.assertFalse(self.callback_called)
+        self.runtime_dict.uninhibit()
+        self.assertTrue(self.callback_called)
+
+    def test_clear(self):
+        self.runtime_dict['key'] = 'value'
+        self.callback_called = False
+        self.runtime_dict.clear()
+        self.assertEqual(self.runtime_dict.data, {})
+        self.assertTrue(self.callback_called)
+
+    def test_update(self):
+        self.callback_called = False
+        self.runtime_dict.update({'x': 10, 'y': 20})
+        self.assertEqual(self.runtime_dict['x'], 10)
+        self.assertEqual(self.runtime_dict['y'], 20)
+        self.assertTrue(self.callback_called)
+
+    def test_get_method(self):
+        self.runtime_dict['foo'] = 'bar'
+        self.assertEqual(self.runtime_dict.get('foo'), 'bar')
+        self.assertEqual(self.runtime_dict.get('missing', 'default'), 'default')
+
+    def test_callback_setter(self):
+        def new_callback():
+            self.callback_called = 'new'
+        self.runtime_dict.callback = new_callback
+        self.runtime_dict['key'] = 'value'
+        self.assertEqual(self.callback_called, 'new')
+
+    def test_inhibit_callback_setter(self):
+        self.runtime_dict.inhibit_callback = True
+        self.callback_called = False
+        self.runtime_dict['key'] = 'value'
+        self.assertFalse(self.callback_called)
+        self.runtime_dict.inhibit_callback = False
+        self.assertTrue(self.callback_called)
+
+    def test_data_setter_type_error(self):
+        with self.assertRaises(TypeError):
+            self.runtime_dict.data = 'not_a_dict'
+
+    def test_callback_setter_value_error(self):
+        with self.assertRaises(ValueError):
+            self.runtime_dict.callback = None
+
+    def test_inhibit_callback_setter_type_error(self):
+        with self.assertRaises(TypeError):
+            self.runtime_dict.inhibit_callback = 'not_a_bool'
+
+
+class TestPyroxObject(unittest.TestCase):
+    def test_inheritance_from_snowflake(self):
+        obj = PyroxObject()
+        self.assertIsInstance(obj, SnowFlake)
+        self.assertIsInstance(obj.id, int)
+
+    def test_repr_returns_class_name(self):
+        obj = PyroxObject()
+        self.assertEqual(repr(obj), 'PyroxObject')
+
+    def test_get_all_properties_returns_dict(self):
+        class CustomPyroxObject(PyroxObject):
+            @property
+            def foo(self):
+                return 'bar'
+
+            @property
+            def bar(self):
+                return 42
+
+        obj = CustomPyroxObject()
+        props = obj.get_all_properties()
+        self.assertIsInstance(props, dict)
+        self.assertIn('foo', props)
+        self.assertIn('bar', props)
+        self.assertEqual(props['foo'], 'bar')
+        self.assertEqual(props['bar'], 42)
+
+
+class TestNamedPyroxObject(unittest.TestCase):
+    def test_inheritance_from_pyroxobject(self):
+        obj = NamedPyroxObject()
+        self.assertIsInstance(obj, PyroxObject)
+        self.assertIsInstance(obj.id, int)
+
+    def test_default_name_and_description(self):
+        obj = NamedPyroxObject()
+        self.assertEqual(obj.name, 'NamedPyroxObject')
+        self.assertEqual(obj.description, '')
+
+    def test_custom_name_and_description(self):
+        obj = NamedPyroxObject(name='CustomName', description='CustomDesc')
+        self.assertEqual(obj.name, 'CustomName')
+        self.assertEqual(obj.description, 'CustomDesc')
+
+    def test_name_setter_valid(self):
+        obj = NamedPyroxObject()
+        obj.name = 'ValidName123'
+        self.assertEqual(obj.name, 'ValidName123')
+
+    def test_name_setter_invalid(self):
+        obj = NamedPyroxObject()
+        with self.assertRaises(EnforcesNaming.InvalidNamingException):
+            obj.name = 'Invalid Name!'
+
+    def test_description_setter_valid(self):
+        obj = NamedPyroxObject()
+        obj.description = 'A description'
+        self.assertEqual(obj.description, 'A description')
+
+    def test_description_setter_invalid(self):
+        obj = NamedPyroxObject()
+        with self.assertRaises(TypeError):
+            obj.description = 12345
+
+
+class TestSupportsLoading(unittest.TestCase):
+    def test_inheritance_from_pyroxobject(self):
+        class DummyLoader(SupportsLoading):
+            @property
+            def load_path(self):
+                return None
+
+            def load(self, path=None):
+                return "loaded"
+
+            def on_loaded(self, data):
+                self.loaded_data = data
+
+        obj = DummyLoader()
+        self.assertIsInstance(obj, PyroxObject)
+        self.assertIsInstance(obj.id, int)
+
+    def test_not_implemented_load_path(self):
+        obj = SupportsLoading()
+        with self.assertRaises(NotImplementedError):
+            _ = obj.load_path
+
+    def test_not_implemented_load_method(self):
+        obj = SupportsLoading()
+        with self.assertRaises(NotImplementedError):
+            obj.load()
+
+    def test_on_loaded_override(self):
+        class DummyLoader(SupportsLoading):
+            def on_loaded(self, data):
+                self.loaded_data = data
+
+        obj = DummyLoader()
+        obj.on_loaded("test_data")
+        self.assertEqual(obj.loaded_data, "test_data")
+
+
+class TestSupportsSaving(unittest.TestCase):
+    def test_inheritance_from_pyroxobject(self):
+        class DummySaver(SupportSaving):
+            @property
+            def save_path(self):
+                return None
+
+            @property
+            def save_data_callback(self):
+                return lambda: {"data": 123}
+
+            def save(self, path=None, data=None):
+                self.saved = True
+
+        obj = DummySaver()
+        self.assertIsInstance(obj, PyroxObject)
+        self.assertIsInstance(obj.id, int)
+
+    def test_not_implemented_save_path(self):
+        obj = SupportSaving()
+        with self.assertRaises(NotImplementedError):
+            _ = obj.save_path
+
+    def test_not_implemented_save_data_callback(self):
+        obj = SupportSaving()
+        with self.assertRaises(NotImplementedError):
+            _ = obj.save_data_callback
+
+    def test_not_implemented_save_method(self):
+        obj = SupportSaving()
+        with self.assertRaises(NotImplementedError):
+            obj.save()
+
+    def test_save_override(self):
+        class DummySaver(SupportSaving):
+            def save(self, path=None, data=None):
+                self.saved = (path, data)
+        obj = DummySaver()
+        obj.save(path="test_path", data={"x": 1})
+        self.assertEqual(obj.saved, ("test_path", {"x": 1}))
+
+
+class TestSupportsJsonSaving(unittest.TestCase):
+    def test_inheritance_from_supportsaving(self):
+        class DummyJsonSaver(SupportsJsonSaving):
+            @property
+            def save_path(self):
+                return None
+
+            @property
+            def save_data_callback(self):
+                return lambda: {"data": 123}
+        obj = DummyJsonSaver()
+        self.assertIsInstance(obj, SupportSaving)
+        self.assertIsInstance(obj.id, int)
+
+    def test_save_to_json_success(self):
+        class DummyJsonSaver(SupportsJsonSaving):
+            @property
+            def save_path(self):
+                return self._path
+
+            @property
+            def save_data_callback(self):
+                return lambda: {"data": 456}
+        obj = DummyJsonSaver()
+        with tempfile.NamedTemporaryFile(delete=False, mode='w+', suffix='.json') as tmp:
+            obj._path = tmp.name
+            obj.save_to_json()
+            tmp.seek(0)
+            saved_data = json.load(tmp)
+        self.assertEqual(saved_data, {"data": 456})
+        os.remove(tmp.name)
+
+    def test_save_to_json_no_path(self):
+        class DummyJsonSaver(SupportsJsonSaving):
+            @property
+            def save_path(self):
+                return None
+
+            @property
+            def save_data_callback(self):
+                return lambda: {"data": 789}
+        obj = DummyJsonSaver()
+        with self.assertRaises(ValueError):
+            obj.save_to_json()
+
+
+class TestSupportsJsonLoading(unittest.TestCase):
+    def test_inheritance_from_supportsloading(self):
+        class DummyJsonLoader(SupportsJsonLoading):
+            @property
+            def load_path(self):
+                return None
+
+            def on_loaded(self, data):
+                self.loaded_data = data
+        obj = DummyJsonLoader()
+        self.assertIsInstance(obj, SupportsLoading)
+        self.assertIsInstance(obj.id, int)
+
+    def test_load_from_json_success(self):
+        class DummyJsonLoader(SupportsJsonLoading):
+            @property
+            def load_path(self):
+                return self._path
+
+            def on_loaded(self, data):
+                self.loaded_data = data
+        obj = DummyJsonLoader()
+        test_data = {"foo": "bar"}
+        with tempfile.NamedTemporaryFile(delete=False, mode='w+', suffix='.json') as tmp:
+            json.dump(test_data, tmp)
+            tmp.close()
+            obj._path = tmp.name
+            obj.load_from_json()
+        self.assertEqual(obj.loaded_data, test_data)
+        os.remove(tmp.name)
+
+    def test_load_from_json_file_not_found(self):
+        class DummyJsonLoader(SupportsJsonLoading):
+            @property
+            def load_path(self):
+                return "non_existent_file.json"
+
+            def on_loaded(self, data):
+                self.loaded_data = data
+        obj = DummyJsonLoader()
+        result = obj.load_from_json()
+        self.assertIsNone(result)
 
 
 class TestConsolePanelHandler(unittest.TestCase):
@@ -153,21 +503,6 @@ class TestRunnable(unittest.TestCase):
         self.assertFalse(runnable.running)
 
 
-class TestViewType(unittest.TestCase):
-    def test_enum_values(self):
-        self.assertEqual(ViewType.NA.value, 0)
-        self.assertEqual(ViewType.ROOT.value, 1)
-        self.assertEqual(ViewType.TOPLEVEL.value, 2)
-        self.assertEqual(ViewType.EMBED.value, 3)
-
-
-class TestPartialView(unittest.TestCase):
-    def test_initialization(self):
-        view = View()
-        self.assertIsInstance(view.frame, Frame)
-        self.assertIsNone(view.parent)
-
-
 class TestBaseMenu(unittest.TestCase):
     def test_initialization(self):
         root = Tk()
@@ -189,7 +524,7 @@ class TestBaseMenu(unittest.TestCase):
         root.quit()
 
 
-class TestPartialApplicationTask(unittest.TestCase):
+class TestApplicationTask(unittest.TestCase):
     def test_initialization(self):
         application = Application(ApplicationConfiguration())
         task = ApplicationTask(application=application)
@@ -202,7 +537,7 @@ class TestApplicationConfiguration(unittest.TestCase):
         self.assertFalse(config.headless)
         self.assertIsInstance(config.title, str)
         self.assertIsInstance(config.theme, str)
-        self.assertIsInstance(config.type_, ViewType)
+        self.assertIsInstance(config.type_, ApplicationTkType)
         self.assertEqual(config.icon, DEF_ICON)
         self.assertIsInstance(config.size_, str)
         self.assertEqual(config.tasks, [])
@@ -216,7 +551,7 @@ class TestApplicationConfiguration(unittest.TestCase):
                                                            tasks=[],
                                                            title=DEF_WIN_TITLE,
                                                            theme=DEF_THEME,
-                                                           type_=ViewType.ROOT,
+                                                           type_=ApplicationTkType.ROOT,
                                                            icon=DEF_ICON,
                                                            size_=DEF_WIN_SIZE)
         self.assertIsInstance(config.application, Tk)
@@ -224,7 +559,7 @@ class TestApplicationConfiguration(unittest.TestCase):
         self.assertEqual(config.tasks, [])
         self.assertEqual(config.title, DEF_WIN_TITLE)
         self.assertEqual(config.theme, DEF_THEME)
-        self.assertEqual(config.type_, ViewType.ROOT)
+        self.assertEqual(config.type_, ApplicationTkType.ROOT)
         self.assertEqual(config.icon, DEF_ICON)
         self.assertEqual(config.size_, DEF_WIN_SIZE)
 
@@ -235,7 +570,7 @@ class TestApplicationConfiguration(unittest.TestCase):
         self.assertEqual(config.tasks, [])
         self.assertEqual(config.title, DEF_WIN_TITLE)
         self.assertEqual(config.theme, DEF_THEME)
-        self.assertEqual(config.type_, ViewType.TOPLEVEL)
+        self.assertEqual(config.type_, ApplicationTkType.TOPLEVEL)
         self.assertEqual(config.icon, DEF_ICON)
         self.assertEqual(config.size_, DEF_WIN_SIZE)
 
@@ -246,16 +581,199 @@ class TestApplicationConfiguration(unittest.TestCase):
         self.assertEqual(config.tasks, [])
         self.assertEqual(config.title, DEF_WIN_TITLE)
         self.assertEqual(config.theme, DEF_THEME)
-        self.assertEqual(config.type_, ViewType.ROOT)
+        self.assertEqual(config.type_, ApplicationTkType.ROOT)
         self.assertEqual(config.icon, DEF_ICON)
         self.assertEqual(config.size_, DEF_WIN_SIZE)
 
 
-class TestPartialApplication(unittest.TestCase):
-    def test_initialization(self):
-        config = ApplicationConfiguration()
-        application = Application(config=config)
-        self.assertEqual(application.config, config)
+class TestApplicationDirectoryService(unittest.TestCase):
+    def setUp(self):
+        self.author_name = "TestAuthor"
+        self.app_name = "TestApp"
+        self.ads = ApplicationDirectoryService(author_name=self.author_name, app_name=self.app_name)
+
+    def test_app_name_property(self):
+        self.assertEqual(self.ads.app_name, self.app_name)
+
+    def test_author_name_property(self):
+        self.assertEqual(self.ads.author_name, self.author_name)
+
+    def test_all_directories_property(self):
+        dirs = self.ads.all_directories
+        self.assertIsInstance(dirs, dict)
+        self.assertIn('user_cache', dirs)
+        self.assertIn('user_config', dirs)
+        self.assertIn('user_data', dirs)
+        self.assertIn('user_log', dirs)
+
+    def test_user_cache_property(self):
+        self.assertTrue(os.path.isdir(self.ads.user_cache))
+
+    def test_user_config_property(self):
+        self.assertTrue(os.path.isdir(self.ads.user_config))
+
+    def test_user_data_property(self):
+        self.assertTrue(os.path.isdir(self.ads.user_data))
+
+    def test_user_documents_property(self):
+        self.assertTrue(isinstance(self.ads.user_documents, str))
+
+    def test_user_downloads_property(self):
+        self.assertTrue(isinstance(self.ads.user_downloads, str))
+
+    def test_user_log_property(self):
+        self.assertTrue(isinstance(self.ads.user_log, str))
+
+    def test_user_log_file_property(self):
+        self.assertTrue(self.ads.user_log_file.endswith('.log'))
+
+    def test_app_runtime_info_file_property(self):
+        self.assertTrue(self.ads.app_runtime_info_file.endswith('_runtime_info.json'))
+
+    def test_build_directory_refresh(self):
+        # Should not raise
+        self.ads.build_directory(as_refresh=True)
+
+
+class TestApplicationRuntimeInfo(unittest.TestCase):
+    def setUp(self):
+        class DummyApp:
+            def __init__(self):
+                self.directory_service = ApplicationDirectoryService(author_name="TestAuthor", app_name="TestApp")
+                self.logger = type("Logger", (), {"warning": lambda self, msg: None})()
+        self.app = DummyApp()
+        self.ari = ApplicationRuntimeInfo(application=self.app)
+
+    def test_application_property(self):
+        self.assertIs(self.ari.application, self.app)
+
+    def test_application_runtime_info_file_property(self):
+        path = self.ari.application_runtime_info_file
+        self.assertTrue(path.endswith("_runtime_info.json"))
+        self.assertIn(self.app.directory_service.app_name, path)
+
+    def test_data_property(self):
+        self.assertIsInstance(self.ari.data, RuntimeDict)
+        self.ari.data['test_key'] = 'test_value'
+        self.assertEqual(self.ari.data['test_key'], 'test_value')
+
+    def test_data_setter(self):
+        new_data = {'foo': 'bar'}
+        self.ari.data = new_data
+        self.assertEqual(self.ari.data['foo'], 'bar')
+
+    def test_load_path_and_save_path(self):
+        self.assertEqual(self.ari.load_path, self.ari.application_runtime_info_file)
+        self.assertEqual(self.ari.save_path, self.ari.application_runtime_info_file)
+
+    def test_save_data_callback(self):
+        cb = self.ari.save_data_callback
+        self.assertTrue(callable(cb))
+        self.ari.data['abc'] = 123
+        self.assertEqual(cb()['abc'], 123)
+
+    def test_get_and_set(self):
+        self.ari.set('hello', 'world')
+        self.assertEqual(self.ari.get('hello'), 'world')
+        self.assertEqual(self.ari.get('notfound', 'default'), 'default')
+
+    def test_on_loaded(self):
+        # Should not raise for dict
+        self.ari.on_loaded({'x': 1})
+        self.assertEqual(self.ari.data['x'], 1)
+        # Should re-init for None
+        self.ari.on_loaded(None)
+        self.assertIsInstance(self.ari.data, RuntimeDict)
+        # Should raise for non-dict
+        with self.assertRaises(TypeError):
+            self.ari.on_loaded("notadict")
+
+
+class TestApplication(unittest.TestCase):
+    def setUp(self):
+        # Minimal config for headless test
+        self.config = ApplicationConfiguration(
+            headless=True,
+            application_name="TestApp",
+            author_name="TestAuthor",
+            title="Test Title",
+            theme="default",
+            type_=ApplicationTkType.ROOT,
+            icon="",
+            size_="800x600",
+            tasks=[],
+            application=None
+        )
+        self.app = Application(config=self.config)
+
+    def test_config_property(self):
+        self.assertIs(self.app.config, self.config)
+
+    def test_directory_service_property(self):
+        self.assertIsInstance(self.app.directory_service, ApplicationDirectoryService)
+        self.assertEqual(self.app.directory_service.app_name, "TestApp")
+        self.assertEqual(self.app.directory_service.author_name, "TestAuthor")
+
+    def test_runtime_info_property(self):
+        self.app._runtime_info = ApplicationRuntimeInfo(application=self.app)
+        self.assertIsInstance(self.app.runtime_info, ApplicationRuntimeInfo)
+
+    def test_tasks_property(self):
+        self.app._tasks = HashList('name')
+        self.assertIsInstance(self.app.tasks, HashList)
+
+    def test_log_and_clear_log_file(self):
+        self.app.log("Test log entry")
+        self.app.clear_log_file()
+        # Should not raise
+
+    def test_add_task_and_add_tasks(self):
+        class DummyTask(ApplicationTask):
+            def inject(self): return self
+        self.app._tasks = HashList('name')
+        task = DummyTask(application=self.app)
+        self.app.add_task(task)
+        self.assertIn(task, self.app.tasks)
+        self.app.add_tasks([DummyTask(application=self.app)])
+        self.assertTrue(any(isinstance(t, DummyTask) for t in self.app.tasks))
+
+    def test_toggle_fullscreen(self):
+        # Should not raise, even if tk_app is None
+        self.app._runtime_info = ApplicationRuntimeInfo(application=self.app)
+        self.app._tk_app = type("TkApp", (), {"attributes": lambda self, k, v=None: None})()
+        self.app.toggle_fullscreen(True)
+        self.app.toggle_fullscreen(False)
+        self.app.toggle_fullscreen(None)
+
+    def test_center_method(self):
+        # Should not raise, even if tk_app is None
+        self.app._tk_app = type("TkApp", (), {
+            "winfo_screenwidth": lambda self: 1920,
+            "winfo_reqwidth": lambda self: 800,
+            "winfo_screenheight": lambda self: 1080,
+            "winfo_reqheight": lambda self: 600,
+            "geometry": lambda self, s: None
+        })()
+        self.app.center()
+
+    def test_close_method(self):
+        # Should not raise, even if tk_app is None
+        self.app._tk_app = type("TkApp", (), {
+            "quit": lambda self: None,
+            "destroy": lambda self: None
+        })()
+        self.app.close()
+
+    def test_build_method_headless(self):
+        # Should raise for headless config without tk app
+        self.app.config.headless = True
+        with self.assertRaises(ValueError):
+            self.app.build()
+
+    def test_on_pre_run_and_stop(self):
+        # Should not raise
+        self.app.on_pre_run()
+        self.app.stop()
 
 
 class TestSubscribable(unittest.TestCase):
@@ -388,83 +906,24 @@ class TestTrackedList(unittest.TestCase):
         self.assertIn("Updated", messages)
 
 
-class TestPartialModel(unittest.TestCase):
-    def test_initialization(self):
-        application = Application(ApplicationConfiguration())
-        view_model = PartialViewModel()
-        model = Model(application=application, view_model=view_model)
-        self.assertEqual(model.application, application)
-        self.assertEqual(model.view_model, view_model)
+class TestModel(unittest.TestCase):
+    def setUp(self):
+        class DummyApplication:
+            pass
+        self.app = DummyApplication()
+        self.model = Model(application=self.app)
 
-    def test_initialization_with_view_model_class(self):
-        application = Application(ApplicationConfiguration())
-        model = Model(application=application, view_model=PartialViewModel)
-        self.assertEqual(model.application, application)
-        self.assertIsInstance(model.view_model, PartialViewModel)
+    def test_application_property(self):
+        self.assertIs(self.model.application, self.app)
 
-    def test_initialization_with_invalid_view_model(self):
-        with self.assertRaises(ValueError):
-            Model(view_model="invalid_view_model")
+    def test_application_setter(self):
+        new_app = object()
+        self.model.application = new_app
+        self.assertIs(self.model.application, new_app)
 
-    def test_str_method(self):
-        model = Model()
-        self.assertEqual(str(model), "Model")
-
-    def test_set_application(self):
-        application = Application(ApplicationConfiguration())
-        model = Model()
-        result = model.set_application(application)
-        self.assertTrue(result)
-        self.assertEqual(model.application, application)
-        application.stop()
-
-    def test_set_application_already_set(self):
-        application = Application(ApplicationConfiguration())
-        model = Model(application=application)
-        result = model.set_application(application)
-        self.assertFalse(result)
-        application.stop()
-
-    def test_view_model_deleter(self):
-        view_model = PartialViewModel()
-        model = Model(view_model=view_model)
-        del model.view_model
-        self.assertIsNone(model.view_model)
-
-
-class TestPartialViewModel(unittest.TestCase):
-    def test_initialization(self):
-        model = Model()
-        view = View()
-        view_model = PartialViewModel(model=model, view=view)
-        self.assertEqual(view_model.model, model)
-        self.assertEqual(view_model.view, view)
-
-    def test_initialization_with_view_class(self):
-        model = Model()
-        view_model = PartialViewModel(model=model, view=View)
-        self.assertEqual(view_model.model, model)
-        self.assertIsInstance(view_model.view, View)
-
-    def test_initialization_with_invalid_view(self):
-        with self.assertRaises(ValueError):
-            PartialViewModel(view="invalid_view")
-
-    def test_model_property(self):
-        model = Model()
-        view_model = PartialViewModel(model=model)
-        self.assertEqual(view_model.model, model)
-
-    def test_view_property(self):
-        view = View()
-        view_model = PartialViewModel(view=view)
-        self.assertEqual(view_model.view, view)
-
-    def test_view_deleter(self):
-        view = View()
-        view_model = PartialViewModel(view=view)
-        del view_model.view
-        self.assertIsNone(view_model.view)
+    def test_init_with_none(self):
+        model_none = Model()
+        self.assertIsNone(model_none.application)
 
 
 if __name__ == '__main__':

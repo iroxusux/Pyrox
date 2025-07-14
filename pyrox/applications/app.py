@@ -9,6 +9,7 @@ from tkinter import Event, PanedWindow
 
 from ..models import Application, ApplicationTask, HashList
 from ..models.plc import BASE_FILES, Controller, PlcObject, TagEndpoint
+from .general_motors.gm import GmController
 from ..models.gui import (
     ContextMenu,
     FrameWithTreeViewAndScrollbar,
@@ -200,6 +201,7 @@ class App(Application):
         self._paned_window: Optional[PanedWindow] = None
         self._registered_frames: HashList[TaskFrame] = HashList('name')
         self._workspace: Optional[PyroxFrame] = None
+        self._refresh_lambda: Optional[callable] = lambda: self.refresh()
         self.logger.info('Pyrox Application initialized.')
 
     @property
@@ -220,6 +222,8 @@ class App(Application):
         if not isinstance(value, Controller) and value is not None:
             raise TypeError(f'Expected Controller, got {type(value)}')
         self._controller = value
+        if self._controller and self._refresh_lambda not in self._controller.on_compiled:
+            self._controller.on_compiled.append(self._refresh_lambda)
         self._runtime_info.data['last_plc_file_location'] = value.file_location if value else None
         self.refresh()
 
@@ -310,6 +314,7 @@ class App(Application):
         last_plc_file_location = self._runtime_info.data.get('last_plc_file_location', None)
         if last_plc_file_location and os.path.isfile(last_plc_file_location):
             self.load_controller(last_plc_file_location)
+            return
         self.refresh()
 
     def clear_organizer(self) -> None:
@@ -355,9 +360,14 @@ class App(Application):
         if not ctrl:
             self.logger.error('no controller was passed...')
             return
-        ctrl.file_location = file_location
 
         self.logger.info('new ctrl loaded -> %s', ctrl.name)
+
+        if 'zz_Version' in ctrl.datatypes:
+            ctrl = GmController.from_meta_data(ctrl.root_meta_data)
+            self.logger.info('Loaded GmController from metadata: %s', ctrl.name)
+
+        ctrl.file_location = file_location
         self.controller = ctrl
 
     def log(self,
@@ -510,3 +520,15 @@ class AppTask(ApplicationTask):
             application: :class:`App`
         """
         return super().application
+
+    @property
+    def controller(self) -> Optional[Controller]:
+        """Controller instance associated with this task.
+
+        .. ------------------------------------------------------------
+
+        Returns
+        -----------
+            controller: Optional[:class:`Controller]
+        """
+        return self.application.controller if self.application else None

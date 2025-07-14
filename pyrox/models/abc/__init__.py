@@ -1,12 +1,10 @@
 """abc meta types
     """
-from . import test_abc
-
-
 from .application import (
     Application,
     ApplicationConfiguration,
     ApplicationTask,
+    ApplicationTkType,
     BaseMenu,
 )
 
@@ -23,22 +21,17 @@ from .meta import (
     PyroxObject,
     Runnable,
     SnowFlake,
-    View,
-    ViewType,
 )
 
 from .model import (
     Model
 )
 
-from .viewmodel import (
-    PartialViewModel
-)
-
 __all__ = (
     'Application',
     'ApplicationConfiguration',
     'ApplicationTask',
+    'ApplicationTkType',
     'BaseMenu',
     'Buildable',
     'ConsolePanelHandler',
@@ -46,12 +39,8 @@ __all__ = (
     'HashList',
     'Loggable',
     'Model',
-    'PartialViewModel',
     'PyroxObject',
     'Runnable',
     'SafeList',
     'SnowFlake',
-    'test_abc',
-    'ViewType',
-    'View',
 )

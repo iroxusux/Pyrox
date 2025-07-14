@@ -10,7 +10,7 @@ from ...models import (
     View,
     ViewModel
 )
-from ...models.plc.gm import GmController
+from .gm import GmController
 
 
 class GmMsgExtractView(View):

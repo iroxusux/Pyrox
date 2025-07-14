@@ -3,17 +3,13 @@
 from __future__ import annotations
 
 
-from enum import Enum
-import gc
 import inspect
 import logging
 import json
 import os
 from pathlib import Path
 import re
-from typing import Any, Callable, Optional, Union
-from tkinter import Tk, Toplevel, Frame, LabelFrame, TclError, Widget
-from ttkthemes import ThemedTk
+from typing import Any, Callable, Optional
 
 
 __all__ = (
@@ -38,8 +34,6 @@ __all__ = (
     'SupportsLoading',
     'SupportSaving',
     'TK_CURSORS',
-    'View',
-    'ViewType',
 )
 
 ALLOWED_CHARS = re.compile(f'[^{r'a-zA-Z0-9_'}]')
@@ -185,7 +179,7 @@ class EnforcesNaming:
             super().__init__(self.message)
 
     @staticmethod
-    def is_valid_rockwell_bool(text):
+    def is_valid_rockwell_bool(text: str):
         """Check if a string is valid according to the Rockwell boolean naming scheme.
         .. ------------------------------------------------------------
         .. returns::
@@ -349,10 +343,11 @@ class RuntimeDict:
         if not isinstance(value, bool):
             raise TypeError('Inhibit callback must be a boolean value.')
         self._inhibit_callback = value
+        self._call()
 
     def _call(self):
         """Call the callback function if it is set and not inhibited."""
-        if not self._inhibit_callback:
+        if self._inhibit_callback is False:
             if callable(self._callback):
                 self._callback()
             else:
@@ -420,12 +415,14 @@ class NamedPyroxObject(PyroxObject):
     name: :type:`str`
         Name of the object.
     """
-    __slots__ = ('_name',)
+    __slots__ = ('_name', '_description')
 
     def __init__(self,
-                 name: Optional[str] = None):
+                 name: Optional[str] = None,
+                 description: Optional[str] = None):
         super().__init__()
         self._name = name or self.__class__.__name__
+        self._description = description or ''
 
     @property
     def name(self) -> str:
@@ -435,6 +432,39 @@ class NamedPyroxObject(PyroxObject):
             :type:`str`: Name of the object.
         """
         return self._name
+
+    @name.setter
+    def name(self, value: str):
+        """Set the name of the object.
+        .. ------------------------------------------------------------
+        .. arguments::
+        value: :type:`str`
+            Name to set for this object.
+        """
+        if not EnforcesNaming.is_valid_string(value):
+            raise EnforcesNaming.InvalidNamingException()
+        self._name = value
+
+    @property
+    def description(self) -> str:
+        """Description of the object.
+        .. ------------------------------------------------------------
+        .. returns::
+            :type:`str`: Description of the object.
+        """
+        return self._description
+
+    @description.setter
+    def description(self, value: str):
+        """Set the description of the object.
+        .. ------------------------------------------------------------
+        .. arguments::
+        value: :type:`str`
+            Description to set for this object.
+        """
+        if not isinstance(value, str):
+            raise TypeError('Description must be a string.')
+        self._description = value
 
 
 class SupportsLoading(PyroxObject):
@@ -837,123 +867,3 @@ class Runnable(Buildable):
         """Stop this object.
         """
         self._running = False
-
-
-class ViewType(Enum):
-    """Partial View Type Enumaration
-
-    .. ------------------------------------------------------------
-
-    .. package:: models.abc.meta
-    """
-    NA = 0
-    ROOT = 1
-    TOPLEVEL = 2
-    EMBED = 3
-
-
-class View(Runnable):
-    """A meta view for displaying tracked GUI information.
-
-    .. ------------------------------------------------------------
-
-    .. package:: models.abc.meta
-
-    .. ------------------------------------------------------------
-
-    Arguments
-    -----------
-    parent: Optional[:class:`Union[Tk, Toplevel, Frame, LabelFrame]`]
-        Parent of this partial view. Defaults to `None`, which will create a root view.
-
-    .. ------------------------------------------------------------
-
-    Attributes
-    -----------
-    parent: :class:`Union[Tk, Toplevel, Frame, LabelFrame]`
-        Parent of this partial view.
-
-    frame: :class:`Frame`
-        Frame to mount widgets onto.
-    """
-
-    __slots__ = ('_frame', '_parent')
-
-    def __init__(self,
-                 parent: Union[Tk, Toplevel, Frame, LabelFrame] = None,
-                 custom_frame_class: Optional[type[Frame]] = None):
-        super().__init__()
-        self._parent: Union[Tk, ThemedTk, Toplevel, Frame, LabelFrame] = parent
-
-        if custom_frame_class:
-            self._frame = custom_frame_class(master=self._parent)
-        else:
-            self._frame = Frame(master=self._parent, padx=2, pady=2)
-
-        self._frame.pack(fill='both', expand=True)
-
-    @property
-    def frame(self) -> Frame:
-        """Frame to mount widgets onto.
-
-        .. ------------------------------------------------------------
-
-        Returns
-        -----------
-            frame: :class:`Frame`
-        """
-        return self._frame
-
-    @property
-    def parent(self) -> Union[Tk, Toplevel, Frame, LabelFrame]:
-        """The parent of this partial view.
-
-        .. ------------------------------------------------------------
-
-        Returns
-        -----------
-            parent: :class:`Union[Tk, Toplevel, Frame, LabelFrame]`
-        """
-        return self._parent
-
-    def center(self) -> None:
-        """center this partial view in the window it resides in.
-
-        """
-        x = (self.parent.winfo_screenwidth() - self.parent.winfo_reqwidth()) // 2
-        y = (self.parent.winfo_screenheight() - self.parent.winfo_reqheight()) // 2
-        self.parent.geometry(f'+{x}+{y}')
-
-    def clear(self,
-              widget: Optional[Widget] = None) -> None:
-        """Clear a widget of all children.
-
-        Defaults to all children under this :class:`Frame`.
-
-        Arguments
-        ----------
-        widget: Optional[:class:`Widget`]
-            The widget to clear all children widgets from.
-
-        """
-        if not widget:
-            widget = self.frame
-
-        for child in widget.winfo_children():
-            child.pack_forget()
-
-    def close(self) -> None:
-        """Close this partial view.
-
-        """
-        self.stop()
-        try:
-            if isinstance(self.parent, Tk):
-                self.parent.quit()
-                self.parent.destroy()
-            elif isinstance(self.parent, Toplevel):
-                self.parent.destroy()
-        except TclError:
-            self.logger.error('TclError: Could not destroy the parent window')
-        finally:
-            gc.collect()  # process garbage collection for tk/tcl elements

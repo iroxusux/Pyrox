@@ -5,6 +5,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 import datetime
+from enum import Enum
 import gc
 import os
 from pathlib import Path
@@ -27,7 +28,6 @@ from .meta import (
     RuntimeDict,
     SupportsJsonLoading,
     SupportsJsonSaving,
-    ViewType,
     DEF_APP_NAME,
     DEF_AUTHOR_NAME,
     DEF_WIN_SIZE,
@@ -77,7 +77,7 @@ class BaseMenu(Buildable):
         """The Tk value member for this :class:`BaseMenu`.
         .. ------------------------------------------------------------
         .. returns::
-        menu: :type:`Tk.Menu`    
+        menu: :type:`Tk.Menu`
         """
         return self._menu
 
@@ -89,6 +89,30 @@ class BaseMenu(Buildable):
         root: Union[:class:`Tk`, :class:`TopLevel`]
         """
         return self._root
+
+    @staticmethod
+    def get_menu_commands(menu: Menu) -> dict:
+        """Get all menu commands for a specified tk :class:`Menu`.
+        .. ------------------------------------------------------------
+        .. arguments::
+        menu: :class:`Menu`
+            Menu to get all commands for.
+        .. ------------------------------------------------------------
+        .. returns::
+        :class:`dict`
+            Dictionary of menu commands, where the key is the label and the value is the command.
+        """
+        cmds = {}
+        try:
+            for x in range(menu.index('end')+1):
+                if menu.type(x) == 'command':
+                    label = menu.entrycget(x, 'label')
+                    cmd = menu.entrycget(x, 'command')
+                    cmds[label] = cmd
+        except TypeError:
+            pass
+
+        return cmds
 
 
 class MainApplicationMenu(BaseMenu):
@@ -126,11 +150,11 @@ class MainApplicationMenu(BaseMenu):
         self._view: Menu = Menu(self.menu, name='view', tearoff=0)
         self._help: Menu = Menu(self.menu, name='help', tearoff=0)
 
-        self.menu.add_cascade(label='File', menu=self.file)
-        self.menu.add_cascade(label='Edit', menu=self.edit)
-        self.menu.add_cascade(label='Tools', menu=self.tools)
-        self.menu.add_cascade(label='View', menu=self.view)
-        self.menu.add_cascade(label='Help', menu=self.help)
+        self.menu.add_cascade(label='File', menu=self.file, accelerator='<Alt>F', underline=0)
+        self.menu.add_cascade(label='Edit', menu=self.edit, accelerator='<Alt>E', underline=0)
+        self.menu.add_cascade(label='Tools', menu=self.tools, accelerator='<Alt>T', underline=0)
+        self.menu.add_cascade(label='View', menu=self.view, accelerator='<Alt>V', underline=0)
+        self.menu.add_cascade(label='Help', menu=self.help, accelerator='<Alt>H', underline=0)
 
         self.root.config(menu=self.menu)
 
@@ -179,30 +203,6 @@ class MainApplicationMenu(BaseMenu):
         """
         return self._view
 
-    @staticmethod
-    def get_menu_commands(menu: Menu) -> dict:
-        """Get all menu commands for a specified tk :class:`Menu`.
-        .. ------------------------------------------------------------
-        .. arguments::
-        menu: :class:`Menu`
-            Menu to get all commands for.
-        .. ------------------------------------------------------------
-        .. returns::
-        :class:`dict`
-            Dictionary of menu commands, where the key is the label and the value is the command.
-        """
-        cmds = {}
-        try:
-            for x in range(menu.index('end')+1):
-                if menu.type(x) == 'command':
-                    label = menu.entrycget(x, 'label')
-                    cmd = menu.entrycget(x, 'command')
-                    cmds[label] = cmd
-        except TypeError:
-            pass
-
-        return cmds
-
 
 class ApplicationTask(Runnable):
     """.. description::
@@ -226,12 +226,9 @@ class ApplicationTask(Runnable):
     @property
     def application(self) -> 'Application':
         """The parent application of this task.
-
         .. ------------------------------------------------------------
-
-        Returns
-        -----------
-            application: :class:`Application`
+        .. returns::
+        application: :class:`Application`
         """
         return self._application
 
@@ -245,6 +242,15 @@ class ApplicationTask(Runnable):
         """Inject this task into the hosting application
         """
         raise NotImplementedError('This method should be overridden in a subclass.')
+
+
+class ApplicationTkType(Enum):
+    """Application Tkinter Type
+    """
+    NA = 0
+    ROOT = 1
+    TOPLEVEL = 2
+    EMBED = 3
 
 
 @dataclass
@@ -266,7 +272,7 @@ class ApplicationConfiguration:
         The title of the application window.
     theme: :type:`str`
         The theme to use for the application window.
-    type_: :class:`ViewType`
+    type_: :class:`ApplicationTkType`
         The type of the application view, which can be one of the predefined view types.
     icon: :type:`str`
         The icon to use for the application window.
@@ -282,7 +288,7 @@ class ApplicationConfiguration:
     author_name: Optional[str] = DEF_AUTHOR_NAME
     title: Optional[str] = DEF_WIN_TITLE
     theme: Optional[str] = DEF_THEME
-    type_: ViewType = ViewType.ROOT
+    type_: ApplicationTkType = ApplicationTkType.ROOT
     icon: Optional[str] = DEF_ICON
     size_: Optional[str] = DEF_WIN_SIZE
     tasks: list[ApplicationTask] = field(default_factory=list)
@@ -295,7 +301,7 @@ class ApplicationConfiguration:
                          author_name: str,
                          title: str,
                          theme: str,
-                         type_: ViewType,
+                         type_: ApplicationTkType,
                          icon: str,
                          size_: str,
                          tasks: list[ApplicationTask],
@@ -335,7 +341,7 @@ class ApplicationConfiguration:
                                                          author_name=DEF_AUTHOR_NAME,
                                                          title=DEF_WIN_TITLE,
                                                          theme=DEF_THEME,
-                                                         type_=ViewType.TOPLEVEL,
+                                                         type_=ApplicationTkType.TOPLEVEL,
                                                          icon=DEF_ICON,
                                                          size_=DEF_WIN_SIZE,
                                                          tasks=[],
@@ -363,7 +369,7 @@ class ApplicationConfiguration:
                                                          application_name=DEF_APP_NAME,
                                                          author_name=DEF_AUTHOR_NAME,
                                                          theme=DEF_THEME,
-                                                         type_=ViewType.ROOT,
+                                                         type_=ApplicationTkType.ROOT,
                                                          icon=DEF_ICON,
                                                          size_=DEF_WIN_SIZE,
                                                          tasks=[],
@@ -425,8 +431,6 @@ class ApplicationDirectoryService:
             'user_cache': self.user_cache,
             'user_config': self.user_config,
             'user_data': self.user_data,
-            'user_documents': self.user_documents,
-            'user_downloads': self.user_downloads,
             'user_log': self.user_log
         }
 
@@ -662,6 +666,7 @@ class ApplicationRuntimeInfo(SupportsJsonSaving, SupportsJsonLoading):
         if data is None:
             self.application.logger.warning('No data loaded from the runtime info file, initializing with empty RuntimeDict.')
             self._data = RuntimeDict(self.save_to_json)
+            return
 
         if not isinstance(data, dict):
             raise TypeError('Loaded data must be a RuntimeDict.')

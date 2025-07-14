@@ -1,11 +1,14 @@
 """Plc types module
     """
+from .mod import IntrospectiveModule
+
 from .plc import (
     AddOnInstruction,
     BASE_FILES,
     ConnectionCommand,
     ConnectionParameters,
     Controller,
+    ControllerModificationSchema,
     Datatype,
     DatatypeMember,
     DataValueMember,
@@ -13,7 +16,6 @@ from .plc import (
     Module,
     PlcObject,
     Program,
-    ProgramTag,
     Routine,
     Rung,
     Tag,
@@ -26,14 +28,15 @@ __all__ = (
     'ConnectionCommand',
     'ConnectionParameters',
     'Controller',
+    'ControllerModificationSchema',
     'Datatype',
     'DatatypeMember',
     'DataValueMember',
+    'IntrospectiveModule',
     'LogixAssetType',
     'Module',
     'PlcObject',
     'Program',
-    'ProgramTag',
     'Routine',
     'Rung',
     'Tag',

@@ -11,6 +11,7 @@ from .abc import (
     Application,
     ApplicationConfiguration,
     ApplicationTask,
+    ApplicationTkType,
     Buildable,
     ConsolePanelHandler,
     HashList,
@@ -18,8 +19,7 @@ from .abc import (
     Model,
     SafeList,
     SnowFlake,
-    ViewType,
-    View)
+)
 from .gui import ProgressBar, PyroxGuiObject
 from .plc import (
     ConnectionCommand,
@@ -31,8 +31,9 @@ from .plc import (
 __all__ = (
     'abc',
     'Application',
-    'ApplicationTask',
     'ApplicationConfiguration',
+    'ApplicationTask',
+    'ApplicationTkType',
     'Buildable',
     'ConnectionCommand',
     'ConnectionParameters',
@@ -49,7 +50,4 @@ __all__ = (
     'SnowFlake',
     'test_models',
     'gui',
-    'View',
-    'ViewType',
-    'gui'
 )

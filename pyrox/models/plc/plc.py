@@ -8,9 +8,10 @@ from dataclasses import dataclass
 from enum import Enum
 
 import re
-from typing import Callable, Generic, get_args, Optional, Self, TypeVar, Union
+from typing import Callable, Optional, Self, TypeVar, Union
 
-from ..abc.meta import EnforcesNaming, Loggable, NamedPyroxObject
+from .mod import IntrospectiveModule
+from ..abc.meta import EnforcesNaming, Loggable, PyroxObject, NamedPyroxObject
 from ..abc.list import HashList
 from ...services.dictionary_services import insert_key_at_index
 from ...services.plc_services import l5x_dict_from_file
@@ -23,12 +24,12 @@ __all__ = (
     'ConnectionCommand',
     'ConnectionParameters',
     'Controller',
+    'ControllerModificationSchema',
     'Datatype',
     'DatatypeMember',
     'DataValueMember',
     'Module',
     'Program',
-    'ProgramTag',
     'Routine',
     'Rung',
     'Tag',
@@ -236,30 +237,28 @@ class LogixAssetType(Enum):
     ALL = 9
 
 
-class PlcObject(EnforcesNaming, NamedPyroxObject):
+class PlcObject(EnforcesNaming, PyroxObject):
     """base class for a l5x plc object.
     """
 
     def __getitem__(self, key):
         if isinstance(self.meta_data, dict):
             return self._meta_data.get(key, None)
-        elif isinstance(self.meta_data, str):
-            return self.meta_data
+        else:
+            raise TypeError("Meta data must be a dict!")
 
     def __init__(self,
                  controller: 'Controller' = None,
                  default_loader: Callable = lambda: defaultdict(None),
-                 meta_data: Union[dict, str] = defaultdict(None),
-                 **kwargs):
+                 meta_data: Union[dict, str] = defaultdict(None)):
         self._meta_data = meta_data or default_loader()
         self._controller = controller
+        self._on_compiled: list[Callable] = []
         self._init_dict_order()
-        EnforcesNaming.__init__(self)
-        NamedPyroxObject.__init__(self,
-                                  **kwargs)
+        super().__init__()
 
     def __repr__(self):
-        return self.meta_data
+        return str(self)
 
     def __setitem__(self, key, value):
         if isinstance(self.meta_data, dict):
@@ -314,18 +313,30 @@ class PlcObject(EnforcesNaming, NamedPyroxObject):
 
     @meta_data.setter
     def meta_data(self, value: Union[dict, str]):
-        if isinstance(value, dict):
-            self._meta_data = replace_strings_in_dict(value)
-        elif isinstance(value, str):
+        if isinstance(value, dict) or isinstance(value, str):
             self._meta_data = value
         else:
             raise TypeError("Meta data must be a dict or a string!")
 
+    @property
+    def on_compiled(self) -> list[Callable]:
+        """get the list of functions to call when this object is compiled.
+
+        .. -------------------------------
+
+        Returns
+        ----------
+            :class:`list[Callable]`
+        """
+        return self._on_compiled
+
     def compile(self) -> Self:
         """compile this object.
+        additionally, this method will call all functions in the `on_compiled` list.
         """
         self._compile_from_meta_data()
         self._init_dict_order()
+        [call() for call in self._on_compiled]
         return self
 
     def _compile_from_meta_data(self):
@@ -369,18 +380,43 @@ class PlcObject(EnforcesNaming, NamedPyroxObject):
         return report
 
 
-class NamedPlcObject(PlcObject):
+class NamedPlcObject(PlcObject, NamedPyroxObject):
     """Supports a name and description for a PLC object.
+    .. -------------------------------
+    .. arguments::
+        meta_data: :type:`dict`
+            Meta data for this object.
+        default_loader: :type:`Callable`
+            Default loader for this object.
+        name: :type:`str`
+            Name of this object.
+        description: :type:`str`
+            Description of this object.
+        controller: :type:`Controller`
+            Controller for this object.
+    .. -------------------------------
+    .. attributes::
+        name: :type:`str`
+            Name of this object.
+        description: :type:`str`
+            Description of this object.
     """
 
     def __init__(self,
                  meta_data=defaultdict(None),
-                 controller=None,
-                 **kwargs):
-        super().__init__(controller=controller,
-                         meta_data=meta_data,
-                         name=meta_data.get('@Name', None),
-                         **kwargs)
+                 default_loader: Callable = lambda: defaultdict(None),
+                 name: Optional[str] = None,
+                 description: Optional[str] = None,
+                 controller=None):
+        PlcObject.__init__(self,
+                           controller=controller,
+                           default_loader=default_loader,
+                           meta_data=meta_data)
+        NamedPyroxObject.__init__(self,
+                                  name=name or meta_data.get('@Name', None),
+                                  description=description or meta_data.get('Description', ''))
+        if name:
+            self.name = name
 
     def __repr__(self):
         return self.name
@@ -872,35 +908,12 @@ class LogixInstruction(PlcObject):
         return report
 
 
-class SupportsMeta(Generic[T], NamedPlcObject):
-    """meta type for 'supports' structuring
-    """
-
-    @property
-    def __key__(self) -> str:
-        raise NotImplementedError()
-
-    def __set__(self, value: T, key: Optional[str] = None):
-        key_ = self.__key__ if not key else key
-        try:
-            base = get_args(self.__orig_bases__[0])[0]
-        except TypeError:
-            base = get_args(self.__orig_bases__[0])
-        if not isinstance(value, base):
-            raise ValueError(f'Value must be of type {T}!')
-        self[key_] = value
-
-    def __get__(self, key: Optional[str] = None):
-        key_ = self.__key__ if not key else key
-        return self[key_]
-
-
 class ContainsTags(NamedPlcObject):
     def __init__(self,
                  meta_data=defaultdict(None),
                  controller=None):
-        super().__init__(meta_data,
-                         controller)
+        super().__init__(meta_data=meta_data,
+                         controller=controller)
 
         self._tags: HashList
         self._compile_from_meta_data()
@@ -924,7 +937,7 @@ class ContainsTags(NamedPlcObject):
         [self._tags.append(self.config.tag_type(meta_data=x, controller=self.controller, container=self))
          for x in self.raw_tags]
 
-    def add_tag(self, tag: 'Tag'):
+    def add_tag(self, tag: 'Tag', skip_compile: bool = False) -> None:
         """add a tag to this container
 
         Args:
@@ -934,12 +947,13 @@ class ContainsTags(NamedPlcObject):
             raise TypeError("Tag must be of type Tag!")
 
         if tag.name in self._tags:
-            self.raw_tags.remove(tag.meta_data)
+            self.remove_tag(tag, skip_compile=True)
 
         self.raw_tags.append(tag.meta_data)
-        self._compile_from_meta_data()
+        if not skip_compile:
+            self._compile_from_meta_data()
 
-    def remove_tag(self, tag: Union['Tag', str]) -> None:
+    def remove_tag(self, tag: Union['Tag', str], skip_compile: bool = False) -> None:
         """remove a tag from this container
 
         Args:
@@ -955,8 +969,9 @@ class ContainsTags(NamedPlcObject):
         if tag_name not in self._tags:
             raise ValueError(f"Tag with name {tag_name} does not exist in this container!")
 
-        self.raw_tags.remove(self._tags[tag_name].meta_data)
-        self._compile_from_meta_data()
+        self.raw_tags.remove(next((x for x in self.raw_tags if x['@Name'] == tag_name), None))
+        if not skip_compile:
+            self._compile_from_meta_data()
 
 
 class ContainsRoutines(ContainsTags):
@@ -1030,7 +1045,7 @@ class ContainsRoutines(ContainsTags):
         for routine in self.raw_routines:
             self._routines.append(self.config.routine_type(meta_data=routine, controller=self.controller, program=self))
 
-    def add_routine(self, routine: 'Routine'):
+    def add_routine(self, routine: 'Routine', skip_compile: bool = False):
         """add a routine to this container
 
         Args:
@@ -1040,10 +1055,11 @@ class ContainsRoutines(ContainsTags):
             raise TypeError("Routine must be of type Routine!")
 
         if routine.name in self._routines:
-            raise ValueError(f"Routine with name {routine.name} already exists in this container!")
+            self.raw_routines.remove(routine.meta_data)
 
         self.raw_routines.append(routine.meta_data)
-        self._compile_from_meta_data()
+        if not skip_compile:
+            self._compile_from_meta_data()
 
     def remove_routine(self, routine: 'Routine'):
         """remove a routine from this container
@@ -1174,7 +1190,7 @@ class AddOnInstruction(ContainsRoutines):
 
     @software_revision.setter
     def software_revision(self, value: str):
-        if not self.is_valid_string(value):
+        if not self.is_valid_revision_string(value):
             raise self.InvalidNamingException
 
         self['@SoftwareRevision'] = value
@@ -1466,24 +1482,13 @@ class Datatype(NamedPlcObject):
 
 class Module(NamedPlcObject):
     def __init__(self,
-                 name: str = None,
                  l5x_meta_data: dict = None,
                  controller: Controller = None):
-        """type class for plc Module
 
-        Args:
-            l5x_meta_data (str): meta data
-            controller (Self): controller dictionary
-        """
-
-        if not l5x_meta_data:
-            l5x_meta_data = l5x_dict_from_file(PLC_MOD_FILE)['Module']
-
-        super().__init__(meta_data=l5x_meta_data,
+        super().__init__(meta_data=l5x_meta_data or l5x_dict_from_file(PLC_MOD_FILE)['Module'],
                          controller=controller)
-
-        if name:
-            self.name = name
+        self._introspective_module: IntrospectiveModule = None
+        self._compile_from_meta_data()
 
     @property
     def dict_key_order(self) -> list[str]:
@@ -1519,6 +1524,57 @@ class Module(NamedPlcObject):
     @property
     def communications(self) -> dict:
         return self['Communications']
+
+    @property
+    def connections(self) -> dict:
+        """get the connections for this module
+
+        Returns:
+            :class:`dict`: connections for this module
+        """
+        if not self.communications:
+            return {}
+        if not isinstance(self.communications.get('Connections', {}), dict):
+            self.communications['Connections'] = {'Connection': []}
+        if not isinstance(self.communications['Connections']['Connection'], list):
+            self.communications['Connections']['Connection'] = [self.communications['Connections']['Connection']]
+        return self.communications['Connections']['Connection']
+
+    @property
+    def input_connection_point(self) -> str:
+        """get the input connection point for this module
+
+        Returns:
+            :class:`str`: input connection point
+        """
+        return self.connections[0].get('@InputCxnPoint', '')
+
+    @property
+    def output_connection_point(self) -> str:
+        """get the output connection point for this module
+
+        Returns:
+            :class:`str`: output connection point
+        """
+        return self.connections[0].get('@OutputCxnPoint', '')
+
+    @property
+    def input_connection_size(self) -> str:
+        """get the input connection size for this module
+
+        Returns:
+            :class:`str`: input connection size
+        """
+        return self.communications.get('@PrimCxnInputSize', '')
+
+    @property
+    def output_connection_size(self) -> str:
+        """get the output connection size for this module
+
+        Returns:
+            :class:`str`: output connection size
+        """
+        return self.communications.get('@PrimCxnOutputSize', '')
 
     @property
     def vendor(self) -> str:
@@ -1598,6 +1654,15 @@ class Module(NamedPlcObject):
         self['@Inhibited'] = value
 
     @property
+    def introspective_module(self) -> IntrospectiveModule:
+        """get the introspective module for this module
+
+        Returns:
+            :class:`IntrospectiveModule`: introspective module
+        """
+        return self._introspective_module
+
+    @property
     def major_fault(self) -> str:
         return self['@MajorFault']
 
@@ -1624,6 +1689,18 @@ class Module(NamedPlcObject):
             return [self['Ports']['Port']]
 
         return self['Ports']['Port']
+
+    @property
+    def type_(self) -> str:
+        """get the type of this module
+
+        Returns:
+            :class:`str`: type of this module
+        """
+        return self.introspective_module.type_ if self.introspective_module else 'Unknown'
+
+    def _compile_from_meta_data(self):
+        self._introspective_module = IntrospectiveModule.from_meta_data(self, lazy_match_catalog=True)
 
     def validate(self) -> ControllerReportItem:
 
@@ -1699,26 +1776,6 @@ class Program(ContainsRoutines):
             report.pass_fail = False
 
         return report
-
-
-class ProgramTag(NamedPlcObject):
-    def __init__(self,
-                 l5x_meta_data: dict,
-                 controller: Controller,
-                 program: Optional[Program] = None):
-        """type class for plc Program Tag
-
-        Args:
-            l5x_meta_data (str): meta data
-            controller (Self): controller dictionary
-        """
-        super().__init__(meta_data=l5x_meta_data,
-                         controller=controller)
-        self._program: Optional[Program] = program
-
-    @property
-    def program(self) -> Optional[Program]:
-        return self._program
 
 
 class Routine(NamedPlcObject):
@@ -1826,7 +1883,8 @@ class Routine(NamedPlcObject):
 
     def add_rung(self,
                  rung: Rung,
-                 index: Optional[int] = None):
+                 index: Optional[int] = None,
+                 skip_compile: bool = False):
         """add a rung to this routine
 
         Args:
@@ -1835,15 +1893,19 @@ class Routine(NamedPlcObject):
         if not isinstance(rung, Rung):
             raise ValueError("Rung must be an instance of Rung!")
 
-        if index is None:
-            rung.number = len(self.rungs)  # auto-increment rung number
+        if index is None or index == -1 or index >= len(self.rungs):
             self.raw_rungs.append(rung.meta_data)
-            self._compile_from_meta_data()
         else:
             self.raw_rungs.insert(index, rung.meta_data)
-            for i, rung_dict in enumerate(self.raw_rungs):
-                rung_dict['@Number'] = str(i)
+        for i, rung_dict in enumerate(self.raw_rungs):
+            rung_dict['@Number'] = str(i)
+        if not skip_compile:
             self._compile_from_meta_data()
+
+    def clear_rungs(self):
+        """clear all rungs from this routine"""
+        self.raw_rungs.clear()
+        self._compile_from_meta_data()
 
     def remove_rung(self, rung: Union[Rung, int, str]):
         """remove a rung from this routine
@@ -1870,7 +1932,7 @@ class Routine(NamedPlcObject):
 
     def validate(self) -> ControllerReportItem:
         report = ControllerReportItem(self,
-                                      f'Validating {self.__class__.__name__} object: {self.name}')
+                                      f'Validating {self.__class__.__name__} object: {self.meta_data}')
         if not self.rungs:
             report.test_notes.append('No rungs found in routine!')
             report.pass_fail = False
@@ -1887,7 +1949,9 @@ class Rung(PlcObject):
     def __init__(self,
                  meta_data: dict = None,
                  controller: Controller = None,
-                 routine: Optional[Routine] = None):
+                 routine: Optional[Routine] = None,
+                 text: Optional[str] = None,
+                 comment: Optional[str] = None):
         """type class for plc Rung
 
         Args:
@@ -1899,9 +1963,20 @@ class Rung(PlcObject):
 
         self._routine: Optional[Routine] = routine
         self._instructions: list[LogixInstruction] = []
+        if text:
+            self.text = text
+        if comment:
+            self.comment = comment
         self._get_instructions()
         self._input_instructions: list[LogixInstruction] = []
         self._output_instructions: list[LogixInstruction] = []
+
+    def __eq__(self, other):
+        if not isinstance(other, Rung):
+            return False
+        if self.text == other.text:
+            return True
+        return False
 
     def __repr__(self):
         return (
@@ -2010,7 +2085,6 @@ class TagEndpoint(PlcObject):
                  controller: Controller,
                  parent_tag: 'Tag'):
         super().__init__(meta_data=meta_data,
-                         name=meta_data,
                          controller=controller)
         self._parent_tag: 'Tag' = parent_tag
 
@@ -2026,18 +2100,43 @@ class TagEndpoint(PlcObject):
 
 class Tag(NamedPlcObject):
     def __init__(self,
-                 container: Union[Program, AddOnInstruction, Controller] = None,
-                 **kwargs):
+                 meta_data: Optional[dict] = None,
+                 controller: Optional[Controller] = None,
+                 name: Optional[str] = None,
+                 description: Optional[str] = None,
+                 class_: Optional[str] = None,
+                 tag_type: Optional[str] = None,
+                 datatype: Optional[str] = None,
+                 dimensions: Optional[str] = None,
+                 constant: Optional[bool] = None,
+                 external_access: Optional[str] = None,
+                 container: Union[Program, AddOnInstruction, Controller] = None):
         """type class for plc Tag
 
         Args:
             l5x_meta_data (str): meta data
             controller (Self): controller dictionary
         """
-
-        super().__init__(default_loader=lambda: l5x_dict_from_file(PLC_TAG_FILE)['Tag'],
-                         **kwargs)
+        if controller is None and container is not None:
+            controller = container.controller if isinstance(container, (Program, AddOnInstruction)) else None
+        container = container or controller
+        super().__init__(controller=controller,
+                         meta_data=meta_data or l5x_dict_from_file(PLC_TAG_FILE)['Tag'],
+                         name=name,
+                         description=description)
         self._container = container
+        if class_:
+            self.class_ = class_
+        if tag_type:
+            self.tag_type = tag_type
+        if datatype:
+            self.datatype = datatype
+        if dimensions:
+            self.dimensions = dimensions
+        if constant is not None:
+            self.constant = constant
+        if external_access:
+            self.external_access = external_access
 
     @property
     def dict_key_order(self) -> list[str]:
@@ -2119,11 +2218,8 @@ class Tag(NamedPlcObject):
 
     @datatype.setter
     def datatype(self, value: str):
-        if not isinstance(value, str):
-            raise ValueError("Datatype must be a string!")
-
-        if value not in self.controller.datatypes:
-            raise ValueError(f"Datatype {value} not found in controller datatypes!")
+        if not self.is_valid_string(value) or not value:
+            raise ValueError("Data type must be a valid string!")
 
         self['@DataType'] = value
         self['Data'] = []
@@ -2365,18 +2461,23 @@ class Controller(NamedPlcObject, Loggable):
             self.plc_module['@Minor'] = self.minor_revision
 
     def __init__(self,
-                 root_meta_data: str = None,
+                 meta_data: str = None,
+                 name: Optional[str] = None,
+                 description: Optional[str] = None,
                  config: Optional[ControllerConfiguration] = None,
-                 **kwargs):
+                 file_location: Optional[str] = None,
+                 ip_address: Optional[str] = None,
+                 slot: Optional[int] = 0):
 
-        self._root_meta_data: dict = root_meta_data or l5x_dict_from_file(PLC_ROOT_FILE)
-        self._file_location, self._ip_address, self._slot = '', '', 0
+        self._root_meta_data: dict = meta_data or l5x_dict_from_file(PLC_ROOT_FILE)
+        self._file_location, self._ip_address, self._slot = file_location, ip_address, slot
         self._config = config or ControllerConfiguration()
 
         NamedPlcObject.__init__(self,
                                 meta_data=self.l5x_meta_data,
-                                controller=self,
-                                **kwargs)
+                                name=name,
+                                description=description,
+                                controller=self)
         Loggable.__init__(self)
         self._aois: HashList
         self._datatypes: HashList
@@ -2576,6 +2677,34 @@ class Controller(NamedPlcObject, Loggable):
 
         return cls(root_data)
 
+    @classmethod
+    def from_meta_data(cls: Self,
+                       meta_data: dict,
+                       config: Optional[ControllerConfiguration] = None) -> Self:
+        """Create a Controller instance from meta data.
+        .. -------------------------------
+        .. arguments::
+        :class:`dict` meta_data:
+            the meta data to create the controller from
+        :class:`ControllerConfiguration` config:
+            the configuration to use for the controller
+        """
+        if not meta_data:
+            raise ValueError('Meta data cannot be None!')
+        if not isinstance(meta_data, dict):
+            raise ValueError('Meta data must be a dictionary!')
+        if 'RSLogix5000Content' not in meta_data:
+            raise ValueError('Meta data must contain RSLogix5000Content!')
+        if 'Controller' not in meta_data['RSLogix5000Content']:
+            raise ValueError('Meta data must contain Controller!')
+        if not config:
+            config = ControllerConfiguration()
+        if not isinstance(config, ControllerConfiguration):
+            raise ValueError('Config must be an instance of ControllerConfiguration!')
+        controller = cls(meta_data=meta_data,
+                         config=config)
+        return controller
+
     def _compile_atomic_datatypes(self) -> None:
         """Compile atomic datatypes from the controller's datatypes."""
         self.datatypes.append(Datatype(meta_data={'@Name': 'BOOL'}, controller=self))
@@ -2647,7 +2776,7 @@ class Controller(NamedPlcObject, Loggable):
             raise TypeError(f"{item.name} must be of type {item_class}!")
 
         if item.name in target_list:
-            raise ValueError(f"{item_class} with name {item.name} already exists in this list!")
+            target_meta_list.remove(next((x for x in target_meta_list if x['@Name'] == item.name), None))
 
         target_meta_list.append(item.meta_data)
 
@@ -3049,8 +3178,6 @@ class ControllerReport(Loggable):
 
     def run(self) -> Self:
         self.logger.info('Starting report...')
-        self.logger.info('Checking controller attributes...')
-        self._check_controller()
         self.logger.info('Checking modules...')
         self._check_common(self._controller.modules)
         self.logger.info('Checking datatypes...')
@@ -3063,3 +3190,169 @@ class ControllerReport(Loggable):
         self._check_common(self._controller.programs)
         self.logger.info('Finalizing report...')
         return self
+
+
+class ControllerModificationSchema:
+    """
+    Defines a schema for modifying a controller, such as migrating assets between controllers,
+    or importing assets from an L5X dictionary.
+    """
+
+    def __init__(self, source: Controller, destination: Controller):
+        self.source = source
+        self.destination = destination
+        self.actions = []  # List of migration actions
+
+    def add_datatype_migration(self, datatype_name: str):
+        """Specify a datatype to migrate from source to destination."""
+        self.actions.append({
+            'type': 'datatype',
+            'name': datatype_name
+        })
+
+    def add_tag_import(self, tag: Tag):
+        """Add an individual tag to import directly to the destination controller.
+        """
+        if not isinstance(tag, Tag):
+            raise ValueError('Tag must be an instance of Tag class.')
+        self.actions.append({
+            'type': 'import_tag',
+            'asset': tag.meta_data
+        })
+
+    def add_tag_migration(self, tag_name: str):
+        """Specify a tag to migrate from source to destination."""
+        self.actions.append({
+            'type': 'tag',
+            'name': tag_name
+        })
+
+    def add_program_tag_import(self, program_name: str, tag: Tag):
+        """Add a tag to import directly to the destination controller within a specific program."""
+        if not isinstance(tag, Tag):
+            raise ValueError('Tag must be an instance of Tag class.')
+        self.actions.append({
+            'type': 'import_program_tag',
+            'program': program_name,
+            'asset': tag.meta_data
+        })
+
+    def add_routine_import(self, program_name: str, routine: Routine):
+        """Add a routine to import directly to the destination controller."""
+        if not isinstance(routine, Routine):
+            raise ValueError('Routine must be an instance of Routine class.')
+        self.actions.append({
+            'type': 'import_routine',
+            'program': program_name,
+            'routine': routine.meta_data
+        })
+
+    def add_rung_import(self, program_name: str, routine_name: str, rung_number: int, new_rung: Rung):
+        """Add a rung to import directly to the destination controller."""
+        if not isinstance(new_rung, Rung):
+            raise ValueError('Rung must be an instance of Rung class.')
+        self.actions.append({
+            'type': 'rung_import',
+            'program': program_name,
+            'routine': routine_name,
+            'rung_number': rung_number,
+            'new_rung': new_rung.meta_data
+        })
+
+    def add_routine_migration(self, program_name: str, routine_name: str, rung_updates: dict = None):
+        """Specify a routine to migrate, with optional rung updates."""
+        self.actions.append({
+            'type': 'routine',
+            'program': program_name,
+            'routine': routine_name,
+            'rung_updates': rung_updates or {}
+        })
+
+    def add_import_from_l5x_dict(self, l5x_dict: dict, asset_types: list[str] = None):
+        """
+        Add actions to import assets from an L5X dictionary.
+        asset_types: list of asset types to import, e.g. ['DataTypes', 'Tags', 'Programs']
+        """
+        if not asset_types:
+            asset_types = ['DataTypes', 'Tags', 'Programs']
+
+        rslogix = l5x_dict.get('RSLogix5000Content', {})
+        controller_dict = rslogix.get('Controller', {})
+
+        for asset_type in asset_types:
+            if asset_type in controller_dict:
+                items = controller_dict[asset_type]
+                # Normalize to list
+                key = asset_type[:-1] if asset_type.endswith('s') else asset_type
+                if key in items:
+                    asset_list = items[key]
+                    if not isinstance(asset_list, list):
+                        asset_list = [asset_list]
+                    for asset in asset_list:
+                        self.actions.append({
+                            'type': f'import_{asset_type.lower()}',
+                            'asset': asset
+                        })
+
+    def add_import_from_file(self, file_location: str, asset_types: list[str] = None):
+        """
+        Add actions to import assets from an L5X file.
+        asset_types: list of asset types to import, e.g. ['DataTypes', 'Tags', 'Programs']
+        """
+        l5x_dict = l5x_dict_from_file(file_location)
+        if not l5x_dict:
+            raise ValueError(f'No valid L5X data found in file {file_location}')
+        self.add_import_from_l5x_dict(l5x_dict, asset_types)
+
+    def execute(self):
+        """Perform all migration and import actions."""
+        for action in self.actions:
+            if action['type'] == 'datatype':
+                dt = self.source.datatypes.get(action['name'])
+                if dt:
+                    self.destination.add_datatype(dt)
+            elif action['type'] == 'tag':
+                tag = self.source.tags.get(action['name'])
+                if tag:
+                    self.destination.add_tag(tag)
+            elif action['type'] == 'routine':
+                prog: Program = self.source.programs.get(action['program'])
+                if prog:
+                    routine: Routine = prog.routines.get(action['routine'])
+                    if routine:
+                        self.destination.programs.get(action['program']).add_routine(routine)
+                        # Optionally update rungs
+                        for rung_num, new_rung in action['rung_updates'].items():
+                            dest_routine = self.destination.programs.get(action['program']).routines.get(action['routine'])
+                            dest_routine.rungs[rung_num] = new_rung
+            elif action['type'] == 'import_datatypes':
+                dt = Datatype(meta_data=action['asset'], controller=self.destination)
+                self.destination.add_datatype(dt, skip_compile=True)
+            elif action['type'] == 'import_tags':
+                tag = Tag(meta_data=action['asset'], controller=self.destination)
+                self.destination.add_tag(tag, skip_compile=True)
+            elif action['type'] == 'import_programs':
+                prog = Program(meta_data=action['asset'], controller=self.destination)
+                self.destination.add_program(prog, skip_compile=True)
+            elif action['type'] == 'import_tag':
+                tag: Tag = Tag(meta_data=action['asset'], controller=self.destination, container=self.destination)
+                self.destination.add_tag(tag, skip_compile=True)
+            elif action['type'] == 'import_program_tag':
+                prog: Program = self.destination.programs.get(action['program'])
+                if prog:
+                    tag: Tag = Tag(meta_data=action['asset'], controller=self.destination, container=prog)
+                    prog.add_tag(tag, skip_compile=True)
+            elif action['type'] == 'import_routine':
+                prog: Program = self.destination.programs.get(action['program'])
+                if prog:
+                    routine: Routine = Routine(meta_data=action['routine'], controller=self.destination, program=prog)
+                    prog.add_routine(routine, skip_compile=True)
+            elif action['type'] == 'rung_import':
+                prog: Program = self.destination.programs.get(action['program'])
+                if prog:
+                    routine: Routine = prog.routines.get(action['routine'])
+                    if routine:
+                        new_rung = Rung(meta_data=action['new_rung'], controller=self.destination, routine=routine)
+                        routine.add_rung(rung=new_rung, index=action['rung_number'], skip_compile=True)
+        # Compile after all imports
+        self.destination.compile()

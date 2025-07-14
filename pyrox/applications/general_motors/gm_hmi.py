@@ -11,7 +11,7 @@ from typing import Callable, Optional, TYPE_CHECKING
 
 
 from pylogix.lgx_response import Response
-from ..connection import ConnectionCommand, ConnectionCommandType, ConnectionTask
+# from ..connection import ConnectionCommand, ConnectionCommandType, ConnectionTask
 from ...services.notify_services import notify_warning
 from ...models import (
     Application,

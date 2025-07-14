@@ -21,7 +21,6 @@ from ..plc import (
     Tag,
     TagEndpoint,
     DataValueMember,
-    ProgramTag
 )
 
 
@@ -69,8 +68,6 @@ class PlcGuiObject(PyroxGuiObject):
             return TagGuiObject(tag=data)
         if isinstance(data, DataValueMember):
             return DataValueMemberGuiObject(datavalue_member=data)
-        if isinstance(data, ProgramTag):
-            return ProgramTagGuiObject(program_tag=data)
 
         return cls(plc_object=data)
 
@@ -301,18 +298,4 @@ class DataValueMemberGuiObject(PlcGuiObject):
             ObjectEditField('dimension', 'Dimension', tk.Label, True),
             ObjectEditField('hidden', 'Hidden', tk.Checkbutton, True),
             ObjectEditField('parent', 'Parent', tk.Label, False),
-        ]
-
-
-class ProgramTagGuiObject(PlcGuiObject):
-    """A GUI representation of a ProgramTag object."""
-
-    def __init__(self, program_tag: ProgramTag = None, **kwargs):
-        super().__init__(plc_object=program_tag, **kwargs)
-
-    def gui_interface_attributes(self):
-        return [
-            ObjectEditField('name', 'Name', tk.Label, True),
-            ObjectEditField('description', 'Description', tk.Label, True),
-            ObjectEditField('program', 'Program', tk.Label, False),
         ]
