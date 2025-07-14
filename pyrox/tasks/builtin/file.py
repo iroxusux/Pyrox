@@ -62,6 +62,7 @@ class FileTask(ApplicationTask):
         """Create a new controller instance."""
         if not self._prompt_for_controller_closing():
             return
+        self.application.controller = None
         self.application.new_controller()
 
     def _on_file_open(self,
@@ -76,6 +77,7 @@ class FileTask(ApplicationTask):
             self.logger.warning('No file selected...')
             return
 
+        self.application.controller = None
         self.logger.info('File location:\n%s', file_location)
         self.application.load_controller(file_location)
 
@@ -104,12 +106,19 @@ class FileTask(ApplicationTask):
     def inject(self) -> None:
         if not self.application.menu:
             return
-        self.application.menu.file.insert_command(0, label='New Controller', command=self._on_file_new)
+        self.application.menu.file.insert_command(0, label='New Controller', command=self._on_file_new, accelerator='Ctrl+N', underline=0)
+        self.application.tk_app.bind_all('<Control-n>', lambda e: self._on_file_new())
         self.application.menu.file.insert_separator(1)
-        self.application.menu.file.insert_command(2, label='Open L5X', command=self._on_file_open)
-        self.application.menu.file.insert_command(3, label='Save L5X', command=self._on_file_save)
-        self.application.menu.file.insert_command(4, label='Save L5X As...', command=lambda: self._on_file_save(save_as=True))
+        self.application.menu.file.insert_command(2, label='Open L5X', command=self._on_file_open, accelerator='Ctrl+O', underline=0)
+        self.application.tk_app.bind_all('<Control-o>', lambda e: self._on_file_open())
+        self.application.menu.file.insert_command(3, label='Save L5X', command=self._on_file_save, accelerator='Ctrl+S', underline=0)
+        self.application.tk_app.bind_all('<Control-s>', lambda e: self._on_file_save())
+        self.application.menu.file.insert_command(4, label='Save L5X As...', command=lambda: self._on_file_save(
+            save_as=True), accelerator='Ctrl+Shift+S', underline=0)
+        self.application.tk_app.bind_all('<Control-Shift-s>', lambda e: self._on_file_save(save_as=True))
         self.application.menu.file.insert_separator(5)
-        self.application.menu.file.insert_command(6, label='Close L5X', command=self._on_file_close)
+        self.application.menu.file.insert_command(6, label='Close L5X', command=self._on_file_close, accelerator='Ctrl+W', underline=0)
+        self.application.tk_app.bind_all('<Control-w>', lambda e: self._on_file_close())
         self.application.menu.file.insert_separator(7)
-        self.application.menu.file.insert_command(8, label='Exit', command=lambda: sys.exit(0))
+        self.application.menu.file.insert_command(8, label='Exit', command=lambda: sys.exit(0), accelerator='Ctrl+Q', underline=0)
+        self.application.tk_app.bind_all('<Control-q>', lambda e: sys.exit(0))

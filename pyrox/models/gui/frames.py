@@ -45,10 +45,10 @@ class PyroxFrame(LabelFrame, Loggable):
             del kwargs['parent']
         LabelFrame.__init__(self,
                             *args,
-                            borderwidth=4,
+                            borderwidth=1,
                             padx=4,
                             pady=4,
-                            relief=GROOVE,
+                            relief='solid',
                             **kwargs)
         Loggable.__init__(self)
 
