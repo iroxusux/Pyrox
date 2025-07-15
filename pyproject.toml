@@ -4,13 +4,13 @@ build-backend = "hatchling.build"
 
 [project]
 name = "Pyrox"
-version = "1.2.4"
+version = "1.2.5"
 authors = [
   { name="Brian LaFond", email="Brian.L.LaFond@gmail.com" },
 ]
 description = "irox implimentation of tkinter in the form of a modifiable application with models."
 readme = "README.md"
-requires-python = ">=3.11"
+requires-python = ">=3.13"
 classifiers = [
   # How mature is this project? Common values are
   #   3 - Alpha
@@ -26,7 +26,7 @@ classifiers = [
   "License :: OSI Approved :: GNU General Public License v3 (GPLv3)",
 
   # Specify the Python versions you support here.
-  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.13",
 ]
 dependencies = [
   "lxml",

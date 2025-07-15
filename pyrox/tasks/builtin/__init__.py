@@ -4,16 +4,8 @@ each directory and file is scanned by pyrox to discover tasks and automatically 
     """
 from .file import FileTask
 from .help import HelpTask
-from .preferences import PreferencesTask
+from .edit import PreferencesTask
 
-ALL_TASKS = [
-    FileTask,
-    HelpTask,
-    PreferencesTask,
-]
-
-
-__version__ = "1.0.0"
 
 __all__ = (
     'ControllerVerifyTask',

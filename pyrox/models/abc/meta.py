@@ -3,12 +3,14 @@
 from __future__ import annotations
 
 
+from enum import Enum
 import inspect
 import logging
 import json
 import os
 from pathlib import Path
 import re
+import sys
 from typing import Any, Callable, Optional
 
 
@@ -50,9 +52,9 @@ DEF_FORMATTER = '%(asctime)s | %(name)s | %(levelname)s | %(message)s'
 DEF_DATE_FMT = "%m/%d/%Y, %H:%M:%S"
 
 
-class TK_CURSORS:
+class TK_CURSORS(Enum):
     """.. description::
-    Static class for python tkinter cursors.
+    Static enum class for python tkinter cursors.
     .. ------------------------------------------------------------
     .. package::
     models.abc.meta
@@ -98,11 +100,14 @@ class TK_CURSORS:
         T-cross cursor.
     TREK: :class:`str`
         Trek cursor.
+    WAIT: :class:`str`
+        Wait cursor.
     """
     ARROW = "arrow"
     CIRCLE = "circle"
     CLOCK = "clock"
     CROSS = "cross"
+    DEFAULT = ""
     DOTBOX = "dotbox"
     EXCHANGE = "exchange"
     FLEUR = "fleur"
@@ -119,6 +124,7 @@ class TK_CURSORS:
     TARGET = "target"
     TCROSS = "tcross"
     TREK = "trek"
+    WAIT = "wait"
 
 
 class _IdGenerator:
@@ -777,6 +783,26 @@ class Loggable(NamedPyroxObject):
         Loggable._curr_loggers[name] = _logger
 
         return _logger
+
+    @staticmethod
+    def init_sys_excepthook():
+        """Initialize the system exception hook to log uncaught exceptions.
+        This method sets the sys.excepthook to log uncaught exceptions using the root logger.
+        """
+        def excepthook(exc_type, exc_value, exc_traceback):
+            if issubclass(exc_type, KeyboardInterrupt):
+                return
+            for logger in Loggable.global_handlers:
+                logger.emit(logging.LogRecord(
+                    name=logger.name,
+                    level=logging.ERROR,
+                    pathname='',
+                    lineno=0,
+                    msg=f"Uncaught exception: {exc_value}",
+                    args=None,
+                    exc_info=(exc_type, exc_value, exc_traceback)
+                ))
+        sys.excepthook = excepthook
 
     @staticmethod
     def set_logging_level(log_level: int = logging.INFO):

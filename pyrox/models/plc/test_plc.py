@@ -81,6 +81,11 @@ class TestPlcObject(unittest.TestCase):
     def test_dict_key_order_property(self):
         self.assertEqual(self.plc_object.dict_key_order, [])
 
+    def test_on_compiling_property(self):
+        self.assertIsInstance(self.plc_object.on_compiling, list)
+        self.plc_object._on_compiling.append(lambda: None)
+        self.assertTrue(callable(self.plc_object._on_compiling[0]))
+
     def test_on_compiled_property(self):
         self.assertIsInstance(self.plc_object.on_compiled, list)
 

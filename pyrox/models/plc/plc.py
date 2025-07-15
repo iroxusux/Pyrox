@@ -253,6 +253,7 @@ class PlcObject(EnforcesNaming, PyroxObject):
                  meta_data: Union[dict, str] = defaultdict(None)):
         self._meta_data = meta_data or default_loader()
         self._controller = controller
+        self._on_compiling: list[Callable] = []
         self._on_compiled: list[Callable] = []
         self._init_dict_order()
         super().__init__()
@@ -330,10 +331,23 @@ class PlcObject(EnforcesNaming, PyroxObject):
         """
         return self._on_compiled
 
+    @property
+    def on_compiling(self) -> list[Callable]:
+        """get the list of functions to call when this object is compiling.
+
+        .. -------------------------------
+
+        Returns
+        ----------
+            :class:`list[Callable]`
+        """
+        return self._on_compiling
+
     def compile(self) -> Self:
         """compile this object.
         additionally, this method will call all functions in the `on_compiled` list.
         """
+        [call() for call in self._on_compiling]
         self._compile_from_meta_data()
         self._init_dict_order()
         [call() for call in self._on_compiled]
@@ -458,6 +472,32 @@ class NamedPlcObject(PlcObject, NamedPyroxObject):
     @description.setter
     def description(self, value: str):
         self['Description'] = value
+
+    def _remove_asset_from_meta_data(self,
+                                     asset: Union[NamedPlcObject, str],
+                                     asset_list: HashList,
+                                     raw_asset_list: list[dict],
+                                     skip_compile: bool = False) -> None:
+        """Remove an asset from this object's meta data
+        """
+        if not isinstance(asset, (NamedPlcObject, str)):
+            raise ValueError(f"asset must be of type {type(NamedPlcObject)} or str!")
+
+        if not isinstance(asset_list, HashList):
+            raise ValueError('asset list must be of type HashList!')
+
+        if not isinstance(raw_asset_list, list):
+            raise ValueError('raw asset list must be of type list!')
+
+        asset_name = asset if isinstance(asset, str) else getattr(asset, asset_list.hash_key, None)
+
+        if asset_name not in asset_list:
+            raise ValueError(f"Asset with name {asset_name} does not exist in this container!")
+
+        raw_asset_list.remove(next((x for x in raw_asset_list if x['@Name'] == asset_name), None))
+
+        if not skip_compile:
+            self._compile_from_meta_data()
 
     def validate(self,
                  report: Optional[ControllerReportItem] = None) -> ControllerReportItem:
@@ -959,19 +999,10 @@ class ContainsTags(NamedPlcObject):
         Args:
             tag (Union[Tag, str]): tag to remove
         """
-        if isinstance(tag, str):
-            tag_name = tag
-        elif isinstance(tag, Tag):
-            tag_name = tag.name
-        else:
-            raise TypeError("Tag must be of type Tag or str!")
-
-        if tag_name not in self._tags:
-            raise ValueError(f"Tag with name {tag_name} does not exist in this container!")
-
-        self.raw_tags.remove(next((x for x in self.raw_tags if x['@Name'] == tag_name), None))
-        if not skip_compile:
-            self._compile_from_meta_data()
+        self._remove_asset_from_meta_data(tag,
+                                          self._tags,
+                                          self.raw_tags,
+                                          skip_compile=skip_compile)
 
 
 class ContainsRoutines(ContainsTags):
@@ -1055,26 +1086,22 @@ class ContainsRoutines(ContainsTags):
             raise TypeError("Routine must be of type Routine!")
 
         if routine.name in self._routines:
-            self.raw_routines.remove(routine.meta_data)
+            self.remove_routine(routine, skip_compile=True)
 
         self.raw_routines.append(routine.meta_data)
         if not skip_compile:
             self._compile_from_meta_data()
 
-    def remove_routine(self, routine: 'Routine'):
+    def remove_routine(self, routine: Union[Routine, str], skip_compile: bool = False):
         """remove a routine from this container
 
         Args:
             routine (Routine): routine to remove
         """
-        if not isinstance(routine, Routine):
-            raise TypeError("Routine must be of type Routine!")
-
-        if routine.name not in self._routines:
-            raise ValueError(f"Routine with name {routine.name} does not exist in this container!")
-
-        self.raw_routines.remove(routine.meta_data)
-        self._compile_from_meta_data()
+        self._remove_asset_from_meta_data(routine,
+                                          self._routines,
+                                          self.raw_routines,
+                                          skip_compile=skip_compile)
 
 
 class AddOnInstruction(ContainsRoutines):

@@ -10,7 +10,7 @@ import gc
 import os
 from pathlib import Path
 import platformdirs
-from pyrox.services import file, class_services
+import sys
 from tkinter import Frame, TclError
 from tkinter import (
     Event,
@@ -18,8 +18,12 @@ from tkinter import (
     Tk,
     Toplevel,
 )
-from ttkthemes import ThemedTk
 from typing import Any, Callable, Optional, Self, Union
+
+
+from pyrox.services import file, class_services
+from ttkthemes import ThemedTk
+
 
 from .list import HashList
 from .meta import (
@@ -28,6 +32,7 @@ from .meta import (
     RuntimeDict,
     SupportsJsonLoading,
     SupportsJsonSaving,
+    TK_CURSORS,
     DEF_APP_NAME,
     DEF_AUTHOR_NAME,
     DEF_WIN_SIZE,
@@ -718,8 +723,8 @@ class Application(Runnable):
     def __init__(self,
                  config: ApplicationConfiguration,
                  add_to_globals: bool = False) -> None:
-
         super().__init__(add_to_globals=add_to_globals)
+        sys.excepthook = self._excepthook
         self._config: ApplicationConfiguration = config or ApplicationConfiguration.root()
         self._directory_service: ApplicationDirectoryService = ApplicationDirectoryService(
             author_name=self._config.author_name,
@@ -798,6 +803,11 @@ class Application(Runnable):
         """
         return self._tasks
 
+    def _excepthook(self, exc_type, exc_value, exc_traceback):
+        if issubclass(exc_type, KeyboardInterrupt):
+            return
+        self.logger.error(msg=f'Uncaught exception: {exc_value}', exc_info=(exc_type, exc_value, exc_traceback))
+
     def _on_tk_configure(self,
                          event: Event) -> None:
         """Handle the Tk configure event.
@@ -841,6 +851,7 @@ class Application(Runnable):
             self._tk_app.bind('<Configure>', self._on_tk_configure)
             self._tk_app.bind('<F11>', lambda _: self.toggle_fullscreen(not self._tk_app.attributes('-fullscreen')))
 
+        self._tk_app.report_callback_exception = self._excepthook
         self._tk_app.protocol('WM_DELETE_WINDOW', self.close)
         self._tk_app.title(self.config.title)
         self._tk_app.iconbitmap(self.config.icon)
@@ -957,6 +968,18 @@ class Application(Runnable):
         Note: it is recommenbed to override this method to create your own functionality.
         """
 
+    def set_app_state_busy(self):
+        """Set the application state to busy.
+        This method changes the cursor to a busy state, indicating that the application is processing.
+        """
+        self.update_cursor(TK_CURSORS.WAIT)
+
+    def set_app_state_normal(self):
+        """Set the application state to normal.
+        This method changes the cursor back to normal, indicating that the application is ready for user interaction.
+        """
+        self.update_cursor(TK_CURSORS.DEFAULT)
+
     def start(self) -> None:
         super().start()
         self.on_pre_run()
@@ -985,3 +1008,18 @@ class Application(Runnable):
             fullscreen = not self._runtime_info.get('full_screen', False)
 
         self.tk_app.attributes('-fullscreen', fullscreen)
+
+    def update_cursor(self, cursor: Union[TK_CURSORS, str]) -> None:
+        """Update the cursor for this :class:`Application`.
+        This method changes the cursor style for the main application window.
+        .. ------------------------------------------------------------
+        .. arguments::
+        cursor: :type:`str`
+            The cursor style to set. This should be a valid Tkinter cursor string.
+        """
+        if isinstance(cursor, TK_CURSORS):
+            cursor = cursor.value
+        if not isinstance(cursor, str):
+            raise TypeError('Cursor must be a string representing a valid Tkinter cursor type.')
+        self.tk_app.config(cursor=cursor)
+        self.tk_app.update_idletasks()

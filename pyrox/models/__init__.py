@@ -19,6 +19,7 @@ from .abc import (
     Model,
     SafeList,
     SnowFlake,
+    TK_CURSORS,
 )
 from .gui import ProgressBar, PyroxGuiObject
 from .plc import (
@@ -49,5 +50,6 @@ __all__ = (
     'SafeList',
     'SnowFlake',
     'test_models',
+    'TK_CURSORS',
     'gui',
 )

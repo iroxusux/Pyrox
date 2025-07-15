@@ -201,7 +201,6 @@ class App(Application):
         self._paned_window: Optional[PanedWindow] = None
         self._registered_frames: HashList[TaskFrame] = HashList('name')
         self._workspace: Optional[PyroxFrame] = None
-        self._refresh_lambda: Optional[callable] = lambda: self.refresh()
         self.logger.info('Pyrox Application initialized.')
 
     @property
@@ -222,8 +221,11 @@ class App(Application):
         if not isinstance(value, Controller) and value is not None:
             raise TypeError(f'Expected Controller, got {type(value)}')
         self._controller = value
-        if self._controller and self._refresh_lambda not in self._controller.on_compiled:
-            self._controller.on_compiled.append(self._refresh_lambda)
+        if self._controller:
+            if self.refresh not in self._controller.on_compiled:
+                self._controller.on_compiled.append(self.refresh)
+            if self.set_app_state_busy not in self._controller.on_compiling:
+                self._controller.on_compiling.append(self.set_app_state_busy)
         self._runtime_info.data['last_plc_file_location'] = value.file_location if value else None
         self.refresh()
 
@@ -251,6 +253,28 @@ class App(Application):
         """
         return self._workspace
 
+    def _load_controller(self,
+                         file_location: str) -> Controller:
+        """Load a controller from a file location.
+        This private method also manages the ux of loading a controller.
+        .. ------------------------------------------------------------
+        .. arguments::
+        :class:`str` file_location:
+            The file location to load the controller from.
+        .. -------------------------------------------------------------
+        .. returns::
+        :class:`Controller`:
+            The loaded controller instance.
+        """
+        self.set_app_state_busy()
+        self.logger.info('Loading controller from file: %s', file_location)
+        try:
+            return Controller(l5x_dict_from_file(file_location))
+        except KeyError as e:
+            self.logger.error('error parsing controller from file %s: %s', file_location, e)
+        finally:
+            self.set_app_state_normal()
+
     def _raise_frame(self,
                      frame: TaskFrame) -> None:
         """Raise a frame to the top of the application."""
@@ -270,6 +294,40 @@ class App(Application):
         """Set the selected frame in the view menubar."""
         self._unset_frames_selected()
         frame.shown_var.set(True)
+
+    def _transform_controller(self,
+                              controller: Controller,
+                              sub_class: Optional[type[Controller]] = None) -> Controller:
+        """Transform a controller to a specific subclass.
+        This method will transform a controller to a specific subclass if provided.
+        .. ------------------------------------------------------------
+        .. arguments::
+        :class:`Controller` controller:
+            The controller to transform.
+        :class:`type[Controller]` sub_class:
+            The subclass to transform the controller to.
+        .. -------------------------------------------------------------
+        .. returns::
+        :class:`Controller`:
+            The transformed controller instance.
+        """
+        try:
+            self.set_app_state_busy()
+            if not sub_class:
+                return controller
+            if not issubclass(sub_class, Controller):
+                raise TypeError(f'Subclass must be a Controller subclass, got {sub_class}')
+            if isinstance(controller, sub_class):
+                return controller
+            if not isinstance(controller, Controller):
+                raise TypeError(f'Controller must be a Controller instance, got {type(controller)}')
+            if not controller.root_meta_data:
+                raise ValueError('Controller must have root_meta_data to transform.')
+            transformed_ctrl = sub_class.from_meta_data(controller.root_meta_data)
+            transformed_ctrl.file_location = controller.file_location
+            return transformed_ctrl
+        finally:
+            self.set_app_state_normal()
 
     def _unset_frames_selected(self):
         """Unset all frames in the view menubar."""
@@ -350,21 +408,18 @@ class App(Application):
             Location to open :class:`Controller` from.
 
         """
-        self.logger.info('Loading controller from file: %s', file_location)
-        try:
-            ctrl = Controller(l5x_dict_from_file(file_location))
-        except KeyError as e:
-            self.logger.error('error parsing controller from file %s: %s', file_location, e)
-            return
-
+        ctrl = self._load_controller(file_location)
         if not ctrl:
-            self.logger.error('no controller was passed...')
+            self.logger.error('Failed to load controller from file: %s', file_location)
             return
-
         self.logger.info('new ctrl loaded -> %s', ctrl.name)
 
+        # General Motors PLC detection
         if 'zz_Version' in ctrl.datatypes:
-            ctrl = GmController.from_meta_data(ctrl.root_meta_data)
+            ctrl = self._transform_controller(ctrl, GmController)
+            if not ctrl:
+                self.logger.error('Failed to transform controller to GmController.')
+                return
             self.logger.info('Loaded GmController from metadata: %s', ctrl.name)
 
         ctrl.file_location = file_location
@@ -400,7 +455,7 @@ class App(Application):
         self._menu.file.entryconfig('Save L5X', state='disabled' if not self.controller else 'normal')
         self._menu.file.entryconfig('Save L5X As...', state='disabled' if not self.controller else 'normal')
         self._menu.file.entryconfig('Close L5X', state='disabled' if not self.controller else 'normal')
-
+        self.set_app_state_normal()
         self.logger.info('Done!')
 
     def register_frame(self,
@@ -436,7 +491,7 @@ class App(Application):
         frame.on_destroy.append(lambda: self.unregister_frame(frame))
 
     def save_controller(self,
-                        file_location: str) -> None:
+                        file_location: Optional[str] = None) -> None:
         """Save a :class:`Controller` back to a .L5X Allen Bradley PLC File.
 
         .. ------------------------------------------------------------
@@ -447,18 +502,25 @@ class App(Application):
             Location to save :class:`Controller` to.
 
         """
+        file_location = file_location or self.controller.file_location
+
         if not file_location or not self.controller:
             return
 
-        self.controller.file_location = file_location
-
-        # create a copy of the controller's metadata
-        # because we don't want to modify the original controller's metadata
-        write_dict = copy.deepcopy(self.controller.root_meta_data)
-        remove_none_values_inplace(write_dict)
-        dict_to_xml_file(write_dict,
-                         file_location)
-        self.controller = self.controller  # reassign to update gui and other references
+        try:
+            self.set_app_state_busy()
+            self.controller.file_location = file_location
+            self.logger.info('Saving controller to file: %s', file_location)
+            # create a copy of the controller's metadata
+            # because we don't want to modify the original controller's metadata
+            write_dict = copy.deepcopy(self.controller.root_meta_data)
+            remove_none_values_inplace(write_dict)
+            dict_to_xml_file(write_dict,
+                             file_location)
+            self.controller = self.controller  # reassign to update gui and other references
+            self.logger.info('Controller saved successfully to: %s', file_location)
+        finally:
+            self.set_app_state_normal()
 
     def set_frame(self,
                   frame: TaskFrame) -> None:

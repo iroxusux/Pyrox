@@ -1,12 +1,14 @@
 """testing module for services
     """
+import sys
 from .plc_services import (
     cdata,
     l5x_dict_from_file,
     dict_to_xml_file,
     get_rung_text,
     get_xml_string_from_file,
-    preprocessor
+    preprocessor,
+    find_rslogix_installations
 )
 
 
@@ -163,6 +165,39 @@ class TestParseXML(unittest.TestCase):
         # Should return dict_keys of the mock_data
         self.assertEqual(set(result), set(mock_data.keys()))
         mock_read_excel.assert_called_once_with(file_location, sheet_name=None)
+
+
+class TestFindRSLogixInstallations(unittest.TestCase):
+    def test_returns_list(self):
+        # Should always return a list, even if empty
+        result = find_rslogix_installations()
+        self.assertIsInstance(result, list)
+
+    def test_dict_structure(self):
+        # If any installations found, they should have expected keys
+        result = find_rslogix_installations()
+        for item in result:
+            self.assertIsInstance(item, dict)
+            self.assertIn("name", item)
+            self.assertIn("version", item)
+            self.assertIn("install_path", item)
+
+    def test_no_crash_on_missing_registry(self):
+        # Should not raise even if registry keys are missing
+        try:
+            find_rslogix_installations()
+        except Exception as e:
+            self.fail(f"find_rslogix_installations raised an exception: {e}")
+
+    def test_mock_registry(self):
+        # Only run this test on Windows
+        if sys.platform != "win32":
+            self.skipTest("Registry tests only run on Windows")
+        # You could use unittest.mock to patch winreg.OpenKey and EnumKey for more thorough testing
+
+
+if __name__ == "__main__":
+    unittest.main()
 
 
 if __name__ == '__main__':

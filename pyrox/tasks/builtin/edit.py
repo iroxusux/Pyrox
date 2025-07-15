@@ -7,6 +7,36 @@ from pyrox.models import Application, ApplicationTask, ApplicationConfiguration
 from tkinter.ttk import Frame, Notebook
 
 
+class LaunchToStudioTask(ApplicationTask):
+    """Launch to Studio 5000 Task
+    This task launches the Studio 5000 application with the current controller file.
+    """
+
+    def launch_studio(self):
+        if not self.application.controller:
+            self.logger.error('No controller loaded, cannot launch Studio 5000.')
+            return
+
+        self.application.save_controller()
+        controller_file = self.application.controller.file_location
+        if not controller_file:
+            self.logger.error('Controller file location is not set.')
+            return
+
+        self.logger.info('Launching Studio 5000 with file: %s', controller_file)
+        try:
+            import os
+            os.startfile(controller_file)
+        except Exception as e:
+            self.logger.error(f'Failed to launch Studio 5000: {e}')
+
+    def inject(self) -> None:
+        if not self.application.menu:
+            return
+
+        self.application.menu.edit.add_command(label='Launch to Studio 5000', command=self.launch_studio)
+
+
 class PreferencesTask(ApplicationTask):
     """built-in preferences task.
     """

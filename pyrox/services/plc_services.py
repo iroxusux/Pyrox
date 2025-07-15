@@ -1,6 +1,7 @@
 """ plc_services
     """
 from __future__ import annotations
+import winreg
 
 
 import os
@@ -188,3 +189,46 @@ def weird_rockwell_escape_sequence(xml_string: str) -> str:
     # Regex: match CDATA sections or text between them
     pattern = re.compile(r'<!\[CDATA\[.*?\]\]>|[^<]+|<', re.DOTALL)
     return ''.join(replacer(m) for m in pattern.finditer(xml_string))
+
+
+def find_rslogix_installations():
+    """
+    Search Windows registry for installed RSLogix 5000 or Studio 5000 versions.
+    Returns a list of dicts with 'name', 'version', and 'install_path'.
+    """
+    installations = []
+    # Registry paths to check
+    reg_paths = [
+        r"SOFTWARE\Rockwell Software\RSLogix 5000",
+        r"SOFTWARE\Rockwell Software\Studio 5000",
+        r"SOFTWARE\WOW6432Node\Rockwell Software\RSLogix 5000",
+        r"SOFTWARE\WOW6432Node\Rockwell Software\Studio 5000",
+    ]
+    # Try both HKEY_LOCAL_MACHINE and HKEY_CURRENT_USER
+    hives = [winreg.HKEY_LOCAL_MACHINE, winreg.HKEY_CURRENT_USER]
+
+    for hive in hives:
+        for reg_path in reg_paths:
+            try:
+                with winreg.OpenKey(hive, reg_path) as key:
+                    # Enumerate subkeys (each version)
+                    i = 0
+                    while True:
+                        try:
+                            subkey_name = winreg.EnumKey(key, i)
+                            with winreg.OpenKey(key, subkey_name) as subkey:
+                                try:
+                                    install_path, _ = winreg.QueryValueEx(subkey, "InstallPath")
+                                except FileNotFoundError:
+                                    install_path = None
+                                installations.append({
+                                    "name": reg_path.split("\\")[-1],
+                                    "version": subkey_name,
+                                    "install_path": install_path
+                                })
+                            i += 1
+                        except OSError:
+                            break
+            except FileNotFoundError:
+                continue
+    return installations
