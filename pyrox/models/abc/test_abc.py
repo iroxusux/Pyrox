@@ -1,9 +1,14 @@
-import unittest
+"""test abcs module
+    """
 import json
 import logging
+from unittest.mock import MagicMock
 import os
 import tempfile
 from tkinter import Tk, Menu, Toplevel
+import unittest
+
+
 from ttkthemes import ThemedTk
 
 
@@ -518,7 +523,7 @@ class TestBaseMenu(unittest.TestCase):
         root.quit()
 
     def test_root_property(self):
-        root = Tk()
+        root = MagicMock()
         base_menu = BaseMenu(root)
         self.assertEqual(base_menu.root, root)
         root.quit()

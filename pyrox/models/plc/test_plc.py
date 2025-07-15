@@ -366,7 +366,7 @@ class TestContainsTags(unittest.TestCase):
         self.assertNotIn("Tag2", [t.name for t in self.obj.tags])
 
     def test_remove_tag_invalid_type(self):
-        with self.assertRaises(TypeError):
+        with self.assertRaises(ValueError):
             self.obj.remove_tag(123)
 
     def test_add_tag_invalid_type(self):
@@ -415,7 +415,7 @@ class TestContainsRoutines(unittest.TestCase):
         self.assertNotIn(routine.name, [r.name for r in self.obj.routines])
 
     def test_remove_routine_invalid_type(self):
-        with self.assertRaises(TypeError):
+        with self.assertRaises(ValueError):
             self.obj.remove_routine("not_a_routine")
 
     def test_remove_routine_not_found(self):

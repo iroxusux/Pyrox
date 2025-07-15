@@ -1,17 +1,41 @@
 #!/bin/bash
 
+# Create logs directory if it doesn't exist
+mkdir -p logs
+
+# Set log file with timestamp
+LOG_FILE="logs/deploy_$(date +%Y%m%d_%H%M%S).log"
+
+# Function to log and display messages
+log_and_echo() {
+    echo "$1" | tee -a "$LOG_FILE"
+}
+
+# Redirect all output to log file and console
+exec > >(tee -a "$LOG_FILE") 2>&1
+
+log_and_echo "=== Starting Pyrox Deployment ==="
+log_and_echo "Log file: $LOG_FILE"
+log_and_echo "Timestamp: $(date)"
+
 # Clean up previous builds
-echo "Cleaning up previous builds..."
+log_and_echo "Cleaning up previous builds..."
 rm -rf dist/ build/ *.spec
 
 # Stop any running Pyrox processes
+log_and_echo "Stopping any running Pyrox processes..."
 pkill -f "Pyrox" 2>/dev/null || true
 
 # Run the build script
+log_and_echo "Running build script..."
 source ./build.sh
+if [ $? -ne 0 ]; then
+    log_and_echo "ERROR: Build script failed!"
+    exit 1
+fi
 
 # Run PyInstaller with improved error handling
-echo "Running PyInstaller..."
+log_and_echo "Running PyInstaller..."
 pyinstaller --name "Pyrox" \
     --noconfirm \
     --noconsole \
@@ -20,6 +44,7 @@ pyinstaller --name "Pyrox" \
     --add-data "pyrox/ui/icons:pyrox/ui/icons" \
     --add-data "pyrox/tasks:pyrox/tasks" \
     --add-data "pyrox/applications/mod:pyrox/applications/mod" \
+    --add-data "docs/controls:docs/controls" \
     --distpath dist \
     --workpath build \
     --clean \
@@ -27,11 +52,14 @@ pyinstaller --name "Pyrox" \
 
 # Check if build was successful
 if [ $? -eq 0 ]; then
-    echo "Build completed successfully!"
-    echo "Executable location: dist/Pyrox/Pyrox.exe"
+    log_and_echo "Build completed successfully!"
+    log_and_echo "Executable location: dist/Pyrox/Pyrox.exe"
+    log_and_echo "Log saved to: $LOG_FILE"
 else
-    echo "Build failed with errors."
+    log_and_echo "ERROR: Build failed with errors."
+    log_and_echo "Check log file for details: $LOG_FILE"
     exit 1
 fi
 
+log_and_echo "=== Deployment Complete ==="
 read -p "Press Enter to continue..."

@@ -1,18 +1,14 @@
-"""meta module
-    """
+"""Meta module for Pyrox framework base classes and utilities."""
 from __future__ import annotations
-
 
 from enum import Enum
 import inspect
 import logging
 import json
-import os
 from pathlib import Path
 import re
 import sys
 from typing import Any, Callable, Optional
-
 
 __all__ = (
     'Buildable',
@@ -47,61 +43,36 @@ DEF_VIEW_TYPE = 1
 DEF_THEME = 'black'
 DEF_WIN_TITLE = 'Pyrox Default Frame'
 DEF_WIN_SIZE = '1024x768'
-DEF_ICON = Path(__file__).resolve().parent.parent.parent / "ui" / "icons" / "_def.ico"
+DEF_ICON = Path(__file__).resolve().parents[2] / "ui" / "icons" / "_def.ico"
 DEF_FORMATTER = '%(asctime)s | %(name)s | %(levelname)s | %(message)s'
 DEF_DATE_FMT = "%m/%d/%Y, %H:%M:%S"
 
 
 class TK_CURSORS(Enum):
-    """.. description::
-    Static enum class for python tkinter cursors.
-    .. ------------------------------------------------------------
-    .. package::
-    models.abc.meta
-    .. ------------------------------------------------------------
-    .. attributes::
-    ARROW: :class:`str`
-        Arrow cursor.
-    CIRCLE: :class:`str`
-        Circle cursor.
-    CLOCK: :class:`str`
-        Clock cursor.
-    CROSS: :class:`str`
-        Cross cursor.
-    DOTBOX: :class:`str`
-        Dotbox cursor.
-    EXCHANGE: :class:`str`
-        Exchange cursor.
-    FLEUR: :class:`str`
-        Fleur cursor.
-    HEART: :class:`str`
-        Heart cursor.
-    MAN: :class:`str`
-        Man cursor.
-    MOUSE: :class:`str`
-        Mouse cursor.
-    PIRATE: :class:`str`
-        Pirate cursor.
-    PLUS: :class:`str`
-        Plus cursor.
-    SHUTTLE: :class:`str`
-        Shuttle cursor.
-    SIZING: :class:`str`
-        Sizing cursor.
-    SPIDER: :class:`str`
-        Spider cursor.
-    SPRAYCAN: :class:`str`
-        Spraycan cursor.
-    STAR: :class:`str`
-        Star cursor.
-    TARGET: :class:`str`
-        Target cursor.
-    TCROSS: :class:`str`
-        T-cross cursor.
-    TREK: :class:`str`
-        Trek cursor.
-    WAIT: :class:`str`
-        Wait cursor.
+    """Static enum class for python tkinter cursors.
+
+    Attributes:
+        ARROW: Arrow cursor.
+        CIRCLE: Circle cursor.
+        CLOCK: Clock cursor.
+        CROSS: Cross cursor.
+        DOTBOX: Dotbox cursor.
+        EXCHANGE: Exchange cursor.
+        FLEUR: Fleur cursor.
+        HEART: Heart cursor.
+        MAN: Man cursor.
+        MOUSE: Mouse cursor.
+        PIRATE: Pirate cursor.
+        PLUS: Plus cursor.
+        SHUTTLE: Shuttle cursor.
+        SIZING: Sizing cursor.
+        SPIDER: Spider cursor.
+        SPRAYCAN: Spraycan cursor.
+        STAR: Star cursor.
+        TARGET: Target cursor.
+        TCROSS: T-cross cursor.
+        TREK: Trek cursor.
+        WAIT: Wait cursor.
     """
     ARROW = "arrow"
     CIRCLE = "circle"
@@ -128,82 +99,74 @@ class TK_CURSORS(Enum):
 
 
 class _IdGenerator:
-    """.. description::
-    Static class for id generation for :class:`SnowFlake`.
-    Hosts a unique identifier `id` generator.
-    .. ------------------------------------------------------------
-    .. package::
-    models.abc.meta
+    """Static class for id generation for SnowFlake objects.
+
+    Hosts a unique identifier generator for creating unique IDs.
     """
     __slots__ = ()
     _ctr = 0
 
     @staticmethod
     def get_id() -> int:
-        """.. description::
-        get a unique ID from the :class:`_IdGenerator`.
-        .. ------------------------------------------------------------
-        .. returns::
-            :type:`int`: Unique ID for a :class:`SnowFlake` object.
+        """Get a unique ID from the generator.
+
+        Returns:
+            int: Unique ID for a SnowFlake object.
         """
         _IdGenerator._ctr += 1
         return _IdGenerator._ctr
 
     @staticmethod
     def curr_value() -> int:
-        """Retrieve the current value of the ID generator
-        .. ------------------------------------------------------------
-        .. returns::
-            :class:`int` current value
+        """Retrieve the current value of the ID generator.
+
+        Returns:
+            int: Current value of the counter.
         """
         return _IdGenerator._ctr
 
 
 class EnforcesNaming:
-    """.. description::
-    Helper meta class to enforce naming schemes across objects.
-    .. ------------------------------------------------------------
-    .. package::
-    models.abc.meta
-    """
-    # store the last allowed characters for reference when showing exception message
-    # this keeps the user from having to manually do this, but it IS just a best guess when the exception is raised
+    """Helper meta class to enforce naming schemes across objects."""
     __slots__ = ()
     _last_allowed_chars = ALLOWED_CHARS
 
     class InvalidNamingException(Exception):
-        """.. description::
-        Helper exception class to raise invalid naming exceptions.
-        .. ------------------------------------------------------------
-        .. package::
-        models.abc.meta
-        """
+        """Exception raised for invalid naming schemes.
 
-        def __init__(self,
-                     message='Invalid naming scheme! Allowed chars are: '):
+        Attributes:
+            message: The error message to display when the exception is raised.
+        """
+        __slots__ = ('message',)
+
+        def __init__(self, message='Invalid naming scheme! Allowed chars are: '):
             self.message = message + f'{EnforcesNaming._last_allowed_chars.pattern}'
             super().__init__(self.message)
 
     @staticmethod
-    def is_valid_rockwell_bool(text: str):
+    def is_valid_rockwell_bool(text: str) -> bool:
         """Check if a string is valid according to the Rockwell boolean naming scheme.
-        .. ------------------------------------------------------------
-        .. returns::
-            :class:`bool` valid name
+
+        Args:
+            text: The string to validate.
+
+        Returns:
+            bool: True if valid, False otherwise.
         """
         EnforcesNaming._last_allowed_chars = re.compile(f'[^{r'true|false'}]')
         if not text:
             return False
-        if text == 'true' or text == 'false':
-            return True
-        return False
+        return text in ('true', 'false')
 
     @staticmethod
-    def is_valid_string(text):
+    def is_valid_string(text: str) -> bool:
         """Check if a string is valid according to the naming scheme.
-        .. ------------------------------------------------------------
-        .. returns::
-            :class:`bool` valid name
+
+        Args:
+            text: The string to validate.
+
+        Returns:
+            bool: True if valid, False otherwise.
         """
         EnforcesNaming._last_allowed_chars = ALLOWED_CHARS
         if ALLOWED_CHARS.search(text):
@@ -211,11 +174,14 @@ class EnforcesNaming:
         return True
 
     @staticmethod
-    def is_valid_module_string(text):
+    def is_valid_module_string(text: str) -> bool:
         """Check if a string is valid according to the module naming scheme.
-        .. ------------------------------------------------------------
-        .. returns::
-            :class:`bool` valid module name
+
+        Args:
+            text: The string to validate.
+
+        Returns:
+            bool: True if valid module name, False otherwise.
         """
         EnforcesNaming._last_allowed_chars = ALLOWED_MOD_CHARS
         if ALLOWED_MOD_CHARS.search(text):
@@ -223,11 +189,14 @@ class EnforcesNaming:
         return True
 
     @staticmethod
-    def is_valid_revision_string(text):
+    def is_valid_revision_string(text: str) -> bool:
         """Check if a string is valid according to the revision naming scheme.
-        .. ------------------------------------------------------------
-        .. returns::
-            :class:`bool` valid revision name
+
+        Args:
+            text: The string to validate.
+
+        Returns:
+            bool: True if valid revision name, False otherwise.
         """
         EnforcesNaming._last_allowed_chars = ALLOWED_REV_CHARS
         if ALLOWED_REV_CHARS.search(text):
@@ -236,71 +205,69 @@ class EnforcesNaming:
 
 
 class SnowFlake:
-    """.. description::
-    A meta class for all classes to derive from to obtain unique IDs.
-    .. ------------------------------------------------------------
-    .. package::
-    models.abc.meta
-    .. ------------------------------------------------------------
-    .. attributes::
-    id: :type:`int`
-        Unique identifer.
+    """A meta class for all classes to derive from to obtain unique IDs.
+
+    Attributes:
+        id: Unique identifier for this object.
     """
     __slots__ = ('_id',)
 
-    def __eq__(self, other: SnowFlake):
+    def __eq__(self, other: 'SnowFlake') -> bool:
         if type(self) is type(other):
             return self.id == other.id
         return False
 
-    def __hash__(self):
+    def __hash__(self) -> int:
         return hash(self._id)
 
     def __init__(self):
         self._id = _IdGenerator.get_id()
 
-    def __str__(self):
+    def __str__(self) -> str:
         return str(self.id)
 
     @property
     def id(self) -> int:
-        """id of this object.
-        .. ------------------------------------------------------------
-        .. returns::
-            :type:`int`: Unique identifier for this object.
+        """Unique identifier for this object.
+
+        Returns:
+            int: The unique ID.
         """
         return self._id
 
 
 class RuntimeDict:
-    """.. description::
-    A dictionary-like class to store data.
+    """A dictionary-like class to store data with automatic callbacks.
+
     This class provides a way to store key-value pairs and automatically save the data
     whenever an item is added, updated, or deleted.
-    .. ------------------------------------------------------------
-    .. package::
-    models.abc.meta
-    .. ------------------------------------------------------------
-    .. attributes::
-    callback: :type:`Callable`
-        A callback function that is called whenever the data is modified.
-    data: :type:`dict`
-        The dictionary that stores the runtime data.
-    inhibit_callback: :type:`bool`
-        Whether to inhibit the callback function from being called when data is modified.
+
+    Attributes:
+        callback: A callback function that is called whenever the data is modified.
+        data: The dictionary that stores the runtime data.
+        inhibit_callback: Whether to inhibit the callback function from being called.
     """
     __slots__ = ('_callback', '_data', '_inhibit_callback')
 
-    def __contains__(self, key):
-        """Check if a key exists in the runtime data dictionary."""
+    def __contains__(self, key) -> bool:
+        """Check if a key exists in the runtime data dictionary.
+
+        Args:
+            key: The key to check for.
+
+        Returns:
+            bool: True if key exists, False otherwise.
+        """
         return key in self._data
 
-    def __getitem__(self, key):
+    def __getitem__(self, key) -> Any:
         return self._data.get(key, None)
 
     def __init__(self, callback: Callable):
-        if not callback or not callable(callback):
+        if callback is None:
             raise ValueError('A valid callback function must be provided to RuntimeDict.')
+        if not callable(callback):
+            raise TypeError('Callback must be a callable function.')
         self._callback: Callable = callback
         self._data = {}
         self._inhibit_callback = False
@@ -315,24 +282,46 @@ class RuntimeDict:
 
     @property
     def callback(self) -> Callable:
-        """Get the callback function."""
+        """Get the callback function.
+
+        Returns:
+            Callable: The current callback function.
+        """
         return self._callback
 
     @callback.setter
     def callback(self, value: Callable):
-        """Set the callback function."""
+        """Set the callback function.
+
+        Args:
+            value: The callback function to set.
+
+        Raises:
+            ValueError: If the provided value is not callable.
+        """
         if not value or not callable(value):
             raise ValueError('A valid callback function must be provided to RuntimeDict.')
         self._callback = value
 
     @property
     def data(self) -> dict:
-        """Get the runtime data dictionary."""
+        """Get the runtime data dictionary.
+
+        Returns:
+            dict: The internal data dictionary.
+        """
         return self._data
 
     @data.setter
     def data(self, value: dict):
-        """Set the runtime data dictionary."""
+        """Set the runtime data dictionary.
+
+        Args:
+            value: The dictionary to set as the new data.
+
+        Raises:
+            TypeError: If the provided value is not a dictionary.
+        """
         if not isinstance(value, dict):
             raise TypeError('Runtime data must be a dictionary.')
         self._data = value
@@ -340,19 +329,34 @@ class RuntimeDict:
 
     @property
     def inhibit_callback(self) -> bool:
-        """Get whether the callback is inhibited."""
+        """Get whether the callback is inhibited.
+
+        Returns:
+            bool: True if callback is inhibited, False otherwise.
+        """
         return self._inhibit_callback
 
     @inhibit_callback.setter
     def inhibit_callback(self, value: bool):
-        """Set whether the callback is inhibited."""
+        """Set whether the callback is inhibited.
+
+        Args:
+            value: Boolean indicating whether to inhibit the callback.
+
+        Raises:
+            TypeError: If the provided value is not a boolean.
+        """
         if not isinstance(value, bool):
             raise TypeError('Inhibit callback must be a boolean value.')
         self._inhibit_callback = value
         self._call()
 
     def _call(self):
-        """Call the callback function if it is set and not inhibited."""
+        """Call the callback function if it is set and not inhibited.
+
+        Raises:
+            TypeError: If the callback is not callable.
+        """
         if self._inhibit_callback is False:
             if callable(self._callback):
                 self._callback()
@@ -364,8 +368,16 @@ class RuntimeDict:
         self._data.clear()
         self._callback()
 
-    def get(self, key, default=None):
-        """Get an item from the runtime data dictionary."""
+    def get(self, key, default=None) -> Any:
+        """Get an item from the runtime data dictionary.
+
+        Args:
+            key: The key to retrieve.
+            default: The default value if key is not found.
+
+        Returns:
+            Any: The value associated with the key, or default if not found.
+        """
         return self._data.get(key, default)
 
     def inhibit(self):
@@ -373,9 +385,14 @@ class RuntimeDict:
         self._inhibit_callback = True
 
     def update(self, *args, **kwargs):
-        """Update the runtime data dictionary with new items."""
+        """Update the runtime data dictionary with new items.
+
+        Args:
+            *args: Positional arguments to pass to dict.update().
+            **kwargs: Keyword arguments to pass to dict.update().
+        """
         self._data.update(*args, **kwargs)
-        self._callback()
+        self._call()
 
     def uninhibit(self):
         """Uninhibit the callback function."""
@@ -384,25 +401,20 @@ class RuntimeDict:
 
 
 class PyroxObject(SnowFlake):
-    """.. description::
-    A base class for all Pyrox objects.
-    .. ------------------------------------------------------------
-    .. package::
-    models.abc.meta
-    """
+    """A base class for all Pyrox objects."""
     __slots__ = ()
 
     def __init__(self):
         super().__init__()
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return self.__class__.__name__
 
     def get_all_properties(self) -> dict:
         """Get all properties of this object.
-        .. ------------------------------------------------------------
-        .. returns::
-            :type:`dict`: A dictionary of all properties of this object.
+
+        Returns:
+            dict: A dictionary of all properties of this object.
         """
         return {
             name: getattr(self, name)
@@ -411,21 +423,15 @@ class PyroxObject(SnowFlake):
 
 
 class NamedPyroxObject(PyroxObject):
-    """.. description::
-    A base class for all Pyrox objects that have a name.
-    .. ------------------------------------------------------------
-    .. package::
-    models.abc.meta
-    .. ------------------------------------------------------------
-    .. attributes::
-    name: :type:`str`
-        Name of the object.
+    """A base class for all Pyrox objects that have a name.
+
+    Attributes:
+        name: Name of the object.
+        description: Description of the object.
     """
     __slots__ = ('_name', '_description')
 
-    def __init__(self,
-                 name: Optional[str] = None,
-                 description: Optional[str] = None):
+    def __init__(self, name: Optional[str] = None, description: Optional[str] = None):
         super().__init__()
         self._name = name or self.__class__.__name__
         self._description = description or ''
@@ -433,19 +439,21 @@ class NamedPyroxObject(PyroxObject):
     @property
     def name(self) -> str:
         """Name of the object.
-        .. ------------------------------------------------------------
-        .. returns::
-            :type:`str`: Name of the object.
+
+        Returns:
+            str: The name of the object.
         """
         return self._name
 
     @name.setter
     def name(self, value: str):
         """Set the name of the object.
-        .. ------------------------------------------------------------
-        .. arguments::
-        value: :type:`str`
-            Name to set for this object.
+
+        Args:
+            value: Name to set for this object.
+
+        Raises:
+            EnforcesNaming.InvalidNamingException: If the name is invalid.
         """
         if not EnforcesNaming.is_valid_string(value):
             raise EnforcesNaming.InvalidNamingException()
@@ -454,19 +462,21 @@ class NamedPyroxObject(PyroxObject):
     @property
     def description(self) -> str:
         """Description of the object.
-        .. ------------------------------------------------------------
-        .. returns::
-            :type:`str`: Description of the object.
+
+        Returns:
+            str: The description of the object.
         """
         return self._description
 
     @description.setter
     def description(self, value: str):
         """Set the description of the object.
-        .. ------------------------------------------------------------
-        .. arguments::
-        value: :type:`str`
-            Description to set for this object.
+
+        Args:
+            value: Description to set for this object.
+
+        Raises:
+            TypeError: If the value is not a string.
         """
         if not isinstance(value, str):
             raise TypeError('Description must be a string.')
@@ -474,14 +484,11 @@ class NamedPyroxObject(PyroxObject):
 
 
 class SupportsLoading(PyroxObject):
-    """.. description::
-    A meta class for all classes to derive from to obtain loading capabilities.
-    .. ------------------------------------------------------------
-    .. package::
-    models.abc.meta
-    .. ------------------------------------------------------------
-    """
+    """A meta class for all classes to derive from to obtain loading capabilities.
 
+    Attributes:
+        load_path: Path to load the object from.
+    """
     __slots__ = ()
 
     def __init__(self):
@@ -490,48 +497,46 @@ class SupportsLoading(PyroxObject):
     @property
     def load_path(self) -> Optional[Path]:
         """Path to load the object from.
-        .. ------------------------------------------------------------
-        .. returns::
-            load_path: :type:`Path`
+
+        Returns:
+            Optional[Path]: The path to load from.
+
+        Raises:
+            NotImplementedError: This property should be implemented in subclasses.
         """
         raise NotImplementedError("This property should be implemented in subclasses.")
 
-    def load(self,
-             path: Optional[Path] = None) -> Any:
+    def load(self, path: Optional[Path] = None) -> Any:
         """Load the object from a file.
-        .. arguments::
-        path: Optional[:class:`Path`]
-            Path to load the object from. If not provided, uses the `load_path` attribute
-        .. ------------------------------------------------------------
-        .. raises::
-            NotImplementedError: This method and this doc-string should be implemented in subclasses.
+
+        Args:
+            path: Path to load the object from. If not provided, uses the load_path attribute.
+
+        Returns:
+            Any: The loaded data.
+
+        Raises:
+            NotImplementedError: This method should be implemented in subclasses.
         """
         raise NotImplementedError("This method should be implemented in subclasses.")
 
-    def on_loaded(self,
-                  data: Any) -> None:
+    def on_loaded(self, data: Any) -> None:
         """Method to be called after the object has been loaded.
+
         This method can be overridden in subclasses to perform additional actions after loading.
-        .. ------------------------------------------------------------
-        .. arguments::
-        data: :type:`Any`
-            Data that was loaded from the file.
+
+        Args:
+            data: Data that was loaded from the file.
         """
         ...
 
 
 class SupportSaving(PyroxObject):
-    """.. description::
-    A meta class for all classes to derive from to obtain saving capabilities.
-    .. ------------------------------------------------------------
-    .. package::
-    models.abc.meta
-    .. ------------------------------------------------------------
-    .. attributes::
-    save_path: :type:`Path`
-        Path to save the object to.
-    save_data_callback: Optional[:class:`Callable`]
-        Callback to call when saving data.
+    """A meta class for all classes to derive from to obtain saving capabilities.
+
+    Attributes:
+        save_path: Path to save the object to.
+        save_data_callback: Callback to call when saving data.
     """
     __slots__ = ()
 
@@ -541,117 +546,107 @@ class SupportSaving(PyroxObject):
     @property
     def save_path(self) -> Optional[Path]:
         """Path to save the object to.
-        .. ------------------------------------------------------------
-        .. returns::
-            save_path: :type:`Path`
+
+        Returns:
+            Optional[Path]: The path to save to.
+
+        Raises:
+            NotImplementedError: This property should be implemented in subclasses.
         """
         raise NotImplementedError("This property should be implemented in subclasses.")
 
     @property
     def save_data_callback(self) -> Optional[Callable]:
         """Callback to call when saving data.
-        .. ------------------------------------------------------------
-        .. returns::
-            save_data_callback: :type:`Callable`
+
+        Returns:
+            Optional[Callable]: The callback function.
+
+        Raises:
+            NotImplementedError: This property should be implemented in subclasses.
         """
         raise NotImplementedError("This property should be implemented in subclasses.")
 
-    def save(self,
-             path: Optional[Path] = None,
-             data: Optional[Any] = None) -> None:
+    def save(self, path: Optional[Path] = None, data: Optional[Any] = None) -> None:
         """Save the object to a file.
-        .. ------------------------------------------------------------
-        .. arguments::
-        path: Optional[:class:`Path`]
-            Path to save the object to. If not provided, uses the `save_path` attribute
-        data: Optional[Any]
-            Data to save. If not provided, uses the `save_data_callback` attribute.
-        .. ------------------------------------------------------------
-        .. raises::
-            NotImplementedError: This method and this doc-string should be implemented in subclasses.
+
+        Args:
+            path: Path to save the object to. If not provided, uses the save_path attribute.
+            data: Data to save. If not provided, uses the save_data_callback attribute.
+
+        Raises:
+            NotImplementedError: This method should be implemented in subclasses.
         """
         raise NotImplementedError("This method should be implemented in subclasses.")
 
 
 class SupportsJsonSaving(SupportSaving):
-    """.. description::
-    A meta class for all classes to derive from to obtain JSON saving capabilities.
-    .. ------------------------------------------------------------
-    .. package::
-    models.abc.meta
-    .. ------------------------------------------------------------
-    .. attributes::
-    save_path: :type:`Path`
-        Path to save the object to.
-    save_data_callback: Optional[:class:`Callable`]
-        Callback to call when saving data. If not provided, uses the `data` attribute of the object.
+    """A meta class for all classes to derive from to obtain JSON saving capabilities.
+
+    Attributes:
+        save_path: Path to save the object to.
+        save_data_callback: Callback to call when saving data.
     """
     __slots__ = ()
 
-    def save_to_json(self,
-                     path: Optional[Path] = None,
-                     data: Optional[dict] = None) -> None:
+    def save_to_json(self, path: Optional[Path] = None, data: Optional[dict] = None) -> None:
         """Save the object to a JSON file.
-        .. ------------------------------------------------------------
-        .. arguments::
-        path: Optional[:class:`Path`]
-            Path to save the object to. If not provided, uses the `save_path` attribute
-        data: Optional[:class:`dict`]
-            Data to save. If not provided, uses the `save_data_callback` attribute.
-        .. ------------------------------------------------------------
-        .. raises::
-            ValueError: If no path or data is provided for saving JSON data.
+
+        Args:
+            path: Path to save the object to. If not provided, uses the save_path attribute.
+            data: Data to save. If not provided, uses the save_data_callback attribute.
+
+        Raises:
+            ValueError: If no path is provided for saving JSON data.
+            IOError: If the file cannot be written.
         """
         path = path or self.save_path
         data = data or self.save_data_callback()
         if not path:
             raise ValueError("No path provided for saving JSON data.")
-        with open(path, 'w', encoding='utf-8') as f:
-            json.dump(data, f, indent=4)
+
+        try:
+            with open(path, 'w', encoding='utf-8') as f:
+                json.dump(data, f, indent=4)
+        except (IOError, OSError) as e:
+            raise IOError(f"Failed to save JSON to {path}: {e}")
 
 
 class SupportsJsonLoading(SupportsLoading):
-    """.. description::
-    A meta class for all classes to derive from to obtain JSON loading capabilities.
-    .. ------------------------------------------------------------
-    .. package:: models.abc.meta
-    .. ------------------------------------------------------------
-    """
+    """A meta class for all classes to derive from to obtain JSON loading capabilities."""
     __slots__ = ()
 
-    def load_from_json(self,
-                       path: Optional[Path] = None) -> Any:
+    def load_from_json(self, path: Optional[Path] = None) -> Any:
         """Load the object from a JSON file.
-        .. ------------------------------------------------------------
-        .. arguments::
-        path: Optional[:class:`Path`]
-            Path to load the object from. If not provided, uses the `load_path` attribute
-        .. ------------------------------------------------------------
-        .. returns::
-            :type:`Any`: Loaded data from the JSON file.
+
+        Args:
+            path: Path to load the object from. If not provided, uses the load_path attribute.
+
+        Returns:
+            Any: Loaded data from the JSON file, or None if file doesn't exist.
         """
-        path = path or self.load_path
-        if not os.path.isfile(path):
+        path = Path(path) if path else self.load_path
+        if not path or not path.exists():
             return None
-        with open(path, 'r', encoding='utf-8') as f:
-            self.on_loaded(json.load(f))
+        try:
+            with open(path, 'r', encoding='utf-8') as f:
+                data = json.load(f)
+                self.on_loaded(data)
+                return data
+        except (IOError, OSError, json.JSONDecodeError) as e:
+            raise IOError(f"Failed to load JSON from {path}: {e}")
 
 
 class ConsolePanelHandler(logging.Handler):
-    """.. description::
-    A handler for logging that emits messages to specified callbacks.
-    .. ------------------------------------------------------------
-    .. package::
-    models.abc.meta
-    .. ------------------------------------------------------------
-    .. attributes::
-    callback: :class:`Callable`
-        Callback to call when emitting a message
+    """A handler for logging that emits messages to specified callbacks.
+
+    Attributes:
+        callback: Callback to call when emitting a message.
+        formatter: The logging formatter for this handler.
     """
     __slots__ = ('_callback', '_formatter')
 
-    def __init__(self,
-                 callback: Optional[Callable] = None):
+    def __init__(self, callback: Optional[Callable] = None):
         super().__init__()
         self._callback: Callable = callback
         self._formatter: logging.Formatter = logging.Formatter(fmt=DEF_FORMATTER, datefmt=DEF_DATE_FMT)
@@ -659,107 +654,108 @@ class ConsolePanelHandler(logging.Handler):
     @property
     def formatter(self) -> logging.Formatter:
         """Get the formatter for this handler.
-        .. ------------------------------------------------------------
-        .. returns::
-        formatter: :class:`logging.Formatter`
+
+        Returns:
+            logging.Formatter: The current formatter.
         """
         return self._formatter
 
     @formatter.setter
     def formatter(self, value: logging.Formatter) -> None:
         """Set the formatter for this handler.
-        .. ------------------------------------------------------------
-        .. arguments::
-        value: :class:`logging.Formatter`
-            Formatter to set for this handler.
+
+        Args:
+            value: Formatter to set for this handler.
+
+        Raises:
+            TypeError: If the value is not a logging.Formatter or None.
         """
         if isinstance(value, logging.Formatter) or value is None:
             self._formatter = value
         else:
             raise TypeError(f'Expected logging.Formatter, got {type(value)}')
 
-    def emit(self, record) -> None:
-        """ Emit a log record to the callback.
-        .. ------------------------------------------------------------
-        .. arguments::
-        record: :class:`logging.LogRecord`
-            The log record to emit.
+    def emit(self, record: logging.LogRecord) -> None:
+        """Emit a log record to the callback.
+
+        Args:
+            record: The log record to emit.
         """
         if self._callback:
             self._callback(self.format(record))
 
     def set_callback(self, callback: Callable) -> None:
-        """Set the callback for this handler's emit method
-        .. ------------------------------------------------------------
-        .. arguments::
-        callback: :def:`callable`
-            Callback to set for this class's `emit` method.
+        """Set the callback for this handler's emit method.
+
+        Args:
+            callback: Callback to set for this class's emit method.
+
+        Raises:
+            TypeError: If the callback is not callable.
         """
+        if not callable(callback):
+            raise TypeError(f'Expected callable, got {type(callback)}')
         self._callback = callback
 
 
 class Loggable(NamedPyroxObject):
-    """.. description::
-    A loggable entity, using the `logging.Loggable` class.
-    .. ------------------------------------------------------------
-    .. package::
-    models.abc.meta
-    .. ------------------------------------------------------------
-    .. arguments::
-    name: Optional[str]
-        Name to assign to this handler. Otherwise, defaults to `self.__class__.__name__`.
-    add_to_globals: bool
-        Whether to add this loggable's handler to the global handlers list.
-    .. ------------------------------------------------------------
-    .. attributes::
-    logger: :class:`logging.Logger`
-        `Logger` for this loggable object.
-    log_handler: :class:`logging.Handler`
-        User 'Handler' for this loggable object.
-    """
+    """A loggable entity, using the logging.Logger class.
 
+    Args:
+        name: Name to assign to this handler. Otherwise, defaults to class name.
+        add_to_globals: Whether to add this loggable's handler to the global handlers list.
+
+    Attributes:
+        logger: Logger for this loggable object.
+        log_handler: User Handler for this loggable object.
+    """
     global_handlers: list[logging.Handler] = []
     _curr_loggers = {}
 
     __slots__ = ('_logger', '_log_handler')
 
-    def __init__(self,
-                 add_to_globals: bool = False,
-                 name: Optional[str] = None,
-                 **_):
+    def __init__(self, add_to_globals: bool = False, name: Optional[str] = None, **_):
         super().__init__(name=name)
         self._logger: logging.Logger = self._get(name=name or self.__class__.__name__,)
         self._log_handler = next((hndl for hndl in self._logger.handlers if isinstance(hndl, ConsolePanelHandler)), None)
         if not self._log_handler:
             self._log_handler: ConsolePanelHandler = ConsolePanelHandler()
-            self._logger.addHandler(self._log_handler)  # add handler for user to create custom callbacks with
+            self._logger.addHandler(self._log_handler)
 
         if add_to_globals is True and self._log_handler not in Loggable.global_handlers:
             Loggable.global_handlers.append(self._log_handler)
 
     @property
     def log_handler(self) -> ConsolePanelHandler:
-        """User 'Handler' for this loggable object.
+        """User Handler for this loggable object.
+
         Meant for user to modify with their own callbacks, for easy log displaying.
-        .. -------------------------------------------------------------------------
-        .. returns::
-        log_handler: :class:`logging.Handler`
+
+        Returns:
+            ConsolePanelHandler: The log handler for this object.
         """
         return self._log_handler
 
     @property
     def logger(self) -> logging.Logger:
-        """`Logger` for this loggable object.
-        .. ------------------------------------------------------------
-        .. returns::
-            logger: :class:`logging.Logger`
+        """Logger for this loggable object.
+
+        Returns:
+            logging.Logger: The logger instance.
         """
         return self._logger
 
     @staticmethod
-    def _get(name: str = __name__,
-             ignore_globals: bool = False):
+    def _get(name: str = __name__, ignore_globals: bool = False) -> logging.Logger:
+        """Get or create a logger with the specified name.
 
+        Args:
+            name: The name for the logger.
+            ignore_globals: Whether to ignore global handlers.
+
+        Returns:
+            logging.Logger: The logger instance.
+        """
         if Loggable._curr_loggers.get(name):
             return Loggable._curr_loggers.get(name)
 
@@ -781,36 +777,24 @@ class Loggable(NamedPyroxObject):
                     _logger.addHandler(glob)
 
         Loggable._curr_loggers[name] = _logger
-
         return _logger
 
     @staticmethod
     def init_sys_excepthook():
-        """Initialize the system exception hook to log uncaught exceptions.
-        This method sets the sys.excepthook to log uncaught exceptions using the root logger.
-        """
+        """Initialize the system exception hook to log uncaught exceptions."""
         def excepthook(exc_type, exc_value, exc_traceback):
             if issubclass(exc_type, KeyboardInterrupt):
                 return
-            for logger in Loggable.global_handlers:
-                logger.emit(logging.LogRecord(
-                    name=logger.name,
-                    level=logging.ERROR,
-                    pathname='',
-                    lineno=0,
-                    msg=f"Uncaught exception: {exc_value}",
-                    args=None,
-                    exc_info=(exc_type, exc_value, exc_traceback)
-                ))
+            root_logger = logging.getLogger()
+            root_logger.error("Uncaught exception", exc_info=(exc_type, exc_value, exc_traceback))
         sys.excepthook = excepthook
 
     @staticmethod
     def set_logging_level(log_level: int = logging.INFO):
         """Set the logging level for all current loggers.
-        .. ------------------------------------------------------------
-        .. arguments::
-        log_level: :type:`int`
-            The logging level to set for all current loggers. Defaults to `logging.INFO`.
+
+        Args:
+            log_level: The logging level to set for all current loggers.
         """
         for logger in Loggable._curr_loggers.values():
             logger.setLevel(log_level)
@@ -819,77 +803,61 @@ class Loggable(NamedPyroxObject):
 
 
 class Buildable(Loggable):
-    """.. description::
-    Denotes object is 'buildable' and supports `build` and `refresh` methods.
-    .. ------------------------------------------------------------
-    .. package::
-    models.abc.meta
-    .. ------------------------------------------------------------
-    .. attributes::
-    built: :type:`bool`
-        The object has previously been built.
+    """Denotes object is 'buildable' and supports build and refresh methods.
+
+    Attributes:
+        built: Whether the object has previously been built.
     """
     __slots__ = ('_built',)
 
-    def __init__(self,
-                 **kwargs):
+    def __init__(self, **kwargs):
         super().__init__(**kwargs)
         self._built: bool = False
 
     @property
     def built(self) -> bool:
-        """The object has previously been built.
-        .. ------------------------------------------------------------
-        .. returns::
-            built: :type:`bool`
+        """Whether the object has previously been built.
+
+        Returns:
+            bool: True if the object has been built, False otherwise.
         """
         return self._built
 
     def build(self) -> None:
-        """Build this object
-        """
+        """Build this object."""
         self._built = True
 
     def refresh(self) -> None:
-        """Refresh this object.
-        """
+        """Refresh this object."""
 
 
 class Runnable(Buildable):
-    """.. description::
-    Denotes object is 'runnable' and supports `run` method.
-    .. ------------------------------------------------------------
-    .. package::
-    models.abc.meta
-    .. ------------------------------------------------------------
-    .. attributes::
-    running: :type:`bool`
-        The object is currently in a `running` state.
+    """Denotes object is 'runnable' and supports run method.
+
+    Attributes:
+        running: Whether the object is currently in a running state.
     """
     __slots__ = ('_running', )
 
-    def __init__(self,
-                 **kwargs):
+    def __init__(self, **kwargs):
         super().__init__(**kwargs)
         self._running: bool = False
 
     @property
     def running(self) -> bool:
-        """The object is currently in a `running` state.
-        .. ------------------------------------------------------------
-        .. returns::
-            running: :type:`bool`
+        """Whether the object is currently in a running state.
+
+        Returns:
+            bool: True if the object is running, False otherwise.
         """
         return self._running
 
     def start(self) -> None:
-        """Start this object.
-        """
+        """Start this object."""
         if self.built is False:
             self.build()
         self._running = True
 
     def stop(self) -> None:
-        """Stop this object.
-        """
+        """Stop this object."""
         self._running = False
