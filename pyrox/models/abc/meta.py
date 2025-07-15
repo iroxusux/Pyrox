@@ -625,7 +625,7 @@ class SupportsJsonLoading(SupportsLoading):
         Returns:
             Any: Loaded data from the JSON file, or None if file doesn't exist.
         """
-        path = Path(path) if path else self.load_path
+        path = Path(path) if path else Path(self.load_path)
         if not path or not path.exists():
             return None
         try:

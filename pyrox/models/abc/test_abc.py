@@ -5,11 +5,8 @@ import logging
 from unittest.mock import MagicMock
 import os
 import tempfile
-from tkinter import Tk, Menu, Toplevel
+from tkinter import Tk, Menu
 import unittest
-
-
-from ttkthemes import ThemedTk
 
 
 from .application import (
@@ -517,7 +514,7 @@ class TestBaseMenu(unittest.TestCase):
         root.quit()
 
     def test_menu_property(self):
-        root = Tk()
+        root = MagicMock()
         base_menu = BaseMenu(root)
         self.assertIsInstance(base_menu.menu, Menu)
         root.quit()
@@ -546,11 +543,9 @@ class TestApplicationConfiguration(unittest.TestCase):
         self.assertEqual(config.icon, DEF_ICON)
         self.assertIsInstance(config.size_, str)
         self.assertEqual(config.tasks, [])
-        self.assertIsNone(config.application)
 
     def test_common_assembly(self):
-        config = ApplicationConfiguration._common_assembly(application=Tk(),
-                                                           application_name=DEF_APP_NAME,
+        config = ApplicationConfiguration._common_assembly(application_name=DEF_APP_NAME,
                                                            author_name=DEF_AUTHOR_NAME,
                                                            headless=False,
                                                            tasks=[],
@@ -559,7 +554,6 @@ class TestApplicationConfiguration(unittest.TestCase):
                                                            type_=ApplicationTkType.ROOT,
                                                            icon=DEF_ICON,
                                                            size_=DEF_WIN_SIZE)
-        self.assertIsInstance(config.application, Tk)
         self.assertFalse(config.headless)
         self.assertEqual(config.tasks, [])
         self.assertEqual(config.title, DEF_WIN_TITLE)
@@ -570,7 +564,6 @@ class TestApplicationConfiguration(unittest.TestCase):
 
     def test_toplevel_method(self):
         config = ApplicationConfiguration.toplevel()
-        self.assertEqual(config.application, Toplevel)
         self.assertFalse(config.headless)
         self.assertEqual(config.tasks, [])
         self.assertEqual(config.title, DEF_WIN_TITLE)
@@ -581,7 +574,6 @@ class TestApplicationConfiguration(unittest.TestCase):
 
     def test_root_method(self):
         config = ApplicationConfiguration.root()
-        self.assertEqual(config.application, ThemedTk)
         self.assertFalse(config.headless)
         self.assertEqual(config.tasks, [])
         self.assertEqual(config.title, DEF_WIN_TITLE)
@@ -706,8 +698,7 @@ class TestApplication(unittest.TestCase):
             type_=ApplicationTkType.ROOT,
             icon="",
             size_="800x600",
-            tasks=[],
-            application=None
+            tasks=[]
         )
         self.app = Application(config=self.config)
 
@@ -768,12 +759,6 @@ class TestApplication(unittest.TestCase):
             "destroy": lambda self: None
         })()
         self.app.close()
-
-    def test_build_method_headless(self):
-        # Should raise for headless config without tk app
-        self.app.config.headless = True
-        with self.assertRaises(ValueError):
-            self.app.build()
 
     def test_on_pre_run_and_stop(self):
         # Should not raise
