@@ -1,12 +1,9 @@
-"""plc type module
-    """
+"""PLC type module for Pyrox framework."""
 from __future__ import annotations
-
 
 from collections import defaultdict
 from dataclasses import dataclass
 from enum import Enum
-
 import re
 from typing import Callable, Optional, Self, TypeVar, Union
 
@@ -238,10 +235,32 @@ class LogixAssetType(Enum):
 
 
 class PlcObject(EnforcesNaming, PyroxObject):
-    """base class for a l5x plc object.
+    """Base class for a L5X PLC object.
+
+    Args:
+        controller: The controller this object belongs to.
+        default_loader: Default loader function for metadata.
+        meta_data: Metadata for this object.
+
+    Attributes:
+        meta_data: The metadata dictionary or string for this object.
+        controller: The controller this object belongs to.
+        on_compiled: List of functions to call when object is compiled.
+        on_compiling: List of functions to call when object is compiling.
     """
 
     def __getitem__(self, key):
+        """Get item from metadata.
+
+        Args:
+            key: The key to retrieve.
+
+        Returns:
+            The value associated with the key.
+
+        Raises:
+            TypeError: If metadata is not a dictionary.
+        """
         if isinstance(self.meta_data, dict):
             return self._meta_data.get(key, None)
         else:
@@ -262,6 +281,15 @@ class PlcObject(EnforcesNaming, PyroxObject):
         return str(self)
 
     def __setitem__(self, key, value):
+        """Set item in metadata.
+
+        Args:
+            key: The key to set.
+            value: The value to set.
+
+        Raises:
+            TypeError: If metadata is not a dictionary.
+        """
         if isinstance(self.meta_data, dict):
             self._meta_data[key] = value
         else:
@@ -272,80 +300,82 @@ class PlcObject(EnforcesNaming, PyroxObject):
 
     @property
     def dict_key_order(self) -> list[str]:
-        """get the order of keys in the meta data dict.
+        """Get the order of keys in the metadata dict.
 
         This is intended to be overridden by subclasses to provide a specific order of keys.
 
-        .. -------------------------------
-
-        Returns
-        ----------
-            :class:`list[str]`
+        Returns:
+            list[str]: List of keys in preferred order.
         """
         return []
 
     @property
     def config(self) -> Optional['ControllerConfiguration']:
-        """ get the controller configuration for this object
-
-        .. -------------------------------
+        """Get the controller configuration for this object.
 
         Returns:
-        ----------
-            :class:`ControllerConfiguration`
+            ControllerConfiguration: The controller configuration, or default if no controller.
         """
         return ControllerConfiguration() if not self._controller else self._controller._config
 
     @property
     def controller(self) -> Optional['Controller']:
-        """get this object's controller
+        """Get this object's controller.
 
-        .. -------------------------------
-
-        Returns
-        ----------
-            :class:`Controller`
+        Returns:
+            Controller: The controller this object belongs to.
         """
         return self._controller
 
     @property
     def meta_data(self) -> Union[dict, str]:
+        """Get the metadata for this object.
+
+        Returns:
+            Union[dict, str]: The metadata.
+        """
         return self._meta_data
 
     @meta_data.setter
     def meta_data(self, value: Union[dict, str]):
-        if isinstance(value, dict) or isinstance(value, str):
+        """Set the metadata for this object.
+
+        Args:
+            value: The metadata to set.
+
+        Raises:
+            TypeError: If metadata is not a dict or string.
+        """
+        if isinstance(value, (dict, str)):
             self._meta_data = value
         else:
             raise TypeError("Meta data must be a dict or a string!")
 
     @property
     def on_compiled(self) -> list[Callable]:
-        """get the list of functions to call when this object is compiled.
+        """Get the list of functions to call when this object is compiled.
 
-        .. -------------------------------
-
-        Returns
-        ----------
-            :class:`list[Callable]`
+        Returns:
+            list[Callable]: List of callback functions.
         """
         return self._on_compiled
 
     @property
     def on_compiling(self) -> list[Callable]:
-        """get the list of functions to call when this object is compiling.
+        """Get the list of functions to call when this object is compiling.
 
-        .. -------------------------------
-
-        Returns
-        ----------
-            :class:`list[Callable]`
+        Returns:
+            list[Callable]: List of callback functions.
         """
         return self._on_compiling
 
     def compile(self) -> Self:
-        """compile this object.
-        additionally, this method will call all functions in the `on_compiled` list.
+        """Compile this object.
+
+        Additionally, this method will call all functions in the on_compiled list.
+
+        Returns:
+            Self: This object for method chaining.
         """
         [call() for call in self._on_compiling]
         self._compile_from_meta_data()
@@ -354,16 +384,19 @@ class PlcObject(EnforcesNaming, PyroxObject):
         return self
 
     def _compile_from_meta_data(self):
-        """compile this object from its meta data
+        """Compile this object from its metadata.
 
         This method should be overridden by subclasses to provide specific compilation logic.
+
+        Raises:
+            NotImplementedError: This method must be implemented by subclasses.
         """
         raise NotImplementedError("This method should be overridden by subclasses to compile from meta data.")
 
     def _init_dict_order(self):
-        """initialize the dict order for this object.
+        """Initialize the dict order for this object.
 
-        This method relies on the child classes to define their own `dict_key_order` property.
+        This method relies on the child classes to define their own dict_key_order property.
         """
         if not self.dict_key_order:
             return
@@ -373,11 +406,17 @@ class PlcObject(EnforcesNaming, PyroxObject):
                 if key not in self.meta_data:
                     insert_key_at_index(d=self.meta_data, key=key, index=index)
 
-    def validate(self,
-                 report: Optional[ControllerReportItem] = None) -> ControllerReportItem:
+    def validate(self, report: Optional['ControllerReportItem'] = None) -> 'ControllerReportItem':
+        """Validate this object.
+
+        Args:
+            report: Existing report to add to, creates new one if None.
+
+        Returns:
+            ControllerReportItem: Validation report for this object.
+        """
         if not report:
-            report = ControllerReportItem(self,
-                                          f'Validating {self.__class__.__name__} object: {str(self)}')
+            report = ControllerReportItem(self, f'Validating {self.__class__.__name__} object: {str(self)}')
 
         if self.config is None:
             report.test_notes.append('No controller configuration found!')
@@ -396,24 +435,17 @@ class PlcObject(EnforcesNaming, PyroxObject):
 
 class NamedPlcObject(PlcObject, NamedPyroxObject):
     """Supports a name and description for a PLC object.
-    .. -------------------------------
-    .. arguments::
-        meta_data: :type:`dict`
-            Meta data for this object.
-        default_loader: :type:`Callable`
-            Default loader for this object.
-        name: :type:`str`
-            Name of this object.
-        description: :type:`str`
-            Description of this object.
-        controller: :type:`Controller`
-            Controller for this object.
-    .. -------------------------------
-    .. attributes::
-        name: :type:`str`
-            Name of this object.
-        description: :type:`str`
-            Description of this object.
+
+    Args:
+        meta_data: Metadata for this object.
+        default_loader: Default loader for this object.
+        name: Name of this object.
+        description: Description of this object.
+        controller: Controller for this object.
+
+    Attributes:
+        name: Name of this object.
+        description: Description of this object.
     """
 
     def __init__(self,
@@ -440,18 +472,23 @@ class NamedPlcObject(PlcObject, NamedPyroxObject):
 
     @property
     def name(self) -> str:
-        """get this object's meta data name
+        """Get this object's metadata name.
 
-        .. -------------------------------
-
-        Returns
-        ----------
-            :class:`str`
+        Returns:
+            str: The name of this object.
         """
         return self['@Name']
 
     @name.setter
     def name(self, value: str):
+        """Set this object's name.
+
+        Args:
+            value: The name to set.
+
+        Raises:
+            InvalidNamingException: If the name is invalid.
+        """
         if not self.is_valid_string(value):
             raise self.InvalidNamingException
 
@@ -459,26 +496,37 @@ class NamedPlcObject(PlcObject, NamedPyroxObject):
 
     @property
     def description(self) -> str:
-        """get this object's meta data description
+        """Get this object's metadata description.
 
-        .. -------------------------------
-
-        Returns
-        ----------
-            :class:`str`
+        Returns:
+            str: The description of this object.
         """
         return self['Description']
 
     @description.setter
     def description(self, value: str):
+        """Set this object's description.
+
+        Args:
+            value: The description to set.
+        """
         self['Description'] = value
 
     def _remove_asset_from_meta_data(self,
-                                     asset: Union[NamedPlcObject, str],
+                                     asset: Union['NamedPlcObject', str],
                                      asset_list: HashList,
                                      raw_asset_list: list[dict],
                                      skip_compile: bool = False) -> None:
-        """Remove an asset from this object's meta data
+        """Remove an asset from this object's metadata.
+
+        Args:
+            asset: The asset to remove.
+            asset_list: The HashList containing the asset.
+            raw_asset_list: The raw metadata list.
+            skip_compile: Whether to skip compilation after removal.
+
+        Raises:
+            ValueError: If asset is wrong type or doesn't exist.
         """
         if not isinstance(asset, (NamedPlcObject, str)):
             raise ValueError(f"asset must be of type {type(NamedPlcObject)} or str!")
@@ -499,8 +547,15 @@ class NamedPlcObject(PlcObject, NamedPyroxObject):
         if not skip_compile:
             self._compile_from_meta_data()
 
-    def validate(self,
-                 report: Optional[ControllerReportItem] = None) -> ControllerReportItem:
+    def validate(self, report: Optional['ControllerReportItem'] = None) -> 'ControllerReportItem':
+        """Validate this named PLC object.
+
+        Args:
+            report: Existing report to add to.
+
+        Returns:
+            ControllerReportItem: Validation report.
+        """
         report = super().validate(report=report)
 
         if self.name is None:
@@ -811,10 +866,7 @@ class LogixInstruction(PlcObject):
     def aliased_meta_data(self) -> str:
         """get the aliased meta data for this instruction
 
-        .. -------------------------------
-
-        Returns
-        ----------
+        Returns:
             :class:`str`
         """
         if self._aliased_meta_data:
@@ -833,10 +885,7 @@ class LogixInstruction(PlcObject):
     def instruction_name(self) -> str:
         """get the instruction element
 
-        .. -------------------------------
-
-        Returns
-        ----------
+        Returns:
             :class:`str`
         """
         if self._instruction_name:
@@ -853,10 +902,7 @@ class LogixInstruction(PlcObject):
     def operands(self) -> list[LogixOperand]:
         """get the instruction operands
 
-        .. -------------------------------
-
-        Returns
-        ----------
+        Returns:
             :class:`list[LogixOperand]`
         """
         return self._operands
@@ -865,10 +911,7 @@ class LogixInstruction(PlcObject):
     def qualified_meta_data(self) -> str:
         """get the qualified meta data for this instruction
 
-        .. -------------------------------
-
-        Returns
-        ----------
+        Returns:
             :class:`str`
         """
         if self._qualified_meta_data:
@@ -883,10 +926,7 @@ class LogixInstruction(PlcObject):
     def routine(self) -> Optional['Routine']:
         """get the routine this instruction is in
 
-        .. -------------------------------
-
-        Returns
-        ----------
+        Returns:
             :class:`Routine`
         """
         if not self._rung:
@@ -897,10 +937,7 @@ class LogixInstruction(PlcObject):
     def rung(self) -> Optional['Rung']:
         """get the rung this instruction is in
 
-        .. -------------------------------
-
-        Returns
-        ----------
+        Returns:
             :class:`Routine`
         """
         return self._rung
@@ -1032,10 +1069,7 @@ class ContainsRoutines(ContainsTags):
     def instructions(self) -> list[LogixInstruction]:
         """get the instructions in this container
 
-        .. -------------------------------
-
-        Returns
-        ----------
+        Returns:
             :class:`list[LogixInstruction]`
         """
         if self._instructions:
@@ -1442,10 +1476,8 @@ class Datatype(NamedPlcObject):
         the endpoint operands would be:
             ['.MyAtomicMember', '.MyMember.MyChildMember']
 
-        .. -------------------------------
-        .. returns::
-        :class:`list[str]`:
-            list of endpoint operands
+        Returns:
+            list[str]: List of endpoint operands.
         """
         if self.is_atomic:
             return ['']
@@ -1773,11 +1805,8 @@ class Program(ContainsRoutines):
     def main_routine(self) -> Optional[Routine]:
         """get the main routine for this program
 
-        .. -------------------------------
-
-        Returns
-        ----------
-            :class:`Routine`
+        Returns:
+            Routine: The main routine of this program.
         """
         if not self.main_routine_name:
             return None
@@ -1858,10 +1887,7 @@ class Routine(NamedPlcObject):
     def instructions(self) -> list[LogixInstruction]:
         """get the instructions in this routine
 
-        .. -------------------------------
-
-        Returns
-        ----------
+        Returns:
             :class:`list[LogixInstruction]`
         """
         if self._instructions:
@@ -2189,10 +2215,7 @@ class Tag(NamedPlcObject):
     def alias_for_base_name(self) -> str:
         """get the base name of the aliased tag
 
-        .. -------------------------------
-
-        Returns
-        ----------
+        Returns:
             :class:`str`
         """
         if not self.alias_for:
@@ -2365,11 +2388,8 @@ class Tag(NamedPlcObject):
                          additional_elements: str = None) -> str:
         """get the alias string for this tag
 
-        .. -------------------------------
-
-        Returns
-        ----------
-            :class:`str`
+        Returns:
+            :class:`str`: alias string of this tag
         """
         if not additional_elements:
             additional_elements = ''
@@ -2573,10 +2593,7 @@ class Controller(NamedPlcObject, Loggable):
     def instructions(self) -> list[LogixInstruction]:
         """get the instructions in this controller
 
-        .. -------------------------------
-
-        Returns
-        ----------
+        Returns:
             :class:`list[LogixInstruction]`
         """
         instr = []
