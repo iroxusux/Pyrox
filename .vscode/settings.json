@@ -4,5 +4,6 @@
     ],
     "python.testing.unittestEnabled": false,
     "python.testing.pytestEnabled": true,
-    "editor.fontFamily": "Consolas, 'Roboto', monospace"
+    "editor.fontFamily": "Consolas, 'Roboto', monospace",
+    "workbench.startupEditor": "none"
 }

@@ -18,6 +18,14 @@ class RoutineTask(AppTask):
                  application: App):
         super().__init__(application=application)
 
+    def debug_draw(self):
+        """Debug method to draw the ladder editor frame."""
+        self.logger.info('Drawing ladder editor frame for debugging...')
+        importlib.reload(ladder_gui)
+        ladder_frame = ladder_gui.LadderEditorTaskFrame(
+            master=self.application.workspace)
+        self.application.register_frame(ladder_frame, raise_=True)
+
     def generate_default_routine(self):
         """Generate a default routine for the PLC application."""
         self.logger.info('Generating default routine...')
@@ -38,3 +46,4 @@ class RoutineTask(AppTask):
         self.application.menu.tools.insert_cascade(0, label='Generate Routine', menu=drop_down)
 
         drop_down.add_command(label='Generate Default Routine', command=self.generate_default_routine)
+        drop_down.add_command(label='Draw', command=self.debug_draw)
