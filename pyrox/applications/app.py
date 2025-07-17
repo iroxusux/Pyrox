@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import copy
+import importlib
 import os
 
 from typing import Any, Optional
@@ -10,6 +11,7 @@ from tkinter import Event, PanedWindow
 from ..models import Application, ApplicationTask, HashList
 from ..models import plc
 from .general_motors.gm import GmController
+from ..models.gui import ladder as ladder_gui
 from ..models.gui import (
     ContextMenu,
     FrameWithTreeViewAndScrollbar,
@@ -61,6 +63,15 @@ class AppOrganizerContextMenu(ContextMenu):
                                     properties=PlcGuiObject.from_data(plc_object).gui_interface_attributes())
         self._parent.application.register_frame(frame, raise_=True)
 
+    def _on_edit_routine(self,
+                         routine: plc.Routine):
+        importlib.reload(ladder_gui)
+        ladder_frame = ladder_gui.LadderEditorTaskFrame(
+            master=self._parent.application.workspace,
+            controller=self._parent.application.controller,
+            routine=routine)
+        self._parent.application.register_frame(ladder_frame, raise_=True)
+
     def _on_refresh(self):
         [x() for x in self.on_refresh if callable(x)]
 
@@ -101,7 +112,7 @@ class AppOrganizerContextMenu(ContextMenu):
 
         if isinstance(plc_obj, plc.Routine):
             menu_list.insert(0, MenuItem(label='Edit Routine',
-                                         command=lambda: self.logger.info(f'Editing routine: {plc_obj.name}')))
+                                         command=lambda: self._on_edit_routine(routine=plc_obj)))
 
         if isinstance(plc_obj, plc.TagEndpoint):
             task: 'AppTask' = self._parent.application.tasks.get('PlcIoTask')

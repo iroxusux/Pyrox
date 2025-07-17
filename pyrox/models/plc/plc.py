@@ -5,7 +5,7 @@ from collections import defaultdict
 from dataclasses import dataclass
 from enum import Enum
 import re
-from typing import Callable, Optional, Self, TypeVar, Union
+from typing import (Callable, Dict, List, Optional, Self, TypeVar, Union,)
 
 from .mod import IntrospectiveModule
 from ..abc.meta import EnforcesNaming, Loggable, PyroxObject, NamedPyroxObject
@@ -1011,7 +1011,7 @@ class ContainsTags(NamedPlcObject):
         """compile this object from its meta data
         """
         self._tags: HashList = HashList('name')
-        [self._tags.append(self.config.tag_type(meta_data=x, controller=self.controller, container=self))
+        [self._tags.append(self.config.tag_type(meta_data=x, controller=self))
          for x in self.raw_tags]
 
     def add_tag(self, tag: 'Tag', skip_compile: bool = False) -> None:
@@ -2002,6 +2002,31 @@ class Routine(NamedPlcObject):
         return report
 
 
+class RungElementType(Enum):
+    """Types of elements in a rung sequence."""
+    INSTRUCTION = "instruction"
+    BRANCH_START = "branch_start"
+    BRANCH_END = "branch_end"
+
+
+@dataclass
+class RungElement:
+    """Represents an element in the rung sequence."""
+    element_type: RungElementType
+    instruction: Optional[LogixInstruction] = None
+    branch_id: Optional[str] = None
+    position: int = 0  # Sequential position in rung
+
+
+@dataclass
+class RungBranch:
+    """Represents a branch structure in the rung."""
+    branch_id: str
+    start_position: int
+    end_position: int
+    instructions: List[LogixInstruction]
+
+
 class Rung(PlcObject):
     def __init__(self,
                  meta_data: dict = None,
@@ -2009,22 +2034,22 @@ class Rung(PlcObject):
                  routine: Optional[Routine] = None,
                  text: Optional[str] = None,
                  comment: Optional[str] = None):
-        """type class for plc Rung
-
-        Args:
-            l5x_meta_data (str): meta data
-            controller (Self): controller dictionary
-        """
+        """type class for plc Rung"""
         super().__init__(meta_data=meta_data or l5x_dict_from_file(PLC_RUNG_FILE)['Rung'],
                          controller=controller)
 
         self._routine: Optional[Routine] = routine
         self._instructions: list[LogixInstruction] = []
+        self._rung_sequence: List[RungElement] = []
+        self._branches: Dict[str, RungBranch] = {}
+
         if text:
             self.text = text
         if comment:
             self.comment = comment
+
         self._get_instructions()
+        self._parse_rung_sequence()
         self._input_instructions: list[LogixInstruction] = []
         self._output_instructions: list[LogixInstruction] = []
 
@@ -2038,11 +2063,12 @@ class Rung(PlcObject):
     def __repr__(self):
         return (
             f'Rung(number={self.number}, '
-            f'routine={self.routine.name}, '
+            f'routine={self.routine.name if self.routine else "None"}, '
             f'type={self.type}, '
             f'comment={self.comment}, '
-            f'text={self.text}),'
-            f'instructions={self.instructions}),'
+            f'text={self.text}, '
+            f'instructions={len(self.instructions)}, '
+            f'branches={len(self._branches)})'
         )
 
     def __str__(self):
@@ -2067,7 +2093,7 @@ class Rung(PlcObject):
 
     @property
     def container(self) -> Routine:
-        return self.routine.container
+        return self.routine.container if self.routine else None
 
     @property
     def input_instructions(self) -> list[LogixInstruction]:
@@ -2095,7 +2121,6 @@ class Rung(PlcObject):
     def number(self, value: Union[int, str]):
         if not isinstance(value, (str, int)):
             raise ValueError("Rung number must be a string or int!")
-
         self['@Number'] = str(value)
 
     @property
@@ -2113,25 +2138,262 @@ class Rung(PlcObject):
     @text.setter
     def text(self, value: str):
         self['Text'] = value
-        self._instructions = []  # text has changed, we need to reprocess instructions
+        self._instructions = []  # text has changed, we need to reprocess
+        self._rung_sequence = []
+        self._branches = {}
+        if value:  # Only reparse if we have text
+            self._get_instructions()
+            self._parse_rung_sequence()
 
     @property
     def type(self) -> str:
         return self['@Type']
 
+    @property
+    def rung_sequence(self) -> List[RungElement]:
+        """Get the sequential elements of this rung including branches."""
+        return self._rung_sequence
+
+    @property
+    def branches(self) -> Dict[str, RungBranch]:
+        """Get all branches in this rung."""
+        return self._branches
+
     def _get_instructions(self):
+        """Extract instructions from rung text."""
+        if not self.text:
+            return
+
+        import re
         matches = re.findall(INST_RE_PATTERN, self.text)
         if not matches:
-            return []
+            return
 
         self._instructions = [LogixInstruction(x, self, self.controller) for x in matches]
 
+    def _parse_rung_sequence(self):
+        """Parse the rung text to identify instruction sequence and branches."""
+        if not self.text or not self.instructions:
+            return
+
+        # Reset structures
+        self._rung_sequence = []
+        self._branches = {}
+
+        # Tokenize the rung text to identify structure
+        tokens = self._tokenize_rung_text(self.text)
+        self._build_sequence_from_tokens(tokens)
+
+    def _tokenize_rung_text(self, text: str) -> List[str]:
+        """Tokenize rung text to identify instructions and branch markers."""
+        import re
+
+        tokens = []
+
+        # First, find all instructions and their positions
+        instruction_matches = list(re.finditer(INST_RE_PATTERN, text))
+        instruction_ranges = [(match.start(), match.end()) for match in instruction_matches]
+
+        # Split by branch markers, but only those outside of instructions
+        i = 0
+        current_segment = ""
+
+        while i < len(text):
+            char = text[i]
+
+            if char in ['[', ']']:
+                # Check if this bracket is inside any instruction
+                inside_instruction = any(start <= i < end for start, end in instruction_ranges)
+
+                if inside_instruction:
+                    # This bracket is part of an instruction (array reference), keep it
+                    current_segment += char
+                else:
+                    # This is a branch marker
+                    if current_segment.strip():
+                        # Extract instructions from current segment
+                        segment_instructions = re.findall(INST_RE_PATTERN, current_segment)
+                        tokens.extend(segment_instructions)
+                        current_segment = ""
+
+                    # Add the branch marker
+                    tokens.append(char)
+            else:
+                current_segment += char
+
+            i += 1
+
+        # Process any remaining segment
+        if current_segment.strip():
+            segment_instructions = re.findall(INST_RE_PATTERN, current_segment)
+            tokens.extend(segment_instructions)
+
+        return tokens
+
+    def _build_sequence_from_tokens(self, tokens: List[str]):
+        """Build the rung sequence from tokenized text."""
+        position = 0
+        branch_stack = []
+        branch_counter = 0
+        instruction_index = 0
+
+        for token in tokens:
+            if token == '[':  # Branch start
+                branch_id = f"branch_{branch_counter}"
+                branch_counter += 1
+
+                # Create branch start element
+                branch_start = RungElement(
+                    element_type=RungElementType.BRANCH_START,
+                    branch_id=branch_id,
+                    position=position
+                )
+
+                self._rung_sequence.append(branch_start)
+
+                # Create branch object
+                branch = RungBranch(
+                    branch_id=branch_id,
+                    start_position=position,
+                    end_position=-1,  # Will be set when branch ends
+                    instructions=[]
+                )
+
+                self._branches[branch_id] = branch
+                branch_stack.append(branch_id)
+                position += 1
+
+            elif token == ']':  # Branch end
+                if branch_stack:
+                    branch_id = branch_stack.pop()
+
+                    # Update branch end position
+                    self._branches[branch_id].end_position = position
+
+                    # Create branch end element
+                    branch_end = RungElement(
+                        element_type=RungElementType.BRANCH_END,
+                        branch_id=branch_id,
+                        position=position
+                    )
+
+                    self._rung_sequence.append(branch_end)
+                    position += 1
+
+            else:  # Regular instruction
+                instruction = self._find_instruction_by_text(token, instruction_index)
+                if instruction:
+                    element = RungElement(
+                        element_type=RungElementType.INSTRUCTION,
+                        instruction=instruction,
+                        position=position
+                    )
+
+                    self._rung_sequence.append(element)
+
+                    # Add to current branch if we're in one
+                    if branch_stack:
+                        current_branch_id = branch_stack[-1]
+                        self._branches[current_branch_id].instructions.append(instruction)
+
+                    position += 1
+                    instruction_index += 1
+
+    def _find_instruction_by_text(self, text: str, index: int) -> Optional[LogixInstruction]:
+        """Find an instruction object by its text representation."""
+        # First try exact match
+        for instruction in self.instructions:
+            if instruction.meta_data == text:
+                return instruction
+
+        # If no exact match, try by index (fallback)
+        if 0 <= index < len(self.instructions):
+            return self.instructions[index]
+
+        return None
+
+    def get_execution_sequence(self) -> List[Dict]:
+        """Get the logical execution sequence of the rung."""
+        sequence = []
+
+        for i, element in enumerate(self._rung_sequence):
+            if element.element_type == RungElementType.INSTRUCTION:
+                sequence.append({
+                    'step': i,
+                    'instruction_type': element.instruction.instruction_name,
+                    'instruction_text': element.instruction.meta_data,
+                    'operands': [op.meta_data for op in element.instruction.operands],
+                    'is_input': element.instruction.type == LogixInstructionType.INPUT,
+                    'is_output': element.instruction.type == LogixInstructionType.OUTPUT
+                })
+            elif element.element_type in [RungElementType.BRANCH_START, RungElementType.BRANCH_END]:
+                sequence.append({
+                    'step': i,
+                    'element_type': element.element_type.value,
+                    'branch_id': element.branch_id
+                })
+
+        return sequence
+
+    def get_branch_instructions(self, branch_id: str) -> List[LogixInstruction]:
+        """Get all instructions within a specific branch."""
+        if branch_id not in self._branches:
+            return []
+        return self._branches[branch_id].instructions.copy()
+
+    def get_main_line_instructions(self) -> List[LogixInstruction]:
+        """Get instructions that are on the main line (not in branches)."""
+        branch_instructions = set()
+        for branch in self._branches.values():
+            branch_instructions.update(branch.instructions)
+
+        return [instr for instr in self.instructions if instr not in branch_instructions]
+
+    def has_branches(self) -> bool:
+        """Check if this rung contains any branches."""
+        return len(self._branches) > 0
+
+    def get_branch_count(self) -> int:
+        """Get the number of branches in this rung."""
+        return len(self._branches)
+
+    def to_sequence_dict(self) -> Dict:
+        """Convert rung to dictionary format showing the sequence structure."""
+        return {
+            'rung_number': self.number,
+            'comment': self.comment,
+            'text': self.text,
+            'instruction_count': len(self.instructions),
+            'branch_count': len(self._branches),
+            'execution_sequence': self.get_execution_sequence(),
+            'main_line_instructions': [instr.meta_data for instr in self.get_main_line_instructions()],
+            'branches': {
+                branch_id: {
+                    'start_position': branch.start_position,
+                    'end_position': branch.end_position,
+                    'instructions': [instr.meta_data for instr in branch.instructions]
+                }
+                for branch_id, branch in self._branches.items()
+            }
+        }
+
     def validate(self) -> ControllerReportItem:
         report = ControllerReportItem(self,
-                                      f'Validating {self.__class__.__name__} object: {self.meta_data}')
+                                      f'Validating {self.__class__.__name__} object: {self.number}')
+
         if not self.instructions:
             report.test_notes.append('No instructions found in rung!')
             report.pass_fail = False
+
+        # Validate branch structure
+        for branch_id, branch in self._branches.items():
+            if branch.end_position <= branch.start_position:
+                report.test_notes.append(f'Invalid branch structure for {branch_id}: end position not after start position!')
+                report.pass_fail = False
+
+            if not branch.instructions:
+                report.test_notes.append(f'Branch {branch_id} contains no instructions!')
+                report.pass_fail = False
 
         return report
 

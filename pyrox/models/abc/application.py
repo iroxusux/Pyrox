@@ -5,6 +5,7 @@ from dataclasses import dataclass, field
 import datetime
 from enum import Enum
 import gc
+import logging
 import os
 from pathlib import Path
 import platformdirs
@@ -827,6 +828,8 @@ class Application(Runnable):
             ValueError: If the application type is not supported.
         """
         self._runtime_info = ApplicationRuntimeInfo(self)
+        if self.runtime_info.get('logging_level') is not None:
+            self.set_logging_level(self.runtime_info.get('logging_level'))
 
         if self.config.type_ == ApplicationTkType.ROOT:
             self._tk_app = ThemedTk(theme=self._runtime_info.get('theme', self.config.theme))
@@ -880,6 +883,7 @@ class Application(Runnable):
                     self.logger.warning(f'Tasks directory not found: {tasks_path}')
             except Exception as e:
                 self.logger.error(f'Failed to load tasks: {e}')
+
         super().build()
 
     def center(self) -> None:
@@ -950,6 +954,19 @@ class Application(Runnable):
         This method changes the cursor back to normal, indicating that the application is ready for user interaction.
         """
         self.update_cursor(TK_CURSORS.DEFAULT)
+
+    def set_logging_level(self, level: int) -> None:
+        """Set the logging level for this Application.
+
+        Args:
+            level: The logging level to set. Should be one of the logging module's levels.
+        """
+        if not isinstance(level, int):
+            raise TypeError('Logging level must be an integer.')
+        self.logger.setLevel(level)
+        self._log_handler.setLevel(level)
+        self.logger.info(f'Logging level set to {logging.getLevelName(level)}')
+        self.runtime_info.set('logging_level', level)
 
     def start(self) -> None:
         """Start the application."""

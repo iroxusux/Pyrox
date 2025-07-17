@@ -4,7 +4,6 @@ from __future__ import annotations
 import importlib
 
 from pyrox.applications.app import App, AppTask
-from pyrox.applications import ladder
 from pyrox.models.gui import ladder as ladder_gui
 
 from pyrox.models.plc import Routine
