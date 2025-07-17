@@ -8,7 +8,7 @@ from tkinter import Event, PanedWindow
 
 
 from ..models import Application, ApplicationTask, HashList
-from ..models.plc import BASE_FILES, Controller, PlcObject, TagEndpoint
+from ..models import plc
 from .general_motors.gm import GmController
 from ..models.gui import (
     ContextMenu,
@@ -24,6 +24,92 @@ from ..models.gui.plc import PlcGuiObject
 
 from ..services.dictionary_services import remove_none_values_inplace
 from ..services.plc_services import dict_to_xml_file, l5x_dict_from_file
+
+
+class AppOrganizerContextMenu(ContextMenu):
+    """Context menu for the organizer window.
+
+    This class extends `ContextMenu` to provide a context menu specific to the organizer window.
+    It can be used to add, remove, or manage tasks and other elements in the organizer.
+    """
+
+    def __init__(self,
+                 controller: Optional[plc.Controller] = None,
+                 parent: AppOrganizer = None,
+                 **kwargs):
+        super().__init__(tearoff=0,
+                         **kwargs)
+        self._controller: Optional[plc.Controller] = controller
+        self._parent: Optional[AppOrganizer] = parent
+        self.logger.info('Organizer context menu initialized.')
+        self.on_refresh: list[callable] = []
+
+    @property
+    def _default_menu_items(self) -> list[MenuItem]:
+        """Default menu items for the organizer context menu."""
+        return [
+            MenuItem(label='Refresh',
+                     command=self._on_refresh),
+        ]
+
+    def _on_modify_plc_object(self,
+                              item: str = None,
+                              plc_object: plc.PlcObject = None) -> None:
+        """Handle the modification of a PlcObject in the context menu."""
+        frame = ObjectEditTaskFrame(master=self._parent.application.workspace,
+                                    object_=plc_object,
+                                    properties=PlcGuiObject.from_data(plc_object).gui_interface_attributes())
+        self._parent.application.register_frame(frame, raise_=True)
+
+    def _on_refresh(self):
+        [x() for x in self.on_refresh if callable(x)]
+
+    def compile_menu_from_item(self,
+                               event: Event,
+                               treeview_item: str,
+                               hash_item: Any,
+                               lookup_attribute: str) -> list[MenuItem]:
+        menu_list = self._default_menu_items
+
+        if None in [treeview_item, hash_item, lookup_attribute]:
+            return menu_list
+
+        clicked_obj = None
+        plc_obj = None
+
+        if isinstance(hash_item, (list, HashList)):
+            clicked_obj = hash_item[lookup_attribute]
+        elif isinstance(hash_item, dict):
+            clicked_obj = hash_item.get(lookup_attribute, None)
+        elif isinstance(hash_item, PlcGuiObject):
+            clicked_obj = getattr(hash_item, lookup_attribute, None)
+        else:
+            clicked_obj_parent = self._parent.tree.parent(treeview_item)
+            if not clicked_obj_parent:
+                return menu_list
+            return self._parent.tree.on_right_click(event=event,
+                                                    treeview_item=clicked_obj_parent,)
+
+        if isinstance(hash_item, PyroxGuiObject):
+            plc_obj = clicked_obj if isinstance(clicked_obj, plc.PlcObject) else hash_item.pyrox_object
+        elif isinstance(clicked_obj, plc.PlcObject):
+            plc_obj = clicked_obj
+
+        if isinstance(plc_obj, plc.PlcObject):
+            menu_list.insert(0, MenuItem(label='Modify',
+                                         command=lambda: self._on_modify_plc_object(item=hash_item, plc_object=plc_obj)))
+
+        if isinstance(plc_obj, plc.Routine):
+            menu_list.insert(0, MenuItem(label='Edit Routine',
+                                         command=lambda: self.logger.info(f'Editing routine: {plc_obj.name}')))
+
+        if isinstance(plc_obj, plc.TagEndpoint):
+            task: 'AppTask' = self._parent.application.tasks.get('PlcIoTask')
+            if task and task.running:
+                menu_list.insert(0, MenuItem(label='Insert to Watch Table',
+                                             command=lambda x=plc_obj: task.add_tag_to_watch_table(x.name)))
+
+        return menu_list
 
 
 class AppFrameWithTreeViewAndScrollbar(FrameWithTreeViewAndScrollbar):
@@ -49,98 +135,17 @@ class AppOrganizer(AppFrameWithTreeViewAndScrollbar):
     It is intended to be used as a part of the main application frame.
     """
 
-    class OrganizerContextMenu(ContextMenu):
-        """Context menu for the organizer window.
-
-        This class extends `ContextMenu` to provide a context menu specific to the organizer window.
-        It can be used to add, remove, or manage tasks and other elements in the organizer.
-        """
-
-        def __init__(self,
-                     controller: Optional[Controller] = None,
-                     parent: AppOrganizer = None,
-                     **kwargs):
-            super().__init__(tearoff=0,
-                             **kwargs)
-            self._controller: Optional[Controller] = controller
-            self._parent: Optional[AppOrganizer] = parent
-            self.logger.info('Organizer context menu initialized.')
-            self.on_refresh: list[callable] = []
-
-        @property
-        def _default_menu_items(self) -> list[MenuItem]:
-            """Default menu items for the organizer context menu."""
-            return [
-                MenuItem(label='Refresh',
-                         command=self._on_refresh),
-            ]
-
-        def _on_modify_plc_object(self,
-                                  item: str = None,
-                                  plc_object: PlcObject = None) -> None:
-            """Handle the modification of a PlcObject in the context menu."""
-            frame = ObjectEditTaskFrame(master=self._parent.application.workspace,
-                                        object_=plc_object,
-                                        properties=PlcGuiObject.from_data(plc_object).gui_interface_attributes())
-            self._parent.application.register_frame(frame, raise_=True)
-
-        def _on_refresh(self):
-            [x() for x in self.on_refresh if callable(x)]
-
-        def compile_menu_from_item(self,
-                                   event: Event,
-                                   treeview_item: str,
-                                   hash_item: Any,
-                                   lookup_attribute: str) -> list[MenuItem]:
-            menu_list = self._default_menu_items
-
-            if None in [treeview_item, hash_item, lookup_attribute]:
-                return menu_list
-
-            clicked_obj = None
-            plc_obj = None
-
-            if isinstance(hash_item, (list, HashList)):
-                clicked_obj = hash_item[lookup_attribute]
-            elif isinstance(hash_item, dict):
-                clicked_obj = hash_item.get(lookup_attribute, None)
-            elif isinstance(hash_item, PlcGuiObject):
-                clicked_obj = getattr(hash_item, lookup_attribute, None)
-            else:
-                clicked_obj_parent = self._parent.tree.parent(treeview_item)
-                if not clicked_obj_parent:
-                    return menu_list
-                return self._parent.tree.on_right_click(event=event,
-                                                        treeview_item=clicked_obj_parent,)
-
-            if isinstance(hash_item, PyroxGuiObject):
-                plc_obj = clicked_obj if isinstance(clicked_obj, PlcObject) else hash_item.pyrox_object
-            elif isinstance(clicked_obj, PlcObject):
-                plc_obj = clicked_obj
-
-            if isinstance(plc_obj, PlcObject):
-                menu_list.insert(0, MenuItem(label='Modify',
-                                             command=lambda: self._on_modify_plc_object(item=hash_item, plc_object=plc_obj)))
-
-            if isinstance(plc_obj, TagEndpoint):
-                task: 'AppTask' = self._parent.application.tasks.get('PlcIoTask')
-                if task and task.running:
-                    menu_list.insert(0, MenuItem(label='Insert to Watch Table',
-                                                 command=lambda x=plc_obj: task.add_tag_to_watch_table(x.name)))
-
-            return menu_list
-
     def __init__(self,
                  *args,
                  application: Optional[App] = None,
-                 controller: Optional[Controller] = None,
+                 controller: Optional[plc.Controller] = None,
                  **kwargs):
         super().__init__(*args,
-                         context_menu=self.OrganizerContextMenu(controller=controller,
-                                                                parent=self),
+                         context_menu=AppOrganizerContextMenu(controller=controller,
+                                                              parent=self),
                          **kwargs)
         self._application: Optional[App] = application
-        self._controller: Optional[Controller] = controller
+        self._controller: Optional[plc.Controller] = controller
         self.logger.info('Organizer initialized.')
 
     @property
@@ -156,7 +161,7 @@ class AppOrganizer(AppFrameWithTreeViewAndScrollbar):
         return self._application
 
     @property
-    def context_menu(self) -> OrganizerContextMenu:
+    def context_menu(self) -> AppOrganizerContextMenu:
         """Context menu for this organizer.
 
         .. ------------------------------------------------------------
@@ -168,7 +173,7 @@ class AppOrganizer(AppFrameWithTreeViewAndScrollbar):
         return self.tree.context_menu
 
     @property
-    def controller(self) -> Optional[Controller]:
+    def controller(self) -> Optional[plc.Controller]:
         """Controller associated with this organizer.
 
         .. ------------------------------------------------------------
@@ -195,7 +200,7 @@ class App(Application):
                          add_to_globals=True,
                          **kwargs)
 
-        self._controller: Optional[Controller] = None
+        self._controller: Optional[plc.Controller] = None
         self._organizer: Optional[AppOrganizer] = None
         self._log_window: Optional[LogWindow] = None
         self._paned_window: Optional[PanedWindow] = None
@@ -204,7 +209,7 @@ class App(Application):
         self.logger.info('Pyrox Application initialized.')
 
     @property
-    def controller(self) -> Optional[Controller]:
+    def controller(self) -> Optional[plc.Controller]:
         """Allen Bradley L5X Controller Object associated with this :class:`Model`.
 
         .. ------------------------------------------------------------
@@ -217,8 +222,8 @@ class App(Application):
 
     @controller.setter
     def controller(self,
-                   value: Controller):
-        if not isinstance(value, Controller) and value is not None:
+                   value: plc.Controller):
+        if not isinstance(value, plc.Controller) and value is not None:
             raise TypeError(f'Expected Controller, got {type(value)}')
         self._controller = value
         if self._controller:
@@ -254,7 +259,7 @@ class App(Application):
         return self._workspace
 
     def _load_controller(self,
-                         file_location: str) -> Controller:
+                         file_location: str) -> plc.Controller:
         """Load a controller from a file location.
         This private method also manages the ux of loading a controller.
         .. ------------------------------------------------------------
@@ -269,7 +274,7 @@ class App(Application):
         self.set_app_state_busy()
         self.logger.info('Loading controller from file: %s', file_location)
         try:
-            return Controller(l5x_dict_from_file(file_location))
+            return plc.Controller(l5x_dict_from_file(file_location))
         except KeyError as e:
             self.logger.error('error parsing controller from file %s: %s', file_location, e)
         finally:
@@ -296,8 +301,8 @@ class App(Application):
         frame.shown_var.set(True)
 
     def _transform_controller(self,
-                              controller: Controller,
-                              sub_class: Optional[type[Controller]] = None) -> Controller:
+                              controller: plc.Controller,
+                              sub_class: Optional[type[plc.Controller]] = None) -> plc.Controller:
         """Transform a controller to a specific subclass.
         This method will transform a controller to a specific subclass if provided.
         .. ------------------------------------------------------------
@@ -315,11 +320,11 @@ class App(Application):
             self.set_app_state_busy()
             if not sub_class:
                 return controller
-            if not issubclass(sub_class, Controller):
+            if not issubclass(sub_class, plc.Controller):
                 raise TypeError(f'Subclass must be a Controller subclass, got {sub_class}')
             if isinstance(controller, sub_class):
                 return controller
-            if not isinstance(controller, Controller):
+            if not isinstance(controller, plc.Controller):
                 raise TypeError(f'Controller must be a Controller instance, got {type(controller)}')
             if not controller.root_meta_data:
                 raise ValueError('Controller must have root_meta_data to transform.')
@@ -435,7 +440,7 @@ class App(Application):
     def new_controller(self) -> None:
         """Create a new controller instance."""
         self.logger.info('Creating new controller instance...')
-        ctrl = Controller(l5x_dict_from_file(BASE_FILES[0]))
+        ctrl = plc.Controller(l5x_dict_from_file(plc.BASE_FILES[0]))
         self.logger.info('New controller instance created: %s', ctrl.name)
         self.controller = ctrl
         self.logger.info('Controller instance set successfully.')
@@ -584,7 +589,7 @@ class AppTask(ApplicationTask):
         return super().application
 
     @property
-    def controller(self) -> Optional[Controller]:
+    def controller(self) -> Optional[plc.Controller]:
         """Controller instance associated with this task.
 
         .. ------------------------------------------------------------

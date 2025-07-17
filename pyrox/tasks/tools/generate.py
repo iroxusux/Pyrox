@@ -2,12 +2,9 @@
     """
 from __future__ import annotations
 
-
 from pyrox.applications.app import App, AppTask
 from pyrox.models.plc import Controller, Program, Routine
 from pyrox.applications.general_motors.gm import GmController
-
-
 import json
 from tkinter import Menu
 

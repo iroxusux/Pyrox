@@ -1839,7 +1839,9 @@ class Routine(NamedPlcObject):
                  meta_data: dict = None,
                  controller: Controller = None,
                  program: Optional[Program] = None,
-                 aoi: Optional[AddOnInstruction] = None):
+                 aoi: Optional[AddOnInstruction] = None,
+                 name: Optional[str] = None,
+                 description: Optional[str] = None):
         """type class for plc Routine
 
         Args:
@@ -1848,7 +1850,9 @@ class Routine(NamedPlcObject):
         """
 
         super().__init__(meta_data=meta_data or l5x_dict_from_file(PLC_ROUT_FILE)['Routine'],
-                         controller=controller)
+                         controller=controller,
+                         name=name,
+                         description=description)
 
         self._program: Optional[Program] = program
         self._aoi: Optional[AddOnInstruction] = aoi

@@ -1,14 +1,16 @@
 """Ladder Logic Editor components for Pyrox framework."""
 from __future__ import annotations
 
+from dataclasses import dataclass
+from enum import Enum
+import importlib
 import tkinter as tk
 from tkinter import ttk, Canvas, Frame, Scrollbar
 from typing import Optional, Dict, List, Callable, Any
-from dataclasses import dataclass
-from enum import Enum
+
 
 from .frames import PyroxFrame, TaskFrame
-from ..plc.plc import Routine, Rung, LogixInstruction, Program, Controller
+from ..plc import plc
 from ..abc.meta import Loggable
 
 
@@ -30,7 +32,7 @@ class LadderElement:
     width: int
     height: int
     canvas_id: int
-    instruction: Optional[LogixInstruction] = None
+    instruction: Optional[plc.LogixInstruction] = None
     text: str = ""
     is_selected: bool = False
 
@@ -47,8 +49,14 @@ class LadderCanvas(Canvas, Loggable):
     BLOCK_WIDTH = 80
     BLOCK_HEIGHT = 40
 
-    def __init__(self, master, routine: Optional[Routine] = None, **kwargs):
-        Canvas.__init__(self, master, bg='white', **kwargs)
+    def __init__(self,
+                 master,
+                 routine: Optional[plc.Routine] = None,
+                 **kwargs):
+        Canvas.__init__(self,
+                        master,
+                        bg=kwargs.pop('bg', 'white'),
+                        **kwargs)
         Loggable.__init__(self)
 
         self._routine = routine
@@ -72,12 +80,12 @@ class LadderCanvas(Canvas, Loggable):
             self._draw_routine()
 
     @property
-    def routine(self) -> Optional[Routine]:
+    def routine(self) -> Optional[plc.Routine]:
         """Get the current routine being edited."""
         return self._routine
 
     @routine.setter
-    def routine(self, value: Optional[Routine]):
+    def routine(self, value: Optional[plc.Routine]):
         """Set the routine to edit."""
         self._routine = value
         self.clear_canvas()
@@ -115,6 +123,7 @@ class LadderCanvas(Canvas, Loggable):
 
     def _draw_routine(self):
         """Draw the entire routine on the canvas."""
+        self.clear_canvas()
         if not self._routine or not self._routine.rungs:
             self._draw_empty_rung(0)
             return
@@ -128,7 +137,7 @@ class LadderCanvas(Canvas, Loggable):
         # Update scroll region
         self.configure(scrollregion=self.bbox("all"))
 
-    def _draw_rung(self, rung: Rung, rung_number: int, y_pos: int):
+    def _draw_rung(self, rung: plc.Rung, rung_number: int, y_pos: int):
         """Draw a single rung."""
         # Draw rung number
         self.create_text(10, y_pos + self.RUNG_HEIGHT // 2,
@@ -174,7 +183,7 @@ class LadderCanvas(Canvas, Loggable):
         self.create_line(rail_x, center_y, right_rail_x, center_y,
                          width=2, tags=f"rung_{rung_number}")
 
-    def _draw_rung_instructions(self, instructions: List[LogixInstruction],
+    def _draw_rung_instructions(self, instructions: List[plc.LogixInstruction],
                                 rung_number: int, y_pos: int, start_x: int):
         """Draw instructions for a rung."""
         current_x = start_x
@@ -185,10 +194,10 @@ class LadderCanvas(Canvas, Loggable):
             if element:
                 current_x += element.width + 10
 
-    def _draw_instruction(self, instruction: LogixInstruction, x: int, y: int,
+    def _draw_instruction(self, instruction: plc.LogixInstruction, x: int, y: int,
                           rung_number: int) -> Optional[LadderElement]:
         """Draw a single instruction."""
-        inst_type = instruction.instruction_type.lower()
+        inst_type = instruction.instruction_name.lower()
 
         if inst_type in ['xic', 'xio']:  # Contacts
             return self._draw_contact(instruction, x, y, rung_number)
@@ -197,11 +206,11 @@ class LadderCanvas(Canvas, Loggable):
         else:  # Function blocks
             return self._draw_block(instruction, x, y, rung_number)
 
-    def _draw_contact(self, instruction: LogixInstruction, x: int, y: int,
+    def _draw_contact(self, instruction: plc.LogixInstruction, x: int, y: int,
                       rung_number: int) -> LadderElement:
         """Draw a contact instruction."""
         # Determine contact type
-        is_normally_closed = instruction.instruction_type.lower() == 'xio'
+        is_normally_closed = instruction.instruction_name.lower() == 'xio'
 
         # Draw contact symbol
         rect_id = self.create_rectangle(
@@ -248,7 +257,7 @@ class LadderCanvas(Canvas, Loggable):
             text=operand
         )
 
-    def _draw_coil(self, instruction: LogixInstruction, x: int, y: int,
+    def _draw_coil(self, instruction: plc.LogixInstruction, x: int, y: int,
                    rung_number: int) -> LadderElement:
         """Draw a coil instruction."""
         # Draw coil circle
@@ -290,7 +299,7 @@ class LadderCanvas(Canvas, Loggable):
             text=operand
         )
 
-    def _draw_block(self, instruction: LogixInstruction, x: int, y: int,
+    def _draw_block(self, instruction: plc.LogixInstruction, x: int, y: int,
                     rung_number: int) -> LadderElement:
         """Draw a function block instruction."""
         # Draw block rectangle
@@ -417,9 +426,9 @@ class LadderCanvas(Canvas, Loggable):
         """Insert a new contact at given position."""
         # Create new XIC instruction
         from ..plc.plc import LogixInstruction
-        new_instruction = LogixInstruction()
-        new_instruction.instruction_type = 'XIC'
-        new_instruction.operands = ['NewContact']
+        new_instruction = LogixInstruction(meta_data='XIC(NewContact)',
+                                           rung=self._routine.rungs[rung_number] if self._routine else None,
+                                           controller=self._routine.controller if self._routine else None)
 
         # Draw the contact
         element = self._draw_contact(new_instruction, x, y, rung_number)
@@ -451,7 +460,7 @@ class LadderCanvas(Canvas, Loggable):
             self._elements.append(element)
             self._add_instruction_to_rung(new_instruction, rung_number)
 
-    def _add_instruction_to_rung(self, instruction: LogixInstruction, rung_number: int):
+    def _add_instruction_to_rung(self, instruction: plc.LogixInstruction, rung_number: int):
         """Add instruction to the appropriate rung in the routine."""
         if not self._routine or not hasattr(self._routine, 'rungs'):
             return
@@ -476,7 +485,7 @@ class LadderCanvas(Canvas, Loggable):
         finally:
             menu.grab_release()
 
-    def _edit_instruction(self, instruction: LogixInstruction):
+    def _edit_instruction(self, instruction: plc.LogixInstruction):
         """Open instruction editor dialog."""
         from .frames import ValueEditPopup
 
@@ -487,7 +496,7 @@ class LadderCanvas(Canvas, Loggable):
 
         current_value = instruction.operands[0] if instruction.operands else ""
         ValueEditPopup(self, current_value, on_edit_complete,
-                       title=f"Edit {instruction.instruction_type}")
+                       title=f"Edit {instruction.instruction_name}")
 
     def _delete_element(self, element: LadderElement):
         """Delete an element from the canvas and routine."""
@@ -549,10 +558,15 @@ class LadderCanvas(Canvas, Loggable):
 class LadderEditorTaskFrame(TaskFrame):
     """Main task frame for the ladder logic editor."""
 
-    def __init__(self, master, routine: Optional[Routine] = None,
-                 controller: Optional[Controller] = None, **kwargs):
+    def __init__(self,
+                 master,
+                 routine: Optional[plc.Routine] = None,
+                 controller: Optional[plc.Controller] = None,
+                 **kwargs):
         name = f"Ladder Editor - {routine.name if routine else 'New Routine'}"
-        super().__init__(master, name=name, **kwargs)
+        super().__init__(master,
+                         name=name,
+                         **kwargs)
 
         self._routine = routine
         self._controller = controller
@@ -608,8 +622,11 @@ class LadderEditorTaskFrame(TaskFrame):
         editor_frame.pack(fill='both', expand=True)
 
         # Create canvas with scrollbars
-        self._ladder_canvas = LadderCanvas(editor_frame, routine=self._routine,
-                                           bg='white', width=800, height=600)
+        self._ladder_canvas = LadderCanvas(editor_frame,
+                                           routine=self._routine,
+                                           bg='white',
+                                           width=800,
+                                           height=600)
 
         # Vertical scrollbar
         v_scrollbar = tk.Scrollbar(editor_frame, orient='vertical',
@@ -674,12 +691,12 @@ class LadderEditorTaskFrame(TaskFrame):
         self.destroy()
 
     @property
-    def routine(self) -> Optional[Routine]:
+    def routine(self) -> Optional[plc.Routine]:
         """Get the current routine."""
         return self._routine
 
     @routine.setter
-    def routine(self, value: Optional[Routine]):
+    def routine(self, value: Optional[plc.Routine]):
         """Set the routine to edit."""
         self._routine = value
         self._ladder_canvas.routine = value
