@@ -2312,6 +2312,372 @@ class Rung(PlcObject):
 
         return None
 
+    def _find_instruction_index_in_text(self, instruction_text: str, occurrence: int = 0) -> int:
+        """Find the index of an instruction in the text by its occurrence.
+
+        Args:
+            instruction_text (str): The instruction text to find
+            occurrence (int): Which occurrence to find (0-based)
+
+        Returns:
+            int: The index of the instruction
+
+        Raises:
+            ValueError: If instruction not found or occurrence out of range
+        """
+        import re
+        existing_instructions = re.findall(INST_RE_PATTERN, self.text)
+
+        matches = [i for i, inst in enumerate(existing_instructions) if inst == instruction_text]
+
+        if not matches:
+            raise ValueError(f"Instruction '{instruction_text}' not found in rung")
+
+        if occurrence >= len(matches):
+            raise ValueError(f"Occurrence {occurrence} not found. Only {len(matches)} occurrences exist.")
+
+        return matches[occurrence]
+
+    def _rebuild_text_with_instructions(self, original_text: str, new_instructions: List[str]) -> str:
+        """Rebuild the rung text with a new set of instructions while preserving branch structure.
+
+        Args:
+            original_text (str): The original rung text
+            new_instructions (List[str]): The new list of instructions
+
+        Returns:
+            str: The rebuilt text with branch markers preserved
+        """
+        if not original_text:
+            return "".join(new_instructions)
+
+        # Tokenize the original text to preserve branch structure
+        tokens = self._tokenize_rung_text(original_text)
+
+        # Separate instructions from branch markers
+        branch_markers = [token for token in tokens if token in ['[', ']']]
+
+        # Rebuild with new instructions and preserved branch markers
+        if not branch_markers:
+            # No branches, simple reconstruction
+            return "".join(new_instructions)
+        else:
+            # Complex reconstruction preserving branch structure
+            return self._reconstruct_text_with_branches(new_instructions, branch_markers, original_text)
+
+    def _reconstruct_text_with_branches(self, instructions: List[str],
+                                        branch_markers: List[str],
+                                        original_text: str) -> str:
+        """Reconstruct text preserving branch structure.
+
+        This is a complex operation that attempts to maintain the relative positioning
+        of branch markers with the instruction sequence.
+        """
+        # Get original tokens to understand structure
+        original_tokens = self._tokenize_rung_text(original_text)
+
+        # Create a map of instruction positions to branch operations
+        instruction_index = 0
+        result_tokens = []
+
+        for token in original_tokens:
+            if token in ['[', ']']:
+                # Preserve branch markers
+                result_tokens.append(token)
+            else:
+                # Replace with new instruction if available
+                if instruction_index < len(instructions):
+                    result_tokens.append(instructions[instruction_index])
+                    instruction_index += 1
+
+        # Add any remaining instructions at the end
+        while instruction_index < len(instructions):
+            result_tokens.append(instructions[instruction_index])
+            instruction_index += 1
+
+        return "".join(result_tokens)
+
+    def _refresh_internal_structures(self):
+        """Refresh the internal instruction and sequence structures after text changes."""
+        # Clear existing structures
+        self._instructions = []
+        self._rung_sequence = []
+        self._branches = {}
+        self._input_instructions = []
+        self._output_instructions = []
+
+        # Rebuild from updated text
+        if self.text:
+            self._get_instructions()
+            self._parse_rung_sequence()
+
+    def add_instruction(self, instruction_text: str, position: Optional[int] = None):
+        """Add an instruction to this rung at the specified position.
+
+        Args:
+            instruction_text (str): The instruction text to add (e.g., "XIC(Tag1)")
+            position (Optional[int]): Position to insert at. If None, appends to end.
+        """
+        if not instruction_text or not isinstance(instruction_text, str):
+            raise ValueError("Instruction text must be a non-empty string!")
+
+        # Validate instruction format
+        if not re.match(INST_RE_PATTERN, instruction_text):
+            raise ValueError(f"Invalid instruction format: {instruction_text}")
+
+        current_text = self.text or ""
+
+        if not current_text.strip():
+            # Empty rung, just set the instruction
+            self.text = instruction_text
+        else:
+            # Parse existing instructions to find insertion point
+            existing_instructions = re.findall(INST_RE_PATTERN, current_text)
+
+            if position is None or position >= len(existing_instructions):
+                # Append to end
+                self.text = f"{current_text}{instruction_text}"
+            elif position == 0:
+                # Insert at beginning
+                self.text = f"{instruction_text}{current_text}"
+            else:
+                # Insert at specific position
+                updated_instructions = existing_instructions[:]
+                updated_instructions.insert(position, instruction_text)
+
+                # Rebuild the text while preserving branch structure
+                self.text = self._rebuild_text_with_instructions(current_text, updated_instructions)
+
+        # Refresh internal structures
+        self._refresh_internal_structures()
+
+    def remove_instruction(self, instruction: Union[LogixInstruction, str, int],
+                           occurrence: int = 0):
+        """Remove an instruction from this rung.
+
+        Args:
+            instruction: The instruction to remove. Can be:
+                - LogixInstruction object
+                - str: instruction text to remove
+                - int: index of instruction to remove
+            occurrence (int): Which occurrence to remove if there are duplicates (0-based).
+                            Only used when instruction is a string.
+        """
+        if not self.text:
+            raise ValueError("Cannot remove instruction from empty rung!")
+
+        current_text = self.text
+        existing_instructions = re.findall(INST_RE_PATTERN, current_text)
+
+        if not existing_instructions:
+            raise ValueError("No instructions found in rung!")
+
+        # Determine which instruction to remove
+        if isinstance(instruction, LogixInstruction):
+            # Find the instruction by its meta_data
+            instruction_text = instruction.meta_data
+            try:
+                remove_index = self._find_instruction_index_in_text(instruction_text, occurrence)
+            except ValueError:
+                raise ValueError(f"Instruction '{instruction_text}' not found in rung!")
+
+        elif isinstance(instruction, str):
+            # Remove by instruction text
+            try:
+                remove_index = self._find_instruction_index_in_text(instruction, occurrence)
+            except ValueError:
+                raise ValueError(f"Instruction '{instruction}' not found in rung!")
+
+        elif isinstance(instruction, int):
+            # Remove by index
+            if instruction < 0 or instruction >= len(existing_instructions):
+                raise IndexError(f"Instruction index {instruction} out of range!")
+            remove_index = instruction
+        else:
+            raise TypeError("Instruction must be LogixInstruction, str, or int!")
+
+        # Remove the instruction and rebuild text
+        updated_instructions = existing_instructions[:]
+        _ = updated_instructions.pop(remove_index)
+
+        if not updated_instructions:
+            # Last instruction removed, clear the rung
+            self.text = ""
+        else:
+            # Rebuild text with remaining instructions
+            self.text = self._rebuild_text_with_instructions(current_text, updated_instructions)
+
+        # Update internal structures to remove the instruction object
+        if isinstance(instruction, LogixInstruction) and instruction in self._instructions:
+            self._instructions.remove(instruction)
+            # Remove from sequence
+            self._rung_sequence = [elem for elem in self._rung_sequence
+                                   if elem.instruction != instruction]
+
+        # Refresh internal structures
+        self._refresh_internal_structures()
+
+    def replace_instruction(self, old_instruction: Union[LogixInstruction, str, int],
+                            new_instruction_text: str, occurrence: int = 0):
+        """Replace an instruction in this rung.
+
+        Args:
+            old_instruction: The instruction to replace (LogixInstruction, str, or int index)
+            new_instruction_text (str): The new instruction text
+            occurrence (int): Which occurrence to replace if there are duplicates (0-based)
+        """
+        if not new_instruction_text or not isinstance(new_instruction_text, str):
+            raise ValueError("New instruction text must be a non-empty string!")
+
+        # Validate new instruction format
+        import re
+        if not re.match(INST_RE_PATTERN, new_instruction_text):
+            raise ValueError(f"Invalid instruction format: {new_instruction_text}")
+
+        current_text = self.text
+        existing_instructions = re.findall(INST_RE_PATTERN, current_text)
+
+        if not existing_instructions:
+            raise ValueError("No instructions found in rung!")
+
+        # Determine which instruction to replace
+        if isinstance(old_instruction, LogixInstruction):
+            instruction_text = old_instruction.meta_data
+            try:
+                replace_index = self._find_instruction_index_in_text(instruction_text, occurrence)
+            except ValueError:
+                raise ValueError(f"Instruction '{instruction_text}' not found in rung!")
+
+        elif isinstance(old_instruction, str):
+            try:
+                replace_index = self._find_instruction_index_in_text(old_instruction, occurrence)
+            except ValueError:
+                raise ValueError(f"Instruction '{old_instruction}' not found in rung!")
+
+        elif isinstance(old_instruction, int):
+            if old_instruction < 0 or old_instruction >= len(existing_instructions):
+                raise IndexError(f"Instruction index {old_instruction} out of range!")
+            replace_index = old_instruction
+        else:
+            raise TypeError("Old instruction must be LogixInstruction, str, or int!")
+
+        # Replace the instruction
+        updated_instructions = existing_instructions[:]
+        updated_instructions[replace_index] = new_instruction_text
+
+        # Rebuild text with updated instructions
+        self.text = self._rebuild_text_with_instructions(current_text, updated_instructions)
+
+        # Refresh internal structures
+        self._refresh_internal_structures()
+
+    def move_instruction(self, instruction: Union[LogixInstruction, str, int],
+                         new_position: int, occurrence: int = 0):
+        """Move an instruction to a new position in the rung.
+
+        Args:
+            instruction: The instruction to move (LogixInstruction, str, or int index)
+            new_position (int): The new position for the instruction
+            occurrence (int): Which occurrence to move if there are duplicates (0-based)
+        """
+        current_text = self.text
+        import re
+        existing_instructions = re.findall(INST_RE_PATTERN, current_text)
+
+        if not existing_instructions:
+            raise ValueError("No instructions found in rung!")
+
+        if new_position < 0 or new_position >= len(existing_instructions):
+            raise IndexError(f"New position {new_position} out of range!")
+
+        # Find the instruction to move
+        if isinstance(instruction, LogixInstruction):
+            instruction_text = instruction.meta_data
+            try:
+                old_index = self._find_instruction_index_in_text(instruction_text, occurrence)
+            except ValueError:
+                raise ValueError(f"Instruction '{instruction_text}' not found in rung!")
+
+        elif isinstance(instruction, str):
+            try:
+                old_index = self._find_instruction_index_in_text(instruction, occurrence)
+            except ValueError:
+                raise ValueError(f"Instruction '{instruction}' not found in rung!")
+
+        elif isinstance(instruction, int):
+            if instruction < 0 or instruction >= len(existing_instructions):
+                raise IndexError(f"Instruction index {instruction} out of range!")
+            old_index = instruction
+        else:
+            raise TypeError("Instruction must be LogixInstruction, str, or int!")
+
+        if old_index == new_position:
+            return  # No move needed
+
+        # Move the instruction
+        updated_instructions = existing_instructions[:]
+        moved_instruction = updated_instructions.pop(old_index)
+        updated_instructions.insert(new_position, moved_instruction)
+
+        # Rebuild text with reordered instructions
+        self.text = self._rebuild_text_with_instructions(current_text, updated_instructions)
+
+        # Refresh internal structures
+        self._refresh_internal_structures()
+
+    def get_instruction_count(self) -> int:
+        """Get the total number of instructions in this rung."""
+        return len(self.instructions)
+
+    def get_instruction_at_position(self, position: int) -> Optional[LogixInstruction]:
+        """Get the instruction at a specific position.
+
+        Args:
+            position (int): The position index
+
+        Returns:
+            Optional[LogixInstruction]: The instruction at that position, or None
+        """
+        if 0 <= position < len(self.instructions):
+            return self.instructions[position]
+        return None
+
+    def find_instruction_positions(self, instruction_text: str) -> List[int]:
+        """Find all positions of a specific instruction in the rung.
+
+        Args:
+            instruction_text (str): The instruction text to find
+
+        Returns:
+            List[int]: List of positions where the instruction appears
+        """
+        import re
+        existing_instructions = re.findall(INST_RE_PATTERN, self.text) if self.text else []
+        return [i for i, inst in enumerate(existing_instructions) if inst == instruction_text]
+
+    def has_instruction(self, instruction_text: str) -> bool:
+        """Check if the rung contains a specific instruction.
+
+        Args:
+            instruction_text (str): The instruction text to check for
+
+        Returns:
+            bool: True if the instruction exists in the rung
+        """
+        return len(self.find_instruction_positions(instruction_text)) > 0
+
+    def get_instruction_summary(self) -> Dict[str, int]:
+        """Get a summary of instruction types and their counts.
+
+        Returns:
+            Dict[str, int]: Dictionary mapping instruction names to their counts
+        """
+        summary = {}
+        for instruction in self.instructions:
+            inst_name = instruction.instruction_name
+            summary[inst_name] = summary.get(inst_name, 0) + 1
+        return summary
+
     def get_execution_sequence(self) -> List[Dict]:
         """Get the logical execution sequence of the rung."""
         sequence = []

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 
 import unittest
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 
 from ..abc.list import HashList
@@ -29,6 +29,7 @@ from .plc import (
     PlcObject,
     Program,
     Routine,
+    RungElementType,
     Rung,
     Tag,
 )
@@ -969,6 +970,675 @@ class TestRung(unittest.TestCase):
         self.assertIsInstance(report, ControllerReportItem)
         self.assertTrue(isinstance(report.pass_fail, bool))
         self.assertIsInstance(report.test_notes, list)
+
+    def test_parse_rung_sequence_empty_text(self):
+        """Test parsing with empty rung text."""
+        self.rung.text = ""
+        self.rung._parse_rung_sequence()
+        self.assertEqual(len(self.rung._rung_sequence), 0)
+        self.assertEqual(len(self.rung._branches), 0)
+
+    def test_parse_rung_sequence_no_instructions(self):
+        """Test parsing with text but no valid instructions."""
+        self.rung.text = "Some random text without instructions"
+        self.rung._parse_rung_sequence()
+        self.assertEqual(len(self.rung._rung_sequence), 0)
+        self.assertEqual(len(self.rung._branches), 0)
+
+    def test_parse_rung_sequence_simple_instructions(self):
+        """Test parsing simple instruction sequence without branches."""
+        self.rung.text = "XIC(Tag1)XIO(Tag2)OTE(Tag3)"
+        self.rung._parse_rung_sequence()
+
+        # Should have 3 instruction elements
+        self.assertEqual(len(self.rung._rung_sequence), 3)
+        self.assertEqual(len(self.rung._branches), 0)
+
+        # Check sequence elements
+        for i, element in enumerate(self.rung._rung_sequence):
+            self.assertEqual(element.element_type, RungElementType.INSTRUCTION)
+            self.assertEqual(element.position, i)
+            self.assertIsNotNone(element.instruction)
+
+    def test_parse_rung_sequence_with_simple_branch(self):
+        """Test parsing instruction sequence with a simple branch."""
+        self.rung.text = "XIC(Tag1)[XIC(Tag2)XIO(Tag3)]OTE(Tag4)"
+        self.rung._parse_rung_sequence()
+
+        # Should have: XIC(Tag1), BRANCH_START, XIC(Tag2), XIO(Tag3), BRANCH_END, OTE(Tag4)
+        self.assertEqual(len(self.rung._rung_sequence), 6)
+        self.assertEqual(len(self.rung._branches), 1)
+
+        # Check sequence structure
+        expected_types = [
+            RungElementType.INSTRUCTION,    # XIC(Tag1)
+            RungElementType.BRANCH_START,   # [
+            RungElementType.INSTRUCTION,    # XIC(Tag2)
+            RungElementType.INSTRUCTION,    # XIO(Tag3)
+            RungElementType.BRANCH_END,     # ]
+            RungElementType.INSTRUCTION     # OTE(Tag4)
+        ]
+
+        for i, (element, expected_type) in enumerate(zip(self.rung._rung_sequence, expected_types)):
+            self.assertEqual(element.element_type, expected_type,
+                             f"Element {i} should be {expected_type}, got {element.element_type}")
+            self.assertEqual(element.position, i)
+
+        # Check branch structure
+        branch_id = list(self.rung._branches.keys())[0]
+        branch = self.rung._branches[branch_id]
+
+        self.assertEqual(branch.branch_id, branch_id)
+        self.assertEqual(branch.start_position, 1)  # Position of BRANCH_START
+        self.assertEqual(branch.end_position, 4)    # Position of BRANCH_END
+        self.assertEqual(len(branch.instructions), 2)  # XIC(Tag2) and XIO(Tag3)
+
+    def test_parse_rung_sequence_with_nested_branches(self):
+        """Test parsing instruction sequence with nested branches."""
+        self.rung.text = "XIC(Tag1) [XIC(Tag2) [XIO(Tag3)] XIC(Tag4)] OTE(Tag5)"
+        self.rung._parse_rung_sequence()
+
+        # Should have multiple branch levels
+        self.assertEqual(len(self.rung._branches), 2)  # Two branches (outer and inner)
+        self.assertGreater(len(self.rung._rung_sequence), 5)  # Multiple elements including branch markers
+
+    def test_parse_rung_sequence_with_array_references(self):
+        """Test parsing that correctly handles array references (brackets in instruction operands)."""
+        self.rung.text = "XIC(Array[0]) [XIO(Data[1].Member)] OTE(Output[2])"
+        self.rung._parse_rung_sequence()
+
+        # Should correctly identify one branch (not confused by array brackets)
+        self.assertEqual(len(self.rung._branches), 1)
+
+        # Check that array references are preserved in instructions
+        instruction_elements = [e for e in self.rung._rung_sequence if e.element_type == RungElementType.INSTRUCTION]
+        self.assertEqual(len(instruction_elements), 3)
+
+    def test_parse_rung_sequence_multiple_branches(self):
+        """Test parsing with multiple separate branches."""
+        self.rung.text = "XIC(Tag1) [XIC(Tag2)] XIC(Tag3) [XIO(Tag4)] OTE(Tag5)"
+        self.rung._parse_rung_sequence()
+
+        # Should have 2 separate branches
+        self.assertEqual(len(self.rung._branches), 2)
+
+        # Check branch IDs are different
+        branch_ids = list(self.rung._branches.keys())
+        self.assertNotEqual(branch_ids[0], branch_ids[1])
+
+    def test_parse_rung_sequence_unmatched_brackets(self):
+        """Test parsing with unmatched brackets (should handle gracefully)."""
+        self.rung.text = "XIC(Tag1) [XIC(Tag2) OTE(Tag3)"  # Missing closing bracket
+
+        # Should not raise an exception
+        self.rung._parse_rung_sequence()
+
+        # Should still create a branch even if not properly closed
+        self.assertGreaterEqual(len(self.rung._branches), 0)
+
+    def test_tokenize_rung_text_simple(self):
+        """Test the _tokenize_rung_text method with simple text."""
+        text = "XIC(Tag1) XIO(Tag2) OTE(Tag3)"
+        tokens = self.rung._tokenize_rung_text(text)
+
+        expected_tokens = ["XIC(Tag1)", "XIO(Tag2)", "OTE(Tag3)"]
+        self.assertEqual(tokens, expected_tokens)
+
+    def test_tokenize_rung_text_with_branches(self):
+        """Test the _tokenize_rung_text method with branch markers."""
+        text = "XIC(Tag1) [XIC(Tag2)] OTE(Tag3)"
+        tokens = self.rung._tokenize_rung_text(text)
+
+        expected_tokens = ["XIC(Tag1)", "[", "XIC(Tag2)", "]", "OTE(Tag3)"]
+        self.assertEqual(tokens, expected_tokens)
+
+    def test_tokenize_rung_text_with_array_brackets(self):
+        """Test tokenization correctly handles array brackets vs branch brackets."""
+        text = "XIC(Array[0]) [XIO(Data[1])] OTE(Output[2])"
+        tokens = self.rung._tokenize_rung_text(text)
+
+        expected_tokens = ["XIC(Array[0])", "[", "XIO(Data[1])", "]", "OTE(Output[2])"]
+        self.assertEqual(tokens, expected_tokens)
+
+    def test_build_sequence_from_tokens(self):
+        """Test the _build_sequence_from_tokens method."""
+        self.rung.text = "XIC(Tag1) [XIC(Tag2)] OTE(Tag3)"
+        tokens = self.rung._tokenize_rung_text(self.rung.text)
+
+        # Reset sequence and branches
+        self.rung._rung_sequence = []
+        self.rung._branches = {}
+
+        self.rung._build_sequence_from_tokens(tokens)
+
+        # Verify the sequence was built correctly
+        self.assertEqual(len(self.rung._rung_sequence), 5)  # 3 instructions + 2 branch markers
+        self.assertEqual(len(self.rung._branches), 1)
+
+    def test_find_instruction_by_text_exact_match(self):
+        """Test _find_instruction_by_text with exact match."""
+        # Mock instructions
+        self.rung.text = "XIC(Tag1)OTE(Tag2)"
+        instr1 = next((x for x in self.rung.instructions if x.meta_data == "XIC(Tag1)"), None)
+        instr2 = next((x for x in self.rung.instructions if x.meta_data == "OTE(Tag2)"), None)
+
+        # Test exact match
+        result = self.rung._find_instruction_by_text("XIC(Tag1)", 0)
+        self.assertEqual(result, instr1)
+
+        result = self.rung._find_instruction_by_text("OTE(Tag2)", 1)
+        self.assertEqual(result, instr2)
+
+    def test_find_instruction_by_text_fallback_index(self):
+        """Test _find_instruction_by_text fallback to index when no exact match."""
+        # Mock instructions
+        self.rung.text = "XIC(Tag1)OTE(Tag2)"
+        instr1 = next((x for x in self.rung.instructions if x.meta_data == "XIC(Tag1)"), None)
+        instr2 = next((x for x in self.rung.instructions if x.meta_data == "OTE(Tag2)"), None)
+
+        # Test fallback to index when no exact match
+        result = self.rung._find_instruction_by_text("NonExistent", 0)
+        self.assertEqual(result, instr1)
+
+        result = self.rung._find_instruction_by_text("NonExistent", 1)
+        self.assertEqual(result, instr2)
+
+    def test_find_instruction_by_text_invalid_index(self):
+        """Test _find_instruction_by_text with invalid index."""
+        # Mock instructions
+        self.rung.text = "XIC(Tag1)OTE(Tag2)"
+
+        # Test invalid index
+        result = self.rung._find_instruction_by_text("NonExistent", 5)
+        self.assertIsNone(result)
+
+    def test_add_instruction_empty_rung(self):
+        """Test adding instruction to empty rung."""
+        self.rung.text = ""
+
+        self.rung.add_instruction("XIC(Tag1)")
+
+        self.assertEqual(self.rung.text, "XIC(Tag1)")
+        self.assertEqual(len(self.rung.instructions), 1)
+
+    def test_add_instruction_invalid_format(self):
+        """Test adding instruction with invalid format."""
+        with self.assertRaises(ValueError) as context:
+            self.rung.add_instruction("InvalidInstruction")
+
+        self.assertIn("Invalid instruction format", str(context.exception))
+
+    def test_add_instruction_empty_string(self):
+        """Test adding empty instruction string."""
+        with self.assertRaises(ValueError) as context:
+            self.rung.add_instruction("")
+
+        self.assertIn("must be a non-empty string", str(context.exception))
+
+    def test_add_instruction_non_string(self):
+        """Test adding non-string instruction."""
+        with self.assertRaises(ValueError) as context:
+            self.rung.add_instruction(123)
+
+        self.assertIn("must be a non-empty string", str(context.exception))
+
+    def test_add_instruction_append_to_end(self):
+        """Test adding instruction to end of existing rung."""
+        self.rung.text = "XIC(Tag1)XIO(Tag2)"
+
+        self.rung.add_instruction("OTE(Tag3)")
+
+        self.assertEqual(self.rung.text, "XIC(Tag1)XIO(Tag2)OTE(Tag3)")
+
+    def test_add_instruction_at_beginning(self):
+        """Test adding instruction at beginning."""
+        self.rung.text = "XIC(Tag1)XIO(Tag2)OTE(Tag3)"
+
+        self.rung.add_instruction("XIC(NewTag)", position=0)
+
+        self.assertEqual(self.rung.text, "XIC(NewTag)XIC(Tag1)XIO(Tag2)OTE(Tag3)")
+
+    def test_add_instruction_at_middle_position(self):
+        """Test adding instruction at middle position."""
+        self.rung.text = "XIC(Tag1)XIO(Tag2)OTE(Tag3)"
+        self.rung.add_instruction("XIC(NewTag)", position=1)
+        self.assertEqual(self.rung.text, "XIC(Tag1)XIC(NewTag)XIO(Tag2)OTE(Tag3)")
+
+    def test_add_instruction_position_out_of_range(self):
+        """Test adding instruction with position beyond range."""
+        self.rung.text = "XIC(Tag1)XIO(Tag2)"
+
+        self.rung.add_instruction("OTE(Tag3)", position=10)
+
+        # Should append to end
+        self.assertEqual(self.rung.text, "XIC(Tag1)XIO(Tag2)OTE(Tag3)")
+
+    def test_remove_instruction_empty_rung(self):
+        """Test removing instruction from empty rung."""
+        self.rung.text = ""
+
+        with self.assertRaises(ValueError) as context:
+            self.rung.remove_instruction("XIC(Tag1)")
+
+        self.assertIn("Cannot remove instruction from empty rung", str(context.exception))
+
+    def test_remove_instruction_no_instructions(self):
+        """Test removing instruction when no instructions exist."""
+        self.rung.text = "Some text with no instructions"
+
+        with self.assertRaises(ValueError) as context:
+            self.rung.remove_instruction("XIC(Tag1)")
+
+        self.assertIn("No instructions found in rung", str(context.exception))
+
+    def test_remove_instruction_by_string(self):
+        """Test removing instruction by string."""
+        self.rung.text = "XIC(Tag1)XIO(Tag2)OTE(Tag3)"
+        self.rung.remove_instruction("XIO(Tag2)")
+        self.assertEqual(self.rung.text, "XIC(Tag1)OTE(Tag3)")
+
+    def test_remove_instruction_by_index(self):
+        """Test removing instruction by index."""
+        self.rung.text = "XIC(Tag1)XIO(Tag2)OTE(Tag3)"
+        self.rung.remove_instruction(1)  # Remove middle instruction
+        self.assertEqual(self.rung.text, "XIC(Tag1)OTE(Tag3)")
+
+    def test_remove_instruction_by_logix_instruction(self):
+        """Test removing instruction by LogixInstruction object."""
+        self.rung.text = "XIC(Tag1)XIO(Tag2)OTE(Tag3)"
+
+        # Mock instruction object
+        mock_instruction = MagicMock(spec=LogixInstruction)
+        mock_instruction.meta_data = "XIO(Tag2)"
+        self.rung.remove_instruction(mock_instruction)
+        self.assertEqual(self.rung.text, "XIC(Tag1)OTE(Tag3)")
+
+    def test_remove_instruction_index_out_of_range(self):
+        """Test removing instruction with index out of range."""
+        self.rung.text = "XIC(Tag1)XIO(Tag2)"
+
+        with self.assertRaises(IndexError) as context:
+            self.rung.remove_instruction(5)
+
+        self.assertIn("out of range", str(context.exception))
+
+    def test_remove_instruction_not_found(self):
+        """Test removing instruction that doesn't exist."""
+        self.rung.text = "XIC(Tag1)XIO(Tag2)"
+
+        with self.assertRaises(ValueError) as context:
+            self.rung.remove_instruction("XIC(NonExistent)")
+
+        self.assertIn("not found in rung", str(context.exception))
+
+    def test_remove_instruction_invalid_type(self):
+        """Test removing instruction with invalid type."""
+        with self.assertRaises(TypeError) as context:
+            self.rung.remove_instruction(12.5)
+
+        self.assertIn("must be LogixInstruction, str, or int", str(context.exception))
+
+    def test_remove_last_instruction(self):
+        """Test removing the last instruction clears the rung."""
+        self.rung.text = "XIC(Tag1)"
+
+        self.rung.remove_instruction("XIC(Tag1)")
+
+        self.assertEqual(self.rung.text, "")
+
+    def test_replace_instruction_by_string(self):
+        """Test replacing instruction by string."""
+        self.rung.text = "XIC(Tag1)XIO(Tag2)OTE(Tag3)"
+        self.rung.replace_instruction("XIO(Tag2)", "XIC(NewTag)")
+        self.assertEqual(self.rung.text, "XIC(Tag1)XIC(NewTag)OTE(Tag3)")
+
+    def test_replace_instruction_by_index(self):
+        """Test replacing instruction by index."""
+        self.rung.text = "XIC(Tag1)XIO(Tag2)OTE(Tag3)"
+        self.rung.replace_instruction(1, "XIC(NewTag)")
+        self.assertEqual(self.rung.text, "XIC(Tag1)XIC(NewTag)OTE(Tag3)")
+
+    def test_replace_instruction_by_logix_instruction(self):
+        """Test replacing instruction by LogixInstruction object."""
+        self.rung.text = "XIC(Tag1)XIO(Tag2)OTE(Tag3)"
+
+        mock_instruction = MagicMock(spec=LogixInstruction)
+        mock_instruction.meta_data = "XIO(Tag2)"
+        self.rung.replace_instruction(mock_instruction, "XIC(NewTag)")
+        self.assertEqual(self.rung.text, "XIC(Tag1)XIC(NewTag)OTE(Tag3)")
+
+    def test_replace_instruction_invalid_new_format(self):
+        """Test replacing instruction with invalid new instruction format."""
+        self.rung.text = "XIC(Tag1)XIO(Tag2)OTE(Tag3)"
+
+        with self.assertRaises(ValueError) as context:
+            self.rung.replace_instruction("XIO(Tag2)", "InvalidFormat")
+
+        self.assertIn("Invalid instruction format", str(context.exception))
+
+    def test_replace_instruction_empty_new_instruction(self):
+        """Test replacing instruction with empty new instruction."""
+        with self.assertRaises(ValueError) as context:
+            self.rung.replace_instruction("XIO(Tag2)", "")
+
+        self.assertIn("must be a non-empty string", str(context.exception))
+
+    def test_replace_instruction_not_found(self):
+        """Test replacing instruction that doesn't exist."""
+        self.rung.text = "XIC(Tag1)XIO(Tag2)"
+
+        with self.assertRaises(ValueError) as context:
+            self.rung.replace_instruction("XIC(NonExistent)", "XIC(NewTag)")
+
+        self.assertIn("not found in rung", str(context.exception))
+
+    def test_move_instruction_by_string(self):
+        """Test moving instruction by string."""
+        self.rung.text = "XIC(Tag1)XIO(Tag2)XIC(Tag3)OTE(Tag4)"
+        self.rung.move_instruction("XIO(Tag2)", 2)
+        self.assertEqual(self.rung.text, "XIC(Tag1)XIC(Tag3)XIO(Tag2)OTE(Tag4)")
+
+    def test_move_instruction_by_index(self):
+        """Test moving instruction by index."""
+        self.rung.text = "XIC(Tag1)XIO(Tag2)XIC(Tag3)OTE(Tag4)"
+        self.rung.move_instruction(1, 2)
+        self.assertEqual(self.rung.text, "XIC(Tag1)XIC(Tag3)XIO(Tag2)OTE(Tag4)")
+
+    def test_move_instruction_same_position(self):
+        """Test moving instruction to same position (no-op)."""
+        self.rung.text = "XIC(Tag1)XIO(Tag2)OTE(Tag3)"
+        original_text = self.rung.text
+        self.rung.move_instruction("XIO(Tag2)", 1)
+        self.assertEqual(self.rung.text, original_text)
+
+    def test_move_instruction_invalid_new_position(self):
+        """Test moving instruction to invalid position."""
+        self.rung.text = "XIC(Tag1)XIO(Tag2)OTE(Tag3)"
+
+        with self.assertRaises(IndexError) as context:
+            self.rung.move_instruction("XIO(Tag2)", 5)
+
+        self.assertIn("out of range", str(context.exception))
+
+    def test_find_instruction_index_in_text_single_occurrence(self):
+        """Test finding instruction index with single occurrence."""
+        self.rung.text = "XIC(Tag1)XIO(Tag2)OTE(Tag3)"
+
+        index = self.rung._find_instruction_index_in_text("XIO(Tag2)")
+
+        self.assertEqual(index, 1)
+
+    def test_find_instruction_index_in_text_multiple_occurrences(self):
+        """Test finding instruction index with multiple occurrences."""
+        self.rung.text = "XIC(Tag1)XIC(Tag1)XIO(Tag2)XIC(Tag1)"
+
+        # First occurrence
+        index = self.rung._find_instruction_index_in_text("XIC(Tag1)", occurrence=0)
+        self.assertEqual(index, 0)
+
+        # Second occurrence
+        index = self.rung._find_instruction_index_in_text("XIC(Tag1)", occurrence=1)
+        self.assertEqual(index, 1)
+
+        # Third occurrence
+        index = self.rung._find_instruction_index_in_text("XIC(Tag1)", occurrence=2)
+        self.assertEqual(index, 3)
+
+    def test_find_instruction_index_in_text_not_found(self):
+        """Test finding instruction index when instruction doesn't exist."""
+        self.rung.text = "XIC(Tag1)XIO(Tag2)OTE(Tag3)"
+
+        with self.assertRaises(ValueError) as context:
+            self.rung._find_instruction_index_in_text("XIC(NonExistent)")
+
+        self.assertIn("not found in rung", str(context.exception))
+
+    def test_find_instruction_index_in_text_occurrence_out_of_range(self):
+        """Test finding instruction index with occurrence out of range."""
+        self.rung.text = "XIC(Tag1)XIO(Tag2)OTE(Tag3)"
+
+        with self.assertRaises(ValueError) as context:
+            self.rung._find_instruction_index_in_text("XIC(Tag1)", occurrence=5)
+
+        self.assertIn("Occurrence 5 not found", str(context.exception))
+
+    def test_rebuild_text_with_instructions_no_branches(self):
+        """Test rebuilding text without branches."""
+        original_text = "XIC(Tag1)XIO(Tag2)OTE(Tag3)"
+        new_instructions = ["XIC(NewTag1)", "XIO(NewTag2)", "OTE(NewTag3)"]
+
+        result = self.rung._rebuild_text_with_instructions(original_text, new_instructions)
+
+        self.assertEqual(result, "XIC(NewTag1)XIO(NewTag2)OTE(NewTag3)")
+
+    def test_rebuild_text_with_instructions_empty_original(self):
+        """Test rebuilding text with empty original text."""
+        original_text = ""
+        new_instructions = ["XIC(Tag1)", "OTE(Tag2)"]
+
+        result = self.rung._rebuild_text_with_instructions(original_text, new_instructions)
+
+        self.assertEqual(result, "XIC(Tag1)OTE(Tag2)")
+
+    def test_rebuild_text_with_instructions_with_branches(self):
+        """Test rebuilding text with branch markers."""
+        original_text = "XIC(Tag1)[XIO(Tag2)]OTE(Tag3)"
+        new_instructions = ["XIC(NewTag1)", "XIO(NewTag2)", "OTE(NewTag3)"]
+
+        result = self.rung._rebuild_text_with_instructions(original_text, new_instructions)
+
+        self.assertEqual(result, "XIC(NewTag1)[XIO(NewTag2)]OTE(NewTag3)")
+
+    def test_reconstruct_text_with_branches(self):
+        """Test reconstructing text while preserving branch structure."""
+        instructions = ["XIC(NewTag1)", "XIO(NewTag2)", "OTE(NewTag3)"]
+        branch_markers = ["[", "]"]
+        original_text = "XIC(Tag1)[XIO(Tag2)]OTE(Tag3)"
+
+        result = self.rung._reconstruct_text_with_branches(instructions, branch_markers, original_text)
+
+        self.assertEqual(result, "XIC(NewTag1)[XIO(NewTag2)]OTE(NewTag3)")
+
+    def test_refresh_internal_structures(self):
+        """Test refreshing internal structures after text changes."""
+        self.rung.text = "XIC(Tag1)XIO(Tag2)OTE(Tag3)"
+
+        # Mock the methods that should be called
+        with patch.object(self.rung, '_get_instructions') as mock_get_instructions:
+            with patch.object(self.rung, '_parse_rung_sequence') as mock_parse_sequence:
+                self.rung._refresh_internal_structures()
+
+                # Verify structures were cleared
+                self.assertEqual(len(self.rung._instructions), 0)
+                self.assertEqual(len(self.rung._rung_sequence), 0)
+                self.assertEqual(len(self.rung._branches), 0)
+
+                # Verify methods were called
+                mock_get_instructions.assert_called_once()
+                mock_parse_sequence.assert_called_once()
+
+    def test_get_instruction_count(self):
+        """Test getting instruction count."""
+        # Mock instructions
+        self.rung._instructions = [MagicMock(), MagicMock(), MagicMock()]
+
+        count = self.rung.get_instruction_count()
+
+        self.assertEqual(count, 3)
+
+    def test_get_instruction_at_position(self):
+        """Test getting instruction at specific position."""
+        mock_instr = MagicMock()
+        self.rung._instructions = [MagicMock(), mock_instr, MagicMock()]
+
+        result = self.rung.get_instruction_at_position(1)
+
+        self.assertEqual(result, mock_instr)
+
+    def test_get_instruction_at_position_out_of_range(self):
+        """Test getting instruction at position out of range."""
+        self.rung._instructions = [MagicMock(), MagicMock()]
+
+        result = self.rung.get_instruction_at_position(5)
+
+        self.assertIsNone(result)
+
+    def test_find_instruction_positions(self):
+        """Test finding all positions of specific instruction."""
+        self.rung.text = "XIC(Tag1)XIO(Tag2)XIC(Tag1)OTE(Tag3)XIC(Tag1)"
+
+        positions = self.rung.find_instruction_positions("XIC(Tag1)")
+
+        self.assertEqual(positions, [0, 2, 4])
+
+    def test_find_instruction_positions_not_found(self):
+        """Test finding positions of instruction that doesn't exist."""
+        self.rung.text = "XIC(Tag1)XIO(Tag2)OTE(Tag3)"
+
+        positions = self.rung.find_instruction_positions("XIC(NonExistent)")
+
+        self.assertEqual(positions, [])
+
+    def test_has_instruction_exists(self):
+        """Test checking if instruction exists (positive case)."""
+        self.rung.text = "XIC(Tag1)XIO(Tag2)OTE(Tag3)"
+
+        result = self.rung.has_instruction("XIO(Tag2)")
+
+        self.assertTrue(result)
+
+    def test_has_instruction_not_exists(self):
+        """Test checking if instruction exists (negative case)."""
+        self.rung.text = "XIC(Tag1)XIO(Tag2)OTE(Tag3)"
+
+        result = self.rung.has_instruction("XIC(NonExistent)")
+
+        self.assertFalse(result)
+
+    def test_get_instruction_summary(self):
+        """Test getting instruction summary."""
+        # Mock instructions with instruction names
+        mock_instr1 = MagicMock()
+        mock_instr1.instruction_name = "XIC"
+        mock_instr2 = MagicMock()
+        mock_instr2.instruction_name = "XIO"
+        mock_instr3 = MagicMock()
+        mock_instr3.instruction_name = "XIC"
+        mock_instr4 = MagicMock()
+        mock_instr4.instruction_name = "OTE"
+
+        self.rung._instructions = [mock_instr1, mock_instr2, mock_instr3, mock_instr4]
+
+        summary = self.rung.get_instruction_summary()
+
+        expected = {"XIC": 2, "XIO": 1, "OTE": 1}
+        self.assertEqual(summary, expected)
+
+    def test_remove_instruction_occurrence_parameter(self):
+        """Test removing instruction with specific occurrence."""
+        self.rung.text = "XIC(Tag1)XIC(Tag1)XIO(Tag2)XIC(Tag1)"
+
+        with patch.object(self.rung, '_find_instruction_index_in_text', return_value=2) as mock_find:
+            with patch.object(self.rung, '_rebuild_text_with_instructions', return_value="XIC(Tag1)XIO(Tag2)XIC(Tag1)"):
+                self.rung.remove_instruction("XIC(Tag1)", occurrence=1)
+
+                mock_find.assert_called_with("XIC(Tag1)", 1)
+                self.assertEqual(self.rung.text, "XIC(Tag1)XIO(Tag2)XIC(Tag1)")
+
+    def test_replace_instruction_occurrence_parameter(self):
+        """Test replacing instruction with specific occurrence."""
+        self.rung.text = "XIC(Tag1)XIC(Tag1)XIO(Tag2)"
+
+        with patch.object(self.rung, '_find_instruction_index_in_text', return_value=1) as mock_find:
+            with patch.object(self.rung, '_rebuild_text_with_instructions', return_value="XIC(Tag1)XIC(NewTag)XIO(Tag2)"):
+                self.rung.replace_instruction("XIC(Tag1)", "XIC(NewTag)", occurrence=1)
+
+                mock_find.assert_called_with("XIC(Tag1)", 1)
+                self.assertEqual(self.rung.text, "XIC(Tag1)XIC(NewTag)XIO(Tag2)")
+
+    def test_move_instruction_occurrence_parameter(self):
+        """Test moving instruction with specific occurrence."""
+        self.rung.text = "XIC(Tag1)XIC(Tag1)XIO(Tag2)OTE(Tag3)"
+
+        with patch.object(self.rung, '_find_instruction_index_in_text', return_value=1) as mock_find:
+            with patch.object(self.rung, '_rebuild_text_with_instructions', return_value="XIC(Tag1)XIO(Tag2)XIC(Tag1)OTE(Tag3)"):
+                self.rung.move_instruction("XIC(Tag1)", 2, occurrence=1)
+
+                mock_find.assert_called_with("XIC(Tag1)", 1)
+                self.assertEqual(self.rung.text, "XIC(Tag1)XIO(Tag2)XIC(Tag1)OTE(Tag3)")
+
+    def test_add_instruction_calls_refresh(self):
+        """Test that add_instruction calls refresh_internal_structures."""
+        self.rung.text = "XIC(Tag1)"
+
+        with patch.object(self.rung, '_refresh_internal_structures') as mock_refresh:
+            self.rung.add_instruction("OTE(Tag2)")
+
+            mock_refresh.assert_called_once()
+
+    def test_remove_instruction_calls_refresh(self):
+        """Test that remove_instruction calls refresh_internal_structures."""
+        self.rung.text = "XIC(Tag1)OTE(Tag2)"
+
+        with patch.object(self.rung, '_refresh_internal_structures') as mock_refresh:
+            with patch.object(self.rung, '_find_instruction_index_in_text', return_value=0):
+                self.rung.remove_instruction("XIC(Tag1)")
+
+                mock_refresh.assert_called_once()
+
+    def test_replace_instruction_calls_refresh(self):
+        """Test that replace_instruction calls refresh_internal_structures."""
+        self.rung.text = "XIC(Tag1)OTE(Tag2)"
+
+        with patch.object(self.rung, '_refresh_internal_structures') as mock_refresh:
+            with patch.object(self.rung, '_find_instruction_index_in_text', return_value=0):
+                with patch.object(self.rung, '_rebuild_text_with_instructions', return_value="XIC(NewTag)OTE(Tag2)"):
+                    self.rung.replace_instruction("XIC(Tag1)", "XIC(NewTag)")
+
+                    mock_refresh.assert_called_once()
+
+    def test_move_instruction_calls_refresh(self):
+        """Test that move_instruction calls refresh_internal_structures."""
+        self.rung.text = "XIC(Tag1)XIO(Tag2)OTE(Tag3)"
+
+        with patch.object(self.rung, '_refresh_internal_structures') as mock_refresh:
+            with patch.object(self.rung, '_find_instruction_index_in_text', return_value=0):
+                with patch.object(self.rung, '_rebuild_text_with_instructions', return_value="XIO(Tag2)XIC(Tag1)OTE(Tag3)"):
+                    self.rung.move_instruction("XIC(Tag1)", 1)
+
+                    mock_refresh.assert_called_once()
+
+    def test_complex_instruction_manipulation_workflow(self):
+        """Test a complex workflow of adding, removing, and modifying instructions."""
+        # Start with empty rung
+        self.rung.text = ""
+
+        # Add several instructions
+        self.rung.add_instruction("XIC(Tag1)")
+        self.assertEqual(self.rung.text, "XIC(Tag1)")
+
+        self.rung.add_instruction("XIO(Tag2)")
+        self.assertEqual(self.rung.text, "XIC(Tag1)XIO(Tag2)")
+
+        self.rung.add_instruction("OTE(Tag3)")
+        self.assertEqual(self.rung.text, "XIC(Tag1)XIO(Tag2)OTE(Tag3)")
+
+        # Insert in middle
+        with patch.object(self.rung, '_rebuild_text_with_instructions', return_value="XIC(Tag1)XIC(MiddleTag)XIO(Tag2)OTE(Tag3)"):
+            self.rung.add_instruction("XIC(MiddleTag)", position=1)
+            self.assertEqual(self.rung.text, "XIC(Tag1)XIC(MiddleTag)XIO(Tag2)OTE(Tag3)")
+
+        # Replace instruction
+        with patch.object(self.rung, '_find_instruction_index_in_text', return_value=2):
+            with patch.object(self.rung, '_rebuild_text_with_instructions', return_value="XIC(Tag1)XIC(MiddleTag)XIC(ReplacedTag)OTE(Tag3)"):
+                self.rung.replace_instruction("XIO(Tag2)", "XIC(ReplacedTag)")
+                self.assertEqual(self.rung.text, "XIC(Tag1)XIC(MiddleTag)XIC(ReplacedTag)OTE(Tag3)")
+
+        # Remove instruction
+        with patch.object(self.rung, '_find_instruction_index_in_text', return_value=1):
+            with patch.object(self.rung, '_rebuild_text_with_instructions', return_value="XIC(Tag1)XIC(ReplacedTag)OTE(Tag3)"):
+                self.rung.remove_instruction("XIC(MiddleTag)")
+                self.assertEqual(self.rung.text, "XIC(Tag1)XIC(ReplacedTag)OTE(Tag3)")
 
 
 class TestTag(unittest.TestCase):

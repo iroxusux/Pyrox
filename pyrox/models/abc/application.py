@@ -963,8 +963,9 @@ class Application(Runnable):
         """
         if not isinstance(level, int):
             raise TypeError('Logging level must be an integer.')
-        self.logger.setLevel(level)
-        self._log_handler.setLevel(level)
+        super().set_logging_level(level)
+        # self.logger.setLevel(level)
+        # self._log_handler.setLevel(level)
         self.logger.info(f'Logging level set to {logging.getLevelName(level)}')
         self.runtime_info.set('logging_level', level)
 
