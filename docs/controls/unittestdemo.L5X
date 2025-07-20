@@ -1,0 +1,445 @@
+<?xml version="1.0" encoding="utf-8"?>
+<RSLogix5000Content SchemaRevision="1.0" SoftwareRevision="34.03" TargetName="unittest" TargetType="Controller" ContainsContext="false" Owner="EQUANS North America IT, CCG" ExportDate="Tue Jul 01 12:01:53 2025" ExportOptions="NoRawData L5KData DecoratedData ForceProtectedEncoding AllProjDocTrans">
+	<Controller Use="Target" Name="unittest" ProcessorType="1756-L81ES" MajorRev="34" MinorRev="11" ProjectCreationDate="Wed May 14 14:11:04 2025" LastModifiedDate="Tue Jul 01 12:01:46 2025" SFCExecutionControl="CurrentActive" SFCRestartPosition="MostRecent" SFCLastScan="DontScan" CommPath="AB_ETHIP-1\120.15.35.60" ProjectSN="16#0000_0000" MatchProjectToController="false" CanUseRPIFromProducer="false" InhibitAutomaticFirmwareUpdate="0" PassThroughConfiguration="EnabledWithAppend" DownloadProjectDocumentationAndExtendedProperties="true" DownloadProjectCustomProperties="true" ReportMinorOverflow="false" AutoDiagsEnabled="true" WebServerEnabled="false">
+		<Description><![CDATA[Indicon LLC
+unittesting plc file]]></Description>
+		<RedundancyInfo Enabled="false" KeepTestEditsOnSwitchOver="false"></RedundancyInfo>
+		<Security Code="0" ChangesToDetect="16#ffff_ffff_ffff_ffff"></Security>
+		<SafetyInfo SafetyLocked="false" SignatureRunModeProtect="false" ConfigureSafetyIOAlways="false" SafetyLevel="SIL2/PLd"></SafetyInfo>
+		<DataTypes>
+			<DataType Name="za_Parent" Family="NoFamily" Class="User">
+				<Members>
+					<Member Name="ZZZZZZZZZZza_Parent0" DataType="SINT" Dimension="0" Radix="Decimal" Hidden="true" ExternalAccess="Read/Write"></Member>
+					<Member Name="a" DataType="BIT" Dimension="0" Radix="Decimal" Hidden="false" Target="ZZZZZZZZZZza_Parent0" BitNumber="0" ExternalAccess="Read/Write"></Member>
+					<Member Name="b" DataType="BIT" Dimension="0" Radix="Decimal" Hidden="false" Target="ZZZZZZZZZZza_Parent0" BitNumber="1" ExternalAccess="Read/Write"></Member>
+					<Member Name="c" DataType="BIT" Dimension="0" Radix="Decimal" Hidden="false" Target="ZZZZZZZZZZza_Parent0" BitNumber="2" ExternalAccess="Read/Write"></Member>
+					<Member Name="Child" DataType="zb_Child" Dimension="0" Radix="NullType" Hidden="false" ExternalAccess="Read/Write"></Member>
+				</Members>
+			</DataType>
+			<DataType Name="zb_Child" Family="NoFamily" Class="User">
+				<Members>
+					<Member Name="Age" DataType="INT" Dimension="0" Radix="Decimal" Hidden="false" ExternalAccess="Read/Write"></Member>
+					<Member Name="Name" DataType="STRING" Dimension="0" Radix="NullType" Hidden="false" ExternalAccess="Read/Write"></Member>
+				</Members>
+			</DataType>
+		</DataTypes>
+		<Modules>
+			<Module Name="Local" CatalogNumber="1756-L81ES" Vendor="1" ProductType="14" ProductCode="211" Major="34" Minor="11" ParentModule="Local" ParentModPortId="1" Inhibited="false" MajorFault="true">
+				<EKey State="Disabled"></EKey>
+				<Ports>
+					<Port Id="1" Address="0" Type="ICP" Upstream="false" SafetyNetwork="16#0000_4c24_03e6_e7fc">
+						<Bus Size="4"></Bus>
+					</Port>
+					<Port Id="2" Type="Ethernet" Upstream="false" SafetyNetwork="16#0000_4c24_03e6_e7fd"></Port>
+				</Ports>
+			</Module>
+		</Modules>
+		<AddOnInstructionDefinitions>
+			<AddOnInstructionDefinition Name="unittest_aoi" Class="Standard" Revision="1.0" ExecutePrescan="false" ExecutePostscan="false" ExecuteEnableInFalse="false" CreatedDate="2025-06-30T16:39:36.726Z" CreatedBy="D90\MH8243" EditedDate="2025-06-30T16:43:49.872Z" EditedBy="D90\MH8243" SoftwareRevision="v34.03">
+				<RevisionNote><![CDATA[initial release]]></RevisionNote>
+				<Parameters>
+					<Parameter Name="EnableIn" TagType="Base" DataType="BOOL" Usage="Input" Radix="Decimal" Required="false" Visible="false" ExternalAccess="Read Only">
+						<Description><![CDATA[Enable Input - System Defined Parameter]]></Description>
+					</Parameter>
+					<Parameter Name="EnableOut" TagType="Base" DataType="BOOL" Usage="Output" Radix="Decimal" Required="false" Visible="false" ExternalAccess="Read Only">
+						<Description><![CDATA[Enable Output - System Defined Parameter]]></Description>
+					</Parameter>
+					<Parameter Name="Input" TagType="Base" DataType="DINT" Usage="Input" Radix="Decimal" Required="true" Visible="true" ExternalAccess="Read/Write">
+						<DefaultData Format="L5K"><![CDATA[0]]></DefaultData>
+						<DefaultData Format="Decorated">
+							<DataValue DataType="DINT" Radix="Decimal" Value="0"></DataValue>
+						</DefaultData>
+					</Parameter>
+					<Parameter Name="Output" TagType="Base" DataType="DINT" Usage="Output" Radix="Decimal" Required="true" Visible="true" ExternalAccess="Read Only">
+						<DefaultData Format="L5K"><![CDATA[0]]></DefaultData>
+						<DefaultData Format="Decorated">
+							<DataValue DataType="DINT" Radix="Decimal" Value="0"></DataValue>
+						</DefaultData>
+					</Parameter>
+					<Parameter Name="InOut" TagType="Base" DataType="DINT" Usage="InOut" Radix="Decimal" Required="true" Visible="true" Constant="false"></Parameter>
+				</Parameters>
+				<LocalTags>
+					<LocalTag Name="LocalTag" DataType="DINT" Radix="Decimal" ExternalAccess="None">
+						<DefaultData Format="L5K"><![CDATA[0]]></DefaultData>
+						<DefaultData Format="Decorated">
+							<DataValue DataType="DINT" Radix="Decimal" Value="0"></DataValue>
+						</DefaultData>
+					</LocalTag>
+				</LocalTags>
+				<Routines>
+					<Routine Name="Logic" Type="RLL">
+						<RLLContent>
+						</RLLContent>
+					</Routine>
+				</Routines>
+			</AddOnInstructionDefinition>
+		</AddOnInstructionDefinitions>
+		<Tags>
+			<Tag Name="AlwaysOn" Class="Standard" TagType="Base" DataType="BOOL" Radix="Decimal" Constant="false" ExternalAccess="Read/Write">
+				<Description><![CDATA[Global
+Always On]]></Description>
+				<Data Format="L5K"><![CDATA[0]]></Data>
+				<Data Format="Decorated">
+					<DataValue DataType="BOOL" Radix="Decimal" Value="0"></DataValue>
+				</Data>
+			</Tag>
+			<Tag Name="gCoilWithNoInput" Class="Standard" TagType="Base" DataType="BOOL" Radix="Decimal" Constant="false" ExternalAccess="Read/Write">
+				<Description><![CDATA[Global
+Coil With No Input]]></Description>
+				<Data Format="L5K"><![CDATA[0]]></Data>
+				<Data Format="Decorated">
+					<DataValue DataType="BOOL" Radix="Decimal" Value="0"></DataValue>
+				</Data>
+			</Tag>
+			<Tag Name="gCoilWithNoInputAlias" Class="Standard" TagType="Base" DataType="BOOL" Radix="Decimal" Constant="false" ExternalAccess="Read/Write">
+				<Description><![CDATA[Global
+Coil With No Input
+Alias Secondary]]></Description>
+				<Data Format="L5K"><![CDATA[0]]></Data>
+				<Data Format="Decorated">
+					<DataValue DataType="BOOL" Radix="Decimal" Value="0"></DataValue>
+				</Data>
+			</Tag>
+			<Tag Name="gDuplicatedCoil" Class="Standard" TagType="Base" DataType="BOOL" Radix="Decimal" Constant="false" ExternalAccess="Read/Write">
+				<Description><![CDATA[Global
+Duplicated Coil]]></Description>
+				<Data Format="L5K"><![CDATA[0]]></Data>
+				<Data Format="Decorated">
+					<DataValue DataType="BOOL" Radix="Decimal" Value="0"></DataValue>
+				</Data>
+			</Tag>
+			<Tag Name="gDuplicatedCoilAlias" Class="Standard" TagType="Base" DataType="BOOL" Radix="Decimal" Constant="false" ExternalAccess="Read/Write">
+				<Data Format="L5K"><![CDATA[0]]></Data>
+				<Data Format="Decorated">
+					<DataValue DataType="BOOL" Radix="Decimal" Value="0"></DataValue>
+				</Data>
+			</Tag>
+			<Tag Name="gFirstOperand" Class="Standard" TagType="Base" DataType="BOOL" Radix="Decimal" Constant="false" ExternalAccess="Read/Write">
+				<Data Format="L5K"><![CDATA[0]]></Data>
+				<Data Format="Decorated">
+					<DataValue DataType="BOOL" Radix="Decimal" Value="0"></DataValue>
+				</Data>
+			</Tag>
+			<Tag Name="gInputWithNoCoil" Class="Standard" TagType="Base" DataType="BOOL" Radix="Decimal" Constant="false" ExternalAccess="Read/Write">
+				<Description><![CDATA[Global
+Input With No Coil]]></Description>
+				<Data Format="L5K"><![CDATA[0]]></Data>
+				<Data Format="Decorated">
+					<DataValue DataType="BOOL" Radix="Decimal" Value="0"></DataValue>
+				</Data>
+			</Tag>
+			<Tag Name="gInputWithNoCoilAlias" Class="Standard" TagType="Base" DataType="BOOL" Radix="Decimal" Constant="false" ExternalAccess="Read/Write">
+				<Description><![CDATA[Global
+Input With No Coil
+Alias]]></Description>
+				<Data Format="L5K"><![CDATA[0]]></Data>
+				<Data Format="Decorated">
+					<DataValue DataType="BOOL" Radix="Decimal" Value="0"></DataValue>
+				</Data>
+			</Tag>
+			<Tag Name="gSafeBool" Class="Standard" TagType="Base" DataType="BOOL" Radix="Decimal" Constant="false" ExternalAccess="Read/Write">
+				<Data Format="L5K"><![CDATA[0]]></Data>
+				<Data Format="Decorated">
+					<DataValue DataType="BOOL" Radix="Decimal" Value="0"></DataValue>
+				</Data>
+			</Tag>
+			<Tag Name="gSafeInteger" Class="Standard" TagType="Base" DataType="DINT" Radix="Decimal" Constant="false" ExternalAccess="Read/Write">
+				<Data Format="L5K"><![CDATA[0]]></Data>
+				<Data Format="Decorated">
+					<DataValue DataType="DINT" Radix="Decimal" Value="0"></DataValue>
+				</Data>
+			</Tag>
+			<Tag Name="gSafeLatch" Class="Standard" TagType="Base" DataType="BOOL" Radix="Decimal" Constant="false" ExternalAccess="Read/Write">
+				<Data Format="L5K"><![CDATA[0]]></Data>
+				<Data Format="Decorated">
+					<DataValue DataType="BOOL" Radix="Decimal" Value="0"></DataValue>
+				</Data>
+			</Tag>
+			<Tag Name="gSafeUnlatch" Class="Standard" TagType="Base" DataType="BOOL" Radix="Decimal" Constant="false" ExternalAccess="Read/Write">
+				<Data Format="L5K"><![CDATA[0]]></Data>
+				<Data Format="Decorated">
+					<DataValue DataType="BOOL" Radix="Decimal" Value="0"></DataValue>
+				</Data>
+			</Tag>
+			<Tag Name="gStruct" Class="Standard" TagType="Base" DataType="za_Parent" Constant="false" ExternalAccess="Read/Write">
+				<Data Format="L5K"><![CDATA[[0,[0,[0,'$00$00$00$00$00$00$00$00$00$00$00$00$00$00$00$00$00$00$00$00$00$00$00$00$00$00$00$00$00$00$00$00$00$00$00$00$00$00$00$00$00$00$00$00$00$00$00$00$00$00$00$00$00$00$00$00$00$00$00$00$00$00$00$00$00$00$00$00$00$00$00$00$00$00$00$00$00$00$00$00$00$00'
+		]]]]]></Data>
+				<Data Format="Decorated">
+					<Structure DataType="za_Parent">
+						<DataValueMember Name="a" DataType="BOOL" Value="0"></DataValueMember>
+						<DataValueMember Name="b" DataType="BOOL" Value="0"></DataValueMember>
+						<DataValueMember Name="c" DataType="BOOL" Value="0"></DataValueMember>
+						<StructureMember Name="Child" DataType="zb_Child">
+							<DataValueMember Name="Age" DataType="INT" Radix="Decimal" Value="0"></DataValueMember>
+							<StructureMember Name="Name" DataType="STRING">
+								<DataValueMember Name="LEN" DataType="DINT" Radix="Decimal" Value="0"></DataValueMember>
+								<DataValueMember Name="DATA" DataType="STRING" Radix="ASCII">//</DataValueMember>
+							</StructureMember>
+						</StructureMember>
+					</Structure>
+				</Data>
+			</Tag>
+			<Tag Name="MyValue" Class="Standard" TagType="Base" DataType="DINT" Radix="Decimal" Constant="false" ExternalAccess="Read/Write">
+				<Data Format="L5K"><![CDATA[0]]></Data>
+				<Data Format="Decorated">
+					<DataValue DataType="DINT" Radix="Decimal" Value="0"></DataValue>
+				</Data>
+			</Tag>
+			<Tag Name="SecondOperand" Class="Standard" TagType="Base" DataType="DINT" Radix="Decimal" Constant="false" ExternalAccess="Read/Write">
+				<Data Format="L5K"><![CDATA[0]]></Data>
+				<Data Format="Decorated">
+					<DataValue DataType="DINT" Radix="Decimal" Value="0"></DataValue>
+				</Data>
+			</Tag>
+			<Tag Name="SomeStruct" Class="Standard" TagType="Base" DataType="za_Parent" Constant="false" ExternalAccess="Read/Write">
+				<Data Format="L5K"><![CDATA[[0,[0,[0,'$00$00$00$00$00$00$00$00$00$00$00$00$00$00$00$00$00$00$00$00$00$00$00$00$00$00$00$00$00$00$00$00$00$00$00$00$00$00$00$00$00$00$00$00$00$00$00$00$00$00$00$00$00$00$00$00$00$00$00$00$00$00$00$00$00$00$00$00$00$00$00$00$00$00$00$00$00$00$00$00$00$00'
+		]]]]]></Data>
+				<Data Format="Decorated">
+					<Structure DataType="za_Parent">
+						<DataValueMember Name="a" DataType="BOOL" Value="0"></DataValueMember>
+						<DataValueMember Name="b" DataType="BOOL" Value="0"></DataValueMember>
+						<DataValueMember Name="c" DataType="BOOL" Value="0"></DataValueMember>
+						<StructureMember Name="Child" DataType="zb_Child">
+							<DataValueMember Name="Age" DataType="INT" Radix="Decimal" Value="0"></DataValueMember>
+							<StructureMember Name="Name" DataType="STRING">
+								<DataValueMember Name="LEN" DataType="DINT" Radix="Decimal" Value="0"></DataValueMember>
+								<DataValueMember Name="DATA" DataType="STRING" Radix="ASCII">//</DataValueMember>
+							</StructureMember>
+						</StructureMember>
+					</Structure>
+				</Data>
+			</Tag>
+		</Tags>
+		<Programs>
+			<Program Name="CoilWithNoInput" TestEdits="false" MainRoutineName="main" Disabled="false" Class="Standard" UseAsFolder="false">
+				<Tags>
+					<Tag Name="pCoilWithNoInput" TagType="Alias" Radix="Decimal" AliasFor="gCoilWithNoInputAlias" ExternalAccess="Read/Write">
+						<Description><![CDATA[Program
+Coil With No Input]]></Description>
+					</Tag>
+				</Tags>
+				<Routines>
+					<Routine Name="main" Type="RLL">
+						<RLLContent>
+							<Rung Number="0" Type="N">
+								<Comment><![CDATA[-----
+global coil with no related input instruction
+-----]]></Comment>
+								<Text><![CDATA[OTE(gCoilWithNoInput);]]></Text>
+							</Rung>
+							<Rung Number="1" Type="N">
+								<Comment><![CDATA[-----
+program coil, aliased to global coil with no related input instruction
+-----]]></Comment>
+								<Text><![CDATA[OTE(pCoilWithNoInput);]]></Text>
+							</Rung>
+						</RLLContent>
+					</Routine>
+				</Routines>
+			</Program>
+			<Program Name="DuplicatedCoil" TestEdits="false" MainRoutineName="main" Disabled="false" Class="Standard" UseAsFolder="false">
+				<Tags>
+					<Tag Name="pDuplicatedCoil" TagType="Alias" Radix="Decimal" AliasFor="gDuplicatedCoilAlias" ExternalAccess="Read/Write"></Tag>
+				</Tags>
+				<Routines>
+					<Routine Name="main" Type="RLL">
+						<RLLContent>
+							<Rung Number="0" Type="N">
+								<Text><![CDATA[XIO(AlwaysOn)OTE(gDuplicatedCoil);]]></Text>
+							</Rung>
+							<Rung Number="1" Type="N">
+								<Text><![CDATA[XIC(AlwaysOn)OTE(gDuplicatedCoil);]]></Text>
+							</Rung>
+							<Rung Number="2" Type="N">
+								<Text><![CDATA[XIO(AlwaysOn)OTE(gDuplicatedCoilAlias);]]></Text>
+							</Rung>
+							<Rung Number="3" Type="N">
+								<Text><![CDATA[XIC(AlwaysOn)OTE(pDuplicatedCoil);]]></Text>
+							</Rung>
+						</RLLContent>
+					</Routine>
+				</Routines>
+			</Program>
+			<Program Name="InputWithNoCoil" TestEdits="false" MainRoutineName="main" Disabled="false" Class="Standard" UseAsFolder="false">
+				<Tags>
+					<Tag Name="pInputWithNoCoil" TagType="Alias" Radix="Decimal" AliasFor="gInputWithNoCoilAlias" ExternalAccess="Read/Write"></Tag>
+				</Tags>
+				<Routines>
+					<Routine Name="main" Type="RLL">
+						<RLLContent>
+							<Rung Number="0" Type="N">
+								<Text><![CDATA[XIC(gInputWithNoCoil)NOP();]]></Text>
+							</Rung>
+							<Rung Number="1" Type="N">
+								<Text><![CDATA[XIC(pInputWithNoCoil)NOP();]]></Text>
+							</Rung>
+						</RLLContent>
+					</Routine>
+				</Routines>
+			</Program>
+			<Program Name="LogixOperand" TestEdits="false" MainRoutineName="main" Disabled="false" Class="Standard" UseAsFolder="false">
+				<Tags>
+					<Tag Name="Child" TagType="Alias" AliasFor="gStruct.Child" ExternalAccess="Read/Write"></Tag>
+					<Tag Name="DeeperAliasing" TagType="Alias" Radix="Decimal" AliasFor="pStruct.c" ExternalAccess="Read/Write"></Tag>
+					<Tag Name="FirstOperand" TagType="Alias" Radix="Decimal" AliasFor="gFirstOperand" ExternalAccess="Read/Write">
+						<Description><![CDATA[First Operand
+In Controller]]></Description>
+					</Tag>
+					<Tag Name="LocalProgramTagOnly" TagType="Base" DataType="BOOL" Radix="Decimal" Constant="false" ExternalAccess="Read/Write">
+						<Description><![CDATA[Local Program Tag
+Only]]></Description>
+						<Data Format="L5K"><![CDATA[0]]></Data>
+						<Data Format="Decorated">
+							<DataValue DataType="BOOL" Radix="Decimal" Value="0"></DataValue>
+						</Data>
+					</Tag>
+					<Tag Name="LocalProgramUnpairedOnly" TagType="Base" DataType="BOOL" Radix="Decimal" Constant="false" ExternalAccess="Read/Write">
+						<Description><![CDATA[Local Program Tag
+Upaired Only]]></Description>
+						<Data Format="L5K"><![CDATA[0]]></Data>
+						<Data Format="Decorated">
+							<DataValue DataType="BOOL" Radix="Decimal" Value="0"></DataValue>
+						</Data>
+					</Tag>
+					<Tag Name="pStruct" TagType="Alias" AliasFor="gStruct" ExternalAccess="Read/Write"></Tag>
+				</Tags>
+				<Routines>
+					<Routine Name="main" Type="RLL">
+						<RLLContent>
+							<Rung Number="0" Type="N">
+								<Comment><![CDATA[-----
+Logix Operand unit testing code
+-----]]></Comment>
+								<Text><![CDATA[OTL(FirstOperand);]]></Text>
+							</Rung>
+							<Rung Number="1" Type="N">
+								<Text><![CDATA[MOV(MyValue,SecondOperand);]]></Text>
+							</Rung>
+							<Rung Number="2" Type="N">
+								<Text><![CDATA[XIC(SomeStruct.a)OTE(SomeStruct.b);]]></Text>
+							</Rung>
+							<Rung Number="3" Type="N">
+								<Text><![CDATA[XIC(pStruct.a)OTE(pStruct.b);]]></Text>
+							</Rung>
+							<Rung Number="4" Type="N">
+								<Text><![CDATA[XIC(DeeperAliasing)OTE(DeeperAliasing);]]></Text>
+							</Rung>
+							<Rung Number="5" Type="N">
+								<Text><![CDATA[OTE(LocalProgramTagOnly);]]></Text>
+							</Rung>
+							<Rung Number="6" Type="N">
+								<Text><![CDATA[OTE(LocalProgramTagOnly);]]></Text>
+							</Rung>
+							<Rung Number="7" Type="N">
+								<Text><![CDATA[XIC(LocalProgramUnpairedOnly)NOP();]]></Text>
+							</Rung>
+							<Rung Number="8" Type="N">
+								<Text><![CDATA[XIC(pStruct.Child.Age.0)OTE(pStruct.Child.Age.0);]]></Text>
+							</Rung>
+							<Rung Number="9" Type="N">
+								<Text><![CDATA[XIC(pStruct.Child.Name.DATA[0].0)OTE(pStruct.Child.Name.DATA[0].0);]]></Text>
+							</Rung>
+							<Rung Number="10" Type="N">
+								<Text><![CDATA[XIC(Child.Age.0)NOP();]]></Text>
+							</Rung>
+						</RLLContent>
+					</Routine>
+				</Routines>
+			</Program>
+			<Program Name="MainProgram" TestEdits="false" MainRoutineName="main" Disabled="false" Class="Standard" UseAsFolder="false">
+				<Tags>
+				</Tags>
+				<Routines>
+					<Routine Name="main" Type="RLL">
+						<RLLContent>
+							<Rung Number="0" Type="N">
+								<Comment><![CDATA[-----
+this is just a regular rung comment
+this should not throw any errors or warnings from our compiler, latches and unlatches are general use. only duplicated OTEs with references to other OTE or OTL/U instructions should be flagged.
+-----]]></Comment>
+								<Text><![CDATA[OTL(AlwaysOn)OTU(AlwaysOn)OTL(AlwaysOn);]]></Text>
+							</Rung>
+							<Rung Number="1" Type="N">
+								<Comment><![CDATA[-----
+secondary globals to support alias unittesting
+-----]]></Comment>
+								<Text><![CDATA[XIC(gInputWithNoCoilAlias)OTE(gCoilWithNoInputAlias);]]></Text>
+							</Rung>
+						</RLLContent>
+					</Routine>
+				</Routines>
+			</Program>
+			<Program Name="NoneFlaggingLogic" TestEdits="false" MainRoutineName="main" Disabled="false" Class="Standard" UseAsFolder="false">
+				<Tags>
+				</Tags>
+				<Routines>
+					<Routine Name="main" Type="RLL">
+						<RLLContent>
+							<Rung Number="0" Type="N">
+								<Comment><![CDATA[-----
+none of the logic in this routine should flag any warnins or errors
+this code means nothing other than an example of what SHOULDNT flag a fault, error, warning, etc.
+-----]]></Comment>
+								<Text><![CDATA[NOP();]]></Text>
+							</Rung>
+							<Rung Number="1" Type="N">
+								<Text><![CDATA[[XIO(AlwaysOn) ,XIC(gSafeBool) ]OTE(gSafeBool);]]></Text>
+							</Rung>
+							<Rung Number="2" Type="N">
+								<Text><![CDATA[[XIC(AlwaysOn) OTL(gSafeLatch) ,XIO(AlwaysOn) OTU(gSafeLatch) ];]]></Text>
+							</Rung>
+							<Rung Number="3" Type="N">
+								<Text><![CDATA[MOV(100,gSafeInteger);]]></Text>
+							</Rung>
+							<Rung Number="4" Type="N">
+								<Text><![CDATA[XIC(gSafeInteger.0)OTL(gSafeUnlatch);]]></Text>
+							</Rung>
+							<Rung Number="5" Type="N">
+								<Text><![CDATA[XIO(gSafeLatch)OTU(gSafeUnlatch);]]></Text>
+							</Rung>
+						</RLLContent>
+					</Routine>
+				</Routines>
+			</Program>
+			<Program Name="SafetyProgram" TestEdits="false" MainRoutineName="MainRoutine" Disabled="false" Class="Safety" UseAsFolder="false">
+				<Tags>
+				</Tags>
+				<Routines>
+					<Routine Name="MainRoutine" Type="RLL">
+						<RLLContent>
+							<Rung Number="0" Type="N">
+								<Comment><![CDATA[-----
+empty routine
+-----]]></Comment>
+								<Text><![CDATA[NOP();]]></Text>
+							</Rung>
+						</RLLContent>
+					</Routine>
+				</Routines>
+			</Program>
+		</Programs>
+		<Tasks>
+			<Task Name="MainTask" Type="CONTINUOUS" Priority="10" Watchdog="500" DisableUpdateOutputs="false" InhibitTask="false" Class="Standard">
+				<ScheduledPrograms>
+					<ScheduledProgram Name="MainProgram"></ScheduledProgram>
+					<ScheduledProgram Name="CoilWithNoInput"></ScheduledProgram>
+					<ScheduledProgram Name="InputWithNoCoil"></ScheduledProgram>
+					<ScheduledProgram Name="DuplicatedCoil"></ScheduledProgram>
+					<ScheduledProgram Name="NoneFlaggingLogic"></ScheduledProgram>
+					<ScheduledProgram Name="LogixOperand"></ScheduledProgram>
+				</ScheduledPrograms>
+			</Task>
+			<Task Name="SafetyTask" Type="PERIODIC" Rate="20" Priority="10" Watchdog="20" DisableUpdateOutputs="false" InhibitTask="false" Class="Safety">
+				<ScheduledPrograms>
+					<ScheduledProgram Name="SafetyProgram"></ScheduledProgram>
+				</ScheduledPrograms>
+			</Task>
+		</Tasks>
+		<CST MasterID="0"></CST>
+		<WallClockTime LocalTimeAdjustment="0" TimeZone="0"></WallClockTime>
+		<TimeSynchronize Priority1="128" Priority2="128" PTPEnable="false"></TimeSynchronize>
+		<EthernetPorts>
+			<EthernetPort Port="1" Label="1" PortEnabled="true"></EthernetPort>
+		</EthernetPorts>
+	</Controller>
+</RSLogix5000Content>

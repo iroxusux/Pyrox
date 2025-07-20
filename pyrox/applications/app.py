@@ -110,6 +110,11 @@ class AppOrganizerContextMenu(ContextMenu):
             menu_list.insert(0, MenuItem(label='Modify',
                                          command=lambda: self._on_modify_plc_object(item=hash_item, plc_object=plc_obj)))
 
+        if isinstance(plc_obj, plc.Program) and plc_obj.controller:
+            menu_list.insert(0, MenuItem(label='Add New Routine',
+                                         command=lambda: plc_obj.add_routine(plc.Routine(controller=plc_obj.controller,
+                                                                                         program=plc_obj))))
+
         if isinstance(plc_obj, plc.Routine):
             menu_list.insert(0, MenuItem(label='Edit Routine',
                                          command=lambda: self._on_edit_routine(routine=plc_obj)))

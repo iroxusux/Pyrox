@@ -52,7 +52,7 @@ ATOMIC_DATATYPES = [
 
 T = TypeVar('T')
 
-INST_RE_PATTERN: str = r'[A-Za-z0-9_]+\(\S+?\)'
+INST_RE_PATTERN: str = r'[A-Za-z0-9_]+\(\S*?\)'
 INST_TYPE_RE_PATTERN: str = r'([A-Za-z0-9_]+)(?:\(.*?)(?:\))'
 INST_OPER_RE_PATTERN: str = r'(?:[A-Za-z0-9_]+\()(.*?)(?:\))'
 
@@ -716,7 +716,10 @@ class LogixOperand(PlcObject):
             self._first_tag = self.container.tags.get(self.base_name, None)
 
         if not self._first_tag:
-            self._first_tag = self.controller.tags.get(self.base_name, None)
+            if self.controller and self.controller.tags:
+                self._first_tag = self.controller.tags.get(self.base_name, None)
+            else:
+                self._first_tag = None
 
         return self._first_tag
 
@@ -2007,6 +2010,7 @@ class RungElementType(Enum):
     INSTRUCTION = "instruction"
     BRANCH_START = "branch_start"
     BRANCH_END = "branch_end"
+    BRANCH_NEXT = "branch_next"
 
 
 @dataclass
@@ -2133,6 +2137,8 @@ class Rung(PlcObject):
 
     @property
     def text(self) -> str:
+        if not self['Text']:
+            self['Text'] = ''
         return self['Text']
 
     @text.setter
@@ -2173,7 +2179,7 @@ class Rung(PlcObject):
 
     def _parse_rung_sequence(self):
         """Parse the rung text to identify instruction sequence and branches."""
-        if not self.text or not self.instructions:
+        if not self.text:
             return
 
         # Reset structures
@@ -2201,15 +2207,15 @@ class Rung(PlcObject):
         while i < len(text):
             char = text[i]
 
-            if char in ['[', ']']:
-                # Check if this bracket is inside any instruction
+            if char in ['[', ']', ',']:
+                # Check if this symbol is inside any instruction
                 inside_instruction = any(start <= i < end for start, end in instruction_ranges)
 
                 if inside_instruction:
                     # This bracket is part of an instruction (array reference), keep it
                     current_segment += char
                 else:
-                    # This is a branch marker
+                    # This is a branch marker or next-branch marker
                     if current_segment.strip():
                         # Extract instructions from current segment
                         segment_instructions = re.findall(INST_RE_PATTERN, current_segment)
@@ -2240,7 +2246,7 @@ class Rung(PlcObject):
         for token in tokens:
             if token == '[':  # Branch start
                 branch_id = f"branch_{branch_counter}"
-                branch_counter += 1
+                # branch_counter += 1  # branch counter is incremented by the ',' token
 
                 # Create branch start element
                 branch_start = RungElement(
@@ -2278,7 +2284,12 @@ class Rung(PlcObject):
                     )
 
                     self._rung_sequence.append(branch_end)
+                    branch_counter -= 1  # Decrement branch counter
                     position += 1
+
+            elif token == ',':  # Next branch marker
+                if branch_stack:
+                    branch_counter += 1
 
             else:  # Regular instruction
                 instruction = self._find_instruction_by_text(token, instruction_index)
@@ -2715,6 +2726,28 @@ class Rung(PlcObject):
 
         return [instr for instr in self.instructions if instr not in branch_instructions]
 
+    def get_max_branch_depth(self) -> int:
+        """Get the maximum nesting depth of branches in this rung.
+
+        Returns:
+            int: Maximum branch depth (0 = no branches, 1+ = nested levels)
+        """
+        if not self.text:
+            return 0
+
+        tokens = self._tokenize_rung_text(self.text)
+        current_depth = 0
+        max_depth = 0
+
+        for token in tokens:
+            if token == '[':
+                current_depth += 1
+                max_depth = max(max_depth, current_depth)
+            elif token == ']':
+                current_depth -= 1
+
+        return max_depth
+
     def has_branches(self) -> bool:
         """Check if this rung contains any branches."""
         return len(self._branches) > 0
@@ -2762,6 +2795,443 @@ class Rung(PlcObject):
                 report.pass_fail = False
 
         return report
+
+    def insert_branch(self,
+                      start_position: int = 0,
+                      end_position: int = 0) -> str:
+        """Insert a new branch structure in the rung.
+
+        Args:
+            start_position (int): Position where the branch should start (0-based)
+            end_position (int): Position where the branch should end (0-based)
+
+        Returns:
+            str: The branch ID that was created
+
+        Raises:
+            ValueError: If positions are invalid
+            IndexError: If positions are out of range
+        """
+        # Validate positions
+        current_instructions = re.findall(INST_RE_PATTERN, self.text)
+        if not current_instructions:
+            current_instructions = []
+
+        if start_position < 0 or end_position < 0:
+            raise ValueError("Branch positions must be non-negative!")
+
+        if start_position > len(current_instructions) or end_position > len(current_instructions):
+            raise IndexError("Branch positions out of range!")
+
+        if start_position > end_position:
+            raise ValueError("Start position must be less than or equal to end position!")
+
+        # Generate unique branch ID
+        branch_id = f"branch_{len(self._branches)}"
+
+        # Get current structure
+        original_tokens = self._tokenize_rung_text(self.text)
+
+        # Build new token sequence with branch
+        new_tokens = self._insert_branch_tokens(
+            original_tokens, start_position, end_position, []
+        )
+
+        # Reconstruct text
+        self.text = "".join(new_tokens)
+
+        # Refresh internal structures
+        self._refresh_internal_structures()
+
+        return branch_id
+
+    def insert_parallel_branch(self, existing_branch_id: str,
+                               parallel_instructions: List[str] = None) -> str:
+        """Insert a parallel branch alongside an existing branch.
+
+        Args:
+            existing_branch_id (str): ID of the existing branch to add parallel to
+            parallel_instructions (List[str], optional): Instructions for the parallel branch
+
+        Returns:
+            str: The new branch ID that was created
+
+        Raises:
+            ValueError: If branch ID doesn't exist
+        """
+        if existing_branch_id not in self._branches:
+            raise ValueError(f"Branch '{existing_branch_id}' not found in rung!")
+
+        existing_branch = self._branches[existing_branch_id]
+
+        # Create parallel branch at the same positions
+        return self.insert_nested_branch(
+            existing_branch.start_position,
+            existing_branch.end_position,
+            parallel_instructions or []
+        )
+
+    def insert_nested_branch(self, start_position: int, end_position: int,
+                             nested_instructions: List[str] = None) -> str:
+        """Insert a nested branch structure within existing positions.
+
+        Args:
+            start_position (int): Position where the nested branch should start
+            end_position (int): Position where the nested branch should end  
+            nested_instructions (List[str], optional): Instructions for the nested branch
+
+        Returns:
+            str: The branch ID that was created
+        """
+        if not self.text:
+            raise ValueError("Cannot insert nested branch in empty rung!")
+
+        # Validate that we can nest at these positions
+        original_tokens = self._tokenize_rung_text(self.text)
+
+        # Generate unique branch ID
+        branch_id = f"branch_{len(self._branches)}"
+
+        # Insert nested branch tokens
+        new_tokens = self._insert_nested_branch_tokens(
+            original_tokens, start_position, end_position, nested_instructions or []
+        )
+
+        # Reconstruct text
+        self.text = "".join(new_tokens)
+
+        # Refresh internal structures
+        self._refresh_internal_structures()
+
+        return branch_id
+
+    def _insert_branch_tokens(self,
+                              original_tokens: List[str],
+                              start_pos: int,
+                              end_pos: int,
+                              branch_instructions: List[str]) -> List[str]:
+        """Insert branch markers and instructions into token sequence.
+
+        Args:
+            original_tokens (List[str]): Original token sequence
+            start_pos (int): Start position for branch
+            end_pos (int): End position for branch
+            branch_instructions (List[str]): Instructions to place in branch
+
+        Returns:
+            List[str]: New token sequence with branch inserted
+        """
+        new_tokens = []
+
+        if end_pos < start_pos:
+            raise ValueError("End position must be greater than or equal to start position!")
+
+        if not original_tokens:
+            original_tokens = ['']
+
+        for index, token in enumerate(original_tokens):
+            def write_branch_end():
+                new_tokens.append(',')
+                for instr in branch_instructions:
+                    new_tokens.append(instr)
+                new_tokens.append(']')
+            if index == start_pos:
+                new_tokens.append('[')
+            if index == end_pos:
+                write_branch_end()
+            if token:
+                new_tokens.append(token)
+            if (end_pos == len(original_tokens) and index == len(original_tokens) - 1):
+                write_branch_end()
+
+        return new_tokens
+
+    def _insert_nested_branch_tokens(self, original_tokens: List[str], start_pos: int,
+                                     end_pos: int, nested_instructions: List[str]) -> List[str]:
+        """Insert nested branch tokens into existing structure.
+
+        Args:
+            original_tokens (List[str]): Original token sequence  
+            start_pos (int): Start position for nested branch
+            end_pos (int): End position for nested branch
+            nested_instructions (List[str]): Instructions for nested branch
+
+        Returns:
+            List[str]: New token sequence with nested branch
+        """
+        new_tokens = []
+        instruction_count = 0
+        branch_depth = 0
+
+        for i, token in enumerate(original_tokens):
+            if token == '[':
+                branch_depth += 1
+                new_tokens.append(token)
+            elif token == ']':
+                branch_depth -= 1
+                new_tokens.append(token)
+            else:
+                # This is an instruction
+                if instruction_count == start_pos:
+                    # Insert nested branch start
+                    new_tokens.append('[')
+                    new_tokens.extend(nested_instructions)
+                    new_tokens.append(']')
+
+                new_tokens.append(token)
+                instruction_count += 1
+
+        return new_tokens
+
+    def wrap_instructions_in_branch(self, start_position: int, end_position: int) -> str:
+        """Wrap existing instructions in a new branch structure.
+
+        Args:
+            start_position (int): Start position of instructions to wrap
+            end_position (int): End position of instructions to wrap
+
+        Returns:
+            str: The branch ID that was created
+
+        Raises:
+            ValueError: If positions are invalid
+            IndexError: If positions are out of range
+        """
+        if not self.text:
+            raise ValueError("Cannot wrap instructions in empty rung!")
+
+        current_instructions = re.findall(INST_RE_PATTERN, self.text)
+        if not current_instructions:
+            raise ValueError("No instructions found in rung!")
+
+        if start_position < 0 or end_position < 0:
+            raise ValueError("Positions must be non-negative!")
+
+        if start_position >= len(current_instructions) or end_position > len(current_instructions):
+            raise IndexError("Positions out of range!")
+
+        if start_position > end_position:
+            raise ValueError("Start position must be less than or equal to end position!")
+
+        # Get instructions to wrap
+        instructions_to_wrap = current_instructions[start_position:end_position]
+
+        # Remove the original instructions
+        for i in range(start_position, end_position):
+            self.remove_instruction(i)
+
+        # Insert branch with wrapped instructions
+        branch_id = self.insert_branch(start_position, start_position, instructions_to_wrap)
+
+        return branch_id
+
+    def remove_branch(self, branch_id: str, keep_instructions: bool = True):
+        """Remove a branch structure from the rung.
+
+        Args:
+            branch_id (str): ID of the branch to remove
+            keep_instructions (bool): If True, keep branch instructions in main line
+
+        Raises:
+            ValueError: If branch ID doesn't exist
+        """
+        if branch_id not in self._branches:
+            raise ValueError(f"Branch '{branch_id}' not found in rung!")
+
+        _ = self._branches[branch_id]
+
+        # Get current tokens
+        original_tokens = self._tokenize_rung_text(self.text)
+
+        # Remove branch markers and optionally preserve instructions
+        new_tokens = self._remove_branch_tokens(
+            original_tokens, branch_id, keep_instructions
+        )
+
+        # Reconstruct text
+        self.text = "".join(new_tokens)
+
+        # Refresh internal structures
+        self._refresh_internal_structures()
+
+    def _remove_branch_tokens(self, original_tokens: List[str], branch_id: str,
+                              keep_instructions: bool) -> List[str]:
+        """Remove branch tokens from token sequence.
+
+        Args:
+            original_tokens (List[str]): Original token sequence
+            branch_id (str): Branch ID to remove
+            keep_instructions (bool): Whether to keep branch instructions
+
+        Returns:
+            List[str]: New token sequence with branch removed
+        """
+        # This is a simplified implementation
+        # In practice, you'd need to track which '[' and ']' belong to which branch
+        new_tokens = []
+        skip_until_close = False
+        branch_instructions = []
+
+        if branch_id in self._branches:
+            branch = self._branches[branch_id]
+            branch_instructions = [instr.meta_data for instr in branch.instructions]
+
+        for token in original_tokens:
+            if token == '[' and not skip_until_close:
+                # Check if this is the branch we want to remove
+                # This is simplified - in practice you'd need better branch tracking
+                skip_until_close = True
+                continue
+            elif token == ']' and skip_until_close:
+                skip_until_close = False
+                if keep_instructions:
+                    new_tokens.extend(branch_instructions)
+                continue
+            elif not skip_until_close:
+                new_tokens.append(token)
+
+        return new_tokens
+
+    def move_branch(self, branch_id: str, new_start_position: int, new_end_position: int):
+        """Move an existing branch to a new position.
+
+        Args:
+            branch_id (str): ID of the branch to move
+            new_start_position (int): New start position for the branch
+            new_end_position (int): New end position for the branch
+
+        Raises:
+            ValueError: If branch ID doesn't exist or positions are invalid
+        """
+        if branch_id not in self._branches:
+            raise ValueError(f"Branch '{branch_id}' not found in rung!")
+
+        branch = self._branches[branch_id]
+        branch_instructions = [instr.meta_data for instr in branch.instructions]
+
+        # Remove the existing branch
+        self.remove_branch(branch_id, keep_instructions=False)
+
+        # Insert at new position
+        self.insert_branch(new_start_position, new_end_position, branch_instructions)
+
+    def get_branch_info(self, branch_id: str) -> Dict:
+        """Get detailed information about a branch.
+
+        Args:
+            branch_id (str): ID of the branch
+
+        Returns:
+            Dict: Branch information including positions and instructions
+
+        Raises:
+            ValueError: If branch ID doesn't exist
+        """
+        if branch_id not in self._branches:
+            raise ValueError(f"Branch '{branch_id}' not found in rung!")
+
+        branch = self._branches[branch_id]
+
+        return {
+            'branch_id': branch_id,
+            'start_position': branch.start_position,
+            'end_position': branch.end_position,
+            'instruction_count': len(branch.instructions),
+            'instructions': [instr.meta_data for instr in branch.instructions],
+            'instruction_types': [instr.instruction_name for instr in branch.instructions]
+        }
+
+    def list_branches(self) -> List[Dict]:
+        """Get information about all branches in the rung.
+
+        Returns:
+            List[Dict]: List of branch information dictionaries
+        """
+        return [self.get_branch_info(branch_id) for branch_id in self._branches.keys()]
+
+    def validate_branch_structure(self) -> bool:
+        """Validate that branch markers are properly paired.
+
+        Returns:
+            bool: True if branch structure is valid, False otherwise
+        """
+        if not self.text:
+            return True
+
+        tokens = self._tokenize_rung_text(self.text)
+        bracket_count = 0
+
+        for token in tokens:
+            if token == '[':
+                bracket_count += 1
+            elif token == ']':
+                bracket_count -= 1
+                if bracket_count < 0:
+                    return False
+
+        return bracket_count == 0
+
+    def get_branch_nesting_level(self, instruction_position: int) -> int:
+        """Get the nesting level of branches at a specific instruction position.
+
+        Args:
+            instruction_position (int): Position of the instruction (0-based)
+
+        Returns:
+            int: Nesting level (0 = main line, 1+ = inside branches)
+        """
+        if not self.text:
+            return 0
+
+        tokens = self._tokenize_rung_text(self.text)
+        nesting_level = 0
+        instruction_count = 0
+
+        for token in tokens:
+            if token == '[':
+                nesting_level += 1
+            elif token == ']':
+                nesting_level -= 1
+            else:
+                # This is an instruction
+                if instruction_count == instruction_position:
+                    return nesting_level
+                instruction_count += 1
+
+        return 0
+
+    def find_matching_branch_end(self, start_position: int) -> Optional[int]:
+        """Find the matching end position for a branch start.
+
+        Args:
+            start_position (int): Position where branch starts
+
+        Returns:
+            Optional[int]: Position where branch ends, or None if not found
+        """
+        if not self.text:
+            return None
+
+        tokens = self._tokenize_rung_text(self.text)
+        bracket_count = 0
+        instruction_count = 0
+        found_start = False
+
+        for token in tokens:
+            if token == '[':
+                if instruction_count == start_position:
+                    found_start = True
+                if found_start:
+                    bracket_count += 1
+            elif token == ']':
+                bracket_count -= 1
+                if found_start and bracket_count == 0:
+                    return instruction_count
+            else:
+                # This is an instruction
+                instruction_count += 1
+
+        return None
 
 
 class TagEndpoint(PlcObject):

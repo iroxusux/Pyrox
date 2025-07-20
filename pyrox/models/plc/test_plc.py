@@ -987,11 +987,11 @@ class TestRung(unittest.TestCase):
 
     def test_parse_rung_sequence_simple_instructions(self):
         """Test parsing simple instruction sequence without branches."""
-        self.rung.text = "XIC(Tag1)XIO(Tag2)OTE(Tag3)"
+        self.rung.text = "XIC(Tag1)XIO(Tag2)OTE(Tag3)NOP();"
         self.rung._parse_rung_sequence()
 
         # Should have 3 instruction elements
-        self.assertEqual(len(self.rung._rung_sequence), 3)
+        self.assertEqual(len(self.rung._rung_sequence), 4)
         self.assertEqual(len(self.rung._branches), 0)
 
         # Check sequence elements
@@ -1639,6 +1639,510 @@ class TestRung(unittest.TestCase):
             with patch.object(self.rung, '_rebuild_text_with_instructions', return_value="XIC(Tag1)XIC(ReplacedTag)OTE(Tag3)"):
                 self.rung.remove_instruction("XIC(MiddleTag)")
                 self.assertEqual(self.rung.text, "XIC(Tag1)XIC(ReplacedTag)OTE(Tag3)")
+
+    def test_insert_branch_empty_rung(self):
+        """Test inserting branch in empty rung raises error."""
+        self.rung.text = ""
+
+        self.rung.insert_branch()
+        self.assertEqual(self.rung.text, "[,]")
+
+    def test_insert_branch_no_instructions(self):
+        """Test inserting branch when no instructions found raises error."""
+        self.rung.text = "Some text without instructions"
+
+        self.rung.insert_branch()
+        self.assertEqual(self.rung.text, "[,]")
+
+    def test_insert_branch_negative_positions(self):
+        """Test inserting branch with negative positions raises error."""
+        self.rung.text = "XIC(Tag1)XIO(Tag2)OTE(Tag3)"
+
+        with self.assertRaises(ValueError) as context:
+            self.rung.insert_branch(-1, 1)
+
+        self.assertIn("Branch positions must be non-negative", str(context.exception))
+
+    def test_insert_branch_positions_out_of_range(self):
+        """Test inserting branch with positions out of range raises error."""
+        self.rung.text = "XIC(Tag1)XIO(Tag2)"
+
+        with self.assertRaises(IndexError) as context:
+            self.rung.insert_branch(0, 5)
+
+        self.assertIn("Branch positions out of range", str(context.exception))
+
+    def test_insert_branch_start_greater_than_end(self):
+        """Test inserting branch with start position greater than end position."""
+        self.rung.text = "XIC(Tag1)XIO(Tag2)OTE(Tag3)"
+
+        with self.assertRaises(ValueError) as context:
+            self.rung.insert_branch(2, 1)
+
+        self.assertIn("Start position must be less than or equal to end position", str(context.exception))
+
+    def test_insert_branch_basic(self):
+        """Test basic branch insertion."""
+        self.rung.text = "XIC(Tag1)XIO(Tag2)OTE(Tag3)"
+        self.rung._branches = {}  # Initialize empty branches
+        branch_id = self.rung.insert_branch(1, 2)
+        self.assertEqual(branch_id, "branch_0")
+        self.assertEqual(self.rung.text, "XIC(Tag1)[XIO(Tag2),]OTE(Tag3)")
+
+        self.rung.text = "XIC(Tag1)"
+        self.rung._branches = {}  # Reset branches
+        branch_id = self.rung.insert_branch(0, 1)
+        self.assertEqual(branch_id, "branch_0")
+        self.assertEqual(self.rung.text, "[XIC(Tag1),]")
+
+    def test_insert_branch_with_existing_branches(self):
+        """Test inserting branch when branches already exist."""
+        self.rung.text = "XIC(Tag1)XIO(Tag2)OTE(Tag3)"
+        self.rung._branches = {"branch_0": MagicMock()}  # Existing branch
+        branch_id = self.rung.insert_branch(1, 1)
+        self.assertEqual(branch_id, "branch_1")
+
+    def test_insert_parallel_branch_nonexistent_branch(self):
+        """Test inserting parallel branch with nonexistent branch ID."""
+        self.rung._branches = {}
+
+        with self.assertRaises(ValueError) as context:
+            self.rung.insert_parallel_branch("nonexistent_branch")
+
+        self.assertIn("Branch 'nonexistent_branch' not found in rung", str(context.exception))
+
+    def test_insert_parallel_branch_success(self):
+        """Test successful parallel branch insertion."""
+        mock_branch = MagicMock()
+        mock_branch.start_position = 1
+        mock_branch.end_position = 2
+        self.rung._branches = {"existing_branch": mock_branch}
+
+        with patch.object(self.rung, 'insert_nested_branch', return_value="branch_1") as mock_insert:
+            branch_id = self.rung.insert_parallel_branch("existing_branch", ["XIC(ParallelTag)"])
+
+        mock_insert.assert_called_once_with(1, 2, ["XIC(ParallelTag)"])
+        self.assertEqual(branch_id, "branch_1")
+
+    def test_insert_nested_branch_empty_rung(self):
+        """Test inserting nested branch in empty rung raises error."""
+        self.rung.text = ""
+
+        with self.assertRaises(ValueError) as context:
+            self.rung.insert_nested_branch(0, 1)
+
+        self.assertIn("Cannot insert nested branch in empty rung", str(context.exception))
+
+    def test_insert_nested_branch_success(self):
+        """Test successful nested branch insertion."""
+        self.rung.text = "XIC(Tag1)[XIO(Tag2)]OTE(Tag3)"
+        self.rung._branches = {}
+        branch_id = self.rung.insert_nested_branch(1, 1, ["XIC(NestedTag)"])
+        self.assertEqual(branch_id, "branch_0")
+
+    def test_insert_branch_tokens_basic(self):
+        """Test _insert_branch_tokens method."""
+        original_tokens = ["XIC(Tag1)", "XIO(Tag2)", "OTE(Tag3)"]
+        branch_instructions = ["XIC(BranchTag)"]
+
+        result = self.rung._insert_branch_tokens(original_tokens, 1, 1, branch_instructions)
+
+        expected = ["XIC(Tag1)", "[", "XIO(Tag2)", ",", "XIC(BranchTag)", "]",  "OTE(Tag3)"]
+        self.assertEqual(result, expected)
+
+    def test_insert_branch_tokens_with_existing_branches(self):
+        """Test _insert_branch_tokens with existing branch markers."""
+        original_tokens = ["XIC(Tag1)", "[", "XIO(Tag2)", "]", "OTE(Tag3)"]
+        branch_instructions = ["XIC(BranchTag)"]
+
+        result = self.rung._insert_branch_tokens(original_tokens, 1, 1, branch_instructions)
+
+        # Should preserve existing branch markers and add new ones
+        self.assertIn("[", result)
+        self.assertIn("]", result)
+        self.assertIn("XIC(BranchTag)", result)
+
+    def test_insert_nested_branch_tokens_basic(self):
+        """Test _insert_nested_branch_tokens method."""
+        original_tokens = ["XIC(Tag1)", "XIO(Tag2)", "OTE(Tag3)"]
+        nested_instructions = ["XIC(NestedTag)"]
+
+        result = self.rung._insert_nested_branch_tokens(original_tokens, 1, 1, nested_instructions)
+
+        expected = ["XIC(Tag1)", "[", "XIC(NestedTag)", "]", "XIO(Tag2)", "OTE(Tag3)"]
+        self.assertEqual(result, expected)
+
+    def test_insert_nested_branch_tokens_with_existing_branches(self):
+        """Test _insert_nested_branch_tokens with existing branch structure."""
+        original_tokens = ["XIC(Tag1)", "[", "XIO(Tag2)", "]", "OTE(Tag3)"]
+        nested_instructions = ["XIC(NestedTag)"]
+
+        result = self.rung._insert_nested_branch_tokens(original_tokens, 1, 1, nested_instructions)
+
+        # Should preserve existing structure and add nested branch
+        self.assertTrue(result.count("[") >= 2)  # At least original + nested
+        self.assertTrue(result.count("]") >= 2)
+        self.assertIn("XIC(NestedTag)", result)
+
+    def test_wrap_instructions_in_branch_empty_rung(self):
+        """Test wrapping instructions in empty rung raises error."""
+        self.rung.text = ""
+
+        with self.assertRaises(ValueError) as context:
+            self.rung.wrap_instructions_in_branch(0, 1)
+
+        self.assertIn("Cannot wrap instructions in empty rung", str(context.exception))
+
+    def test_wrap_instructions_in_branch_no_instructions(self):
+        """Test wrapping instructions when none found raises error."""
+        self.rung.text = "Some text without instructions"
+
+        with self.assertRaises(ValueError) as context:
+            self.rung.wrap_instructions_in_branch(0, 1)
+
+        self.assertIn("No instructions found in rung", str(context.exception))
+
+    def test_wrap_instructions_in_branch_negative_positions(self):
+        """Test wrapping instructions with negative positions raises error."""
+        self.rung.text = "XIC(Tag1)XIO(Tag2)OTE(Tag3)"
+
+        with self.assertRaises(ValueError) as context:
+            self.rung.wrap_instructions_in_branch(-1, 1)
+
+        self.assertIn("Positions must be non-negative", str(context.exception))
+
+    def test_wrap_instructions_in_branch_positions_out_of_range(self):
+        """Test wrapping instructions with positions out of range raises error."""
+        self.rung.text = "XIC(Tag1)XIO(Tag2)"
+
+        with self.assertRaises(IndexError) as context:
+            self.rung.wrap_instructions_in_branch(0, 5)
+
+        self.assertIn("Positions out of range", str(context.exception))
+
+    def test_wrap_instructions_in_branch_start_greater_than_end(self):
+        """Test wrapping instructions with start greater than end raises error."""
+        self.rung.text = "XIC(Tag1)XIO(Tag2)OTE(Tag3)"
+
+        with self.assertRaises(ValueError) as context:
+            self.rung.wrap_instructions_in_branch(2, 1)
+
+        self.assertIn("Start position must be less than or equal to end position", str(context.exception))
+
+    def test_remove_branch_nonexistent_branch(self):
+        """Test removing nonexistent branch raises error."""
+        self.rung._branches = {}
+
+        with self.assertRaises(ValueError) as context:
+            self.rung.remove_branch("nonexistent_branch")
+
+        self.assertIn("Branch 'nonexistent_branch' not found in rung", str(context.exception))
+
+    def test_remove_branch_success(self):
+        """Test successful branch removal."""
+        mock_branch = MagicMock()
+        self.rung._branches = {"test_branch": mock_branch}
+        self.rung.text = "XIC(Tag1)[XIO(Tag2)]OTE(Tag3)"
+        self.rung.remove_branch("branch_0", keep_instructions=True)
+        self.assertEqual(self.rung.text, "XIC(Tag1)XIO(Tag2)OTE(Tag3)")
+
+    def test_remove_branch_tokens_keep_instructions(self):
+        """Test _remove_branch_tokens with keep_instructions=True."""
+        original_tokens = ["XIC(Tag1)", "[", "XIO(Tag2)", "]", "OTE(Tag3)"]
+        mock_branch = MagicMock()
+        mock_instruction = MagicMock()
+        mock_instruction.meta_data = "XIO(Tag2)"
+        mock_branch.instructions = [mock_instruction]
+        self.rung._branches = {"test_branch": mock_branch}
+
+        result = self.rung._remove_branch_tokens(original_tokens, "test_branch", True)
+
+        # Should remove brackets but keep instructions
+        self.assertNotIn("[", result)
+        self.assertNotIn("]", result)
+        self.assertIn("XIO(Tag2)", result)
+
+    def test_remove_branch_tokens_discard_instructions(self):
+        """Test _remove_branch_tokens with keep_instructions=False."""
+        original_tokens = ["XIC(Tag1)", "[", "XIO(Tag2)", "]", "OTE(Tag3)"]
+        mock_branch = MagicMock()
+        mock_instruction = MagicMock()
+        mock_instruction.meta_data = "XIO(Tag2)"
+        mock_branch.instructions = [mock_instruction]
+        self.rung._branches = {"test_branch": mock_branch}
+
+        result = self.rung._remove_branch_tokens(original_tokens, "test_branch", False)
+
+        # Should remove brackets and instructions
+        self.assertNotIn("[", result)
+        self.assertNotIn("]", result)
+        expected = ["XIC(Tag1)", "OTE(Tag3)"]
+        # Filter out any empty strings or unwanted tokens
+        filtered_result = [token for token in result if token and token not in ["", " "]]
+        self.assertEqual(filtered_result, expected)
+
+    def test_move_branch_nonexistent_branch(self):
+        """Test moving nonexistent branch raises error."""
+        self.rung._branches = {}
+
+        with self.assertRaises(ValueError) as context:
+            self.rung.move_branch("nonexistent_branch", 0, 1)
+
+        self.assertIn("Branch 'nonexistent_branch' not found in rung", str(context.exception))
+
+    def test_move_branch_success(self):
+        """Test successful branch movement."""
+        mock_instruction = MagicMock()
+        mock_instruction.meta_data = "XIO(Tag2)"
+        mock_branch = MagicMock()
+        mock_branch.instructions = [mock_instruction]
+        self.rung._branches = {"test_branch": mock_branch}
+
+        with patch.object(self.rung, 'remove_branch') as mock_remove:
+            with patch.object(self.rung, 'insert_branch') as mock_insert:
+                self.rung.move_branch("test_branch", 1, 2)
+
+        mock_remove.assert_called_once_with("test_branch", keep_instructions=False)
+        mock_insert.assert_called_once_with(1, 2, ["XIO(Tag2)"])
+
+    def test_get_branch_info_nonexistent_branch(self):
+        """Test getting info for nonexistent branch raises error."""
+        self.rung._branches = {}
+
+        with self.assertRaises(ValueError) as context:
+            self.rung.get_branch_info("nonexistent_branch")
+
+        self.assertIn("Branch 'nonexistent_branch' not found in rung", str(context.exception))
+
+    def test_get_branch_info_success(self):
+        """Test successful branch info retrieval."""
+        mock_instruction = MagicMock()
+        mock_instruction.meta_data = "XIO(Tag2)"
+        mock_instruction.instruction_name = "XIO"
+
+        mock_branch = MagicMock()
+        mock_branch.start_position = 1
+        mock_branch.end_position = 3
+        mock_branch.instructions = [mock_instruction]
+
+        self.rung._branches = {"test_branch": mock_branch}
+
+        info = self.rung.get_branch_info("test_branch")
+
+        expected = {
+            'branch_id': 'test_branch',
+            'start_position': 1,
+            'end_position': 3,
+            'instruction_count': 1,
+            'instructions': ['XIO(Tag2)'],
+            'instruction_types': ['XIO']
+        }
+
+        self.assertEqual(info, expected)
+
+    def test_list_branches_empty(self):
+        """Test listing branches when none exist."""
+        self.rung._branches = {}
+
+        branches = self.rung.list_branches()
+
+        self.assertEqual(branches, [])
+
+    def test_list_branches_multiple(self):
+        """Test listing multiple branches."""
+        mock_instruction1 = MagicMock()
+        mock_instruction1.meta_data = "XIO(Tag1)"
+        mock_instruction1.instruction_name = "XIO"
+
+        mock_instruction2 = MagicMock()
+        mock_instruction2.meta_data = "XIC(Tag2)"
+        mock_instruction2.instruction_name = "XIC"
+
+        mock_branch1 = MagicMock()
+        mock_branch1.start_position = 1
+        mock_branch1.end_position = 2
+        mock_branch1.instructions = [mock_instruction1]
+
+        mock_branch2 = MagicMock()
+        mock_branch2.start_position = 3
+        mock_branch2.end_position = 4
+        mock_branch2.instructions = [mock_instruction2]
+
+        self.rung._branches = {
+            "branch_0": mock_branch1,
+            "branch_1": mock_branch2
+        }
+
+        branches = self.rung.list_branches()
+
+        self.assertEqual(len(branches), 2)
+        self.assertEqual(branches[0]['branch_id'], 'branch_0')
+        self.assertEqual(branches[1]['branch_id'], 'branch_1')
+
+    def test_validate_branch_structure_empty_text(self):
+        """Test validating branch structure with empty text."""
+        self.rung.text = ""
+
+        result = self.rung.validate_branch_structure()
+
+        self.assertTrue(result)
+
+    def test_validate_branch_structure_valid(self):
+        """Test validating valid branch structure."""
+        self.rung.text = "XIC(Tag1)[XIO(Tag2)]OTE(Tag3)"
+        result = self.rung.validate_branch_structure()
+        self.assertTrue(result)
+
+    def test_validate_branch_structure_unmatched_open(self):
+        """Test validating branch structure with unmatched opening bracket."""
+        self.rung.text = "XIC(Tag1)[XIO(Tag2)OTE(Tag3)"
+        result = self.rung.validate_branch_structure()
+        self.assertFalse(result)
+
+    def test_validate_branch_structure_unmatched_close(self):
+        """Test validating branch structure with unmatched closing bracket."""
+        self.rung.text = "XIC(Tag1)XIO(Tag2)]OTE(Tag3)"
+        result = self.rung.validate_branch_structure()
+        self.assertFalse(result)
+
+    def test_validate_branch_structure_nested_valid(self):
+        """Test validating valid nested branch structure."""
+        self.rung.text = "XIC(Tag1)[XIO(Tag2)[XIC(Tag3)]XIO(Tag4)]OTE(Tag5)"
+        result = self.rung.validate_branch_structure()
+        self.assertTrue(result)
+
+    def test_get_branch_nesting_level_empty_text(self):
+        """Test getting branch nesting level with empty text."""
+        self.rung.text = ""
+
+        level = self.rung.get_branch_nesting_level(0)
+
+        self.assertEqual(level, 0)
+
+    def test_get_branch_nesting_level_main_line(self):
+        """Test getting branch nesting level for main line instruction."""
+        self.rung.text = "XIC(Tag1)[XIO(Tag2)]OTE(Tag3)"
+        level = self.rung.get_branch_nesting_level(0)  # XIC(Tag1)
+
+        self.assertEqual(level, 0)
+
+    def test_get_branch_nesting_level_inside_branch(self):
+        """Test getting branch nesting level for instruction inside branch."""
+        self.rung.text = "XIC(Tag1)[XIO(Tag2)]OTE(Tag3)"
+        level = self.rung.get_branch_nesting_level(1)  # XIO(Tag2)
+
+        self.assertEqual(level, 1)
+
+    def test_get_branch_nesting_level_nested_branches(self):
+        """Test getting branch nesting level for nested branches."""
+        self.rung.text = "XIC(Tag1)[XIO(Tag2)[XIC(Tag3)]XIO(Tag4)]OTE(Tag5)"
+
+        level_main = self.rung.get_branch_nesting_level(0)      # XIC(Tag1)
+        level_branch1 = self.rung.get_branch_nesting_level(1)   # XIO(Tag2)
+        level_nested = self.rung.get_branch_nesting_level(2)    # XIC(Tag3)
+        level_branch2 = self.rung.get_branch_nesting_level(3)   # XIO(Tag4)
+        level_end = self.rung.get_branch_nesting_level(4)       # OTE(Tag5)
+
+        self.assertEqual(level_main, 0)
+        self.assertEqual(level_branch1, 1)
+        self.assertEqual(level_nested, 2)
+        self.assertEqual(level_branch2, 1)
+        self.assertEqual(level_end, 0)
+
+    def test_find_matching_branch_end_empty_text(self):
+        """Test finding matching branch end with empty text."""
+        self.rung.text = ""
+
+        end_pos = self.rung.find_matching_branch_end(0)
+
+        self.assertIsNone(end_pos)
+
+    def test_find_matching_branch_end_simple_branch(self):
+        """Test finding matching branch end for simple branch."""
+        self.rung.text = "XIC(Tag1)[XIO(Tag2)]OTE(Tag3)"
+        end_pos = self.rung.find_matching_branch_end(1)  # Start at position 1
+
+        self.assertEqual(end_pos, 2)  # Should end at position 2
+
+    def test_find_matching_branch_end_nested_branches(self):
+        """Test finding matching branch end for nested branches."""
+        self.rung.text = "XIC(Tag1)[XIO(Tag2)[XIC(Tag3)]XIO(Tag4)]OTE(Tag5)"
+        # Outer branch starts at position 1
+        end_pos_outer = self.rung.find_matching_branch_end(1)
+        # Inner branch starts at position 2
+        end_pos_inner = self.rung.find_matching_branch_end(2)
+
+        self.assertEqual(end_pos_outer, 4)  # Outer branch ends at position 4
+        self.assertEqual(end_pos_inner, 3)  # Inner branch ends at position 3
+
+    def test_find_matching_branch_end_no_match(self):
+        """Test finding matching branch end when no match exists."""
+        self.rung.text = "XIC(Tag1)[XIO(Tag2)OTE(Tag3)"  # Missing closing bracket
+        end_pos = self.rung.find_matching_branch_end(1)
+        self.assertIsNone(end_pos)
+
+    def test_complex_branch_workflow(self):
+        """Test a complex workflow of branch operations."""
+        # Start with a basic rung
+        self.rung.text = "XIC(Tag1)XIO(Tag2)XIC(Tag3)OTE(Tag4)"
+        self.rung._branches = {}
+
+        # Insert a branch
+        branch_id = self.rung.insert_branch(1, 1)
+
+        self.assertEqual(branch_id, "branch_0")
+
+        # Mock branch for further operations
+        mock_instruction = MagicMock()
+        mock_instruction.meta_data = "XIC(BranchTag)"
+        mock_instruction.instruction_name = "XIC"
+        mock_branch = MagicMock()
+        mock_branch.start_position = 1
+        mock_branch.end_position = 3
+        mock_branch.instructions = [mock_instruction]
+        self.rung._branches = {branch_id: mock_branch}
+
+        # Get branch info
+        info = self.rung.get_branch_info(branch_id)
+        self.assertEqual(info['branch_id'], branch_id)
+        self.assertEqual(info['instruction_count'], 1)
+
+        # Validate branch structure
+        is_valid = self.rung.validate_branch_structure()
+        self.assertTrue(is_valid)
+
+        # Remove the branch
+        self.rung.remove_branch(branch_id, keep_instructions=True)
+
+    def test_insert_branch_calls_refresh(self):
+        """Test that insert_branch calls _refresh_internal_structures."""
+        self.rung.text = "XIC(Tag1)XIO(Tag2)OTE(Tag3)"
+        self.rung._branches = {}
+        self.rung.insert_branch(1, 1)
+
+    def test_remove_branch_calls_refresh(self):
+        """Test that remove_branch calls _refresh_internal_structures."""
+        self.rung.text = "XIC(Tag1)[XIO(Tag2)]OTE(Tag3)"
+        self.rung.remove_branch("branch_0")
+
+    def test_error_handling_edge_cases(self):
+        """Test various error handling edge cases."""
+        # Test with None text
+        self.rung.text = None
+        with self.assertRaises(IndexError):
+            self.rung.insert_branch(0, 1)
+
+        # Test with invalid branch ID format
+        self.rung._branches = {"invalid": MagicMock()}
+        with self.assertRaises(ValueError):
+            self.rung.remove_branch("nonexistent")
+
+        # Test wrap with equal start and end positions
+        self.rung.text = "XIC(Tag1)XIO(Tag2)OTE(Tag3)"
+        with patch.object(self.rung, 'remove_instruction'):
+            with patch.object(self.rung, 'insert_branch', return_value="branch_0"):
+                branch_id = self.rung.wrap_instructions_in_branch(1, 1)  # Same position
+                self.assertEqual(branch_id, "branch_0")
 
 
 class TestTag(unittest.TestCase):

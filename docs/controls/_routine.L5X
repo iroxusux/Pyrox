@@ -3,7 +3,7 @@
     <Description><![CDATA[Main Routine]]></Description>
     <RLLContent>
         <Rung Number="0" Type="N">
-            <Text><![CDATA[NOP();]]></Text>
+            <Text><![CDATA[]]></Text>
         </Rung>
     </RLLContent>
 </Routine>
