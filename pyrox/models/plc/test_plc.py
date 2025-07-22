@@ -1953,7 +1953,7 @@ class TestRung(unittest.TestCase):
 
     def test_get_branch_nesting_level_nested_branches(self):
         """Test getting branch nesting level for nested branches."""
-        self.rung.text = "XIC(Tag1)[XIO(Tag2)[XIC(Tag3),]XIO(Tag4),]OTE(Tag5)"
+        self.rung.text = "XIC(Tag1)[[XIO(Tag2)XIC(Tag3),]XIO(Tag4),]OTE(Tag5)"
 
         level_main = self.rung.get_branch_nesting_level(0)      # XIC(Tag1)
         level_branch1 = self.rung.get_branch_nesting_level(1)   # XIO(Tag2)
@@ -1964,8 +1964,8 @@ class TestRung(unittest.TestCase):
         self.assertEqual(level_main, 0)
         self.assertEqual(level_branch1, 1)
         self.assertEqual(level_nested, 2)
-        self.assertEqual(level_branch2, 1)
-        self.assertEqual(level_end, 0)
+        self.assertEqual(level_branch2, 2)
+        self.assertEqual(level_end, 2)
 
     def test_get_max_branch_depth(self):
         """Test getting maximum branch depth."""
@@ -2000,7 +2000,7 @@ class TestRung(unittest.TestCase):
         self.rung.text = "XIC(Tag1)[XIO(Tag2),]OTE(Tag3)"
         end_pos = self.rung.find_matching_branch_end(1)  # Start at position 1
 
-        self.assertEqual(end_pos, 3)  # Should end at position 2
+        self.assertEqual(end_pos, 4)  # Should end at position 2
 
     def test_find_matching_branch_end_nested_branches(self):
         """Test finding matching branch end for nested branches."""
@@ -2008,10 +2008,10 @@ class TestRung(unittest.TestCase):
         # Outer branch starts at position 1
         end_pos_outer = self.rung.find_matching_branch_end(1)
         # Inner branch starts at position 2
-        end_pos_inner = self.rung.find_matching_branch_end(2)
+        end_pos_inner = self.rung.find_matching_branch_end(3)
 
-        self.assertEqual(end_pos_outer, 6)  # Outer branch ends at position 6
-        self.assertEqual(end_pos_inner, 4)  # Inner branch ends at position 4
+        self.assertEqual(end_pos_outer, 9)  # Outer branch ends at position 9
+        self.assertEqual(end_pos_inner, 6)  # Inner branch ends at position 6
 
     def test_find_matching_branch_end_no_match(self):
         """Test finding matching branch end when no match exists."""

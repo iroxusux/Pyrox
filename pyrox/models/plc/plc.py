@@ -2019,7 +2019,7 @@ class RungElement:
     element_type: RungElementType
     instruction: Optional[LogixInstruction] = None
     branch_id: Optional[str] = None
-    parent_branch_id: Optional[str] = None  # ID of the parent branch if this is a nested branch
+    root_branch_id: Optional[str] = None  # ID of the parent branch if this is a nested branch
     branch_level: Optional[int] = 0  # Level of the branch in the rung
     position: int = 0  # Sequential position in rung
     rung_number: int = 0  # Rung number this element belongs to
@@ -2032,7 +2032,7 @@ class RungBranch:
     start_position: int
     end_position: int
     instructions: List[LogixInstruction]
-    parent_branch_id: Optional[str] = None  # ID of the parent branch
+    root_branch_id: Optional[str] = None  # ID of the parent branch
     nested_branches: List['RungBranch'] = field(default_factory=list)
 
 
@@ -2244,29 +2244,27 @@ class Rung(PlcObject):
     def _build_sequence_from_tokens(self, tokens: List[str]):
         """Build the rung sequence from tokenized text."""
         position = 0
-        parent_branch_id = None  # Track each branch's parent, since the symbols appear on the parent rail
+        root_branch_id = None  # Track each branch's parent, since the symbols appear on the parent rail
         branch_id = None
-        branch_stack = []
+        branch_stack: list[RungBranch] = []
         branch_counter = 0
         branch_level = 0
         branch_level_history: list[int] = []  # Track branch levels for nesting
-        nesting_level = 0  # Track nesting level for branches
+        branch_root_id_history: list[str] = []  # Track root branch IDs for nesting
         instruction_index = 0
 
         for token in tokens:
             if token == '[':  # Branch start
-                parent_branch_id = branch_id
                 branch_id = f"branch_{branch_counter}"
                 branch_counter += 1
                 if branch_level > 0:
                     branch_level_history.append(branch_level)
-                    nesting_level += 1
 
                 # Create branch start element
                 branch_start = RungElement(
                     element_type=RungElementType.BRANCH_START,
                     branch_id=branch_id,
-                    parent_branch_id=parent_branch_id,
+                    root_branch_id=root_branch_id,
                     branch_level=branch_level,
                     position=position
                 )
@@ -2276,12 +2274,11 @@ class Rung(PlcObject):
                 # Create branch object
                 branch = RungBranch(
                     branch_id=branch_id,
-                    parent_branch_id=parent_branch_id,
+                    root_branch_id=root_branch_id,
                     start_position=position,
                     end_position=-1,  # Will be set when branch ends
                     instructions=[]
                 )
-
                 self._branches[branch_id] = branch
                 branch_stack.append(branch)
                 position += 1
@@ -2289,25 +2286,14 @@ class Rung(PlcObject):
             elif token == ']':  # Branch end
                 if branch_stack:
                     branch = branch_stack.pop()
-
-                    # Update branch end position
                     self._branches[branch.branch_id].end_position = position
-
-                    # Restore the previous branch id
-                    branch_id = branch_stack[-1].branch_id if branch_stack else None
-
-                    # Decrement branch depth
+                    root_branch_id = branch_root_id_history.pop() if branch_root_id_history else None
                     branch_level = branch_level_history.pop() if branch_level_history else 0
-                    if nesting_level > 0:
-                        nesting_level -= 1
-                    if nesting_level < 0:
-                        raise ValueError("Nesting level cannot be negative!")
 
-                    # Create branch end element
                     branch_end = RungElement(
                         element_type=RungElementType.BRANCH_END,
-                        branch_id=branch_id,
-                        parent_branch_id=parent_branch_id,
+                        branch_id=branch.branch_id,
+                        root_branch_id=root_branch_id,
                         branch_level=branch_level,
                         position=position
                     )
@@ -2315,22 +2301,20 @@ class Rung(PlcObject):
                     self._rung_sequence.append(branch_end)
                     position += 1
 
-                    branch_id = parent_branch_id  # Restore parent branch id
-                    branch = next((x for x in branch_stack if x.branch_id == branch_id), None)
-                    parent_branch_id = branch.parent_branch_id if branch else None
-
             elif token == ',':  # Next branch marker
-                if branch_stack:
-                    branch_level += 1  # This must increment first to indicate a new branch level
-                    next_branch = RungElement(
-                        element_type=RungElementType.BRANCH_NEXT,
-                        branch_id=f'{branch_id}_sub_{branch_level}',
-                        parent_branch_id=branch_id,
-                        branch_level=branch_level,
-                        position=position
-                    )
-                    self._rung_sequence.append(next_branch)
-                    position += 1
+                branch_level += 1  # This must increment first to indicate a new branch level
+                branch_id = f'branch_{branch_counter-1}_sub_{branch_level}'
+                next_branch = RungElement(
+                    element_type=RungElementType.BRANCH_NEXT,
+                    branch_id=branch_id,
+                    root_branch_id=root_branch_id,
+                    branch_level=branch_level,
+                    position=position
+                )
+                branch_root_id_history.append(root_branch_id)  # Save current root branch id
+                root_branch_id = branch_id  # Change branch id after assignment so we get the proper parent
+                self._rung_sequence.append(next_branch)
+                position += 1
 
             else:  # Regular instruction
                 instruction = self._find_instruction_by_text(token, instruction_index)
@@ -2340,7 +2324,7 @@ class Rung(PlcObject):
                         instruction=instruction,
                         position=position,
                         branch_id=branch_id,
-                        parent_branch_id=parent_branch_id,
+                        root_branch_id=root_branch_id,
                         branch_level=branch_level
                     )
 
@@ -2633,9 +2617,7 @@ class Rung(PlcObject):
                 bracket_count -= 1
                 if found_start and bracket_count == 0:
                     return instruction_count
-            else:
-                # This is an instruction
-                instruction_count += 1
+            instruction_count += 1
 
         return None
 
@@ -2669,6 +2651,31 @@ class Rung(PlcObject):
             'instruction_types': [instr.instruction_name for instr in branch.instructions]
         }
 
+    def get_branch_internal_nesting_level(self, branch_position: int) -> int:
+        """Get nesting levels of elements inside of a branch.
+        """
+        end_position = self.find_matching_branch_end(branch_position)
+        if end_position is None:
+            raise ValueError(f"No matching end found for branch starting at position {branch_position}.")
+
+        tokens = self._tokenize_rung_text(self.text)
+        nesting_counter = 0
+        nesting_level = 0
+        start_counter = False  # this ensures we don't count our own nested elements
+        indexed_tokens = tokens[branch_position+1:end_position]
+        for token in indexed_tokens:
+            if token == '[':
+                start_counter = True
+            if token == ',' and start_counter is True:
+                nesting_counter += 1
+                if nesting_counter > nesting_level:
+                    nesting_level = nesting_counter
+            elif token == ']':
+                nesting_counter = 0
+                start_counter = False
+
+        return nesting_level
+
     def get_branch_nesting_level(self, instruction_position: int) -> int:
         """Get the nesting level of branches at a specific instruction position.
 
@@ -2683,21 +2690,14 @@ class Rung(PlcObject):
 
         tokens = self._tokenize_rung_text(self.text)
         nesting_level = 0
-        instruction_count = 0
 
-        for token in tokens:
+        for index, token in enumerate(tokens):
             if token == '[':
                 nesting_level += 1
             elif token == ']':
                 nesting_level -= 1
-            elif token == ',':
-                # Comma indicates next level of branch, do not count it
-                continue
-            else:
-                # This is an instruction
-                if instruction_count == instruction_position:
-                    return nesting_level
-                instruction_count += 1
+            if index == instruction_position:
+                return nesting_level
 
         return 0
 
@@ -2837,15 +2837,12 @@ class Rung(PlcObject):
             ValueError: If positions are invalid
             IndexError: If positions are out of range
         """
-        # Validate positions
-        current_instructions = re.findall(INST_RE_PATTERN, self.text)
-        if not current_instructions:
-            current_instructions = []
+        original_tokens = self._tokenize_rung_text(self.text)
 
         if start_position < 0 or end_position < 0:
             raise ValueError("Branch positions must be non-negative!")
 
-        if start_position > len(current_instructions) or end_position > len(current_instructions):
+        if start_position > len(original_tokens) or end_position > len(original_tokens):
             raise IndexError("Branch positions out of range!")
 
         if start_position > end_position:
@@ -2853,9 +2850,6 @@ class Rung(PlcObject):
 
         # Generate unique branch ID
         branch_id = f"branch_{len(self._branches)}"
-
-        # Get current structure
-        original_tokens = self._tokenize_rung_text(self.text)
 
         # Build new token sequence with branch
         new_tokens = self._insert_branch_tokens(
