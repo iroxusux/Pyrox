@@ -29,6 +29,9 @@
 				<Routines>
 					<Routine Name="MainRoutine" Type="RLL">
 						<RLLContent>
+							<Rung Number="0" Type="N">
+								<Text><![CDATA[//]]></Text>
+							</Rung>
 						</RLLContent>
 					</Routine>
 				</Routines>

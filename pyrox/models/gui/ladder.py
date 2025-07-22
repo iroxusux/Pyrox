@@ -27,7 +27,7 @@ class LadderEditorMode(Enum):
 @dataclass
 class LadderElement:
     """Represents a ladder logic element on the canvas."""
-    element_type: str  # 'contact', 'coil', 'block', 'wire', 'branch_start', 'branch_end'
+    element_type: str  # 'contact', 'coil', 'block', 'wire', 'branch_start', 'branch_end', 'rung'
     x: int
     y: int
     width: int
@@ -39,6 +39,7 @@ class LadderElement:
     is_selected: bool = False
     branch_level: int = 0
     branch_id: Optional[str] = None
+    parent_branch_id: Optional[str] = None
     position: int = 0  # Position in rung sequence
 
 
@@ -52,6 +53,8 @@ class LadderBranch:
     rung_number: int
     branch_id: str
     elements: List[LadderElement]
+    parent_branch_id: Optional[str] = None
+    branch_level: int = 0
     start_position: int = 0
     end_position: int = 0
 
@@ -84,10 +87,21 @@ class LadderCanvas(Canvas, Loggable):
         self._selected_elements: List[LadderElement] = []
         self._mode = LadderEditorMode.VIEW
         self._current_rung = 0
+        self._current_ladder_element: Optional[LadderElement] = None
         self._rung_y_positions: Dict[int, int] = {}
         self._branches: Dict[str, LadderBranch] = {}
         self._pending_branch_start: Optional[LadderElement] = None
         self._branch_counter = 0
+
+        # Add debug mode support
+        self._debug_mode = False
+        self._debug_overlays = []
+
+        # Add tooltip support
+        self._tooltip = None
+        self._tooltip_delay = 1000  # 1 second delay
+        self._tooltip_id = None
+        self._tooltip_element = None
 
         # Hover preview elements
         self._rung_hover_preview_id: Optional[int] = None
@@ -134,6 +148,67 @@ class LadderCanvas(Canvas, Loggable):
         self._mode = value
         self.config(cursor=self._get_cursor_for_mode(value))
 
+    def _add_debug_element_tooltip_content(self, frame: tk.Frame, element: LadderElement):
+        """Add debug tooltip content for non-instruction elements."""
+
+        # Element type header
+        type_colors = {
+            'rung': '#4A90E2',
+            'branch_rail_connector': '#7ED321',
+            'branch_start': '#50E3C2',
+            'branch_end': '#F5A623',
+            'branch_next': '#BD10E0',
+            'wire': '#9013FE'
+        }
+
+        color = type_colors.get(element.element_type, '#666666')
+
+        header_label = tk.Label(
+            frame,
+            text=f"{element.element_type.replace('_', ' ').title()}",
+            background="#fffacd",
+            font=("Arial", 10, "bold"),
+            foreground=color
+        )
+        header_label.pack(anchor="w")
+
+        # Element-specific information
+        if element.element_type == 'rung':
+            self._add_rung_debug_info(frame, element)
+        elif element.element_type in ['branch_rail_connector', 'branch_start', 'branch_end', 'branch_next']:
+            self._add_branch_debug_info(frame, element)
+        elif element.element_type == 'wire':
+            self._add_wire_debug_info(frame, element)
+
+        # Always add general debug info for debug mode
+        self._add_debug_tooltip_section(frame, element)
+
+    def _add_debug_overlay_for_element(self, element: LadderElement):
+        """Add debug visual overlay for a single element."""
+        # Coordinate text
+        coord_text_id = self.create_text(
+            element.x + element.width + 5,
+            element.y - 5,
+            text=f"({element.x},{element.y})",
+            font=("Arial", 6),
+            fill="red",
+            anchor="nw",
+            tags="debug_overlay"
+        )
+        self._debug_overlays.append(coord_text_id)
+
+        # Position text
+        pos_text_id = self.create_text(
+            element.x,
+            element.y + element.height + 5,
+            text=f"Pos:{element.position}",
+            font=("Arial", 6),
+            fill="blue",
+            anchor="nw",
+            tags="debug_overlay"
+        )
+        self._debug_overlays.append(pos_text_id)
+
     def _add_instruction_to_rung(self, instruction: plc.LogixInstruction, rung_number: int):
         """Add instruction to the appropriate rung in the routine."""
         if not self._routine or not hasattr(self._routine, 'rungs'):
@@ -149,11 +224,377 @@ class LadderCanvas(Canvas, Loggable):
             else:
                 rung.text = instruction.meta_data
 
+    def _add_instruction_tooltip_content(self, frame: tk.Frame, element: LadderElement):
+        """Add instruction-specific tooltip content."""
+        instruction = element.instruction
+
+        # Instruction header
+        header_label = tk.Label(
+            frame,
+            text=f"{instruction.instruction_name}",
+            background="#fffacd",
+            font=("Arial", 10, "bold"),
+            foreground="#000080"
+        )
+        header_label.pack(anchor="w")
+
+        # Operand information
+        if instruction.operands:
+            operand = instruction.operands[0]
+
+            # Main operand
+            operand_label = tk.Label(
+                frame,
+                text=f"Tag: {operand.meta_data}",
+                background="#fffacd",
+                font=("Arial", 9)
+            )
+            operand_label.pack(anchor="w")
+
+            # Alias if different
+            if operand.as_aliased != operand.meta_data:
+                alias_label = tk.Label(
+                    frame,
+                    text=f"Alias: {operand.as_aliased}",
+                    background="#fffacd",
+                    font=("Arial", 9),
+                    foreground="#2739FB"
+                )
+                alias_label.pack(anchor="w")
+
+        # Element position info
+        if hasattr(element, 'position'):
+            position_label = tk.Label(
+                frame,
+                text=f"Position: {element.position}",
+                background="#fffacd",
+                font=("Arial", 8),
+                foreground="gray"
+            )
+            position_label.pack(anchor="w")
+
+        # Branch info if applicable
+        if element.branch_level > 0:
+            branch_label = tk.Label(
+                frame,
+                text=f"Branch: {element.branch_id} (Level {element.branch_level})",
+                background="#fffacd",
+                font=("Arial", 8),
+                foreground="gray"
+            )
+            branch_label.pack(anchor="w")
+
+        # Add debug information if enabled
+        if self._debug_mode:
+            self._add_debug_tooltip_section(frame, element)
+
     def _add_branch_at_element(self, element: LadderElement):
         """Add a branch starting at the specified element."""
         self._pending_branch_start = element
         self.mode = LadderEditorMode.CONNECT_BRANCH
         self._show_status("Click where you want the branch to reconnect")
+
+    def _add_branch_debug_info(self, frame: tk.Frame, element: LadderElement):
+        """Add branch-specific debug information."""
+
+        # Branch ID
+        if element.branch_id:
+            tk.Label(
+                frame,
+                text=f"Branch ID: {element.branch_id}",
+                background="#fffacd",
+                font=("Arial", 9),
+                foreground="black"
+            ).pack(anchor="w")
+
+        # Branch level
+        tk.Label(
+            frame,
+            text=f"Branch Level: {element.branch_level}",
+            background="#fffacd",
+            font=("Arial", 8),
+            foreground="gray"
+        ).pack(anchor="w")
+
+        # Parent branch
+        if element.parent_branch_id:
+            tk.Label(
+                frame,
+                text=f"Parent Branch: {element.parent_branch_id}",
+                background="#fffacd",
+                font=("Arial", 8),
+                foreground="gray"
+            ).pack(anchor="w")
+
+        # Position in sequence
+        tk.Label(
+            frame,
+            text=f"Sequence Position: {element.position}",
+            background="#fffacd",
+            font=("Arial", 8),
+            foreground="gray"
+        ).pack(anchor="w")
+
+        # Branch structure info
+        if element.branch_id and element.branch_id in self._branches:
+            branch = self._branches[element.branch_id]
+
+            tk.Label(
+                frame,
+                text=f"Start Position: {branch.start_position}",
+                background="#fffacd",
+                font=("Arial", 8),
+                foreground="gray"
+            ).pack(anchor="w")
+
+            tk.Label(
+                frame,
+                text=f"End Position: {branch.end_position}",
+                background="#fffacd",
+                font=("Arial", 8),
+                foreground="gray"
+            ).pack(anchor="w")
+
+            tk.Label(
+                frame,
+                text=f"Elements in Branch: {len(branch.elements)}",
+                background="#fffacd",
+                font=("Arial", 8),
+                foreground="gray"
+            ).pack(anchor="w")
+
+    def _add_debug_overlay_for_any_element(self, element: LadderElement):
+        """Add debug visual overlay for any element type."""
+
+        # Color coding for different element types
+        overlay_colors = {
+            'contact': 'blue',
+            'coil': 'green',
+            'block': 'purple',
+            'rung': 'orange',
+            'branch_rail_connector': 'cyan',
+            'branch_start': 'lime',
+            'branch_end': 'red',
+            'branch_next': 'magenta',
+            'wire': 'gray'
+        }
+
+        color = overlay_colors.get(element.element_type, 'black')
+
+        # Element bounds rectangle with type-specific color
+        bounds_id = self.create_rectangle(
+            element.x, element.y,
+            element.x + element.width, element.y + element.height,
+            outline=color,
+            width=1,
+            dash=(2, 2),
+            tags="debug_overlay"
+        )
+        self._debug_overlays.append(bounds_id)
+
+        # Only show detailed debug info for instruction elements to avoid clutter
+        if element.element_type in ['contact', 'coil', 'block']:
+            # Coordinate text
+            coord_text_id = self.create_text(
+                element.x + element.width + 5,
+                element.y - 5,
+                text=f"({element.x},{element.y})",
+                font=("Arial", 6),
+                fill=color,
+                anchor="nw",
+                tags="debug_overlay"
+            )
+            self._debug_overlays.append(coord_text_id)
+
+            # Position text
+            pos_text_id = self.create_text(
+                element.x,
+                element.y + element.height + 5,
+                text=f"Pos:{element.position}",
+                font=("Arial", 6),
+                fill=color,
+                anchor="nw",
+                tags="debug_overlay"
+            )
+            self._debug_overlays.append(pos_text_id)
+
+        # For branch elements, show branch ID
+        elif element.element_type in ['branch_rail_connector', 'branch_start', 'branch_end', 'branch_next']:
+            if element.branch_id:
+                branch_text_id = self.create_text(
+                    element.x + element.width // 2,
+                    element.y - 12,
+                    text=f"B:{element.branch_id[-1] if len(element.branch_id) > 8 else element.branch_id}",
+                    font=("Arial", 6),
+                    fill=color,
+                    anchor="center",
+                    tags="debug_overlay"
+                )
+                self._debug_overlays.append(branch_text_id)
+
+        # For rung elements, show rung number
+        elif element.element_type == 'rung':
+            rung_text_id = self.create_text(
+                element.x + 5,
+                element.y + 5,
+                text=f"R:{element.rung_number}",
+                font=("Arial", 6),
+                fill=color,
+                anchor="nw",
+                tags="debug_overlay"
+            )
+            self._debug_overlays.append(rung_text_id)
+
+    def _add_debug_tooltip_section(self, frame: tk.Frame, element: LadderElement):
+        """Add the debug information section to tooltips."""
+
+        # Add separator for debug info
+        ttk.Separator(frame, orient='horizontal').pack(fill='x', pady=2)
+
+        # Debug header
+        debug_header = tk.Label(
+            frame,
+            text="Debug Info:",
+            background="#fffacd",
+            font=("Arial", 8, "bold"),
+            foreground="red"
+        )
+        debug_header.pack(anchor="w")
+
+        # Element coordinates
+        coords_label = tk.Label(
+            frame,
+            text=f"Coords: ({element.x}, {element.y})",
+            background="#fffacd",
+            font=("Arial", 7),
+            foreground="red"
+        )
+        coords_label.pack(anchor="w")
+
+        # Element size
+        size_label = tk.Label(
+            frame,
+            text=f"Size: {element.width}x{element.height}",
+            background="#fffacd",
+            font=("Arial", 7),
+            foreground="red"
+        )
+        size_label.pack(anchor="w")
+
+        # Canvas ID
+        canvas_id_label = tk.Label(
+            frame,
+            text=f"Canvas ID: {element.canvas_id}",
+            background="#fffacd",
+            font=("Arial", 7),
+            foreground="red"
+        )
+        canvas_id_label.pack(anchor="w")
+
+        # Element type
+        type_label = tk.Label(
+            frame,
+            text=f"Type: {element.element_type}",
+            background="#fffacd",
+            font=("Arial", 7),
+            foreground="red"
+        )
+        type_label.pack(anchor="w")
+
+        # Memory address (for debugging)
+        memory_label = tk.Label(
+            frame,
+            text=f"Object ID: {id(element)}",
+            background="#fffacd",
+            font=("Arial", 7),
+            foreground="red"
+        )
+        memory_label.pack(anchor="w")
+
+    def _add_rung_debug_info(self, frame: tk.Frame, element: LadderElement):
+        """Add rung-specific debug information."""
+        rung_number = element.rung_number
+
+        # Rung number
+        tk.Label(
+            frame,
+            text=f"Rung Number: {rung_number}",
+            background="#fffacd",
+            font=("Arial", 9),
+            foreground="black"
+        ).pack(anchor="w")
+
+        if self._routine and rung_number < len(self._routine.rungs):
+            rung = self._routine.rungs[rung_number]
+
+            # Instruction count
+            tk.Label(
+                frame,
+                text=f"Instructions: {len(rung.instructions)}",
+                background="#fffacd",
+                font=("Arial", 8),
+                foreground="gray"
+            ).pack(anchor="w")
+
+            # Branch count
+            tk.Label(
+                frame,
+                text=f"Branches: {len(rung._branches) if hasattr(rung, '_branches') else 0}",
+                background="#fffacd",
+                font=("Arial", 8),
+                foreground="gray"
+            ).pack(anchor="w")
+
+            # Max branch depth
+            max_depth = rung.get_max_branch_depth() if hasattr(rung, 'get_max_branch_depth') else 0
+            tk.Label(
+                frame,
+                text=f"Max Branch Depth: {max_depth}",
+                background="#fffacd",
+                font=("Arial", 8),
+                foreground="gray"
+            ).pack(anchor="w")
+
+            # Rung text (truncated)
+            rung_text = rung.text if rung.text else "(empty)"
+            if len(rung_text) > 30:
+                rung_text = rung_text[:30] + "..."
+            tk.Label(
+                frame,
+                text=f"Text: {rung_text}",
+                background="#fffacd",
+                font=("Arial", 8),
+                foreground="gray"
+            ).pack(anchor="w")
+
+    def _add_wire_debug_info(self, frame: tk.Frame, element: LadderElement):
+        """Add wire-specific debug information."""
+
+        tk.Label(
+            frame,
+            text="Wire Element",
+            background="#fffacd",
+            font=("Arial", 9),
+            foreground="black"
+        ).pack(anchor="w")
+
+        # Connection info would go here if we tracked wire connections
+        tk.Label(
+            frame,
+            text="Connection: Main Rail",
+            background="#fffacd",
+            font=("Arial", 8),
+            foreground="gray"
+        ).pack(anchor="w")
+
+    def _assm_ladder_element_from_rung_element(self, ladder_element: LadderElement, rung_element: plc.RungElement, rung_number: int) -> None:
+        """Assemble a LadderElement from a RungElement."""
+        ladder_element.branch_level = rung_element.branch_level
+        ladder_element.branch_id = rung_element.branch_id
+        ladder_element.parent_branch_id = rung_element.parent_branch_id
+        ladder_element.rung_number = rung_number
+        ladder_element.instruction = rung_element.instruction
+        ladder_element.position = rung_element.position
 
     def _calculate_insertion_coordinates(self, click_x: int, click_y: int,
                                          rung_number: int, insertion_position: int,
@@ -168,21 +609,35 @@ class LadderCanvas(Canvas, Loggable):
             center_y += branch_level * self.BRANCH_SPACING
 
         # Get existing elements in this context
-        rung_elements = self._get_rung_elements(rung_number, branch_level, branch_id)
+        rung_elements = self._get_rung_ladder_elements(rung_number, branch_level, branch_id)
+        last_position = max((e.position for e in rung_elements), default=-1)
+        default_start = self.RAIL_X_LEFT + self.ELEMENT_SPACING + 30, center_y
 
-        if not rung_elements:
+        if not rung_elements or insertion_position == 0:
             # No elements, insert at start
-            return self.RAIL_X_LEFT + self.ELEMENT_SPACING + 30, center_y
-        elif insertion_position == 0:
-            return self.RAIL_X_LEFT + (self.ELEMENT_SPACING/2), center_y
-        elif insertion_position >= len(rung_elements):
+            return default_start
+        elif insertion_position > last_position:
             # Insert at the end
             last_element = rung_elements[-1]
             return last_element.x + last_element.width + self.ELEMENT_SPACING + self.MIN_WIRE_LENGTH, center_y
         else:
+            # Because positions are shared across branches, we need to find the exact position
+            this_element_index = 0
+            for index, element in enumerate(rung_elements):
+                if element.position == insertion_position:
+                    this_element_index = index
+                    break
+            if this_element_index == 0:
+                # Insert at the start
+                if len(rung_elements) > 0:
+                    last_element = rung_elements[-1]
+                    return last_element.x + last_element.width + self.ELEMENT_SPACING + self.MIN_WIRE_LENGTH, center_y
+                return default_start
+            else:
+                prev_element_index = this_element_index - 1
             # Insert between elements
-            prev_element = rung_elements[insertion_position - 1]
-            this_element = rung_elements[insertion_position]
+            prev_element = rung_elements[prev_element_index]
+            this_element = rung_elements[this_element_index]
             prev_element_x_right = prev_element.x + prev_element.width
             element_dist_delta = this_element.x - prev_element_x_right
             insert_x = this_element.x - element_dist_delta // 2
@@ -209,10 +664,14 @@ class LadderCanvas(Canvas, Loggable):
     def _clear_rung_visuals(self, rung_number: int):
         """Clear all visual elements for a specific rung."""
         # Remove canvas items
+        self.delete(f"rung_{rung_number}")
         self.delete(f"rung_{rung_number}_instruction")
         self.delete(f"rung_{rung_number}_wire")
         self.delete(f"rung_{rung_number}_branch")
         self.delete(f"rung_{rung_number}_branch_marker")
+        self.delete(f"rung_{rung_number}_branch_start")
+        self.delete(f"rung_{rung_number}_branch_end")
+        self.delete(f"rung_{rung_number}_branch_next")
 
         # Remove elements from our tracking list
         elements_to_remove = [e for e in self._elements
@@ -315,77 +774,6 @@ class LadderCanvas(Canvas, Loggable):
             controller=self._routine.controller if self._routine else None
         )
 
-    def _create_branch_start_visual(self, x: int, center_y: int, branch_y: int,
-                                    rung_number: int, element, branch_stack: List[str]):
-        """Create visual elements for branch start."""
-        branch_start_id = self.create_oval(
-            x - 5, center_y - 5, x + 5, center_y + 5,
-            fill='green', outline='darkgreen', width=2,
-            tags=f"rung_{rung_number}_branch_marker"
-        )
-
-        ladder_element = LadderElement(
-            element_type='branch_start',
-            x=x - 5, y=center_y - 5,
-            width=10, height=10,
-            canvas_id=branch_start_id,
-            branch_level=len(branch_stack) + 1,
-            branch_id=element.branch_id,
-            position=element.position,
-            rung_number=rung_number
-        )
-        self._elements.append(ladder_element)
-
-        # Create branch structure
-        branch = LadderBranch(
-            start_x=x, end_x=-1,
-            main_y=center_y, branch_y=branch_y,
-            rung_number=rung_number,
-            branch_id=element.branch_id,
-            elements=[], start_position=element.position, end_position=-1
-        )
-        self._branches[element.branch_id] = branch
-        branch_stack.append(element.branch_id)
-
-        # Draw vertical line down to branch
-        self.create_line(x, center_y, x, branch_y, width=2,
-                         tags=f"rung_{rung_number}_branch")
-
-    def _create_branch_end_visual(self, x: int, center_y: int, rung_number: int,
-                                  element, branch_stack: List[str]):
-        """Create visual elements for branch end."""
-        if branch_stack and element.branch_id in branch_stack:
-            branch_stack.remove(element.branch_id)
-
-        if element.branch_id in self._branches:
-            branch = self._branches[element.branch_id]
-            branch.end_x = x
-            branch.end_position = element.position
-
-            # Create visual branch end marker
-            branch_end_id = self.create_oval(
-                x - 5, center_y - 5, x + 5, center_y + 5,
-                fill='red', outline='darkred', width=2,
-                tags=f"rung_{rung_number}_branch_marker"
-            )
-
-            ladder_element = LadderElement(
-                element_type='branch_end',
-                x=x - 5, y=center_y - 5,
-                width=10, height=10,
-                canvas_id=branch_end_id,
-                branch_level=len(branch_stack),
-                branch_id=element.branch_id,
-                position=element.position
-            )
-            self._elements.append(ladder_element)
-
-            # Draw branch connection lines
-            self.create_line(x, branch.branch_y, x, center_y, width=2,
-                             tags=f"rung_{rung_number}_branch")
-            self.create_line(branch.start_x, branch.branch_y, x, branch.branch_y, width=2,
-                             tags=f"rung_{rung_number}_branch")
-
     def _clear_hover_preview(self):
         """Clear the hover preview."""
         if self._hover_preview_id:
@@ -393,26 +781,49 @@ class LadderCanvas(Canvas, Loggable):
             self._hover_preview_id = None
             self._last_hover_position = None
 
+    def _clear_element_hover_preview(self):
+        """Clear the element hover preview."""
+        self.delete('current_element_highlight')
+
+    def _clear_rung_hover_preview(self):
+        """Clear the rung hover preview."""
+        self.delete('current_rung_highlight')
+
     def _copy_element(self, element: LadderElement):
         """Copy an element (placeholder)."""
         self._show_status(f"Copied element: {element.text}")
+
+    def _create_ladder_branch(self, ladder_element: LadderElement, element: plc.RungElement, rung_number: int):
+        return LadderBranch(
+            start_x=ladder_element.x,
+            end_x=ladder_element.x + 50,  # this will be updated when the branch closes
+            main_y=self._rung_y_positions[rung_number],
+            branch_y=ladder_element.y,
+            rung_number=rung_number,
+            branch_id=element.branch_id,
+            parent_branch_id=element.parent_branch_id,
+            branch_level=element.branch_level,
+            elements=[],
+            start_position=element.position,
+            end_position=element.position  # this will be updated when the branch closes
+        )
 
     def _delete_branch(self, branch_id: str):
         """Delete a branch and all its elements."""
         if branch_id in self._branches:
             branch = self._branches[branch_id]
 
-            # Remove branch elements from canvas
-            elements_to_remove = [e for e in self._elements if e.branch_id == branch_id]
-            for element in elements_to_remove:
-                self.delete(element.canvas_id)
-                self._elements.remove(element)
-
-            # Remove branch lines
-            self.delete(f"rung_{branch.rung_number}_branch")
+            # Remove branch from rung
+            rung = self._routine.rungs[branch.rung_number] if self._routine else None
+            if not rung:
+                self.logger.debug(f"No rung found for branch {branch_id}")
+                return
+            rung.remove_branch(branch_id, keep_instructions=True)
 
             # Remove from branches dict
             del self._branches[branch_id]
+
+            self._redraw_rung(branch.rung_number)
 
             self._show_status(f"Deleted branch: {branch_id}")
 
@@ -423,7 +834,10 @@ class LadderCanvas(Canvas, Loggable):
         if rung_number is None or rung_number < 0:
             self.logger.debug(f"No rung found for element at Y={element.y}")
             return
-        element.instruction.rung.remove_instruction(element.instruction)
+        if element.position is None:
+            self.logger.debug(f"No position found for element at Y={element.y}")
+            return
+        element.instruction.rung.remove_instruction(element.position)
 
         # Remove from canvas
         self.delete(element.canvas_id)
@@ -438,198 +852,6 @@ class LadderCanvas(Canvas, Loggable):
 
         self._show_status(f"Deleted element: {element.text}")
         self._redraw_rung(rung_number)
-
-    def _draw_branch_connections(self, start_x: int, end_x: int, main_y: int,
-                                 branch_y: int, rung_number: int):
-        """Draw the connecting lines for a branch."""
-        # Vertical line down to branch
-        self.create_line(
-            start_x, main_y,
-            start_x, branch_y,
-            width=2, tags=f"rung_{rung_number}_branch"
-        )
-
-        # Vertical line back up from branch
-        self.create_line(
-            end_x, branch_y,
-            end_x, main_y,
-            width=2, tags=f"rung_{rung_number}_branch"
-        )
-
-        # Horizontal line for the branch
-        self.create_line(
-            start_x, branch_y,
-            end_x, branch_y,
-            width=2, tags=f"rung_{rung_number}_branch"
-        )
-
-    def _draw_instruction(self, instruction: plc.LogixInstruction, x: int, y: int,
-                          rung_number: int) -> Optional[LadderElement]:
-        """Draw a single instruction.
-
-        Args:
-            instruction: The LogixInstruction to draw
-            x: X position for the instruction
-            y: Y position (should be the rung centerline)
-            rung_number: The rung number this instruction belongs to
-        """
-        inst_type = instruction.instruction_name.lower()
-
-        if inst_type in ['xic', 'xio']:  # Contacts
-            return self._draw_contact(instruction, x, y, rung_number)
-        elif inst_type in ['ote', 'otl', 'otu']:  # Coils
-            return self._draw_coil(instruction, x, y, rung_number)
-        else:  # Function blocks
-            return self._draw_block(instruction, x, y, rung_number)
-
-    def _draw_instruction_texts(self, instruction: plc.LogixInstruction,
-                                x: int, y: int, rung_number: int, element_width: int):
-        alias = False
-        # Optionally add alias information above contact
-        if instruction.operands[0].as_aliased != instruction.operands[0].meta_data:
-            self.create_text(
-                x + element_width // 2, y - 15,
-                text=f'<{instruction.operands[0].as_aliased}>',
-                fill="#2739FB",
-                font=('Roboto', 8,),
-                tags=f"rung_{rung_number}_instruction"
-            )
-            alias = True
-
-        # Add operand text above the contact
-        operand = instruction.operands[0].meta_data if instruction.operands else "???"
-        _ = self.create_text(
-            x + element_width // 2, y - (15 if alias is False else 25),
-            text=operand, font=('Roboto', 8,), tags=f"rung_{rung_number}_instruction"
-        )
-
-        # return the operand text for further use
-        return operand
-
-    def _draw_contact(self, instruction: plc.LogixInstruction, x: int, center_y: int,
-                      rung_number: int) -> LadderElement:
-        """Draw a contact instruction centered on the rung."""
-        # Determine contact type
-        is_normally_closed = instruction.instruction_name.lower() == 'xio'
-
-        # Calculate top and bottom Y positions for centering
-        top_y = center_y - self.CONTACT_HEIGHT // 2
-        bottom_y = center_y + self.CONTACT_HEIGHT // 2
-
-        # Draw contact symbol (centered on rung)
-        rect_id = self.create_rectangle(
-            x, top_y,
-            x + self.CONTACT_WIDTH, bottom_y,
-            outline='black', fill='white', width=2,
-            tags=f"rung_{rung_number}_instruction"
-        )
-
-        # Add contact bars
-        if is_normally_closed:
-            # Diagonal line for normally closed (centered in contact)
-            self.create_line(
-                x + 5, top_y + 5,
-                x + self.CONTACT_WIDTH - 5, bottom_y - 5,
-                width=2, tags=f"rung_{rung_number}_instruction"
-            )
-        else:
-            # Vertical lines for normally open (centered in contact)
-            bar_top = top_y + 5
-            bar_bottom = bottom_y - 5
-            self.create_line(
-                x + 10, bar_top,
-                x + 10, bar_bottom,
-                width=2, tags=f"rung_{rung_number}_instruction"
-            )
-            self.create_line(
-                x + self.CONTACT_WIDTH - 10, bar_top,
-                x + self.CONTACT_WIDTH - 10, bar_bottom,
-                width=2, tags=f"rung_{rung_number}_instruction"
-            )
-
-        # Draw connecting wires to power rail (horizontal lines at rung center)
-        wire_y = center_y
-        # Left connecting wire (from power rail to contact)
-        self.create_line(
-            x - 10, wire_y,  # Start 10 pixels before contact
-            x, wire_y,       # End at contact left edge
-            width=2, tags=f"rung_{rung_number}_wire"
-        )
-        # Right connecting wire (from contact to next element)
-        self.create_line(
-            x + self.CONTACT_WIDTH, wire_y,
-            x + self.CONTACT_WIDTH + 10, wire_y,
-            width=2, tags=f"rung_{rung_number}_wire"
-        )
-
-        operand = self._draw_instruction_texts(instruction, x, top_y, rung_number, self.CONTACT_WIDTH)
-
-        return LadderElement(
-            element_type='contact',
-            x=x, y=top_y,
-            width=self.CONTACT_WIDTH, height=self.CONTACT_HEIGHT,
-            canvas_id=rect_id,
-            instruction=instruction,
-            text=operand,
-            rung_number=rung_number
-        )
-
-    def _draw_coil(self, instruction: plc.LogixInstruction, x: int, center_y: int,
-                   rung_number: int) -> LadderElement:
-        """Draw a coil instruction centered on the rung."""
-        # Calculate top and bottom Y positions for centering
-        top_y = center_y - self.COIL_HEIGHT // 2
-        bottom_y = center_y + self.COIL_HEIGHT // 2
-
-        # Draw coil circle (centered on rung)
-        circle_id = self.create_oval(
-            x, top_y,
-            x + self.COIL_WIDTH, bottom_y,
-            outline='black', fill='white', width=2,
-            tags=f"rung_{rung_number}_instruction"
-        )
-
-        # Add coil type indicators (centered in coil)
-        inst_type = instruction.instruction_name.lower()
-        if inst_type == 'otl':  # Latch
-            self.create_text(
-                x + self.COIL_WIDTH // 2, center_y,
-                text='L', font=('Roboto', 12, 'bold'),
-                tags=f"rung_{rung_number}_instruction"
-            )
-        elif inst_type == 'otu':  # Unlatch
-            self.create_text(
-                x + self.COIL_WIDTH // 2, center_y,
-                text='U', font=('Roboto', 12, 'bold'),
-                tags=f"rung_{rung_number}_instruction"
-            )
-
-        # Draw connecting wires at rung centerline
-        wire_y = center_y
-        # Left connecting wire
-        self.create_line(
-            x - 10, wire_y,
-            x, wire_y,
-            width=2, tags=f"rung_{rung_number}_wire"
-        )
-        # Right connecting wire (to power rail if this is the last element)
-        self.create_line(
-            x + self.COIL_WIDTH, wire_y,
-            x + self.COIL_WIDTH + 10, wire_y,
-            width=2, tags=f"rung_{rung_number}_wire"
-        )
-
-        operand = self._draw_instruction_texts(instruction, x, top_y, rung_number, self.COIL_WIDTH)
-
-        return LadderElement(
-            element_type='coil',
-            x=x, y=top_y,
-            width=self.COIL_WIDTH, height=self.COIL_HEIGHT,
-            canvas_id=circle_id,
-            instruction=instruction,
-            text=operand,
-            rung_number=rung_number
-        )
 
     def _draw_block(self, instruction: plc.LogixInstruction, x: int, center_y: int,
                     rung_number: int) -> LadderElement:
@@ -690,46 +912,60 @@ class LadderCanvas(Canvas, Loggable):
             rung_number=rung_number
         )
 
-    def _draw_hover_preview(self, x: int, y: int, mode: LadderEditorMode):
-        """Draw a hover preview indicator."""
-        if mode == LadderEditorMode.INSERT_CONTACT:
-            # Small rectangle preview for contact
-            self._hover_preview_id = self.create_rectangle(
-                x - self.CONTACT_WIDTH // 4,
-                y - self.CONTACT_HEIGHT // 4,
-                x + self.CONTACT_WIDTH // 4,
-                y + self.CONTACT_HEIGHT // 4,
-                outline='blue', fill='lightblue', stipple='gray50',
-                width=2, tags="hover_preview"
-            )
-        elif mode == LadderEditorMode.INSERT_COIL:
-            # Small circle preview for coil
-            self._hover_preview_id = self.create_oval(
-                x - self.COIL_WIDTH // 4,
-                y - self.COIL_HEIGHT // 4,
-                x + self.COIL_WIDTH // 4,
-                y + self.COIL_HEIGHT // 4,
-                outline='blue', fill='lightblue', stipple='gray50',
-                width=2, tags="hover_preview"
-            )
-        elif mode == LadderEditorMode.INSERT_BLOCK:
-            # Small rectangle preview for block
-            self._hover_preview_id = self.create_rectangle(
-                x - self.BLOCK_WIDTH // 4,
-                y - self.BLOCK_HEIGHT // 4,
-                x + self.BLOCK_WIDTH // 4,
-                y + self.BLOCK_HEIGHT // 4,
-                outline='blue', fill='lightblue', stipple='gray50',
-                width=2, tags="hover_preview"
-            )
+    def _draw_branch_connect_preview(self, x: int, y: int):
+        """Draw a hover preview for branch connection."""
+        # Draw branch end indicator
+        self._hover_preview_id = self.create_oval(
+            x - 5, y - 5, x + 5, y + 5,
+            fill='lightcoral', outline='red', width=2,
+            tags="hover_preview"
+        )
 
-        # Add insertion point dot
-        if self._hover_preview_id:
-            self.create_oval(
-                x - 3, y - 3, x + 3, y + 3,
-                fill='red', outline='darkred', width=1,
-                tags="hover_preview"
-            )
+        # Add preview branch line
+        branch_y = y + self.BRANCH_SPACING
+        self.create_line(
+            x, y, x, branch_y,
+            fill='red', width=2, dash=(3, 3),
+            tags="hover_preview"
+        )
+
+        # Add preview horizontal branch line
+        self.create_line(
+            x, branch_y, x - 50, branch_y,
+            fill='red', width=2, dash=(3, 3),
+            tags="hover_preview"
+        )
+
+        # Add text
+        self.create_text(
+            x, y + 15,
+            text="Branch End", font=('Arial', 8),
+            fill='red', tags="hover_preview"
+        )
+
+    def _draw_branch_connections(self, start_x: int, end_x: int, main_y: int,
+                                 branch_y: int, rung_number: int):
+        """Draw the connecting lines for a branch."""
+        # Vertical line down to branch
+        self.create_line(
+            start_x, main_y,
+            start_x, branch_y,
+            width=2, tags=f"rung_{rung_number}_branch"
+        )
+
+        # Vertical line back up from branch
+        self.create_line(
+            end_x, branch_y,
+            end_x, main_y,
+            width=2, tags=f"rung_{rung_number}_branch"
+        )
+
+        # Horizontal line for the branch
+        self.create_line(
+            start_x, branch_y,
+            end_x, branch_y,
+            width=2, tags=f"rung_{rung_number}_branch"
+        )
 
     def _draw_branch_hover_preview(self, x: int, y: int):
         """Draw a hover preview for branch creation."""
@@ -760,37 +996,6 @@ class LadderCanvas(Canvas, Loggable):
             x, y - 15,
             text="Branch Start", font=('Arial', 8),
             fill='green', tags="hover_preview"
-        )
-
-    def _draw_branch_connect_preview(self, x: int, y: int):
-        """Draw a hover preview for branch connection."""
-        # Draw branch end indicator
-        self._hover_preview_id = self.create_oval(
-            x - 5, y - 5, x + 5, y + 5,
-            fill='lightcoral', outline='red', width=2,
-            tags="hover_preview"
-        )
-
-        # Add preview branch line
-        branch_y = y + self.BRANCH_SPACING
-        self.create_line(
-            x, y, x, branch_y,
-            fill='red', width=2, dash=(3, 3),
-            tags="hover_preview"
-        )
-
-        # Add preview horizontal branch line
-        self.create_line(
-            x, branch_y, x - 50, branch_y,
-            fill='red', width=2, dash=(3, 3),
-            tags="hover_preview"
-        )
-
-        # Add text
-        self.create_text(
-            x, y + 15,
-            text="Branch End", font=('Arial', 8),
-            fill='red', tags="hover_preview"
         )
 
     def _draw_branch_rail_connector(self, x, y, oval_fill='lightgreen',
@@ -860,30 +1065,42 @@ class LadderCanvas(Canvas, Loggable):
         Returns:
             LadderElement: The created branch rail connector element.
         """
-        # Draw branch start indicator
-        ladder_element = self._draw_branch_rail_connector(x, y, oval_fill, oval_outline, tags)
-
-        # Add preview branch line
+        # Add branch line
         branch_y = y + self.BRANCH_SPACING
-        self._draw_branch_rail_line(x, y, x, branch_y,
-                                    oval_outline, width=2,
-                                    tags=tags, dashed_line=dashed_line)
+        self._draw_branch_rail_line(x, y, x, branch_y, oval_outline,
+                                    width=2, tags=tags, dashed_line=dashed_line)
 
-        # Add preview horizontal branch line
-        self._draw_branch_rail_line(
-            x, branch_y, x + 50, branch_y,
-            oval_outline, width=2,
-            tags=tags, dashed_line=dashed_line
-        )
+        # Add horizontal branch line
+        self._draw_branch_rail_line(x, branch_y, x + 50, branch_y, oval_outline,
+                                    width=2, tags=tags, dashed_line=dashed_line)
+
+        # Draw branch start indicator last to ensure it appears on top
+        ladder_element = self._draw_branch_rail_connector(x, y, oval_fill, oval_outline, tags)
 
         # Add text
         if branch_text:
-            self.create_text(
-                x, y - 15,
-                text=branch_text, font=('Roboto', 8),
-                fill=oval_outline, tags=tags
-            )
+            self.create_text(x, y - 15,
+                             text=branch_text, font=('Roboto', 8),
+                             fill=oval_outline, tags=tags)
         return ladder_element
+
+    def _draw_branch_next_rail(self,
+                               x: int,
+                               y: int,
+                               oval_fill: str = 'lightgreen',
+                               oval_outline: str = 'green',
+                               tags: str = None) -> LadderElement:
+        """Draw the next rail branch start indicator.
+        Args:
+            x: X position for the branch start
+            y: Y position for the branch start
+            oval_fill: Fill color for the oval indicator
+            oval_outline: Outline color for the oval indicator
+            tags: Additional tags for the canvas item
+        Returns:
+            LadderElement: The created branch rail connector element.
+        """
+        return self._draw_branch_rail_connector(x, y, oval_fill, oval_outline, tags)
 
     def _draw_branch_right_rail(self,
                                 x: int,
@@ -905,8 +1122,6 @@ class LadderCanvas(Canvas, Loggable):
         Returns:
             LadderElement: The created branch rail connector element.
         """
-        # Draw branch end indicator
-        ladder_element = self._draw_branch_rail_connector(x, y, oval_fill, oval_outline, tags)
 
         # Add preview branch line
         branch_y = y + self.BRANCH_SPACING
@@ -921,6 +1136,9 @@ class LadderCanvas(Canvas, Loggable):
             tags=tags, dashed_line=dashed_line
         )
 
+        # Draw branch end indicator last to ensure it appears on top
+        ladder_element = self._draw_branch_rail_connector(x, y, oval_fill, oval_outline, tags)
+
         # Add text
         if branch_text:
             self.create_text(
@@ -930,6 +1148,221 @@ class LadderCanvas(Canvas, Loggable):
             )
 
         return ladder_element
+
+    def _draw_coil(self, instruction: plc.LogixInstruction, x: int, center_y: int,
+                   rung_number: int) -> LadderElement:
+        """Draw a coil instruction centered on the rung."""
+        # Calculate top and bottom Y positions for centering
+        top_y = center_y - self.COIL_HEIGHT // 2
+        bottom_y = center_y + self.COIL_HEIGHT // 2
+
+        # Draw coil circle (centered on rung)
+        circle_id = self.create_oval(
+            x, top_y,
+            x + self.COIL_WIDTH, bottom_y,
+            outline='black', fill='white', width=2,
+            tags=f"rung_{rung_number}_instruction"
+        )
+
+        # Add coil type indicators (centered in coil)
+        inst_type = instruction.instruction_name.lower()
+        if inst_type == 'otl':  # Latch
+            self.create_text(
+                x + self.COIL_WIDTH // 2, center_y,
+                text='L', font=('Roboto', 12, 'bold'),
+                tags=f"rung_{rung_number}_instruction"
+            )
+        elif inst_type == 'otu':  # Unlatch
+            self.create_text(
+                x + self.COIL_WIDTH // 2, center_y,
+                text='U', font=('Roboto', 12, 'bold'),
+                tags=f"rung_{rung_number}_instruction"
+            )
+
+        # Draw connecting wires at rung centerline
+        wire_y = center_y
+        # Left connecting wire
+        self.create_line(
+            x - 10, wire_y,
+            x, wire_y,
+            width=2, tags=f"rung_{rung_number}_wire"
+        )
+        # Right connecting wire (to power rail if this is the last element)
+        self.create_line(
+            x + self.COIL_WIDTH, wire_y,
+            x + self.COIL_WIDTH + 10, wire_y,
+            width=2, tags=f"rung_{rung_number}_wire"
+        )
+
+        operand = self._draw_instruction_texts(instruction, x, top_y, rung_number, self.COIL_WIDTH)
+
+        return LadderElement(
+            element_type='coil',
+            x=x, y=top_y,
+            width=self.COIL_WIDTH, height=self.COIL_HEIGHT,
+            canvas_id=circle_id,
+            instruction=instruction,
+            text=operand,
+            rung_number=rung_number
+        )
+
+    def _draw_contact(self, instruction: plc.LogixInstruction, x: int, center_y: int,
+                      rung_number: int) -> LadderElement:
+        """Draw a contact instruction centered on the rung."""
+        # Determine contact type
+        is_normally_closed = instruction.instruction_name.lower() == 'xio'
+
+        # Calculate top and bottom Y positions for centering
+        top_y = center_y - self.CONTACT_HEIGHT // 2
+        bottom_y = center_y + self.CONTACT_HEIGHT // 2
+
+        # Draw contact symbol (centered on rung)
+        rect_id = self.create_rectangle(
+            x, top_y,
+            x + self.CONTACT_WIDTH, bottom_y,
+            outline='black', fill='white', width=2,
+            tags=f"rung_{rung_number}_instruction"
+        )
+
+        # Add contact bars
+        if is_normally_closed:
+            # Diagonal line for normally closed (centered in contact)
+            self.create_line(
+                x + 5, top_y + 5,
+                x + self.CONTACT_WIDTH - 5, bottom_y - 5,
+                width=2, tags=f"rung_{rung_number}_instruction"
+            )
+        else:
+            # Vertical lines for normally open (centered in contact)
+            bar_top = top_y + 5
+            bar_bottom = bottom_y - 5
+            self.create_line(
+                x + 10, bar_top,
+                x + 10, bar_bottom,
+                width=2, tags=f"rung_{rung_number}_instruction"
+            )
+            self.create_line(
+                x + self.CONTACT_WIDTH - 10, bar_top,
+                x + self.CONTACT_WIDTH - 10, bar_bottom,
+                width=2, tags=f"rung_{rung_number}_instruction"
+            )
+
+        # Draw connecting wires to power rail (horizontal lines at rung center)
+        wire_y = center_y
+        # Left connecting wire (from power rail to contact)
+        self.create_line(
+            x - 10, wire_y,  # Start 10 pixels before contact
+            x, wire_y,       # End at contact left edge
+            width=2, tags=f"rung_{rung_number}_wire"
+        )
+        # Right connecting wire (from contact to next element)
+        self.create_line(
+            x + self.CONTACT_WIDTH, wire_y,
+            x + self.CONTACT_WIDTH + 10, wire_y,
+            width=2, tags=f"rung_{rung_number}_wire"
+        )
+
+        operand = self._draw_instruction_texts(instruction, x, top_y, rung_number, self.CONTACT_WIDTH)
+
+        return LadderElement(
+            element_type='contact',
+            x=x, y=top_y,
+            width=self.CONTACT_WIDTH, height=self.CONTACT_HEIGHT,
+            canvas_id=rect_id,
+            instruction=instruction,
+            text=operand,
+            rung_number=rung_number
+        )
+
+    def _draw_instruction(self, instruction: plc.LogixInstruction, x: int, y: int,
+                          rung_number: int) -> LadderElement:
+        """Draw a single instruction.
+
+        Args:
+            instruction: The LogixInstruction to draw
+            x: X position for the instruction
+            y: Y position (should be the rung centerline)
+            rung_number: The rung number this instruction belongs to
+        """
+        inst_type = instruction.instruction_name.lower()
+
+        if inst_type in ['xic', 'xio']:  # Contacts
+            element = self._draw_contact(instruction, x, y, rung_number)
+        elif inst_type in ['ote', 'otl', 'otu']:  # Coils
+            element = self._draw_coil(instruction, x, y, rung_number)
+        else:  # Function blocks
+            element = self._draw_block(instruction, x, y, rung_number)
+
+        # Add debug overlays if debug mode is enabled
+        if self._debug_mode and element:
+            self._add_debug_overlay_for_element(element)
+
+        return element
+
+    def _draw_instruction_texts(self, instruction: plc.LogixInstruction,
+                                x: int, y: int, rung_number: int, element_width: int):
+        alias = False
+        # Optionally add alias information above contact
+        if instruction.operands[0].as_aliased != instruction.operands[0].meta_data:
+            self.create_text(
+                x + element_width // 2, y - 15,
+                text=f'<{instruction.operands[0].as_aliased}>',
+                fill="#2739FB",
+                font=('Roboto', 8,),
+                tags=f"rung_{rung_number}_instruction"
+            )
+            alias = True
+
+        # Add operand text above the contact
+        operand = instruction.operands[0].meta_data if instruction.operands else "???"
+        _ = self.create_text(
+            x + element_width // 2, y - (15 if alias is False else 25),
+            text=operand, font=('Roboto', 8,), tags=f"rung_{rung_number}_instruction"
+        )
+
+        # return the operand text for further use
+        return operand
+
+    def _draw_hover_preview(self, x: int, y: int, mode: LadderEditorMode):
+        """Draw a hover preview indicator."""
+        if mode == LadderEditorMode.INSERT_CONTACT:
+            # Small rectangle preview for contact
+            self._hover_preview_id = self.create_rectangle(
+                x - self.CONTACT_WIDTH // 4,
+                y - self.CONTACT_HEIGHT // 4,
+                x + self.CONTACT_WIDTH // 4,
+                y + self.CONTACT_HEIGHT // 4,
+                outline='blue', fill='lightblue', stipple='gray50',
+                width=2, tags="hover_preview"
+            )
+        elif mode == LadderEditorMode.INSERT_COIL:
+            # Small circle preview for coil
+            self._hover_preview_id = self.create_oval(
+                x - self.COIL_WIDTH // 4,
+                y - self.COIL_HEIGHT // 4,
+                x + self.COIL_WIDTH // 4,
+                y + self.COIL_HEIGHT // 4,
+                outline='blue', fill='lightblue', stipple='gray50',
+                width=2, tags="hover_preview"
+            )
+        elif mode == LadderEditorMode.INSERT_BLOCK:
+            # Small rectangle preview for block
+            self._hover_preview_id = self.create_rectangle(
+                x - self.BLOCK_WIDTH // 4,
+                y - self.BLOCK_HEIGHT // 4,
+                x + self.BLOCK_WIDTH // 4,
+                y + self.BLOCK_HEIGHT // 4,
+                outline='blue', fill='lightblue', stipple='gray50',
+                width=2, tags="hover_preview"
+            )
+
+        # Add insertion point dot
+        if self._hover_preview_id:
+            self.create_oval(
+                x - 3, y - 3, x + 3, y + 3,
+                fill='red', outline='darkred', width=1,
+                tags="hover_preview"
+            )
 
     def _draw_routine(self):
         """Draw the entire routine on the canvas."""
@@ -944,42 +1377,55 @@ class LadderCanvas(Canvas, Loggable):
 
         y_pos = 50
         for i, rung in enumerate(self._routine.rungs):
-            self._draw_rung(rung, i, y_pos)
+            ladder_element = self._draw_rung(rung, i, y_pos)
+            if ladder_element:
+                self._elements.append(ladder_element)
             y_pos += self.RUNG_HEIGHT + (self.BRANCH_SPACING * rung.get_max_branch_depth()) + 20
 
         # Update scroll region
         self.configure(scrollregion=self.bbox("all"))
 
-    def _draw_rung(self, rung: plc.Rung, rung_number: int, y_pos: int):
+    def _draw_rung(self, rung: plc.Rung, rung_number: int, y_pos: int) -> LadderElement:
         """Draw a single rung using the enhanced PLC data structure."""
         self._rung_y_positions[rung_number] = y_pos
+        branch_depth = rung.get_max_branch_depth()
+        rung_height = self.RUNG_HEIGHT + (self.BRANCH_SPACING * branch_depth)
+
+        # Create rectangle for rung number
+        rect_id = self.create_rectangle(0, y_pos,
+                                        self.RAIL_X_LEFT, y_pos + rung_height,
+                                        outline='black', fill='white', width=2,
+                                        tags=f"rung_{rung_number}")
 
         # Draw rung number
-        self.create_text(10, y_pos + self.RUNG_HEIGHT // 2,
-                         text=str(rung_number), anchor='w', font=('Arial', 10))
+        self.create_text(15, y_pos + rung_height // 2,
+                         text=str(rung_number), anchor='w', font=('Arial', 10), tag=f"rung_{rung_number}")
 
         # Draw power rails
-        self.create_line(self.RAIL_X_LEFT, y_pos, self.RAIL_X_LEFT, y_pos + self.RUNG_HEIGHT,
+        self.create_line(self.RAIL_X_LEFT, y_pos, self.RAIL_X_LEFT, y_pos + rung_height,
                          width=3, tags=f"rung_{rung_number}")
 
         right_rail_x = self.winfo_reqwidth() - 40 if self.winfo_reqwidth() > 100 else 600
-        self.create_line(right_rail_x, y_pos, right_rail_x, y_pos + self.RUNG_HEIGHT,
+        self.create_line(right_rail_x, y_pos, right_rail_x, y_pos + rung_height,
                          width=3, tags=f"rung_{rung_number}")
 
         center_y = y_pos + self.RUNG_HEIGHT // 2
 
         start_pos_x = self.RAIL_X_LEFT + self.ELEMENT_SPACING + 30  # Start after left rail
 
-        if rung and hasattr(rung, 'rung_sequence') and rung.rung_sequence:
-            # Use the enhanced rung sequence from PLC model
-            self._draw_rung_sequence_new(rung, rung_number, y_pos, start_pos_x)
-        elif rung and hasattr(rung, 'instructions') and rung.instructions:
-            # Fallback to basic instruction drawing
-            self._draw_rung_instructions(rung.instructions, rung_number, y_pos, start_pos_x)
-        else:
-            # Draw empty rung line
-            self.create_line(self.RAIL_X_LEFT, center_y, right_rail_x, center_y,
-                             width=2, tags=f"rung_{rung_number}")
+        self.create_line(self.RAIL_X_LEFT, center_y, right_rail_x, center_y,
+                         width=2, tags=f"rung_{rung_number}")
+
+        if rung and rung.rung_sequence:
+            self._draw_rung_sequence(rung, rung_number, y_pos, start_pos_x)
+
+        return LadderElement(
+            element_type='rung',
+            x=0, y=y_pos,
+            width=self.RAIL_X_LEFT, height=rung_height,
+            canvas_id=rect_id,
+            rung_number=rung_number
+        )
 
     def _draw_rung_instructions(self,
                                 instructions: List[plc.LogixInstruction],
@@ -1002,202 +1448,67 @@ class LadderCanvas(Canvas, Loggable):
                          width=3, fill='black', tags=tags)
 
     def _draw_rung_sequence(self, rung: plc.Rung, rung_number: int, y_pos: int, start_x: int):
-        """Draw rung using the enhanced sequence structure with proper spacing."""
-        current_x = start_x
-        center_y = y_pos + self.RUNG_HEIGHT // 2
-        branch_stack = []
-        element_positions = {}
-        branch_depth_map = {}  # Track actual depth for each branch
-
-        # First pass: calculate positions for all elements
-        temp_x = start_x
-        for i, element in enumerate(rung.rung_sequence):
-            if element.element_type == plc.RungElementType.INSTRUCTION:
-                nesting_level = rung.get_branch_nesting_level(element.position)
-                pos_x = temp_x  # store the original x position before we modify this value to determine width
-
-                # Determine width based on instruction type
-                inst_type = element.instruction.instruction_name.lower()
-                if inst_type in ['xic', 'xio']:
-                    width = self.CONTACT_WIDTH
-                    temp_x += self.CONTACT_WIDTH + self.ELEMENT_SPACING + self.MIN_WIRE_LENGTH
-                elif inst_type in ['ote', 'otl', 'otu']:
-                    width = self.COIL_WIDTH
-                    temp_x += self.COIL_WIDTH + self.ELEMENT_SPACING + self.MIN_WIRE_LENGTH
-                else:
-                    width = self.BLOCK_WIDTH
-                    temp_x += self.BLOCK_WIDTH + self.ELEMENT_SPACING + self.MIN_WIRE_LENGTH
-                element_positions[i] = (pos_x, nesting_level, width)
-
-            elif element.element_type == plc.RungElementType.BRANCH_START:
-                # Use PLC model to determine proper branch depth
-                branch_depth = rung.get_branch_nesting_level(element.position)
-                branch_depth_map[element.branch_id] = branch_depth
-
-        # Second pass: draw elements at calculated positions
-        prev_x = self.RAIL_X_LEFT
-        for i, element in enumerate(rung.rung_sequence):
-            if element.element_type == plc.RungElementType.INSTRUCTION:
-                current_x = element_positions[i][0]
-                center_y = y_pos + self.RUNG_HEIGHT // 2 + \
-                    element_positions[i][1] * self.BRANCH_SPACING
-
-                # Draw the power rail
-                if i == 0 or current_x != prev_x:
-                    self._draw_rung_rail_section(
-                        prev_x, center_y, current_x, center_y,
-                        tags=f"rung_{rung_number}_wire"
-                    )
-                    prev_x = current_x + element_positions[i][2]  # Update prev_x to current element's end
-
-                # Draw the instruction
-                ladder_element = self._draw_instruction(element.instruction, current_x, center_y, rung_number)
-                if ladder_element:
-                    ladder_element.position = element.position
-                    ladder_element.branch_level = len(branch_stack)
-                    if branch_stack:
-                        ladder_element.branch_id = branch_stack[-1]
-                    self._elements.append(ladder_element)
-
-            elif element.element_type == plc.RungElementType.BRANCH_START:
-                # Handle branch start with proper positioning
-                actual_depth = branch_depth_map.get(element.branch_id, 1)
-                branch_y = center_y + actual_depth * self.BRANCH_SPACING
-
-                # Use the calculated position
-                if i in element_positions:
-                    current_x = element_positions[i]
-
-                # Create branch structure and visuals
-                self._draw_branch_left_rail(
-                    current_x, branch_y,
-                    oval_fill='lightgreen', oval_outline='green',
-                    tags=f"rung_{rung_number}_branch_start"
-                )
-
-            elif element.element_type == plc.RungElementType.BRANCH_END:
-                # Handle branch end
-                if i in element_positions:
-                    current_x = element_positions[i]
-
-                self._draw_branch_right_rail(
-                    current_x, center_y + (len(branch_stack) * self.BRANCH_SPACING),
-                    oval_fill='lightcoral', oval_outline='red',
-                    tags=f"rung_{rung_number}_branch_end"
-                )
-                # self._create_branch_end_visual(current_x, center_y, rung_number,
-                #                                element, branch_stack)
-
-        # Draw final power rail section if needed
-        if prev_x < self.winfo_reqwidth() - 40:  # Right rail
-            self._draw_rung_rail_section(
-                prev_x, center_y,
-                self.winfo_reqwidth() - 40, center_y,
-                tags=f"rung_{rung_number}_wire"
-            )
-
-    def _draw_rung_sequence_new(self, rung: plc.Rung, rung_number: int, y_pos: int, start_x: int):
         """Draw rung using the new sequence structure with proper spacing."""
-        current_x = start_x
-        center_y = y_pos + self.RUNG_HEIGHT // 2
-        branch_stack = []
+        current_branch_level = 0
+        current_branch_id: dict[int, str] = {0: None}
         ladder_element: Optional[LadderElement] = None
+        branch_tracking: list[dict] = []
 
-        for index, element in enumerate(rung.rung_sequence):
+        for element in rung.rung_sequence:
             if element.element_type == plc.RungElementType.INSTRUCTION:
-                ladder_element = self._draw_instruction(element.instruction, current_x, center_y, rung_number)
-                if ladder_element:
-                    ladder_element.position = element.position
-                    ladder_element.branch_level = len(branch_stack)
-                    if branch_stack:
-                        ladder_element.branch_id = branch_stack[-1]
-                    self._elements.append(ladder_element)
-
-                # Update current_x based on instruction width
-                current_x += ladder_element.width + self.ELEMENT_SPACING + self.MIN_WIRE_LENGTH
+                x, y = self._get_element_x_y_sequence_spacing(element)
+                ladder_element = self._draw_instruction(element.instruction, x, y, rung_number)
+                self._assm_ladder_element_from_rung_element(ladder_element, element, rung_number)
+                self._elements.append(ladder_element)
 
             elif element.element_type == plc.RungElementType.BRANCH_START:
-                # Handle branch start
-                branch_id = element.branch_id
-
-                if ladder_element:
-                    branch_x, branch_y = self._get_branch_x_y_spacing_from_element(ladder_element,
-                                                                                   rung_number=rung_number,
-                                                                                   side='right')
-                else:
-                    branch_x, branch_y = current_x, self._rung_y_positions[rung_number] + (self.RUNG_HEIGHT // 2)
-
-                # Draw branch start visual
-                left_branch_element = self._draw_branch_left_rail(
-                    branch_x, branch_y,
-                    oval_fill='lightgreen', oval_outline='green',
-                    tags=f"rung_{rung_number}_branch_start"
-                )
-                if left_branch_element:
-                    left_branch_element.position = element.position
-                    left_branch_element.branch_id = branch_id
-                    left_branch_element.branch_level = len(branch_stack)
-                    left_branch_element.rung_number = rung_number
-                self._elements.append(left_branch_element)
-                # branch_stack.append(branch_id)  # we need better tracking for branches first
-                current_x += (self.ELEMENT_SPACING)
+                x, y = self._get_element_x_y_sequence_spacing(element)
+                ladder_element = self._draw_branch_left_rail(x, y, oval_fill='gray', oval_outline='black',
+                                                             tags=f"rung_{rung_number}_branch_start")
+                self._assm_ladder_element_from_rung_element(ladder_element, element, rung_number)
+                branch_element = self._create_ladder_branch(ladder_element, element, rung_number)
+                current_branch_id[current_branch_level] = element.branch_id
+                self._elements.append(ladder_element)
+                self._branches[element.branch_id] = branch_element
+                branch_tracking.append({
+                    'branch_id': element.branch_id,
+                    'branch_level': current_branch_level,
+                    'branch_element': ladder_element
+                })
 
             elif element.element_type == plc.RungElementType.BRANCH_NEXT:
-                # Handle branch next (continue branch)
-                raise NotImplementedError("Branch next handling is not implemented yet.")
-                # if branch_stack:
-                #     branch_id = branch_stack[-1]
-                #     branch_depth = rung.get_branch_nesting_level(branch_id)
-                #     branch_x, branch_y = self._get_branch_x_y_spacing_from_element(ladder_element,
-                #                                                                    rung_number=rung_number,
-                #                                                                    side='right',
-                #                                                                    depth=branch_depth)
-                # else:
-                #     raise ValueError("No active branch found for branch next.")
-
-                # # Draw branch next visual
-                # left_branch_element = self._draw_branch_left_rail(
-                #     branch_x, branch_y,
-                #     oval_fill='lightgreen', oval_outline='green',
-                #     tags=f"rung_{rung_number}_branch_next"
-                # )
-                # self._elements.append(left_branch_element)
-                # current_x += (self.ELEMENT_SPACING)
+                matching_branch: LadderBranch = self._branches.get(element.parent_branch_id, None)
+                if not matching_branch:
+                    raise ValueError(f"Branch with ID {element.parent_branch_id} not found in branches.")
+                branch_depth = rung.get_branch_nesting_level(matching_branch.branch_id) + 1
+                x, y = matching_branch.start_x + 5, matching_branch.branch_y + (branch_depth * self.BRANCH_SPACING) + 5
+                ladder_element = self._draw_branch_next_rail(x, y, oval_fill='gray', oval_outline='black',
+                                                             tags=f"rung_{rung_number}_branch_next")
+                self._assm_ladder_element_from_rung_element(ladder_element, element, rung_number)
+                branch_element = self._create_ladder_branch(ladder_element, element, rung_number)
+                self._elements.append(ladder_element)
+                self._branches[element.branch_id] = branch_element
 
             elif element.element_type == plc.RungElementType.BRANCH_END:
-                # Handle branch end
-                if branch_stack:
-                    branch_stack.pop()
-
-                if ladder_element:
-                    branch_x, branch_y = self._get_branch_x_y_spacing_from_element(ladder_element,
-                                                                                   rung_number=rung_number,
-                                                                                   side='right')
-                else:
-                    raise ValueError("No ladder element found for branch end.")
-
-                # Draw branch end visual
-                right_branch_element = self._draw_branch_right_rail(
-                    branch_x, branch_y,
-                    oval_fill='lightcoral', oval_outline='red',
-                    tags=f"rung_{rung_number}_branch_end"
-                )
-                if right_branch_element:
-                    right_branch_element.position = element.position
-                    right_branch_element.branch_id = branch_stack[-1] if branch_stack else None
-                    right_branch_element.branch_level = len(branch_stack)
-                    right_branch_element.rung_number = rung_number
-                self._elements.append(right_branch_element)
-                current_x += (self.ELEMENT_SPACING)
-
-        # Draw final power rail section if needed
-        right_rail_x = self.winfo_reqwidth() - 40 if self.winfo_reqwidth() > 100 else 600
-        if current_x < right_rail_x:
-            self._draw_rung_rail_section(
-                current_x, center_y,
-                right_rail_x, center_y,
-                tags=f"rung_{rung_number}_wire"
-            )
+                if not branch_tracking:
+                    raise ValueError("Branch end found without a matching branch start.")
+                branch = branch_tracking.pop()
+                parent_branch = self._branches.get(branch['branch_id'], None)
+                if not parent_branch:
+                    raise ValueError(f"Parent branch with ID {branch['branch_id']} not found in branches.")
+                current_branch_level = branch['branch_level']
+                x, y = self._get_element_x_y_sequence_spacing(element)
+                ladder_element = self._draw_branch_right_rail(x, y, oval_fill='gray', oval_outline='black',
+                                                              tags=f"rung_{rung_number}_branch_end")
+                self._assm_ladder_element_from_rung_element(ladder_element, element, rung_number)
+                self._elements.append(ladder_element)
+                parent_branch.end_x = ladder_element.x + ladder_element.width
+                parent_branch.end_position = element.position
+                child_branches = [x for x in self._branches.values()
+                                  if x.parent_branch_id == parent_branch.branch_id]
+                for b in child_branches:
+                    b.end_x = parent_branch.end_x
+                    b.end_position = element.position
 
     def _edit_instruction(self, instruction: plc.LogixInstruction):
         """Edit an instruction (placeholder - implement instruction editor dialog)."""
@@ -1206,35 +1517,38 @@ class LadderCanvas(Canvas, Loggable):
     def _find_insertion_position(self, x: int, rung_number: int, branch_level: int = 0,
                                  branch_id: Optional[str] = None) -> int:
         """Find the correct position to insert a new element in the rung sequence."""
-        rung_elements = self._get_rung_elements(rung_number, branch_level, branch_id)
+        rung_elements = self._get_rung_ladder_elements(rung_number, branch_level, branch_id)
 
         if not rung_elements:
+            self.logger.debug(f"No elements found for rung {rung_number} at branch level {branch_level}")
             return 0
 
         # Find the element closest to the click position
         closest_element = None
+        closest_element_index = -1
         min_distance = float('inf')
 
-        for element in rung_elements:
+        for index, element in enumerate(rung_elements):
             element_center_x = element.x + element.width // 2
             distance = abs(element_center_x - x)
 
             if distance < min_distance:
                 min_distance = distance
+                closest_element_index = index
                 closest_element = element
 
         if closest_element is None:
-            return len(rung_elements)
+            return rung_elements[-1].position if rung_elements else 0
 
         # Determine if we should insert before or after the closest element
         element_center_x = closest_element.x + closest_element.width // 2
 
         if x < element_center_x:
             # Insert before this element
-            return closest_element.position
+            return rung_elements[closest_element_index].position if closest_element_index > 0 else 0
         else:
             # Insert after this element
-            return closest_element.position + 1
+            return rung_elements[closest_element_index].position + 1
 
     def _find_nearest_element_on_rung(self, x: int, y: int, rung_number: int) -> Optional[LadderElement]:
         """Find the nearest element on the specified rung."""
@@ -1249,58 +1563,6 @@ class LadderCanvas(Canvas, Loggable):
         closest = min(rung_elements, key=lambda e: abs(e.x + e.width // 2 - x))
         return closest
 
-    def _get_branch_level_at_y(self, y: int, rung_number: int) -> int:
-        """Determine which branch level the Y coordinate corresponds to."""
-        if rung_number not in self._rung_y_positions:
-            return 0
-
-        rung_y = self._rung_y_positions[rung_number]
-        center_y = rung_y + self.RUNG_HEIGHT // 2
-
-        # Calculate branch level based on Y offset
-        offset = y - center_y
-        if abs(offset) < self.BRANCH_SPACING // 2:
-            return 0  # Main rung
-        else:
-            return max(1, int(offset / self.BRANCH_SPACING))
-
-    def _get_cursor_for_mode(self, mode: LadderEditorMode) -> str:
-        """Get appropriate cursor for editing mode."""
-        cursors = {
-            LadderEditorMode.VIEW: "arrow",
-            LadderEditorMode.EDIT: "hand2",
-            LadderEditorMode.INSERT_CONTACT: "crosshair",
-            LadderEditorMode.INSERT_COIL: "crosshair",
-            LadderEditorMode.INSERT_BLOCK: "crosshair",
-            LadderEditorMode.INSERT_BRANCH: "crosshair",
-            LadderEditorMode.CONNECT_BRANCH: "target"
-        }
-        return cursors.get(mode, "arrow")
-
-    def _get_element_at(self, x: int, y: int) -> Optional[LadderElement]:
-        """Get element at given coordinates."""
-        for element in self._elements:
-            if (element.x <= x <= element.x + element.width and
-                    element.y <= y <= element.y + element.height):
-                return element
-        return None
-
-    def _get_rung_elements(self, rung_number: int, branch_level: int = 0,
-                           branch_id: Optional[str] = None) -> List[LadderElement]:
-        """Get all elements for a specific rung and branch level."""
-        elements = []
-
-        for element in self._elements:
-            if (element.rung_number == rung_number and
-                element.branch_level == branch_level and
-                    element.element_type in ['contact', 'coil', 'block', 'branch_rail_connector']
-                    and (branch_id is None or element.branch_id == branch_id)):
-                elements.append(element)
-
-        # Sort by position
-        elements.sort(key=lambda e: e.position)
-        return elements
-
     def _get_branch_id_at_position(self, x: int, y: int, rung_number: int,
                                    branch_level: int) -> Optional[str]:
         """Get the branch ID for elements at a specific position."""
@@ -1310,7 +1572,9 @@ class LadderCanvas(Canvas, Loggable):
         # Find which branch this position belongs to
         for branch_id, branch in self._branches.items():
             if (branch.rung_number == rung_number and
-                    branch.start_x <= x <= branch.end_x):
+                    branch.start_x <= x <= branch.end_x and
+                    branch.main_y <= y <= branch.branch_y + self.BRANCH_SPACING and
+                    branch.branch_level == branch_level):
                 return branch_id
 
         return None
@@ -1339,27 +1603,133 @@ class LadderCanvas(Canvas, Loggable):
         elif side == 'right':
             return (element.x + element.width + (self.ELEMENT_SPACING // 2) + self.MIN_WIRE_LENGTH, y)
 
+    def _get_branch_level_at_y(self, y: int, rung_number: int) -> int:
+        """Determine which branch level the Y coordinate corresponds to."""
+        if rung_number not in self._rung_y_positions:
+            return 0
+
+        rung_y = self._rung_y_positions[rung_number]
+        center_y = rung_y + self.RUNG_HEIGHT // 2
+
+        # Calculate branch level based on Y offset
+        offset = y - center_y
+        if abs(offset) < self.BRANCH_SPACING // 2:
+            self.logger.debug(f"Y {y} is close to the main rung center, returning level 0")
+            return 0  # Main rung
+        else:
+            level = max(1, int(offset / self.BRANCH_SPACING))
+            self.logger.debug(f"Y {y} corresponds to branch level {level}")
+            return level
+
+    def _get_cursor_for_mode(self, mode: LadderEditorMode) -> str:
+        """Get appropriate cursor for editing mode."""
+        cursors = {
+            LadderEditorMode.VIEW: "arrow",
+            LadderEditorMode.EDIT: "hand2",
+            LadderEditorMode.INSERT_CONTACT: "crosshair",
+            LadderEditorMode.INSERT_COIL: "crosshair",
+            LadderEditorMode.INSERT_BLOCK: "crosshair",
+            LadderEditorMode.INSERT_BRANCH: "crosshair",
+            LadderEditorMode.CONNECT_BRANCH: "target"
+        }
+        return cursors.get(mode, "arrow")
+
+    def _get_element_at(self, x: int, y: int) -> Optional[LadderElement]:
+        """Get element at given coordinates."""
+        for element in self._elements:
+            if (element.x <= x <= element.x + element.width and
+                    element.y <= y <= element.y + element.height):
+                return element
+        return None
+
+    def _get_element_x_spacing(self, prev_element: LadderElement) -> int:
+        """Get the spacing needed for the next element based on the current element."""
+        if not prev_element:
+            return self.RAIL_X_LEFT + self.MIN_WIRE_LENGTH
+        return prev_element.x + prev_element.width + self.ELEMENT_SPACING + self.MIN_WIRE_LENGTH
+
+    def _get_element_y_spacing(self, element: LadderElement) -> int:
+        """Get the Y spacing for elements in a rung based on branch level."""
+        rung_y = self._rung_y_positions.get(element.rung_number, None)
+        if not rung_y:
+            raise ValueError(f"Rung number {element.rung_number} not found in rung positions.")
+        return rung_y + (self.RUNG_HEIGHT // 2) + (self.BRANCH_SPACING * element.branch_level)
+
+    def _get_element_x_y_sequence_spacing(self, element: plc.RungElement,):
+        element_x = self._get_element_x_spacing(self._get_last_ladder_element(element))
+        element_y = self._get_element_y_spacing(element)
+        return (element_x, element_y)
+
+    def _get_last_ladder_element(self, element: plc.RungElement) -> Optional[LadderElement]:
+        """Get the last ladder element in the rung sequence."""
+        ladder_elements = self._get_rung_ladder_elements(element.rung_number, element.branch_level, element.parent_branch_id)
+        return ladder_elements[-1] if ladder_elements else None
+
+    def _get_rung_ladder_elements(self, rung_number: int, branch_level: int = 0,
+                                  parent_branch_id: Optional[str] = None) -> List[LadderElement]:
+        """Get all elements for a specific rung and branch level."""
+        elements = []
+
+        for element in self._elements:
+            if (element.rung_number == rung_number and
+                element.branch_level == branch_level and
+                    element.element_type in ['contact', 'coil', 'block', 'branch_rail_connector']
+                    and (parent_branch_id is None or element.parent_branch_id == parent_branch_id)):
+                elements.append(element)
+
+        # Sort by position
+        elements.sort(key=lambda e: e.position)
+        return elements
+
     def _get_rung_at_y(self, y: int) -> Optional[int]:
         """Get rung number at given Y coordinate."""
         for rung_num, rung_y in self._rung_y_positions.items():
-            if rung_y <= y <= rung_y + self.RUNG_HEIGHT:
+            rung_height = self.RUNG_HEIGHT + (self.BRANCH_SPACING * self._routine.rungs[rung_num].get_max_branch_depth())
+            if rung_y <= y <= rung_y + rung_height:
                 return rung_num
         return None
+
+    def _hide_tooltip(self):
+        """Hide the current tooltip."""
+        if self._tooltip_id:
+            self.after_cancel(self._tooltip_id)
+            self._tooltip_id = None
+
+        if self._tooltip:
+            self._tooltip.destroy()
+            self._tooltip = None
+
+        self._tooltip_element = None
+
+    def _highlight_current_element(self, element: LadderElement):
+        """Highlight the currently hovered element by changing its outline color."""
+        self._clear_element_hover_preview()
+
+        if element is None:
+            return
+
+        # Highlight the current element
+        self._hover_preview_id = self.create_rectangle(
+            element.x, element.y,
+            element.x + element.width, element.y + element.height,
+            outline='orange', width=2, tags="current_element_highlight"
+        )
 
     def _highlight_current_rung(self, rung_number: int):
         """highlight the current rung by changing the background color of the left bar area.
         """
+        self._clear_rung_hover_preview()
+
         if rung_number is None or rung_number not in self._rung_y_positions:
             return
 
-        # Clear previous highlights
-        self.delete("current_rung_highlight")
-
         # Highlight the current rung
         y_pos = self._rung_y_positions[rung_number]
-        self.create_rectangle(
-            0, y_pos, 30, y_pos + self.RUNG_HEIGHT,
-            fill='yellow', stipple='gray50', tags="current_rung_highlight"
+        rung = self._routine.rungs[rung_number]
+        rung_height = self.RUNG_HEIGHT + (self.BRANCH_SPACING * rung.get_max_branch_depth())
+        self._hover_preview_id = self.create_rectangle(
+            0, y_pos, self.RAIL_X_LEFT, y_pos + rung_height,
+            stipple='gray50', tags="current_rung_highlight", outline='lightgreen', width=2
         )
 
     def _insert_element_at(self, x: int, y: int):
@@ -1410,12 +1780,6 @@ class LadderCanvas(Canvas, Loggable):
         rung: plc.Rung = self._routine.rungs[rung_number]
         rung.add_instruction(instruction.meta_data, position=position)
 
-        # # Update positions of existing elements that come after insertion point
-        # self._shift_element_positions(rung_number, position, branch_level, branch_id)
-
-        # # Add instruction to rung text/sequence
-        # self._update_rung_text_with_insertion(rung, instruction, position, branch_level, branch_id)
-
     def _on_click(self, event):
         """Handle mouse click events."""
         x, y = self.canvasx(event.x), self.canvasy(event.y)
@@ -1453,11 +1817,11 @@ class LadderCanvas(Canvas, Loggable):
     def _on_motion(self, event):
         """Handle mouse motion for hover effects."""
         x, y = self.canvasx(event.x), self.canvasy(event.y)
-        self._current_rung = self._get_rung_at_y(y)
-        if self._current_rung is not None:
-            self._highlight_current_rung(self._current_rung)
+        self._on_tooltip_motion(event, x, y)
+        self._highlight_current_rung(self._get_rung_at_y(y))
+        self._highlight_current_element(self._get_element_at(x, y))
 
-            # Only show hover preview in insert modes
+        # Only show hover preview in insert modes
         if self._mode in [LadderEditorMode.INSERT_CONTACT,
                           LadderEditorMode.INSERT_COIL,
                           LadderEditorMode.INSERT_BLOCK]:
@@ -1472,6 +1836,8 @@ class LadderCanvas(Canvas, Loggable):
     def _on_mouse_leave(self, event):
         """Handle mouse leaving the canvas."""
         self._clear_hover_preview()
+        self._clear_rung_hover_preview()
+        self._hide_tooltip()
 
     def _on_right_click(self, event):
         """Handle right-click context menu."""
@@ -1480,6 +1846,22 @@ class LadderCanvas(Canvas, Loggable):
 
         if element:
             self._show_context_menu(event, element)
+
+    def _on_tooltip_motion(self, event, x: int, y: int):
+        """Enhanced motion handler with tooltip support."""
+        # Handle tooltip
+        element = self._get_element_at(x, y)
+
+        if element != self._tooltip_element:
+            self._hide_tooltip()
+            self._tooltip_element = element
+
+            if element and element.instruction:
+                # Schedule tooltip
+                self._tooltip_id = self.after(
+                    self._tooltip_delay,
+                    lambda: self._show_element_tooltip(event.x_root, event.y_root, element)
+                )
 
     def _paste_element(self):
         """Paste an element (placeholder)."""
@@ -1531,6 +1913,39 @@ class LadderCanvas(Canvas, Loggable):
                 elif branch_level == 0 and not element.branch_id:
                     element.position += 1
 
+    def _show_element_tooltip(self, x: int, y: int, element: LadderElement):
+        """Show tooltip for ladder element with debug info for all element types."""
+        if not element:
+            return
+
+        # Create tooltip window
+        self._tooltip = tk.Toplevel(self)
+        self._tooltip.wm_overrideredirect(True)
+        self._tooltip.wm_geometry(f"+{x + 15}+{y + 15}")
+
+        # Create tooltip content frame
+        frame = tk.Frame(
+            self._tooltip,
+            background="#fffacd",  # Light yellow
+            relief="solid",
+            borderwidth=1,
+            padx=6,
+            pady=4
+        )
+        frame.pack()
+
+        # Show content based on element type
+        if element.instruction:
+            self._add_instruction_tooltip_content(frame, element)
+        elif self._debug_mode:
+            # Debug mode: show tooltips for non-instruction elements
+            self._add_debug_element_tooltip_content(frame, element)
+        else:
+            # No tooltip for non-instruction elements in normal mode
+            self._tooltip.destroy()
+            self._tooltip = None
+            return
+
     def _show_context_menu(self, event, element: LadderElement):
         """Show context menu for element."""
         menu = tk.Menu(self, tearoff=0)
@@ -1543,8 +1958,14 @@ class LadderCanvas(Canvas, Loggable):
             menu.add_separator()
             menu.add_command(label="Copy", command=lambda: self._copy_element(element))
             menu.add_command(label="Paste", command=lambda: self._paste_element())
-        elif element.element_type in ['branch_start', 'branch_end']:
+        elif element.element_type in ['branch_rail_connector']:
             menu.add_command(label="Delete Branch", command=lambda: self._delete_branch(element.branch_id))
+        elif element.element_type in ['rung']:
+            menu.add_command(label="Delete Rung", command=lambda: self.delete_rung(element.rung_number))
+            menu.add_separator()
+            menu.add_command(label="Add Contact", command=lambda: self._insert_element_at(event.x, event.y))
+            menu.add_command(label="Add Coil", command=lambda: self._insert_element_at(event.x, event.y))
+            menu.add_command(label="Add Block", command=lambda: self._insert_element_at(event.x, event.y))
 
         try:
             menu.tk_popup(event.x_root, event.y_root)
@@ -1552,8 +1973,14 @@ class LadderCanvas(Canvas, Loggable):
             menu.grab_release()
 
     def _show_status(self, message: str):
-        """Show status message (to be connected to status bar)."""
-        self.logger.info(message)
+        """Show status message with debug prefix if in debug mode."""
+        debug_prefix = "[DEBUG] " if self._debug_mode else ""
+        full_message = f"{debug_prefix}{message}"
+        self.logger.info(full_message)
+
+        # Also show in status bar if available
+        if hasattr(self, '_status_label'):
+            self._status_label.config(text=full_message)
 
     def _start_branch_creation(self, x: int, y: int):
         """Start creating a branch at the clicked location."""
@@ -1607,28 +2034,24 @@ class LadderCanvas(Canvas, Loggable):
         """Update the hover preview for element insertion."""
         # Get the rung at this position
         rung_number = self._get_rung_at_y(y)
+        self._clear_hover_preview()
 
-        # Clear existing preview if we're not over a valid rung
         if rung_number is None:
-            self._clear_hover_preview()
             return
 
-        # Validate insertion position
         if not self._validate_insertion_position(x, y, rung_number):
-            self._clear_hover_preview()
             return
 
-        # Determine insertion details
         branch_level = self._get_branch_level_at_y(y, rung_number)
         branch_id = self._get_branch_id_at_position(x, y, rung_number, branch_level)
         if not branch_id:
             branch_level = 0
+
         insertion_position = self._find_insertion_position(x, rung_number, branch_level, branch_id)
 
         # Calculate the exact insertion point
-        insertion_x, insertion_y = self._calculate_insertion_coordinates(
-            x, y, rung_number, insertion_position, branch_level, branch_id
-        )
+        insertion_x, insertion_y = self._calculate_insertion_coordinates(x, y, rung_number,
+                                                                         insertion_position, branch_level, branch_id)
 
         current_position = (insertion_x, insertion_y, self._mode)
 
@@ -1695,6 +2118,20 @@ class LadderCanvas(Canvas, Loggable):
                 dashed_line=True, branch_text="Branch End"
             )
             self._last_hover_position = current_position
+
+    def _update_debug_display(self):
+        """Update debug visual overlays for all element types."""
+        # Clear existing debug overlays
+        for overlay_id in self._debug_overlays:
+            self.delete(overlay_id)
+        self._debug_overlays.clear()
+
+        if not self._debug_mode:
+            return
+
+        # Add debug overlays for all elements
+        for element in self._elements:
+            self._add_debug_overlay_for_any_element(element)
 
     def _update_rung_structure_with_branch(self, rung_number: int, branch: LadderBranch):
         """Update the underlying PLC rung structure to include the new branch."""
@@ -1837,6 +2274,7 @@ class LadderEditorTaskFrame(TaskFrame):
 
         self._routine = routine
         self._controller = controller
+        self._debug_mode = False
         self._setup_ui()
 
     def _setup_ui(self):
@@ -1886,6 +2324,19 @@ class LadderEditorTaskFrame(TaskFrame):
                   command=self._verify_routine).pack(side='left', padx=2)
         tk.Button(toolbar, text="Accept",
                   command=self._accept_changes).pack(side='left', padx=2)
+
+        # Separator
+        ttk.Separator(toolbar, orient='vertical').pack(side='left', fill='y', padx=5)
+
+        # Debug mode toggle button
+        self._debug_button = tk.Button(
+            toolbar,
+            text="Debug: OFF",
+            command=self._toggle_debug_mode,
+            bg='lightgray',
+            relief='raised'
+        )
+        self._debug_button.pack(side='right', padx=2)
 
     def _create_editor_area(self):
         """Create the main editor canvas with scrollbars."""
@@ -1945,6 +2396,34 @@ class LadderEditorTaskFrame(TaskFrame):
         """Delete the currently selected rung."""
         # This would need logic to determine which rung is selected
         self._status_label.config(text="Delete rung functionality not implemented")
+
+    def _toggle_debug_mode(self):
+        """Toggle developer debug mode on/off."""
+        self._debug_mode = not self._debug_mode
+
+        # Update button appearance
+        if self._debug_mode:
+            self._debug_button.config(
+                text="Debug: ON",
+                bg='lightgreen',
+                relief='sunken'
+            )
+            self._status_label.config(text="Debug mode enabled - Additional info will be shown")
+        else:
+            self._debug_button.config(
+                text="Debug: OFF",
+                bg='lightgray',
+                relief='raised'
+            )
+            self._status_label.config(text="Debug mode disabled")
+
+        # Pass debug state to canvas
+        if hasattr(self._ladder_canvas, '_debug_mode'):
+            self._ladder_canvas._debug_mode = self._debug_mode
+
+        # Optionally redraw with debug info
+        if hasattr(self._ladder_canvas, '_update_debug_display'):
+            self._ladder_canvas._update_debug_display()
 
     def _verify_routine(self):
         """Verify the routine for errors."""

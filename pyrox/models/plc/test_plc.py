@@ -1002,11 +1002,11 @@ class TestRung(unittest.TestCase):
 
     def test_parse_rung_sequence_with_simple_branch(self):
         """Test parsing instruction sequence with a simple branch."""
-        self.rung.text = "XIC(Tag1)[XIC(Tag2)XIO(Tag3)]OTE(Tag4)"
+        self.rung.text = "XIC(Tag1)[XIC(Tag2)XIO(Tag3),]OTE(Tag4)"
         self.rung._parse_rung_sequence()
 
-        # Should have: XIC(Tag1), BRANCH_START, XIC(Tag2), XIO(Tag3), BRANCH_END, OTE(Tag4)
-        self.assertEqual(len(self.rung._rung_sequence), 6)
+        # Should have: XIC(Tag1), BRANCH_START, XIC(Tag2), XIO(Tag3), NEXT_BRANCH, BRANCH_END, OTE(Tag4)
+        self.assertEqual(len(self.rung._rung_sequence), 7)
         self.assertEqual(len(self.rung._branches), 1)
 
         # Check sequence structure
@@ -1015,6 +1015,7 @@ class TestRung(unittest.TestCase):
             RungElementType.BRANCH_START,   # [
             RungElementType.INSTRUCTION,    # XIC(Tag2)
             RungElementType.INSTRUCTION,    # XIO(Tag3)
+            RungElementType.BRANCH_NEXT,    # ,
             RungElementType.BRANCH_END,     # ]
             RungElementType.INSTRUCTION     # OTE(Tag4)
         ]
@@ -1030,12 +1031,12 @@ class TestRung(unittest.TestCase):
 
         self.assertEqual(branch.branch_id, branch_id)
         self.assertEqual(branch.start_position, 1)  # Position of BRANCH_START
-        self.assertEqual(branch.end_position, 4)    # Position of BRANCH_END
+        self.assertEqual(branch.end_position, 5)    # Position of BRANCH_END
         self.assertEqual(len(branch.instructions), 2)  # XIC(Tag2) and XIO(Tag3)
 
     def test_parse_rung_sequence_with_nested_branches(self):
         """Test parsing instruction sequence with nested branches."""
-        self.rung.text = "XIC(Tag1) [XIC(Tag2) [XIO(Tag3)] XIC(Tag4)] OTE(Tag5)"
+        self.rung.text = "XIC(Tag1) [XIC(Tag2) [XIO(Tag3),] XIC(Tag4),] OTE(Tag5)"
         self.rung._parse_rung_sequence()
 
         # Should have multiple branch levels
@@ -1044,7 +1045,7 @@ class TestRung(unittest.TestCase):
 
     def test_parse_rung_sequence_with_array_references(self):
         """Test parsing that correctly handles array references (brackets in instruction operands)."""
-        self.rung.text = "XIC(Array[0]) [XIO(Data[1].Member)] OTE(Output[2])"
+        self.rung.text = "XIC(Array[0]) [XIO(Data[1].Member), ] OTE(Output[2])"
         self.rung._parse_rung_sequence()
 
         # Should correctly identify one branch (not confused by array brackets)
@@ -1056,7 +1057,7 @@ class TestRung(unittest.TestCase):
 
     def test_parse_rung_sequence_multiple_branches(self):
         """Test parsing with multiple separate branches."""
-        self.rung.text = "XIC(Tag1) [XIC(Tag2)] XIC(Tag3) [XIO(Tag4)] OTE(Tag5)"
+        self.rung.text = "XIC(Tag1) [XIC(Tag2),] XIC(Tag3) [XIO(Tag4),] OTE(Tag5)"
         self.rung._parse_rung_sequence()
 
         # Should have 2 separate branches
@@ -1102,7 +1103,7 @@ class TestRung(unittest.TestCase):
 
     def test_build_sequence_from_tokens(self):
         """Test the _build_sequence_from_tokens method."""
-        self.rung.text = "XIC(Tag1) [XIC(Tag2)] OTE(Tag3)"
+        self.rung.text = "XIC(Tag1) [XIC(Tag2),] OTE(Tag3)"
         tokens = self.rung._tokenize_rung_text(self.rung.text)
 
         # Reset sequence and branches
@@ -1112,7 +1113,7 @@ class TestRung(unittest.TestCase):
         self.rung._build_sequence_from_tokens(tokens)
 
         # Verify the sequence was built correctly
-        self.assertEqual(len(self.rung._rung_sequence), 5)  # 3 instructions + 2 branch markers
+        self.assertEqual(len(self.rung._rung_sequence), 6)  # 3 instructions + 2 branch markers + 1 next branch marker
         self.assertEqual(len(self.rung._branches), 1)
 
     def test_find_instruction_by_text_exact_match(self):
@@ -1402,33 +1403,6 @@ class TestRung(unittest.TestCase):
 
         self.assertIn("Occurrence 5 not found", str(context.exception))
 
-    def test_rebuild_text_with_instructions_no_branches(self):
-        """Test rebuilding text without branches."""
-        original_text = "XIC(Tag1)XIO(Tag2)OTE(Tag3)"
-        new_instructions = ["XIC(NewTag1)", "XIO(NewTag2)", "OTE(NewTag3)"]
-
-        result = self.rung._rebuild_text_with_instructions(original_text, new_instructions)
-
-        self.assertEqual(result, "XIC(NewTag1)XIO(NewTag2)OTE(NewTag3)")
-
-    def test_rebuild_text_with_instructions_empty_original(self):
-        """Test rebuilding text with empty original text."""
-        original_text = ""
-        new_instructions = ["XIC(Tag1)", "OTE(Tag2)"]
-
-        result = self.rung._rebuild_text_with_instructions(original_text, new_instructions)
-
-        self.assertEqual(result, "XIC(Tag1)OTE(Tag2)")
-
-    def test_rebuild_text_with_instructions_with_branches(self):
-        """Test rebuilding text with branch markers."""
-        original_text = "XIC(Tag1)[XIO(Tag2)]OTE(Tag3)"
-        new_instructions = ["XIC(NewTag1)", "XIO(NewTag2)", "OTE(NewTag3)"]
-
-        result = self.rung._rebuild_text_with_instructions(original_text, new_instructions)
-
-        self.assertEqual(result, "XIC(NewTag1)[XIO(NewTag2)]OTE(NewTag3)")
-
     def test_reconstruct_text_with_branches(self):
         """Test reconstructing text while preserving branch structure."""
         instructions = ["XIC(NewTag1)", "XIO(NewTag2)", "OTE(NewTag3)"]
@@ -1537,35 +1511,20 @@ class TestRung(unittest.TestCase):
     def test_remove_instruction_occurrence_parameter(self):
         """Test removing instruction with specific occurrence."""
         self.rung.text = "XIC(Tag1)XIC(Tag1)XIO(Tag2)XIC(Tag1)"
-
-        with patch.object(self.rung, '_find_instruction_index_in_text', return_value=2) as mock_find:
-            with patch.object(self.rung, '_rebuild_text_with_instructions', return_value="XIC(Tag1)XIO(Tag2)XIC(Tag1)"):
-                self.rung.remove_instruction("XIC(Tag1)", occurrence=1)
-
-                mock_find.assert_called_with("XIC(Tag1)", 1)
-                self.assertEqual(self.rung.text, "XIC(Tag1)XIO(Tag2)XIC(Tag1)")
+        self.rung.remove_instruction("XIC(Tag1)", occurrence=1)
+        self.assertEqual(self.rung.text, "XIC(Tag1)XIO(Tag2)XIC(Tag1)")
 
     def test_replace_instruction_occurrence_parameter(self):
         """Test replacing instruction with specific occurrence."""
         self.rung.text = "XIC(Tag1)XIC(Tag1)XIO(Tag2)"
-
-        with patch.object(self.rung, '_find_instruction_index_in_text', return_value=1) as mock_find:
-            with patch.object(self.rung, '_rebuild_text_with_instructions', return_value="XIC(Tag1)XIC(NewTag)XIO(Tag2)"):
-                self.rung.replace_instruction("XIC(Tag1)", "XIC(NewTag)", occurrence=1)
-
-                mock_find.assert_called_with("XIC(Tag1)", 1)
-                self.assertEqual(self.rung.text, "XIC(Tag1)XIC(NewTag)XIO(Tag2)")
+        self.rung.replace_instruction("XIC(Tag1)", "XIC(NewTag)", occurrence=1)
+        self.assertEqual(self.rung.text, "XIC(Tag1)XIC(NewTag)XIO(Tag2)")
 
     def test_move_instruction_occurrence_parameter(self):
         """Test moving instruction with specific occurrence."""
         self.rung.text = "XIC(Tag1)XIC(Tag1)XIO(Tag2)OTE(Tag3)"
-
-        with patch.object(self.rung, '_find_instruction_index_in_text', return_value=1) as mock_find:
-            with patch.object(self.rung, '_rebuild_text_with_instructions', return_value="XIC(Tag1)XIO(Tag2)XIC(Tag1)OTE(Tag3)"):
-                self.rung.move_instruction("XIC(Tag1)", 2, occurrence=1)
-
-                mock_find.assert_called_with("XIC(Tag1)", 1)
-                self.assertEqual(self.rung.text, "XIC(Tag1)XIO(Tag2)XIC(Tag1)OTE(Tag3)")
+        self.rung.move_instruction("XIC(Tag1)", 2, occurrence=1)
+        self.assertEqual(self.rung.text, "XIC(Tag1)XIO(Tag2)XIC(Tag1)OTE(Tag3)")
 
     def test_add_instruction_calls_refresh(self):
         """Test that add_instruction calls refresh_internal_structures."""
@@ -1589,24 +1548,17 @@ class TestRung(unittest.TestCase):
     def test_replace_instruction_calls_refresh(self):
         """Test that replace_instruction calls refresh_internal_structures."""
         self.rung.text = "XIC(Tag1)OTE(Tag2)"
-
         with patch.object(self.rung, '_refresh_internal_structures') as mock_refresh:
-            with patch.object(self.rung, '_find_instruction_index_in_text', return_value=0):
-                with patch.object(self.rung, '_rebuild_text_with_instructions', return_value="XIC(NewTag)OTE(Tag2)"):
-                    self.rung.replace_instruction("XIC(Tag1)", "XIC(NewTag)")
-
-                    mock_refresh.assert_called_once()
+            self.rung.replace_instruction("XIC(Tag1)", "XIC(NewTag)")
+            mock_refresh.assert_called_once()
 
     def test_move_instruction_calls_refresh(self):
         """Test that move_instruction calls refresh_internal_structures."""
         self.rung.text = "XIC(Tag1)XIO(Tag2)OTE(Tag3)"
 
         with patch.object(self.rung, '_refresh_internal_structures') as mock_refresh:
-            with patch.object(self.rung, '_find_instruction_index_in_text', return_value=0):
-                with patch.object(self.rung, '_rebuild_text_with_instructions', return_value="XIO(Tag2)XIC(Tag1)OTE(Tag3)"):
-                    self.rung.move_instruction("XIC(Tag1)", 1)
-
-                    mock_refresh.assert_called_once()
+            self.rung.move_instruction("XIC(Tag1)", 1)
+            mock_refresh.assert_called_once()
 
     def test_complex_instruction_manipulation_workflow(self):
         """Test a complex workflow of adding, removing, and modifying instructions."""
@@ -1624,21 +1576,16 @@ class TestRung(unittest.TestCase):
         self.assertEqual(self.rung.text, "XIC(Tag1)XIO(Tag2)OTE(Tag3)")
 
         # Insert in middle
-        with patch.object(self.rung, '_rebuild_text_with_instructions', return_value="XIC(Tag1)XIC(MiddleTag)XIO(Tag2)OTE(Tag3)"):
-            self.rung.add_instruction("XIC(MiddleTag)", position=1)
-            self.assertEqual(self.rung.text, "XIC(Tag1)XIC(MiddleTag)XIO(Tag2)OTE(Tag3)")
+        self.rung.add_instruction("XIC(MiddleTag)", position=1)
+        self.assertEqual(self.rung.text, "XIC(Tag1)XIC(MiddleTag)XIO(Tag2)OTE(Tag3)")
 
         # Replace instruction
-        with patch.object(self.rung, '_find_instruction_index_in_text', return_value=2):
-            with patch.object(self.rung, '_rebuild_text_with_instructions', return_value="XIC(Tag1)XIC(MiddleTag)XIC(ReplacedTag)OTE(Tag3)"):
-                self.rung.replace_instruction("XIO(Tag2)", "XIC(ReplacedTag)")
-                self.assertEqual(self.rung.text, "XIC(Tag1)XIC(MiddleTag)XIC(ReplacedTag)OTE(Tag3)")
+        self.rung.replace_instruction("XIO(Tag2)", "XIC(ReplacedTag)")
+        self.assertEqual(self.rung.text, "XIC(Tag1)XIC(MiddleTag)XIC(ReplacedTag)OTE(Tag3)")
 
         # Remove instruction
-        with patch.object(self.rung, '_find_instruction_index_in_text', return_value=1):
-            with patch.object(self.rung, '_rebuild_text_with_instructions', return_value="XIC(Tag1)XIC(ReplacedTag)OTE(Tag3)"):
-                self.rung.remove_instruction("XIC(MiddleTag)")
-                self.assertEqual(self.rung.text, "XIC(Tag1)XIC(ReplacedTag)OTE(Tag3)")
+        self.rung.remove_instruction("XIC(MiddleTag)")
+        self.assertEqual(self.rung.text, "XIC(Tag1)XIC(ReplacedTag)OTE(Tag3)")
 
     def test_insert_branch_empty_rung(self):
         """Test inserting branch in empty rung raises error."""
@@ -1711,35 +1658,6 @@ class TestRung(unittest.TestCase):
 
         self.assertIn("Branch 'nonexistent_branch' not found in rung", str(context.exception))
 
-    def test_insert_parallel_branch_success(self):
-        """Test successful parallel branch insertion."""
-        mock_branch = MagicMock()
-        mock_branch.start_position = 1
-        mock_branch.end_position = 2
-        self.rung._branches = {"existing_branch": mock_branch}
-
-        with patch.object(self.rung, 'insert_nested_branch', return_value="branch_1") as mock_insert:
-            branch_id = self.rung.insert_parallel_branch("existing_branch", ["XIC(ParallelTag)"])
-
-        mock_insert.assert_called_once_with(1, 2, ["XIC(ParallelTag)"])
-        self.assertEqual(branch_id, "branch_1")
-
-    def test_insert_nested_branch_empty_rung(self):
-        """Test inserting nested branch in empty rung raises error."""
-        self.rung.text = ""
-
-        with self.assertRaises(ValueError) as context:
-            self.rung.insert_nested_branch(0, 1)
-
-        self.assertIn("Cannot insert nested branch in empty rung", str(context.exception))
-
-    def test_insert_nested_branch_success(self):
-        """Test successful nested branch insertion."""
-        self.rung.text = "XIC(Tag1)[XIO(Tag2)]OTE(Tag3)"
-        self.rung._branches = {}
-        branch_id = self.rung.insert_nested_branch(1, 1, ["XIC(NestedTag)"])
-        self.assertEqual(branch_id, "branch_0")
-
     def test_insert_branch_tokens_basic(self):
         """Test _insert_branch_tokens method."""
         original_tokens = ["XIC(Tag1)", "XIO(Tag2)", "OTE(Tag3)"]
@@ -1747,7 +1665,7 @@ class TestRung(unittest.TestCase):
 
         result = self.rung._insert_branch_tokens(original_tokens, 1, 1, branch_instructions)
 
-        expected = ["XIC(Tag1)", "[", "XIO(Tag2)", ",", "XIC(BranchTag)", "]",  "OTE(Tag3)"]
+        expected = ["XIC(Tag1)", "[", ",", "XIC(BranchTag)", "]", "XIO(Tag2)",  "OTE(Tag3)"]
         self.assertEqual(result, expected)
 
     def test_insert_branch_tokens_with_existing_branches(self):
@@ -1842,13 +1760,13 @@ class TestRung(unittest.TestCase):
         """Test successful branch removal."""
         mock_branch = MagicMock()
         self.rung._branches = {"test_branch": mock_branch}
-        self.rung.text = "XIC(Tag1)[XIO(Tag2)]OTE(Tag3)"
+        self.rung.text = "XIC(Tag1)[XIO(Tag2),]OTE(Tag3)"
         self.rung.remove_branch("branch_0", keep_instructions=True)
         self.assertEqual(self.rung.text, "XIC(Tag1)XIO(Tag2)OTE(Tag3)")
 
     def test_remove_branch_tokens_keep_instructions(self):
         """Test _remove_branch_tokens with keep_instructions=True."""
-        original_tokens = ["XIC(Tag1)", "[", "XIO(Tag2)", "]", "OTE(Tag3)"]
+        original_tokens = ["XIC(Tag1)", "[", "XIO(Tag2)", ",", "]", "OTE(Tag3)"]
         mock_branch = MagicMock()
         mock_instruction = MagicMock()
         mock_instruction.meta_data = "XIO(Tag2)"
@@ -1989,7 +1907,7 @@ class TestRung(unittest.TestCase):
 
     def test_validate_branch_structure_valid(self):
         """Test validating valid branch structure."""
-        self.rung.text = "XIC(Tag1)[XIO(Tag2)]OTE(Tag3)"
+        self.rung.text = "XIC(Tag1)[XIO(Tag2),]OTE(Tag3)"
         result = self.rung.validate_branch_structure()
         self.assertTrue(result)
 
@@ -2001,13 +1919,13 @@ class TestRung(unittest.TestCase):
 
     def test_validate_branch_structure_unmatched_close(self):
         """Test validating branch structure with unmatched closing bracket."""
-        self.rung.text = "XIC(Tag1)XIO(Tag2)]OTE(Tag3)"
+        self.rung.text = "XIC(Tag1)XIO(Tag2),]OTE(Tag3)"
         result = self.rung.validate_branch_structure()
         self.assertFalse(result)
 
     def test_validate_branch_structure_nested_valid(self):
         """Test validating valid nested branch structure."""
-        self.rung.text = "XIC(Tag1)[XIO(Tag2)[XIC(Tag3)]XIO(Tag4)]OTE(Tag5)"
+        self.rung.text = "XIC(Tag1)[XIO(Tag2)[XIC(Tag3),]XIO(Tag4),]OTE(Tag5)"
         result = self.rung.validate_branch_structure()
         self.assertTrue(result)
 
@@ -2021,21 +1939,21 @@ class TestRung(unittest.TestCase):
 
     def test_get_branch_nesting_level_main_line(self):
         """Test getting branch nesting level for main line instruction."""
-        self.rung.text = "XIC(Tag1)[XIO(Tag2)]OTE(Tag3)"
+        self.rung.text = "XIC(Tag1)[XIO(Tag2),]OTE(Tag3)"
         level = self.rung.get_branch_nesting_level(0)  # XIC(Tag1)
 
         self.assertEqual(level, 0)
 
     def test_get_branch_nesting_level_inside_branch(self):
         """Test getting branch nesting level for instruction inside branch."""
-        self.rung.text = "XIC(Tag1)[XIO(Tag2)]OTE(Tag3)"
+        self.rung.text = "XIC(Tag1)[XIO(Tag2),]OTE(Tag3)"
         level = self.rung.get_branch_nesting_level(1)  # XIO(Tag2)
 
         self.assertEqual(level, 1)
 
     def test_get_branch_nesting_level_nested_branches(self):
         """Test getting branch nesting level for nested branches."""
-        self.rung.text = "XIC(Tag1)[XIO(Tag2)[XIC(Tag3)]XIO(Tag4)]OTE(Tag5)"
+        self.rung.text = "XIC(Tag1)[XIO(Tag2)[XIC(Tag3),]XIO(Tag4),]OTE(Tag5)"
 
         level_main = self.rung.get_branch_nesting_level(0)      # XIC(Tag1)
         level_branch1 = self.rung.get_branch_nesting_level(1)   # XIO(Tag2)
@@ -2049,6 +1967,26 @@ class TestRung(unittest.TestCase):
         self.assertEqual(level_branch2, 1)
         self.assertEqual(level_end, 0)
 
+    def test_get_max_branch_depth(self):
+        """Test getting maximum branch depth."""
+        self.rung.text = "XIC(Tag1)[XIO(Tag2)[XIC(Tag3),]XIO(Tag4),]OTE(Tag5)"
+
+        max_depth = self.rung.get_max_branch_depth()
+
+        self.assertEqual(max_depth, 2)
+
+        self.rung.text = "XIC(Tag1)[XIO(Tag2)[XIC(Tag3),XIC(Tag6),]XIO(Tag4),]OTE(Tag5)"
+
+        max_depth = self.rung.get_max_branch_depth()
+
+        self.assertEqual(max_depth, 3)
+
+        self.rung.text = "XIC(Tag1)[XIO(Tag2)[XIC(Tag3),XIC(Tag6),XIC(Tag7),]XIO(Tag4),XIO(Tag8),]OTE(Tag5)"
+
+        max_depth = self.rung.get_max_branch_depth()
+
+        self.assertEqual(max_depth, 4)
+
     def test_find_matching_branch_end_empty_text(self):
         """Test finding matching branch end with empty text."""
         self.rung.text = ""
@@ -2059,21 +1997,21 @@ class TestRung(unittest.TestCase):
 
     def test_find_matching_branch_end_simple_branch(self):
         """Test finding matching branch end for simple branch."""
-        self.rung.text = "XIC(Tag1)[XIO(Tag2)]OTE(Tag3)"
+        self.rung.text = "XIC(Tag1)[XIO(Tag2),]OTE(Tag3)"
         end_pos = self.rung.find_matching_branch_end(1)  # Start at position 1
 
-        self.assertEqual(end_pos, 2)  # Should end at position 2
+        self.assertEqual(end_pos, 3)  # Should end at position 2
 
     def test_find_matching_branch_end_nested_branches(self):
         """Test finding matching branch end for nested branches."""
-        self.rung.text = "XIC(Tag1)[XIO(Tag2)[XIC(Tag3)]XIO(Tag4)]OTE(Tag5)"
+        self.rung.text = "XIC(Tag1)[XIO(Tag2)[XIC(Tag3),]XIO(Tag4),]OTE(Tag5)"
         # Outer branch starts at position 1
         end_pos_outer = self.rung.find_matching_branch_end(1)
         # Inner branch starts at position 2
         end_pos_inner = self.rung.find_matching_branch_end(2)
 
-        self.assertEqual(end_pos_outer, 4)  # Outer branch ends at position 4
-        self.assertEqual(end_pos_inner, 3)  # Inner branch ends at position 3
+        self.assertEqual(end_pos_outer, 6)  # Outer branch ends at position 6
+        self.assertEqual(end_pos_inner, 4)  # Inner branch ends at position 4
 
     def test_find_matching_branch_end_no_match(self):
         """Test finding matching branch end when no match exists."""
@@ -2122,8 +2060,10 @@ class TestRung(unittest.TestCase):
 
     def test_remove_branch_calls_refresh(self):
         """Test that remove_branch calls _refresh_internal_structures."""
-        self.rung.text = "XIC(Tag1)[XIO(Tag2)]OTE(Tag3)"
-        self.rung.remove_branch("branch_0")
+        self.rung.text = "XIC(Tag1)[XIO(Tag2),]OTE(Tag3)"
+        with patch.object(self.rung, '_refresh_internal_structures') as mock_refresh:
+            self.rung.remove_branch("branch_0", keep_instructions=True)
+            mock_refresh.assert_called_once()
 
     def test_error_handling_edge_cases(self):
         """Test various error handling edge cases."""
