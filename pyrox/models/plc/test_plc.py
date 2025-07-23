@@ -1648,15 +1648,6 @@ class TestRung(unittest.TestCase):
         branch_id = self.rung.insert_branch(1, 1)
         self.assertEqual(branch_id, "branch_1")
 
-    def test_insert_parallel_branch_nonexistent_branch(self):
-        """Test inserting parallel branch with nonexistent branch ID."""
-        self.rung._branches = {}
-
-        with self.assertRaises(ValueError) as context:
-            self.rung.insert_parallel_branch("nonexistent_branch")
-
-        self.assertIn("Branch 'nonexistent_branch' not found in rung", str(context.exception))
-
     def test_insert_branch_tokens_basic(self):
         """Test _insert_branch_tokens method."""
         original_tokens = ["XIC(Tag1)", "XIO(Tag2)", "OTE(Tag3)"]
@@ -2129,6 +2120,131 @@ class TestRung(unittest.TestCase):
 
         nesting_level = rung.get_branch_internal_nesting_level(branch_start)
         assert nesting_level == 3  # Two commas means two nested branches
+
+    def test_insert_branch_level(self):
+        """Test inserting a new branch level in existing branch structure."""
+
+        # Test with valid branch structure
+        self.rung.text = "XIC(Tag1)[XIC(Tag2),XIC(Tag3)]OTE(Tag4)"
+
+        # Find the position of the first '[' token (branch start)
+        tokens = self.rung._tokenize_rung_text(self.rung.text)
+        branch_start_pos = tokens.index('[')
+
+        # Insert a new branch level
+        self.rung.insert_branch_level(branch_start_pos)
+
+        # Should add an additional ',' after the first instruction in the branch
+        expected_text = "XIC(Tag1)[XIC(Tag2),,XIC(Tag3)]OTE(Tag4)"
+        self.assertEqual(self.rung.text, expected_text)
+
+    def test_insert_branch_level_start_position_out_of_range_negative(self):
+        """Test inserting branch level with negative start position."""
+        self.rung.text = "XIC(Tag1)[XIC(Tag2),XIC(Tag3)]OTE(Tag4)"
+
+        with self.assertRaises(IndexError) as context:
+            self.rung.insert_branch_level(-1)
+
+        self.assertIn("Start position out of range", str(context.exception))
+
+    def test_insert_branch_level_start_position_out_of_range_too_high(self):
+        """Test inserting branch level with start position beyond token list."""
+        self.rung.text = "XIC(Tag1)[XIC(Tag2),XIC(Tag3)]OTE(Tag4)"
+        tokens = self.rung._tokenize_rung_text(self.rung.text)
+
+        with self.assertRaises(IndexError) as context:
+            self.rung.insert_branch_level(len(tokens) + 1)
+
+        self.assertIn("Start position out of range", str(context.exception))
+
+    def test_insert_branch_level_not_on_branch_start_token(self):
+        """Test inserting branch level when start position is not on '[' token."""
+        self.rung.text = "XIC(Tag1)[XIC(Tag2),XIC(Tag3)]OTE(Tag4)"
+
+        # Try to insert at position 0 (which should be XIC(Tag1), not '[')
+        with self.assertRaises(ValueError) as context:
+            self.rung.insert_branch_level(0)
+
+        self.assertIn("Start position must be on a branch start token", str(context.exception))
+
+    def test_insert_branch_level_multiple_existing_branches(self):
+        """Test inserting branch level in structure with multiple existing branches."""
+        self.rung.text = "XIC(Tag1)[XIC(Tag2),XIC(Tag3),XIC(Tag4)]OTE(Tag5)"
+        tokens = self.rung._tokenize_rung_text(self.rung.text)
+        branch_start_pos = tokens.index('[')
+
+        # Insert new branch level
+        self.rung.insert_branch_level(branch_start_pos)
+
+        # Should insert after the first instruction, creating additional nesting
+        expected_text = "XIC(Tag1)[XIC(Tag2),,XIC(Tag3),XIC(Tag4)]OTE(Tag5)"
+        self.assertEqual(self.rung.text, expected_text)
+
+    def test_insert_branch_level_nested_branches(self):
+        """Test inserting branch level in nested branch structure."""
+        self.rung.text = "XIC(Tag1)[XIC(Tag2)[XIC(Tag3),XIC(Tag4)],XIC(Tag5)]OTE(Tag6)"
+        tokens = self.rung._tokenize_rung_text(self.rung.text)
+
+        # Find the outer branch start
+        outer_branch_start = tokens.index('[')
+
+        # Insert new branch level in outer branch
+        self.rung.insert_branch_level(outer_branch_start)
+
+        # Should add comma after first element of outer branch
+        expected_text = "XIC(Tag1)[XIC(Tag2)[XIC(Tag3),XIC(Tag4)],,XIC(Tag5)]OTE(Tag6)"
+        self.assertEqual(self.rung.text, expected_text)
+
+    def test_insert_branch_level_calls_refresh_internal_structures(self):
+        """Test that insert_branch_level calls _refresh_internal_structures."""
+        self.rung.text = "XIC(Tag1)[XIC(Tag2),XIC(Tag3)]OTE(Tag4)"
+        tokens = self.rung._tokenize_rung_text(self.rung.text)
+        branch_start_pos = tokens.index('[')
+
+        with patch.object(self.rung, '_refresh_internal_structures') as mock_refresh:
+            self.rung.insert_branch_level(branch_start_pos)
+            mock_refresh.assert_called_once()
+
+    def test_insert_branch_level_empty_rung(self):
+        """Test inserting branch level in empty rung."""
+        self.rung.text = ""
+
+        with self.assertRaises(IndexError) as context:
+            self.rung.insert_branch_level(0)
+
+        self.assertIn("Start position out of range", str(context.exception))
+
+    def test_insert_branch_level_simple_branch_structure(self):
+        """Test inserting branch level in simplest possible branch structure."""
+        self.rung.text = "XIC(Tag1)[XIC(Tag2),]OTE(Tag3)"
+        tokens = self.rung._tokenize_rung_text(self.rung.text)
+        branch_start_pos = tokens.index('[')
+
+        # Insert new branch level
+        self.rung.insert_branch_level(branch_start_pos)
+
+        # Should add another comma after the first instruction
+        expected_text = "XIC(Tag1)[XIC(Tag2),,]OTE(Tag3)"
+        self.assertEqual(self.rung.text, expected_text)
+
+    def test_insert_branch_level_preserves_array_references(self):
+        """Test that inserting branch level preserves array references in instructions."""
+        self.rung.text = "XIC(Array[0])[XIC(Data[1]),XIO(Output[2])]OTE(Result[3])"
+        tokens = self.rung._tokenize_rung_text(self.rung.text)
+        branch_start_pos = tokens.index('[')
+
+        # Insert new branch level
+        self.rung.insert_branch_level(branch_start_pos)
+
+        # Array references should be preserved
+        expected_text = "XIC(Array[0])[XIC(Data[1]),,XIO(Output[2])]OTE(Result[3])"
+        self.assertEqual(self.rung.text, expected_text)
+
+        # Verify array references are still intact
+        self.assertIn("Array[0]", self.rung.text)
+        self.assertIn("Data[1]", self.rung.text)
+        self.assertIn("Output[2]", self.rung.text)
+        self.assertIn("Result[3]", self.rung.text)
 
 
 class TestTag(unittest.TestCase):

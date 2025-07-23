@@ -2169,6 +2169,34 @@ class Rung(PlcObject):
         """Get all branches in this rung."""
         return self._branches
 
+    def _extract_instructions(self, text):
+        """Extract instructions with properly balanced parentheses."""
+        instructions = []
+
+        # Find instruction starts
+        starts = list(re.finditer(r'[A-Za-z0-9_]+\(', text))
+
+        for match in starts:
+            start_pos = match.start()
+            paren_pos = match.end() - 1  # Position of opening parenthesis
+
+            # Find matching closing parenthesis
+            paren_count = 1
+            pos = paren_pos + 1
+
+            while pos < len(text) and paren_count > 0:
+                if text[pos] == '(':
+                    paren_count += 1
+                elif text[pos] == ')':
+                    paren_count -= 1
+                pos += 1
+
+            if paren_count == 0:  # Found matching closing parenthesis
+                instruction = text[start_pos:pos]
+                instructions.append(instruction)
+
+        return instructions
+
     def _get_instructions(self):
         """Extract instructions from rung text."""
         if not self.text:
@@ -2196,15 +2224,22 @@ class Rung(PlcObject):
 
     def _tokenize_rung_text(self, text: str) -> List[str]:
         """Tokenize rung text to identify instructions and branch markers."""
-        import re
 
         tokens = []
 
-        # First, find all instructions and their positions
-        instruction_matches = list(re.finditer(INST_RE_PATTERN, text))
-        instruction_ranges = [(match.start(), match.end()) for match in instruction_matches]
+        # First, extract all instructions using the balanced parentheses method
+        instructions = self._extract_instructions(text)
+        instruction_ranges = []
 
-        # Split by branch markers, but only those outside of instructions
+        # Find the positions of each instruction in the text
+        search_start = 0
+        for instruction in instructions:
+            pos = text.find(instruction, search_start)
+            if pos != -1:
+                instruction_ranges.append((pos, pos + len(instruction)))
+                search_start = pos + len(instruction)
+
+        # Process the text character by character
         i = 0
         current_segment = ""
 
@@ -2221,8 +2256,8 @@ class Rung(PlcObject):
                 else:
                     # This is a branch marker or next-branch marker
                     if current_segment.strip():
-                        # Extract instructions from current segment
-                        segment_instructions = re.findall(INST_RE_PATTERN, current_segment)
+                        # Extract instructions from current segment using our method
+                        segment_instructions = self._extract_instructions(current_segment)
                         tokens.extend(segment_instructions)
                         current_segment = ""
 
@@ -2235,7 +2270,7 @@ class Rung(PlcObject):
 
         # Process any remaining segment
         if current_segment.strip():
-            segment_instructions = re.findall(INST_RE_PATTERN, current_segment)
+            segment_instructions = self._extract_instructions(current_segment)
             tokens.extend(segment_instructions)
 
         return tokens
@@ -2261,7 +2296,7 @@ class Rung(PlcObject):
 
                 branch_start = RungElement(element_type=RungElementType.BRANCH_START,
                                            branch_id=branch_id, root_branch_id=root_branch_id,
-                                           branch_level=branch_level, position=position)
+                                           branch_level=branch_level, position=position, rung_number=int(self.number))
 
                 branch = RungBranch(branch_id=branch_id, root_branch_id=root_branch_id,
                                     start_position=position, end_position=-1, nested_branches=[],)
@@ -2284,11 +2319,12 @@ class Rung(PlcObject):
 
                 self._branches[branch.branch_id].nested_branches[-1].end_position = position - 1
                 root_branch_id = branch_root_id_history.pop() if branch_root_id_history else None
+                branch_id = self._branches[branch.branch_id].root_branch_id
                 branch_level = branch_level_history.pop() if branch_level_history else 0
 
                 branch_end = RungElement(element_type=RungElementType.BRANCH_END,
-                                         branch_id=branch.branch_id, root_branch_id=root_branch_id,
-                                         branch_level=branch_level, position=position)
+                                         branch_id=branch.branch_id, root_branch_id=branch.root_branch_id,
+                                         branch_level=branch_level, position=position, rung_number=int(self.number))
 
                 self._rung_sequence.append(branch_end)
                 position += 1
@@ -2306,7 +2342,8 @@ class Rung(PlcObject):
                     parent_branch.nested_branches[-1].end_position = position - 1  # ends at the previous position
 
                 next_branch = RungElement(element_type=RungElementType.BRANCH_NEXT, branch_id=branch_id,
-                                          root_branch_id=root_branch_id, branch_level=branch_level, position=position)
+                                          root_branch_id=root_branch_id, branch_level=branch_level,
+                                          position=position, rung_number=int(self.number))
                 nested_branch = RungBranch(branch_id=branch_id, start_position=position,
                                            end_position=-1, root_branch_id=parent_branch.branch_id)
                 branch_root_id_history.append(root_branch_id)  # Save current root branch id
@@ -2321,7 +2358,7 @@ class Rung(PlcObject):
                 if instruction:
                     element = RungElement(element_type=RungElementType.INSTRUCTION, instruction=instruction,
                                           position=position, branch_id=branch_id, root_branch_id=root_branch_id,
-                                          branch_level=branch_level)
+                                          branch_level=branch_level, rung_number=int(self.number))
 
                     self._rung_sequence.append(element)
                     position += 1
@@ -2882,31 +2919,38 @@ class Rung(PlcObject):
 
         return branch_id
 
-    def insert_parallel_branch(self, existing_branch_id: str,
-                               parallel_instructions: List[str] = None) -> str:
-        """Insert a parallel branch alongside an existing branch.
-
-        Args:
-            existing_branch_id (str): ID of the existing branch to add parallel to
-            parallel_instructions (List[str], optional): Instructions for the parallel branch
-
-        Returns:
-            str: The new branch ID that was created
-
-        Raises:
-            ValueError: If branch ID doesn't exist
+    def insert_branch_level(self,
+                            branch_position: int = 0,):
+        """Insert a new branch level in the existing branch structure.
         """
-        if existing_branch_id not in self._branches:
-            raise ValueError(f"Branch '{existing_branch_id}' not found in rung!")
-
-        existing_branch = self._branches[existing_branch_id]
-
-        # Create parallel branch at the same positions
-        return self.insert_nested_branch(
-            existing_branch.start_position,
-            existing_branch.end_position,
-            parallel_instructions or []
-        )
+        original_tokens = self._tokenize_rung_text(self.text)
+        if branch_position < 0 or branch_position >= len(original_tokens):
+            raise IndexError("Start position out of range!")
+        if original_tokens[branch_position] != '[' and original_tokens[branch_position] != ',':
+            raise ValueError("Start position must be on a branch start token!")
+        # Find index of first 'next branch' marker after the start position, which is a ',' token
+        next_branch_index = branch_position + 1
+        nested_branch_count = 0
+        while next_branch_index < len(original_tokens):
+            if original_tokens[next_branch_index] == '[':
+                nested_branch_count += 1
+            elif original_tokens[next_branch_index] == ']':
+                if nested_branch_count <= 0:
+                    break
+                nested_branch_count -= 1
+            elif original_tokens[next_branch_index] == ',' and nested_branch_count <= 0:
+                break
+            next_branch_index += 1
+        if next_branch_index >= len(original_tokens):
+            raise ValueError("No next branch marker found after the start position!")
+        if original_tokens[next_branch_index] != ',' and original_tokens[next_branch_index] != ']':
+            raise ValueError("Next branch marker must be a ',' token!")
+        # Insert a ',' at the next branch index
+        new_tokens = original_tokens[:next_branch_index] + [','] + original_tokens[next_branch_index:]
+        # Reconstruct text
+        self.text = "".join(new_tokens)
+        # Refresh internal structures
+        self._refresh_internal_structures()
 
     def list_branches(self) -> List[Dict]:
         """Get information about all branches in the rung.
