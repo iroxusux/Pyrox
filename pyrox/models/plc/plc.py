@@ -2031,7 +2031,6 @@ class RungBranch:
     branch_id: str
     start_position: int
     end_position: int
-    instructions: List[LogixInstruction]
     root_branch_id: Optional[str] = None  # ID of the parent branch
     nested_branches: List['RungBranch'] = field(default_factory=list)
 
@@ -2257,84 +2256,74 @@ class Rung(PlcObject):
             if token == '[':  # Branch start
                 branch_id = f"branch_{branch_counter}"
                 branch_counter += 1
-                if branch_level > 0:
-                    branch_level_history.append(branch_level)
+                branch_level_history.append(branch_level)
+                branch_level = 0  # Reset branch level for new branch
 
-                # Create branch start element
-                branch_start = RungElement(
-                    element_type=RungElementType.BRANCH_START,
-                    branch_id=branch_id,
-                    root_branch_id=root_branch_id,
-                    branch_level=branch_level,
-                    position=position
-                )
+                branch_start = RungElement(element_type=RungElementType.BRANCH_START,
+                                           branch_id=branch_id, root_branch_id=root_branch_id,
+                                           branch_level=branch_level, position=position)
 
-                self._rung_sequence.append(branch_start)
+                branch = RungBranch(branch_id=branch_id, root_branch_id=root_branch_id,
+                                    start_position=position, end_position=-1, nested_branches=[],)
 
-                # Create branch object
-                branch = RungBranch(
-                    branch_id=branch_id,
-                    root_branch_id=root_branch_id,
-                    start_position=position,
-                    end_position=-1,  # Will be set when branch ends
-                    instructions=[]
-                )
-                self._branches[branch_id] = branch
                 branch_stack.append(branch)
+                self._branches[branch_id] = branch
+                self._rung_sequence.append(branch_start)
                 position += 1
 
             elif token == ']':  # Branch end
-                if branch_stack:
-                    branch = branch_stack.pop()
-                    self._branches[branch.branch_id].end_position = position
-                    root_branch_id = branch_root_id_history.pop() if branch_root_id_history else None
-                    branch_level = branch_level_history.pop() if branch_level_history else 0
+                branch = branch_stack.pop()
+                self._branches[branch.branch_id].end_position = position
+                if not self._branches[branch.branch_id].nested_branches:
+                    # If no nested branches, we need to delete this major branch and reconstruct the rung again
+                    fresh_tokens = self._remove_token_by_index(self._tokenize_rung_text(self.text), position)
+                    fresh_tokens = self._remove_token_by_index(fresh_tokens, branch.start_position)
+                    self.text = "".join(fresh_tokens)
+                    self._refresh_internal_structures()
+                    return
 
-                    branch_end = RungElement(
-                        element_type=RungElementType.BRANCH_END,
-                        branch_id=branch.branch_id,
-                        root_branch_id=root_branch_id,
-                        branch_level=branch_level,
-                        position=position
-                    )
+                self._branches[branch.branch_id].nested_branches[-1].end_position = position - 1
+                root_branch_id = branch_root_id_history.pop() if branch_root_id_history else None
+                branch_level = branch_level_history.pop() if branch_level_history else 0
 
-                    self._rung_sequence.append(branch_end)
-                    position += 1
+                branch_end = RungElement(element_type=RungElementType.BRANCH_END,
+                                         branch_id=branch.branch_id, root_branch_id=root_branch_id,
+                                         branch_level=branch_level, position=position)
+
+                self._rung_sequence.append(branch_end)
+                position += 1
 
             elif token == ',':  # Next branch marker
-                branch_level += 1  # This must increment first to indicate a new branch level
-                branch_id = f'branch_{branch_counter-1}_sub_{branch_level}'
-                next_branch = RungElement(
-                    element_type=RungElementType.BRANCH_NEXT,
-                    branch_id=branch_id,
-                    root_branch_id=root_branch_id,
-                    branch_level=branch_level,
-                    position=position
-                )
+                parent_branch = branch_stack[-1] if branch_stack else None
+                if not parent_branch:
+                    raise ValueError("Next branch marker found without an active branch!")
+
+                branch_level += 1
+                branch_id = f'{parent_branch.branch_id}:{branch_level}'
+
+                if branch_level > 1:
+                    # update the previous nested branch's end position
+                    parent_branch.nested_branches[-1].end_position = position - 1  # ends at the previous position
+
+                next_branch = RungElement(element_type=RungElementType.BRANCH_NEXT, branch_id=branch_id,
+                                          root_branch_id=root_branch_id, branch_level=branch_level, position=position)
+                nested_branch = RungBranch(branch_id=branch_id, start_position=position,
+                                           end_position=-1, root_branch_id=parent_branch.branch_id)
                 branch_root_id_history.append(root_branch_id)  # Save current root branch id
                 root_branch_id = branch_id  # Change branch id after assignment so we get the proper parent
+                parent_branch.nested_branches.append(nested_branch)
+                self._branches[branch_id] = nested_branch
                 self._rung_sequence.append(next_branch)
                 position += 1
 
             else:  # Regular instruction
                 instruction = self._find_instruction_by_text(token, instruction_index)
                 if instruction:
-                    element = RungElement(
-                        element_type=RungElementType.INSTRUCTION,
-                        instruction=instruction,
-                        position=position,
-                        branch_id=branch_id,
-                        root_branch_id=root_branch_id,
-                        branch_level=branch_level
-                    )
+                    element = RungElement(element_type=RungElementType.INSTRUCTION, instruction=instruction,
+                                          position=position, branch_id=branch_id, root_branch_id=root_branch_id,
+                                          branch_level=branch_level)
 
                     self._rung_sequence.append(element)
-
-                    # Add to current branch if we're in one
-                    if branch_stack:
-                        current_branch = branch_stack[-1]
-                        self._branches[current_branch.branch_id].instructions.append(instruction)
-
                     position += 1
                     instruction_index += 1
 
@@ -2539,6 +2528,37 @@ class Rung(PlcObject):
 
         return new_tokens
 
+    def _remove_token_by_index(self, tokens: List[str], index: int) -> List[str]:
+        """Remove a token at a specific index from the token list.
+
+        Args:
+            tokens (List[str]): List of tokens
+            index (int): Index of the token to remove
+
+        Returns:
+            List[str]: New token list with the specified token removed
+        """
+        if index < 0 or index >= len(tokens):
+            raise IndexError("Index out of range!")
+
+        return tokens[:index] + tokens[index + 1:]
+
+    def _remove_tokens(self, tokens: List[str], start: int, end: int) -> List[str]:
+        """Remove a range of tokens from the token list.
+
+        Args:
+            tokens (List[str]): List of tokens
+            start (int): Start index of the range to remove
+            end (int): End index of the range to remove
+
+        Returns:
+            List[str]: New token list with the specified range removed
+        """
+        if start < 0 or end >= len(tokens) or start > end:
+            raise IndexError("Invalid start or end indices for removal!")
+
+        return tokens[:start] + tokens[end + 1:]
+
     def add_instruction(self, instruction_text: str, position: Optional[int] = None):
         """Add an instruction to this rung at the specified position.
 
@@ -2603,21 +2623,20 @@ class Rung(PlcObject):
             return None
 
         tokens = self._tokenize_rung_text(self.text)
-        bracket_count = 0
-        instruction_count = 0
-        found_start = False
+        if len(tokens) <= start_position or tokens[start_position] != '[':
+            raise ValueError("Start position must be a valid branch start token position.")
 
-        for token in tokens:
+        bracket_count = 1  # Since we start on a bracket
+        instruction_count = start_position
+
+        for token in tokens[start_position+1:]:
+            instruction_count += 1
             if token == '[':
-                if instruction_count == start_position:
-                    found_start = True
-                if found_start:
-                    bracket_count += 1
+                bracket_count += 1
             elif token == ']':
                 bracket_count -= 1
-                if found_start and bracket_count == 0:
+                if bracket_count == 0:
                     return instruction_count
-            instruction_count += 1
 
         return None
 
@@ -2659,20 +2678,19 @@ class Rung(PlcObject):
             raise ValueError(f"No matching end found for branch starting at position {branch_position}.")
 
         tokens = self._tokenize_rung_text(self.text)
-        nesting_counter = 0
-        nesting_level = 0
-        start_counter = False  # this ensures we don't count our own nested elements
+        open_counter, nesting_counter, nesting_level = 0, 0, 0
         indexed_tokens = tokens[branch_position+1:end_position]
         for token in indexed_tokens:
+            if open_counter < 0:
+                raise ValueError("Mismatched brackets in rung text.")
             if token == '[':
-                start_counter = True
-            if token == ',' and start_counter is True:
+                open_counter += 1
+            elif token == ',' and open_counter:
                 nesting_counter += 1
                 if nesting_counter > nesting_level:
                     nesting_level = nesting_counter
             elif token == ']':
-                nesting_counter = 0
-                start_counter = False
+                open_counter -= 1
 
         return nesting_level
 
@@ -2971,7 +2989,7 @@ class Rung(PlcObject):
         # Refresh internal structures
         self._refresh_internal_structures()
 
-    def remove_branch(self, branch_id: str, keep_instructions: bool = True):
+    def remove_branch(self, branch_id: str):
         """Remove a branch structure from the rung.
 
         Args:
@@ -2984,20 +3002,17 @@ class Rung(PlcObject):
         if branch_id not in self._branches:
             raise ValueError(f"Branch '{branch_id}' not found in rung!")
 
-        _ = self._branches[branch_id]
+        branch = self._branches[branch_id]
+        if branch.start_position < 0 or branch.end_position < 0:
+            raise ValueError("Branch start or end position is invalid!")
 
-        # Get current tokens
-        original_tokens = self._tokenize_rung_text(self.text)
-
-        # Remove branch markers and optionally preserve instructions
-        new_tokens = self._remove_branch_tokens(
-            original_tokens, branch_id, keep_instructions
-        )
-
-        # Reconstruct text
-        self.text = "".join(new_tokens)
-
-        # Refresh internal structures
+        tokens = self._tokenize_rung_text(self.text)
+        tokens = self._remove_tokens(tokens, branch.start_position, branch.end_position)
+        for b in branch.nested_branches:
+            if b.branch_id in self._branches:
+                del self._branches[b.branch_id]
+        del self._branches[branch_id]
+        self.text = "".join(tokens)
         self._refresh_internal_structures()
 
     def remove_instruction(self, instruction: Union[LogixInstruction, str, int],

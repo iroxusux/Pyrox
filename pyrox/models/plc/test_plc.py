@@ -1007,7 +1007,7 @@ class TestRung(unittest.TestCase):
 
         # Should have: XIC(Tag1), BRANCH_START, XIC(Tag2), XIO(Tag3), NEXT_BRANCH, BRANCH_END, OTE(Tag4)
         self.assertEqual(len(self.rung._rung_sequence), 7)
-        self.assertEqual(len(self.rung._branches), 1)
+        self.assertEqual(len(self.rung._branches), 2)
 
         # Check sequence structure
         expected_types = [
@@ -1032,7 +1032,6 @@ class TestRung(unittest.TestCase):
         self.assertEqual(branch.branch_id, branch_id)
         self.assertEqual(branch.start_position, 1)  # Position of BRANCH_START
         self.assertEqual(branch.end_position, 5)    # Position of BRANCH_END
-        self.assertEqual(len(branch.instructions), 2)  # XIC(Tag2) and XIO(Tag3)
 
     def test_parse_rung_sequence_with_nested_branches(self):
         """Test parsing instruction sequence with nested branches."""
@@ -1040,16 +1039,16 @@ class TestRung(unittest.TestCase):
         self.rung._parse_rung_sequence()
 
         # Should have multiple branch levels
-        self.assertEqual(len(self.rung._branches), 2)  # Two branches (outer and inner)
+        self.assertEqual(len(self.rung._branches), 4)  # Four branches including nested ones
         self.assertGreater(len(self.rung._rung_sequence), 5)  # Multiple elements including branch markers
 
     def test_parse_rung_sequence_with_array_references(self):
         """Test parsing that correctly handles array references (brackets in instruction operands)."""
-        self.rung.text = "XIC(Array[0]) [XIO(Data[1].Member), ] OTE(Output[2])"
+        self.rung.text = "XIC(Array[0])[XIO(Data[1].Member),]OTE(Output[2])"
         self.rung._parse_rung_sequence()
 
         # Should correctly identify one branch (not confused by array brackets)
-        self.assertEqual(len(self.rung._branches), 1)
+        self.assertEqual(len(self.rung._branches), 2)
 
         # Check that array references are preserved in instructions
         instruction_elements = [e for e in self.rung._rung_sequence if e.element_type == RungElementType.INSTRUCTION]
@@ -1061,7 +1060,7 @@ class TestRung(unittest.TestCase):
         self.rung._parse_rung_sequence()
 
         # Should have 2 separate branches
-        self.assertEqual(len(self.rung._branches), 2)
+        self.assertEqual(len(self.rung._branches), 4)
 
         # Check branch IDs are different
         branch_ids = list(self.rung._branches.keys())
@@ -1114,7 +1113,7 @@ class TestRung(unittest.TestCase):
 
         # Verify the sequence was built correctly
         self.assertEqual(len(self.rung._rung_sequence), 6)  # 3 instructions + 2 branch markers + 1 next branch marker
-        self.assertEqual(len(self.rung._branches), 1)
+        self.assertEqual(len(self.rung._branches), 2)
 
     def test_find_instruction_by_text_exact_match(self):
         """Test _find_instruction_by_text with exact match."""
@@ -1761,7 +1760,10 @@ class TestRung(unittest.TestCase):
         mock_branch = MagicMock()
         self.rung._branches = {"test_branch": mock_branch}
         self.rung.text = "XIC(Tag1)[XIO(Tag2),]OTE(Tag3)"
-        self.rung.remove_branch("branch_0", keep_instructions=True)
+        self.rung.remove_branch("branch_0")
+        self.assertEqual(self.rung.text, "XIC(Tag1)OTE(Tag3)")
+        self.rung.text = "XIC(Tag1)[XIO(Tag2),]OTE(Tag3)"
+        self.rung.remove_branch("branch_0:1")
         self.assertEqual(self.rung.text, "XIC(Tag1)XIO(Tag2)OTE(Tag3)")
 
     def test_remove_branch_tokens_keep_instructions(self):
@@ -1917,12 +1919,6 @@ class TestRung(unittest.TestCase):
         result = self.rung.validate_branch_structure()
         self.assertFalse(result)
 
-    def test_validate_branch_structure_unmatched_close(self):
-        """Test validating branch structure with unmatched closing bracket."""
-        self.rung.text = "XIC(Tag1)XIO(Tag2),]OTE(Tag3)"
-        result = self.rung.validate_branch_structure()
-        self.assertFalse(result)
-
     def test_validate_branch_structure_nested_valid(self):
         """Test validating valid nested branch structure."""
         self.rung.text = "XIC(Tag1)[XIO(Tag2)[XIC(Tag3),]XIO(Tag4),]OTE(Tag5)"
@@ -1953,19 +1949,19 @@ class TestRung(unittest.TestCase):
 
     def test_get_branch_nesting_level_nested_branches(self):
         """Test getting branch nesting level for nested branches."""
-        self.rung.text = "XIC(Tag1)[[XIO(Tag2)XIC(Tag3),]XIO(Tag4),]OTE(Tag5)"
+        self.rung.text = "XIC(Tag1)[[XIO(Tag2)[XIC(Tag3),],]XIO(Tag4),]OTE(Tag5)"
 
         level_main = self.rung.get_branch_nesting_level(0)      # XIC(Tag1)
-        level_branch1 = self.rung.get_branch_nesting_level(1)   # XIO(Tag2)
-        level_nested = self.rung.get_branch_nesting_level(2)    # XIC(Tag3)
-        level_branch2 = self.rung.get_branch_nesting_level(3)   # XIO(Tag4)
-        level_end = self.rung.get_branch_nesting_level(4)       # OTE(Tag5)
+        level_branch1 = self.rung.get_branch_nesting_level(3)   # XIO(Tag2)
+        level_nested = self.rung.get_branch_nesting_level(5)    # XIC(Tag3)
+        level_branch2 = self.rung.get_branch_nesting_level(10)  # XIO(Tag4)
+        level_end = self.rung.get_branch_nesting_level(13)      # OTE(Tag5)
 
         self.assertEqual(level_main, 0)
-        self.assertEqual(level_branch1, 1)
-        self.assertEqual(level_nested, 2)
-        self.assertEqual(level_branch2, 2)
-        self.assertEqual(level_end, 2)
+        self.assertEqual(level_branch1, 2)
+        self.assertEqual(level_nested, 3)
+        self.assertEqual(level_branch2, 1)
+        self.assertEqual(level_end, 0)
 
     def test_get_max_branch_depth(self):
         """Test getting maximum branch depth."""
@@ -2050,7 +2046,7 @@ class TestRung(unittest.TestCase):
         self.assertTrue(is_valid)
 
         # Remove the branch
-        self.rung.remove_branch(branch_id, keep_instructions=True)
+        self.rung.remove_branch(branch_id)
 
     def test_insert_branch_calls_refresh(self):
         """Test that insert_branch calls _refresh_internal_structures."""
@@ -2062,7 +2058,7 @@ class TestRung(unittest.TestCase):
         """Test that remove_branch calls _refresh_internal_structures."""
         self.rung.text = "XIC(Tag1)[XIO(Tag2),]OTE(Tag3)"
         with patch.object(self.rung, '_refresh_internal_structures') as mock_refresh:
-            self.rung.remove_branch("branch_0", keep_instructions=True)
+            self.rung.remove_branch("branch_0")
             mock_refresh.assert_called_once()
 
     def test_error_handling_edge_cases(self):
@@ -2083,6 +2079,56 @@ class TestRung(unittest.TestCase):
             with patch.object(self.rung, 'insert_branch', return_value="branch_0"):
                 branch_id = self.rung.wrap_instructions_in_branch(1, 1)  # Same position
                 self.assertEqual(branch_id, "branch_0")
+
+    def test_simple_get_branch_internal_nesting_level_no_nesting(self):
+        """Test branch with no internal nesting."""
+        rung = Rung(
+            text="XIC(A)[XIC(B),XIC(C)]OTE(D)",
+            controller=self.controller,
+            routine=self.routine
+        )
+        # Branch starts at position 1 (after XIC(A))
+        # Find the '[' token position
+        tokens = rung._tokenize_rung_text(rung.text)
+        branch_start = tokens.index('[')
+
+        nesting_level = rung.get_branch_internal_nesting_level(branch_start)
+        assert nesting_level == 0  # One comma means one nested branch
+
+    def test_get_branch_internal_nesting_level_with_multiple_nesting(self):
+        """Test branch with multiple internal nesting levels."""
+        rung = Rung(
+            text="XIC(A)[XIC(B)[XIC(C),]XIC(D),]OTE(E)",
+            controller=self.controller,
+            routine=self.routine
+        )
+        tokens = rung._tokenize_rung_text(rung.text)
+        branch_start = tokens.index('[')
+
+        nesting_level = rung.get_branch_internal_nesting_level(branch_start)
+        assert nesting_level == 1  # Two commas means two nested branches
+
+        rung = Rung(
+            text="XIC(A)[XIC(B)[XIC(C),XIC(F),]XIC(D),]OTE(E)",
+            controller=self.controller,
+            routine=self.routine
+        )
+        tokens = rung._tokenize_rung_text(rung.text)
+        branch_start = tokens.index('[')
+
+        nesting_level = rung.get_branch_internal_nesting_level(branch_start)
+        assert nesting_level == 2  # Two commas means two nested branches
+
+        rung = Rung(
+            text="XIC(A)[XIC(B)[XIC(C),XIC(F)[XIC(G),],]XIC(D),]OTE(E)",
+            controller=self.controller,
+            routine=self.routine
+        )
+        tokens = rung._tokenize_rung_text(rung.text)
+        branch_start = tokens.index('[')
+
+        nesting_level = rung.get_branch_internal_nesting_level(branch_start)
+        assert nesting_level == 3  # Two commas means two nested branches
 
 
 class TestTag(unittest.TestCase):

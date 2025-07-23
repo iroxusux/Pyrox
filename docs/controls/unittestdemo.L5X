@@ -222,16 +222,7 @@ Coil With No Input]]></Description>
 					<Routine Name="main" Type="RLL">
 						<RLLContent>
 							<Rung Number="0" Type="N">
-								<Comment><![CDATA[-----
-global coil with no related input instruction
------]]></Comment>
-								<Text><![CDATA[OTE(gCoilWithNoInput);]]></Text>
-							</Rung>
-							<Rung Number="1" Type="N">
-								<Comment><![CDATA[-----
-program coil, aliased to global coil with no related input instruction
------]]></Comment>
-								<Text><![CDATA[OTE(pCoilWithNoInput);]]></Text>
+								<Text><![CDATA[[[[XIC(NewContact),],],]XIC(NewContact)OTE(NewCoil)]]></Text>
 							</Rung>
 						</RLLContent>
 					</Routine>

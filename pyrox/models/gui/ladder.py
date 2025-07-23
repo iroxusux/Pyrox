@@ -820,9 +820,8 @@ class LadderCanvas(Canvas, Loggable):
             # Remove branch from rung
             rung = self._routine.rungs[branch.rung_number] if self._routine else None
             if not rung:
-                self.logger.debug(f"No rung found for branch {branch_id}")
-                return
-            rung.remove_branch(branch_id, keep_instructions=True)
+                raise ValueError(f"Rung {branch.rung_number} not found in routine.")
+            rung.remove_branch(branch_id)
 
             # Remove from branches dict
             del self._branches[branch_id]
