@@ -222,7 +222,7 @@ Coil With No Input]]></Description>
 					<Routine Name="main" Type="RLL">
 						<RLLContent>
 							<Rung Number="0" Type="N">
-								<Text><![CDATA[[[[XIC(NewContact),],],]XIC(NewContact)OTE(NewCoil)]]></Text>
+								<Text><![CDATA[[XIC(NewContact),]XIC(NewContact)OTE(NewCoil)]]></Text>
 							</Rung>
 						</RLLContent>
 					</Routine>

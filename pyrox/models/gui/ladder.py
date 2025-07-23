@@ -13,6 +13,20 @@ from ..plc import plc
 from ..abc.meta import Loggable
 
 
+THEME: dict = {
+    "font": "Roboto",
+    "background": "#333333",
+    "comment_background": "#444444",
+    "comment_foreground": "#09C83F",
+    "foreground": "#f00bd5",
+    "highlight_color": "#4A90E2",
+    "button_color": "#4A90E2",
+    "button_hover_color": "#357ABD",
+    "button_text_color": "#ffffff",
+    "ladder_rung_color": "#EF1010",
+}
+
+
 class LadderEditorMode(Enum):
     """Editing modes for the ladder editor."""
     VIEW = "view"
@@ -74,12 +88,12 @@ class LadderCanvas(Canvas, Loggable):
     ELEMENT_SPACING = 30  # spacing between elements on a rail
     MIN_WIRE_LENGTH = 25
     RAIL_X_LEFT = 40  # Position of the left side power rail
+    RUNG_START_Y = 50  # Starting Y position for the first rung
 
     def __init__(self, master, routine: Optional[plc.Routine] = None, **kwargs):
         Canvas.__init__(self,
                         master,
-                        bg=kwargs.pop('bg', 'white'),
-                        **kwargs)
+                        bg=THEME["background"])
         Loggable.__init__(self)
 
         self._routine = routine
@@ -867,7 +881,7 @@ class LadderCanvas(Canvas, Loggable):
         rect_id = self.create_rectangle(
             x, top_y,
             x + self.BLOCK_WIDTH, bottom_y,
-            outline='black', fill='lightblue', width=2,
+            THEME["foreground"], fill=THEME["background"], width=2,
             tags=f"rung_{rung_number}_instruction"
         )
 
@@ -875,7 +889,7 @@ class LadderCanvas(Canvas, Loggable):
         inst_name = instruction.instruction_name
         self.create_text(
             x + self.BLOCK_WIDTH // 2, center_y - 10,
-            text=inst_name, font=('Arial', 10, 'bold'),
+            text=inst_name, font=(THEME["font"], 10, 'bold'),
             tags=f"rung_{rung_number}_instruction"
         )
 
@@ -886,7 +900,7 @@ class LadderCanvas(Canvas, Loggable):
 
         self.create_text(
             x + self.BLOCK_WIDTH // 2, center_y + 5,
-            text=operands_text, font=('Arial', 8),
+            text=operands_text, font=(THEME["font"], 8),
             tags=f"rung_{rung_number}_instruction"
         )
 
@@ -896,12 +910,14 @@ class LadderCanvas(Canvas, Loggable):
         self.create_line(
             x - 10, wire_y,
             x, wire_y,
+            fill=THEME["foreground"],  # Use theme color for wires
             width=2, tags=f"rung_{rung_number}_wire"
         )
         # Right connecting wire
         self.create_line(
             x + self.BLOCK_WIDTH, wire_y,
             x + self.BLOCK_WIDTH + 10, wire_y,
+            fill=THEME["foreground"],  # Use theme color for wires
             width=2, tags=f"rung_{rung_number}_wire"
         )
 
@@ -946,30 +962,6 @@ class LadderCanvas(Canvas, Loggable):
             fill='red', tags="hover_preview"
         )
 
-    def _draw_branch_connections(self, start_x: int, end_x: int, main_y: int,
-                                 branch_y: int, rung_number: int):
-        """Draw the connecting lines for a branch."""
-        # Vertical line down to branch
-        self.create_line(
-            start_x, main_y,
-            start_x, branch_y,
-            width=2, tags=f"rung_{rung_number}_branch"
-        )
-
-        # Vertical line back up from branch
-        self.create_line(
-            end_x, branch_y,
-            end_x, main_y,
-            width=2, tags=f"rung_{rung_number}_branch"
-        )
-
-        # Horizontal line for the branch
-        self.create_line(
-            start_x, branch_y,
-            end_x, branch_y,
-            width=2, tags=f"rung_{rung_number}_branch"
-        )
-
     def _draw_branch_hover_preview(self, x: int, y: int):
         """Draw a hover preview for branch creation."""
         # Draw branch start indicator
@@ -1001,8 +993,7 @@ class LadderCanvas(Canvas, Loggable):
             fill='green', tags="hover_preview"
         )
 
-    def _draw_branch_rail_connector(self, x, y, oval_fill='lightgreen',
-                                    oval_outline='green', tags=None) -> LadderElement:
+    def _draw_branch_rail_connector(self, x, y, tags=None) -> LadderElement:
         """Draw the oval indicator for branch rail connector.
         Args:
             x: X position for the branch rail connector
@@ -1015,7 +1006,7 @@ class LadderCanvas(Canvas, Loggable):
         """
         id = self.create_oval(
             x - 5, y - 5, x + 5, y + 5,
-            fill=oval_fill, outline=oval_outline, width=2, tags=tags
+            fill=THEME["background"], outline=THEME["ladder_rung_color"], width=1, tags=tags
         )
         return LadderElement(
             element_type='branch_rail_connector',
@@ -1028,7 +1019,6 @@ class LadderCanvas(Canvas, Loggable):
         )
 
     def _draw_branch_rail_line(self, x: int, y: int, end_x: int, end_y: int,
-                               fill: str = 'green', width: int = 2,
                                tags: str = None, dashed_line: bool = False):
         """Draw a line for the branch rail connector.
         Args:
@@ -1036,14 +1026,12 @@ class LadderCanvas(Canvas, Loggable):
             y: Start Y position
             end_x: End X position
             end_y: End Y position
-            fill: Color of the line
-            width: Width of the line
             tags: Additional tags for the canvas item
             dashed_line: Whether to use a dashed line
         """
         self.create_line(
             x, y, end_x, end_y,
-            fill=fill, width=width,
+            fill=THEME["ladder_rung_color"], width=1,
             dash=(3, 3) if dashed_line else None,
             tags=tags
         )
@@ -1071,21 +1059,19 @@ class LadderCanvas(Canvas, Loggable):
         """
         # Add branch line
         branch_y = y + (self.BRANCH_SPACING * (nesting_level + 1))
-        self._draw_branch_rail_line(x, y, x, branch_y, oval_outline,
-                                    width=2, tags=tags, dashed_line=dashed_line)
+        self._draw_branch_rail_line(x, y, x, branch_y, tags=tags, dashed_line=dashed_line)
 
         # Add horizontal branch line
-        self._draw_branch_rail_line(x, branch_y, x + 50, branch_y, oval_outline,
-                                    width=2, tags=tags, dashed_line=dashed_line)
+        self._draw_branch_rail_line(x, branch_y, x + 50, branch_y, tags=tags, dashed_line=dashed_line)
 
         # Draw branch start indicator last to ensure it appears on top
-        ladder_element = self._draw_branch_rail_connector(x, y, oval_fill, oval_outline, tags)
+        ladder_element = self._draw_branch_rail_connector(x, y, tags)
 
         # Add text
         if branch_text:
             self.create_text(x, y - 15,
-                             text=branch_text, font=('Roboto', 8),
-                             fill=oval_outline, tags=tags)
+                             text=branch_text, font=(THEME["font"], 8),
+                             fill=THEME["foreground"], tags=tags)
         return ladder_element
 
     def _draw_branch_next_rail(self,
@@ -1106,7 +1092,7 @@ class LadderCanvas(Canvas, Loggable):
             LadderElement: The created branch rail connector element.
         """
         branch_y = y + (self.BRANCH_SPACING * (nesting_level + 1))
-        return self._draw_branch_rail_connector(x, branch_y, oval_fill, oval_outline, tags)
+        return self._draw_branch_rail_connector(x, branch_y, tags)
 
     def _draw_branch_right_rail(self,
                                 x: int,
@@ -1133,25 +1119,23 @@ class LadderCanvas(Canvas, Loggable):
         # Add preview branch line
         branch_y = y + (self.BRANCH_SPACING * (nesting_level + 1))
         self._draw_branch_rail_line(x, y, x, branch_y,
-                                    oval_outline, width=2,
                                     tags=tags, dashed_line=dashed_line)
 
         # Add preview horizontal branch line
         self._draw_branch_rail_line(
             x, branch_y, x - 50, branch_y,
-            oval_outline, width=2,
             tags=tags, dashed_line=dashed_line
         )
 
         # Draw branch end indicator last to ensure it appears on top
-        ladder_element = self._draw_branch_rail_connector(x, y, oval_fill, oval_outline, tags)
+        ladder_element = self._draw_branch_rail_connector(x, y, tags)
 
         # Add text
         if branch_text:
             self.create_text(
                 x, y + 15,
-                text=branch_text, font=('Roboto', 8),
-                fill=oval_outline, tags=tags
+                text=branch_text, font=(THEME["font"], 8),
+                fill=THEME["foreground"], tags=tags
             )
 
         return ladder_element
@@ -1167,7 +1151,7 @@ class LadderCanvas(Canvas, Loggable):
         circle_id = self.create_oval(
             x, top_y,
             x + self.COIL_WIDTH, bottom_y,
-            outline='black', fill='white', width=2,
+            outline=THEME["ladder_rung_color"], fill=THEME["background"], width=2,
             tags=f"rung_{rung_number}_instruction"
         )
 
@@ -1176,13 +1160,15 @@ class LadderCanvas(Canvas, Loggable):
         if inst_type == 'otl':  # Latch
             self.create_text(
                 x + self.COIL_WIDTH // 2, center_y,
-                text='L', font=('Roboto', 12, 'bold'),
+                text='L', font=(THEME["font"], 12, 'bold'),
+                fill=THEME["foreground"],
                 tags=f"rung_{rung_number}_instruction"
             )
         elif inst_type == 'otu':  # Unlatch
             self.create_text(
                 x + self.COIL_WIDTH // 2, center_y,
-                text='U', font=('Roboto', 12, 'bold'),
+                text='U', font=(THEME["font"], 12, 'bold'),
+                fill=THEME["foreground"],
                 tags=f"rung_{rung_number}_instruction"
             )
 
@@ -1192,13 +1178,15 @@ class LadderCanvas(Canvas, Loggable):
         self.create_line(
             x - 10, wire_y,
             x, wire_y,
-            width=2, tags=f"rung_{rung_number}_wire"
+            fill=THEME["ladder_rung_color"],  # Use theme color for wires
+            width=1, tags=f"rung_{rung_number}_wire"
         )
         # Right connecting wire (to power rail if this is the last element)
         self.create_line(
             x + self.COIL_WIDTH, wire_y,
             x + self.COIL_WIDTH + 10, wire_y,
-            width=2, tags=f"rung_{rung_number}_wire"
+            fill=THEME["ladder_rung_color"],  # Use theme color for wires
+            width=1, tags=f"rung_{rung_number}_wire"
         )
 
         operand = self._draw_instruction_texts(instruction, x, top_y, rung_number, self.COIL_WIDTH)
@@ -1227,7 +1215,7 @@ class LadderCanvas(Canvas, Loggable):
         rect_id = self.create_rectangle(
             x, top_y,
             x + self.CONTACT_WIDTH, bottom_y,
-            outline='black', fill='white', width=2,
+            outline=THEME["ladder_rung_color"], fill=THEME["background"], width=2,
             tags=f"rung_{rung_number}_instruction"
         )
 
@@ -1237,6 +1225,7 @@ class LadderCanvas(Canvas, Loggable):
             self.create_line(
                 x + 5, top_y + 5,
                 x + self.CONTACT_WIDTH - 5, bottom_y - 5,
+                fill=THEME["ladder_rung_color"],
                 width=2, tags=f"rung_{rung_number}_instruction"
             )
         else:
@@ -1246,11 +1235,13 @@ class LadderCanvas(Canvas, Loggable):
             self.create_line(
                 x + 10, bar_top,
                 x + 10, bar_bottom,
+                fill=THEME["ladder_rung_color"],
                 width=2, tags=f"rung_{rung_number}_instruction"
             )
             self.create_line(
                 x + self.CONTACT_WIDTH - 10, bar_top,
                 x + self.CONTACT_WIDTH - 10, bar_bottom,
+                fill=THEME["ladder_rung_color"],
                 width=2, tags=f"rung_{rung_number}_instruction"
             )
 
@@ -1260,13 +1251,15 @@ class LadderCanvas(Canvas, Loggable):
         self.create_line(
             x - 10, wire_y,  # Start 10 pixels before contact
             x, wire_y,       # End at contact left edge
-            width=2, tags=f"rung_{rung_number}_wire"
+            fill=THEME["ladder_rung_color"],  # Use theme color for wires
+            width=1, tags=f"rung_{rung_number}_wire"
         )
         # Right connecting wire (from contact to next element)
         self.create_line(
             x + self.CONTACT_WIDTH, wire_y,
             x + self.CONTACT_WIDTH + 10, wire_y,
-            width=2, tags=f"rung_{rung_number}_wire"
+            fill=THEME["ladder_rung_color"],  # Use theme color for wires
+            width=1, tags=f"rung_{rung_number}_wire"
         )
 
         operand = self._draw_instruction_texts(instruction, x, top_y, rung_number, self.CONTACT_WIDTH)
@@ -1324,7 +1317,8 @@ class LadderCanvas(Canvas, Loggable):
         operand = instruction.operands[0].meta_data if instruction.operands else "???"
         _ = self.create_text(
             x + element_width // 2, y - (15 if alias is False else 25),
-            text=operand, font=('Roboto', 8,), tags=f"rung_{rung_number}_instruction"
+            fill=THEME["foreground"],
+            text=operand, font=(THEME["font"], 8,), tags=f"rung_{rung_number}_instruction"
         )
 
         # return the operand text for further use
@@ -1382,7 +1376,7 @@ class LadderCanvas(Canvas, Loggable):
         if not self._routine.rungs:
             self._routine.add_rung(plc.Rung(controller=self._routine.controller, routine=self._routine))
 
-        y_pos = 50
+        y_pos = self.RUNG_START_Y
         for i, rung in enumerate(self._routine.rungs):
             ladder_element = self._draw_rung(rung, i, y_pos)
             if ladder_element:
@@ -1401,30 +1395,28 @@ class LadderCanvas(Canvas, Loggable):
         # Create rectangle for rung number
         rect_id = self.create_rectangle(0, y_pos,
                                         self.RAIL_X_LEFT, y_pos + rung_height,
-                                        outline='black', fill='white', width=2,
+                                        outline=THEME["background"], fill=THEME["background"],
                                         tags=f"rung_{rung_number}")
 
         # Draw rung number
         self.create_text(15, y_pos + rung_height // 2,
-                         text=str(rung_number), anchor='w', font=('Arial', 10), tag=f"rung_{rung_number}")
+                         text=str(rung_number), anchor='w', font=('Roboto', 10), tag=f"rung_{rung_number}", fill=THEME["foreground"])
 
         # Draw power rails
         self.create_line(self.RAIL_X_LEFT, y_pos, self.RAIL_X_LEFT, y_pos + rung_height,
-                         width=3, tags=f"rung_{rung_number}")
-
-        right_rail_x = self.winfo_reqwidth() - 40 if self.winfo_reqwidth() > 100 else 600
-        self.create_line(right_rail_x, y_pos, right_rail_x, y_pos + rung_height,
-                         width=3, tags=f"rung_{rung_number}")
+                         width=3, tags=f"rung_{rung_number}", fill=THEME["ladder_rung_color"])
 
         center_y = y_pos + self.RUNG_HEIGHT // 2
 
-        start_pos_x = self.RAIL_X_LEFT + self.ELEMENT_SPACING + 30  # Start after left rail
-
-        self.create_line(self.RAIL_X_LEFT, center_y, right_rail_x, center_y,
-                         width=2, tags=f"rung_{rung_number}")
+        self.create_line(self.RAIL_X_LEFT, center_y, self.winfo_reqwidth() - 40, center_y,
+                         width=2, tags=f"rung_{rung_number}", fill=THEME["ladder_rung_color"])
 
         if rung and rung.rung_sequence:
-            self._draw_rung_sequence(rung, rung_number, y_pos, start_pos_x)
+            self._draw_rung_sequence(rung)
+            # element = [e for e in self._elements if e.rung_number == rung_number].sort(key=lambda e: e.position)
+            # right_rail_x = element[-1].x + element[-1].width if element else self.winfo_reqwidth() - 40
+            # self.create_line(right_rail_x, y_pos, right_rail_x, y_pos + rung_height,
+            #                  width=3, tags=f"rung_{rung_number}", fill=THEME["ladder_rung_color"])
 
         return LadderElement(
             element_type='rung',
@@ -1434,8 +1426,15 @@ class LadderCanvas(Canvas, Loggable):
             rung_number=rung_number
         )
 
-    def _draw_rung_sequence(self, rung: plc.Rung, rung_number: int, y_pos: int, start_x: int):
-        """Draw rung using the new sequence structure with proper spacing."""
+    def _draw_rung_sequence(self, rung: plc.Rung):
+        """Draw rung using the new sequence structure with proper spacing.
+        Args:
+            rung: The PLC rung to draw
+            rung_number: The number of the rung being drawn
+            y_pos: The Y position where the rung starts
+            start_x: The starting X position for the first element in the rung
+        """
+        rung_number = int(rung.number)
         current_branch_level = 0
         ladder_element: Optional[LadderElement] = None
         branch_tracking: list[dict] = []
