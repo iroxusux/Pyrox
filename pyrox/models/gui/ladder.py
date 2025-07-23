@@ -881,7 +881,7 @@ class LadderCanvas(Canvas, Loggable):
         rect_id = self.create_rectangle(
             x, top_y,
             x + self.BLOCK_WIDTH, bottom_y,
-            THEME["foreground"], fill=THEME["background"], width=2,
+            outline=THEME["foreground"], fill=THEME["background"], width=2,
             tags=f"rung_{rung_number}_instruction"
         )
 
