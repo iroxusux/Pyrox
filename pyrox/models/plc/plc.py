@@ -2756,6 +2756,15 @@ class Rung(PlcObject):
 
         return 0
 
+    def get_comment_lines(self) -> int:
+        """Get the number of comment lines in this rung.
+        """
+        if not self.comment:
+            return 0
+
+        # Count the number of comment lines by splitting on newlines
+        return len(self.comment.splitlines())
+
     def get_execution_sequence(self) -> List[Dict]:
         """Get the logical execution sequence of the rung."""
         sequence = []
