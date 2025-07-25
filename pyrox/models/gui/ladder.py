@@ -5,11 +5,7 @@ from dataclasses import dataclass, field
 from enum import Enum
 import tkinter as tk
 from tkinter import ttk, Canvas
-<<<<<<< HEAD
 from typing import Any, Optional, Dict, List, Literal, Union
-=======
-from typing import Any, Optional, Dict, List, Literal
->>>>>>> 2ca712362d941c360199a73850d765fe66ff8284
 import re
 
 from .frames import TaskFrame
@@ -62,19 +58,6 @@ class LadderEditorMode(Enum):
 class LadderOperand:
     """Represents an operand within a ladder element.
     """
-    text: str
-    x: int
-    y: int
-    width: int
-    height: int
-    canvas_id: int
-    instruction: Optional['plc.LogixInstruction'] = None
-    operand_index: int = 0
-
-
-@dataclass
-class LadderOperand:
-    """Represents an operand within a ladder element."""
     text: str
     x: int
     y: int
@@ -207,11 +190,6 @@ class LadderCanvas(Canvas, Loggable):
 
         # Setup scrolling
         self.bind('<MouseWheel>', self._on_mousewheel)
-
-        # Operand editing state
-        self._highlighted_operand: Optional[LadderOperand] = None
-        self._operand_edit_entry: Optional[tk.Entry] = None
-        self._available_tags: List[str] = []
 
         if self._routine:
             self._draw_routine()
@@ -2780,7 +2758,6 @@ class LadderCanvas(Canvas, Loggable):
 
     def _on_drag(self, event):
         """Handle mouse drag for moving elements."""
-<<<<<<< HEAD
         if self._selected_elements:
             if self.mode == LadderEditorMode.VIEW:
                 self.mode = LadderEditorMode.DRAG_ELEMENT
@@ -2789,9 +2766,6 @@ class LadderCanvas(Canvas, Loggable):
             if self.mode == LadderEditorMode.DRAG_ELEMENT:
                 x, y = self.canvasx(event.x), self.canvasy(event.y)
                 self._update_hover_preview(x, y)
-=======
-        self.logger.debug(f"Dragging element at {event.x}, {event.y}")
->>>>>>> 2ca712362d941c360199a73850d765fe66ff8284
 
     def _on_mousewheel(self, event):
         """Handle mouse wheel scrolling."""
@@ -2805,10 +2779,6 @@ class LadderCanvas(Canvas, Loggable):
         """
         x, y = self.canvasx(event.x), self.canvasy(event.y)
         self._on_tooltip_motion(event, x, y)
-<<<<<<< HEAD
-=======
-        # self._highlight_current_rung(self._get_rung_at_y(y))
->>>>>>> 2ca712362d941c360199a73850d765fe66ff8284
         self._highlight_current_element(self._get_element_at(x, y))
 
         if self._mode in [LadderEditorMode.INSERT_CONTACT,
@@ -2929,27 +2899,6 @@ class LadderCanvas(Canvas, Loggable):
                 break
         if not rung_element:
             raise ValueError(f"Rung element for rung {rung_number} not found in elements.")
-<<<<<<< HEAD
-=======
-
-        rung_pre_y = rung_element.y
-        rung_pre_height = rung_element.height
-
-        self._clear_rung_visuals(rung_number)
-
-        new_rung = self._draw_rung(rung, rung_number, new_y_pos or y_pos)
-        self._elements.append(new_rung)
-
-        if new_rung.y != rung_pre_y or new_rung.height != rung_pre_height:
-            # find the next rung, it will need to be redrawn as well
-            next_rung_number = rung_number + 1
-            next_rung_y = self._rung_y_positions.get(next_rung_number, None)
-            if next_rung_y is not None:
-                self._redraw_rung(
-                    next_rung_number,
-                    new_y_pos=self._get_rung_height(new_rung.rung_number) + new_rung.y
-                )
->>>>>>> 2ca712362d941c360199a73850d765fe66ff8284
 
         rung_pre_y = rung_element.y
         rung_pre_height = rung_element.height
@@ -2984,7 +2933,6 @@ class LadderCanvas(Canvas, Loggable):
         """
         element = self._get_element_at(x, y)
 
-<<<<<<< HEAD
         # Check if Ctrl button is clicked
         ctrl_pressed = bool(event.state & 0x4)  # 0x4 is the Control modifier mask
         if not ctrl_pressed:
@@ -2997,21 +2945,10 @@ class LadderCanvas(Canvas, Loggable):
                     width=THEME["ladder_line_width"]
                 )
                 elem.is_selected = False
-=======
-        # Clear previous selection
-        for elem in self._selected_elements:
-            self.itemconfig(
-                elem.canvas_id,
-                fill=elem.custom_fill,
-                outline=elem.custom_outline,
-                width=2)
-            elem.is_selected = False
->>>>>>> 2ca712362d941c360199a73850d765fe66ff8284
 
             self._selected_elements.clear()
 
         if element:
-<<<<<<< HEAD
             if not element.is_selected:
                 self.itemconfig(element.canvas_id, outline=THEME["highlight_color"], width=3)
                 element.is_selected = True
@@ -3025,11 +2962,6 @@ class LadderCanvas(Canvas, Loggable):
                 )
                 element.is_selected = False
                 self._selected_elements.remove(element)
-=======
-            self.itemconfig(element.canvas_id, outline=THEME["highlight_color"], width=3)
-            element.is_selected = True
-            self._selected_elements.append(element)
->>>>>>> 2ca712362d941c360199a73850d765fe66ff8284
 
     def _shift_element_positions(self, rung_number: int, insertion_position: int,
                                  branch_level: int = 0, branch_id: Optional[str] = None):
