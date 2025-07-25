@@ -1938,8 +1938,9 @@ class Routine(NamedPlcObject):
         self._output_instructions = []
         [self._rungs.append(self.config.rung_type(meta_data=x,
                                                   controller=self.controller,
-                                                  routine=self))
-         for x in self.raw_rungs]
+                                                  routine=self,
+                                                  rung_number=i))
+         for i, x in enumerate(self.raw_rungs)]
 
     def add_rung(self,
                  rung: Rung,
@@ -2036,10 +2037,13 @@ class RungBranch:
 
 
 class Rung(PlcObject):
+    _branch_id_counter: int = 0  # Static counter for unique branch IDs
+
     def __init__(self,
                  meta_data: dict = None,
                  controller: Controller = None,
                  routine: Optional[Routine] = None,
+                 rung_number: Optional[Union[int, str]] = None,
                  text: Optional[str] = None,
                  comment: Optional[str] = None):
         """type class for plc Rung"""
@@ -2055,7 +2059,8 @@ class Rung(PlcObject):
             self.text = text
         if comment:
             self.comment = comment
-
+        if rung_number is not None:
+            self.number = rung_number
         self._get_instructions()
         self._parse_rung_sequence()
         self._input_instructions: list[LogixInstruction] = []
@@ -2209,6 +2214,12 @@ class Rung(PlcObject):
 
         self._instructions = [LogixInstruction(x, self, self.controller) for x in matches]
 
+    def _get_unique_branch_id(self) -> str:
+        """Generate a unique branch ID."""
+        branch_id = f"rung_{self.number}_branch_{self._branch_id_counter}"
+        self._branch_id_counter += 1
+        return branch_id
+
     def _parse_rung_sequence(self):
         """Parse the rung text to identify instruction sequence and branches."""
         if not self.text:
@@ -2289,7 +2300,7 @@ class Rung(PlcObject):
 
         for token in tokens:
             if token == '[':  # Branch start
-                branch_id = f"branch_{branch_counter}"
+                branch_id = self._get_unique_branch_id()
                 branch_counter += 1
                 branch_level_history.append(branch_level)
                 branch_level = 0  # Reset branch level for new branch
@@ -2912,12 +2923,12 @@ class Rung(PlcObject):
         if start_position > end_position:
             raise ValueError("Start position must be less than or equal to end position!")
 
-        # Generate unique branch ID
-        branch_id = f"branch_{len(self._branches)}"
-
         # Build new token sequence with branch
         new_tokens = self._insert_branch_tokens(
-            original_tokens, start_position, end_position, []
+            original_tokens,
+            start_position,
+            end_position,
+            []
         )
 
         # Reconstruct text
@@ -2926,7 +2937,7 @@ class Rung(PlcObject):
         # Refresh internal structures
         self._refresh_internal_structures()
 
-        return branch_id
+        return self._get_unique_branch_id()
 
     def insert_branch_level(self,
                             branch_position: int = 0,):

@@ -1751,10 +1751,10 @@ class TestRung(unittest.TestCase):
         mock_branch = MagicMock()
         self.rung._branches = {"test_branch": mock_branch}
         self.rung.text = "XIC(Tag1)[XIO(Tag2),]OTE(Tag3)"
-        self.rung.remove_branch("branch_0")
+        self.rung.remove_branch("rung_0_branch_0")
         self.assertEqual(self.rung.text, "XIC(Tag1)OTE(Tag3)")
         self.rung.text = "XIC(Tag1)[XIO(Tag2),]OTE(Tag3)"
-        self.rung.remove_branch("branch_0:1")
+        self.rung.remove_branch("rung_0_branch_1")
         self.assertEqual(self.rung.text, "XIC(Tag1)XIO(Tag2)OTE(Tag3)")
 
     def test_remove_branch_tokens_keep_instructions(self):
