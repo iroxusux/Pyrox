@@ -1938,8 +1938,9 @@ class Routine(NamedPlcObject):
         self._output_instructions = []
         [self._rungs.append(self.config.rung_type(meta_data=x,
                                                   controller=self.controller,
-                                                  routine=self))
-         for x in self.raw_rungs]
+                                                  routine=self,
+                                                  rung_number=i))
+         for i, x in enumerate(self.raw_rungs)]
 
     def add_rung(self,
                  rung: Rung,
@@ -2040,6 +2041,7 @@ class Rung(PlcObject):
                  meta_data: dict = None,
                  controller: Controller = None,
                  routine: Optional[Routine] = None,
+                 rung_number: Optional[Union[int, str]] = None,
                  text: Optional[str] = None,
                  comment: Optional[str] = None):
         """type class for plc Rung"""
@@ -2055,7 +2057,8 @@ class Rung(PlcObject):
             self.text = text
         if comment:
             self.comment = comment
-
+        if rung_number is not None:
+            self.number = rung_number
         self._get_instructions()
         self._parse_rung_sequence()
         self._input_instructions: list[LogixInstruction] = []
