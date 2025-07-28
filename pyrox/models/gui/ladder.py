@@ -799,6 +799,12 @@ class LadderCanvas(Canvas, Loggable):
                     font_size=8,
                     foreground="gray"
                 )
+                
+                create_generic_tooltip_text(
+                    text=f"Scope: {tag.scope.name.title() if tag else 'N/A'}",
+                    font_size=8,
+                    foreground="gray"
+                )
 
                 create_generic_tooltip_text(
                     text=f"Tag Type: {tag.tag_type if tag else 'N/A'}",

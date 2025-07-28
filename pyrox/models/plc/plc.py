@@ -2428,11 +2428,11 @@ class Rung(PlcObject):
         if not self.text:
             return
 
-        matches = re.findall(INST_RE_PATTERN, self.text)
-        if not matches:
+        instr = self._extract_instructions(self.text)
+        if not instr:
             return
 
-        self._instructions = [LogixInstruction(x, self, self.controller) for x in matches]
+        self._instructions = [LogixInstruction(x, self, self.controller) for x in instr]
 
     def _get_unique_branch_id(self) -> str:
         """Generate a unique branch ID."""

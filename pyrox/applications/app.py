@@ -290,6 +290,7 @@ class App(Application):
         self.set_app_state_busy()
         self.logger.info('Loading controller from file: %s', file_location)
         try:
+            importlib.reload(plc)
             return plc.Controller(l5x_dict_from_file(file_location))
         except KeyError as e:
             self.logger.error('error parsing controller from file %s: %s', file_location, e)
