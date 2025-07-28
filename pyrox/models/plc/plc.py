@@ -861,6 +861,7 @@ class LogixInstruction(PlcObject):
         self._qualified_meta_data: str = None
         self._instruction_name: str = None
         self._rung = rung
+        self._tag: Optional['Tag'] = None
         self._type: LogixInstructionType = None
         self._operands: list[LogixOperand] = []
         self._get_operands()
@@ -944,6 +945,25 @@ class LogixInstruction(PlcObject):
             :class:`Routine`
         """
         return self._rung
+
+    @property
+    def tag(self) -> Optional['Tag']:
+        """get the tag this instruction is associated with
+
+        Returns:
+            :class:`Tag`
+        """
+        if self._tag:
+            return self._tag
+
+        if not self.container or not self.container.tags:
+            return None
+
+        self._tag = self.container.tags.get(self.instruction_name, None)
+        if not self._tag:
+            self._tag = self.controller.tags.get(self.instruction_name, None)
+
+        return self._tag
 
     @property
     def type(self) -> LogixInstructionType:
@@ -1111,7 +1131,11 @@ class ContainsRoutines(ContainsTags):
         self._instructions = []
         self._routines: HashList = HashList('name')
         for routine in self.raw_routines:
-            self._routines.append(self.config.routine_type(meta_data=routine, controller=self.controller, program=self))
+            self._routines.append(
+                self.config.routine_type(
+                    meta_data=routine,
+                    controller=self.controller,
+                    program=self))
 
     def add_routine(self, routine: 'Routine', skip_compile: bool = False):
         """add a routine to this container
@@ -2061,10 +2085,10 @@ class Rung(PlcObject):
             self.comment = comment
         if rung_number is not None:
             self.number = rung_number
-        self._get_instructions()
-        self._parse_rung_sequence()
         self._input_instructions: list[LogixInstruction] = []
         self._output_instructions: list[LogixInstruction] = []
+        self._refresh_internal_structures()
+        self._parse_rung_sequence()
 
     def __eq__(self, other):
         if not isinstance(other, Rung):
@@ -2153,12 +2177,7 @@ class Rung(PlcObject):
     @text.setter
     def text(self, value: str):
         self['Text'] = value
-        self._instructions = []  # text has changed, we need to reprocess
-        self._rung_sequence = []
-        self._branches = {}
-        if value:  # Only reparse if we have text
-            self._get_instructions()
-            self._parse_rung_sequence()
+        self._parse_rung_sequence()
 
     @property
     def type(self) -> str:
@@ -2174,8 +2193,18 @@ class Rung(PlcObject):
         """Get all branches in this rung."""
         return self._branches
 
-    def _extract_instructions(self, text):
-        """Extract instructions with properly balanced parentheses."""
+    @staticmethod
+    def _extract_instructions(
+        text
+    ) -> List[str]:
+        """Extract instructions with properly balanced parentheses.
+
+        Args:
+            text (str): The rung text to extract instructions from.
+
+        Returns:
+            List[str]: A list of extracted instructions.
+        """
         instructions = []
 
         # Find instruction starts
@@ -2202,92 +2231,56 @@ class Rung(PlcObject):
 
         return instructions
 
-    def _get_instructions(self):
-        """Extract instructions from rung text."""
-        if not self.text:
-            return
+    @staticmethod
+    def _insert_branch_tokens(
+        original_tokens: List[str],
+        start_pos: int,
+        end_pos: int,
+        branch_instructions: List[str]
+    ) -> List[str]:
+        """Insert branch markers and instructions into token sequence.
 
-        import re
-        matches = re.findall(INST_RE_PATTERN, self.text)
-        if not matches:
-            return
+        Args:
+            original_tokens (List[str]): Original token sequence
+            start_pos (int): Start position for branch
+            end_pos (int): End position for branch
+            branch_instructions (List[str]): Instructions to place in branch
 
-        self._instructions = [LogixInstruction(x, self, self.controller) for x in matches]
+        Returns:
+            List[str]: New token sequence with branch inserted
+        """
+        new_tokens = []
 
-    def _get_unique_branch_id(self) -> str:
-        """Generate a unique branch ID."""
-        branch_id = f"rung_{self.number}_branch_{self._branch_id_counter}"
-        self._branch_id_counter += 1
-        return branch_id
+        if end_pos < start_pos:
+            raise ValueError("End position must be greater than or equal to start position!")
 
-    def _parse_rung_sequence(self):
-        """Parse the rung text to identify instruction sequence and branches."""
-        if not self.text:
-            return
+        if not original_tokens:
+            original_tokens = ['']
 
-        # Reset structures
-        self._rung_sequence = []
-        self._branches = {}
+        def write_branch_end():
+            new_tokens.append(',')
+            for instr in branch_instructions:
+                new_tokens.append(instr)
+            new_tokens.append(']')
 
-        # Tokenize the rung text to identify structure
-        tokens = self._tokenize_rung_text(self.text)
-        self._build_sequence_from_tokens(tokens)
+        for index, token in enumerate(original_tokens):
+            if index == start_pos:
+                new_tokens.append('[')
+            if index == end_pos:
+                write_branch_end()
+            if token:
+                new_tokens.append(token)
+            if (end_pos == len(original_tokens) and index == len(original_tokens) - 1):
+                write_branch_end()
 
-    def _tokenize_rung_text(self, text: str) -> List[str]:
-        """Tokenize rung text to identify instructions and branch markers."""
+        return new_tokens
 
-        tokens = []
-
-        # First, extract all instructions using the balanced parentheses method
-        instructions = self._extract_instructions(text)
-        instruction_ranges = []
-
-        # Find the positions of each instruction in the text
-        search_start = 0
-        for instruction in instructions:
-            pos = text.find(instruction, search_start)
-            if pos != -1:
-                instruction_ranges.append((pos, pos + len(instruction)))
-                search_start = pos + len(instruction)
-
-        # Process the text character by character
-        i = 0
-        current_segment = ""
-
-        while i < len(text):
-            char = text[i]
-
-            if char in ['[', ']', ',']:
-                # Check if this symbol is inside any instruction
-                inside_instruction = any(start <= i < end for start, end in instruction_ranges)
-
-                if inside_instruction:
-                    # This bracket is part of an instruction (array reference), keep it
-                    current_segment += char
-                else:
-                    # This is a branch marker or next-branch marker
-                    if current_segment.strip():
-                        # Extract instructions from current segment using our method
-                        segment_instructions = self._extract_instructions(current_segment)
-                        tokens.extend(segment_instructions)
-                        current_segment = ""
-
-                    # Add the branch marker
-                    tokens.append(char)
-            else:
-                current_segment += char
-
-            i += 1
-
-        # Process any remaining segment
-        if current_segment.strip():
-            segment_instructions = self._extract_instructions(current_segment)
-            tokens.extend(segment_instructions)
-
-        return tokens
-
-    def _build_sequence_from_tokens(self, tokens: List[str]):
-        """Build the rung sequence from tokenized text."""
+    def _build_sequence_from_tokens(
+        self,
+        tokens: List[str]
+    ) -> None:
+        """Build the rung sequence from tokenized text.
+        """
         position = 0
         root_branch_id = None  # Track each branch's parent, since the symbols appear on the parent rail
         branch_id = None
@@ -2374,6 +2367,8 @@ class Rung(PlcObject):
                     self._rung_sequence.append(element)
                     position += 1
                     instruction_index += 1
+                else:
+                    raise ValueError(f"Instruction '{token}' not found in rung text.")
 
     def _find_instruction_by_text(self, text: str, index: int) -> Optional[LogixInstruction]:
         """Find an instruction object by its text representation."""
@@ -2413,84 +2408,96 @@ class Rung(PlcObject):
 
         return matches[occurrence]
 
-    def _insert_branch_tokens(self,
-                              original_tokens: List[str],
-                              start_pos: int,
-                              end_pos: int,
-                              branch_instructions: List[str]) -> List[str]:
-        """Insert branch markers and instructions into token sequence.
-
+    def _get_element_at_position(
+        self,
+        position: int
+    ) -> Optional[RungElement]:
+        """Get the RungElement at a specific position in the rung sequence.
         Args:
-            original_tokens (List[str]): Original token sequence
-            start_pos (int): Start position for branch
-            end_pos (int): End position for branch
-            branch_instructions (List[str]): Instructions to place in branch
-
+            position (int): The position in the rung sequence
         Returns:
-            List[str]: New token sequence with branch inserted
+            Optional[RungElement]: The RungElement at the specified position, or None if not found
         """
-        new_tokens = []
+        if position < 0 or position >= len(self._rung_sequence) or position is None:
+            raise IndexError("Position out of range in rung sequence.")
 
-        if end_pos < start_pos:
-            raise ValueError("End position must be greater than or equal to start position!")
+        return self._rung_sequence[position]
 
-        if not original_tokens:
-            original_tokens = ['']
+    def _get_instructions(self):
+        """Extract instructions from rung text."""
+        if not self.text:
+            return
 
-        def write_branch_end():
-            new_tokens.append(',')
-            for instr in branch_instructions:
-                new_tokens.append(instr)
-            new_tokens.append(']')
+        matches = re.findall(INST_RE_PATTERN, self.text)
+        if not matches:
+            return
 
-        for index, token in enumerate(original_tokens):
-            if index == start_pos:
-                new_tokens.append('[')
-            if index == end_pos:
-                write_branch_end()
-            if token:
-                new_tokens.append(token)
-            if (end_pos == len(original_tokens) and index == len(original_tokens) - 1):
-                write_branch_end()
+        self._instructions = [LogixInstruction(x, self, self.controller) for x in matches]
 
-        return new_tokens
+    def _get_unique_branch_id(self) -> str:
+        """Generate a unique branch ID."""
+        branch_id = f"rung_{self.number}_branch_{self._branch_id_counter}"
+        self._branch_id_counter += 1
+        return branch_id
 
-    def _insert_nested_branch_tokens(self, original_tokens: List[str], start_pos: int,
-                                     end_pos: int, nested_instructions: List[str]) -> List[str]:
-        """Insert nested branch tokens into existing structure.
+    def _parse_rung_sequence(self):
+        """Parse the rung text to identify instruction sequence and branches."""
+        self._refresh_internal_structures()
+        self._get_instructions()
+        self._build_sequence_from_tokens(self._tokenize_rung_text(self.text))
 
-        Args:
-            original_tokens (List[str]): Original token sequence  
-            start_pos (int): Start position for nested branch
-            end_pos (int): End position for nested branch
-            nested_instructions (List[str]): Instructions for nested branch
+    def _tokenize_rung_text(self, text: str) -> List[str]:
+        """Tokenize rung text to identify instructions and branch markers."""
 
-        Returns:
-            List[str]: New token sequence with nested branch
-        """
-        new_tokens = []
-        instruction_count = 0
-        branch_depth = 0
+        tokens = []
 
-        for i, token in enumerate(original_tokens):
-            if token == '[':
-                branch_depth += 1
-                new_tokens.append(token)
-            elif token == ']':
-                branch_depth -= 1
-                new_tokens.append(token)
+        # First, extract all instructions using the balanced parentheses method
+        instructions = self._extract_instructions(text)
+        instruction_ranges = []
+
+        # Find the positions of each instruction in the text
+        search_start = 0
+        for instruction in instructions:
+            pos = text.find(instruction, search_start)
+            if pos != -1:
+                instruction_ranges.append((pos, pos + len(instruction)))
+                search_start = pos + len(instruction)
+
+        # Process the text character by character
+        i = 0
+        current_segment = ""
+
+        while i < len(text):
+            char = text[i]
+
+            if char in ['[', ']', ',']:
+                # Check if this symbol is inside any instruction
+                inside_instruction = any(start <= i < end for start, end in instruction_ranges)
+
+                if inside_instruction:
+                    # This bracket is part of an instruction (array reference), keep it
+                    current_segment += char
+                else:
+                    # This is a branch marker or next-branch marker
+                    if current_segment.strip():
+                        # Extract instructions from current segment using our method
+                        segment_instructions = self._extract_instructions(current_segment)
+                        tokens.extend(segment_instructions)
+                        current_segment = ""
+
+                    # Add the branch marker
+                    tokens.append(char)
             else:
-                # This is an instruction
-                if instruction_count == start_pos:
-                    # Insert nested branch start
-                    new_tokens.append('[')
-                    new_tokens.extend(nested_instructions)
-                    new_tokens.append(']')
+                current_segment += char
 
-                new_tokens.append(token)
-                instruction_count += 1
+            i += 1
 
-        return new_tokens
+        # Process any remaining segment
+        if current_segment.strip():
+            segment_instructions = self._extract_instructions(current_segment)
+            tokens.extend(segment_instructions)
+
+        return tokens
 
     def _reconstruct_text_with_branches(self, instructions: List[str],
                                         branch_markers: List[str],
@@ -2530,13 +2537,9 @@ class Rung(PlcObject):
         self._instructions = []
         self._rung_sequence = []
         self._branches = {}
+        self._branch_id_counter = 0
         self._input_instructions = []
         self._output_instructions = []
-
-        # Rebuild from updated text
-        if self.text:
-            self._get_instructions()
-            self._parse_rung_sequence()
 
     def _remove_branch_tokens(self, original_tokens: List[str], branch_id: str,
                               keep_instructions: bool) -> List[str]:
@@ -2643,7 +2646,6 @@ class Rung(PlcObject):
 
         # Refresh internal structures
         self.text = "".join(current_tokens)
-        self._refresh_internal_structures()
 
     def find_instruction_positions(self, instruction_text: str) -> List[int]:
         """Find all positions of a specific instruction in the rung.
@@ -2803,7 +2805,10 @@ class Rung(PlcObject):
         """Get the total number of instructions in this rung."""
         return len(self.instructions)
 
-    def get_instruction_at_position(self, position: int) -> Optional[LogixInstruction]:
+    def get_instruction_at_position(
+        self,
+        position: int
+    ) -> Optional[LogixInstruction]:
         """Get the instruction at a specific position.
 
         Args:
@@ -2898,15 +2903,12 @@ class Rung(PlcObject):
 
     def insert_branch(self,
                       start_position: int = 0,
-                      end_position: int = 0) -> str:
+                      end_position: int = 0) -> None:
         """Insert a new branch structure in the rung.
 
         Args:
             start_position (int): Position where the branch should start (0-based)
             end_position (int): Position where the branch should end (0-based)
-
-        Returns:
-            str: The branch ID that was created
 
         Raises:
             ValueError: If positions are invalid
@@ -2923,7 +2925,6 @@ class Rung(PlcObject):
         if start_position > end_position:
             raise ValueError("Start position must be less than or equal to end position!")
 
-        # Build new token sequence with branch
         new_tokens = self._insert_branch_tokens(
             original_tokens,
             start_position,
@@ -2931,13 +2932,8 @@ class Rung(PlcObject):
             []
         )
 
-        # Reconstruct text
         self.text = "".join(new_tokens)
-
-        # Refresh internal structures
-        self._refresh_internal_structures()
-
-        return self._get_unique_branch_id()
+        return self._get_element_at_position(start_position).branch_id
 
     def insert_branch_level(self,
                             branch_position: int = 0,):
@@ -2969,8 +2965,6 @@ class Rung(PlcObject):
         new_tokens = original_tokens[:next_branch_index] + [','] + original_tokens[next_branch_index:]
         # Reconstruct text
         self.text = "".join(new_tokens)
-        # Refresh internal structures
-        self._refresh_internal_structures()
 
     def list_branches(self) -> List[Dict]:
         """Get information about all branches in the rung.
@@ -3050,9 +3044,6 @@ class Rung(PlcObject):
         # Rebuild text with reordered instructions
         self.text = "".join(current_tokens)
 
-        # Refresh internal structures
-        self._refresh_internal_structures()
-
     def remove_branch(self, branch_id: str):
         """Remove a branch structure from the rung.
 
@@ -3077,7 +3068,6 @@ class Rung(PlcObject):
                 del self._branches[b.branch_id]
         del self._branches[branch_id]
         self.text = "".join(tokens)
-        self._refresh_internal_structures()
 
     def remove_instruction(self, instruction: Union[LogixInstruction, str, int],
                            occurrence: int = 0):
@@ -3133,9 +3123,6 @@ class Rung(PlcObject):
             # Rebuild text with remaining instructions
             self.text = "".join(current_tokens)
 
-        # Refresh internal structures
-        self._refresh_internal_structures()
-
     def replace_instruction(self, old_instruction: Union[LogixInstruction, str, int],
                             new_instruction_text: str, occurrence: int = 0):
         """Replace an instruction in this rung.
@@ -3184,9 +3171,6 @@ class Rung(PlcObject):
 
         # Rebuild text with updated instructions
         self.text = "".join(current_tokens)
-
-        # Refresh internal structures
-        self._refresh_internal_structures()
 
     def to_sequence_dict(self) -> Dict:
         """Convert rung to dictionary format showing the sequence structure."""

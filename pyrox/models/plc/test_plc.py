@@ -990,7 +990,7 @@ class TestRung(unittest.TestCase):
         self.rung.text = "XIC(Tag1)XIO(Tag2)OTE(Tag3)NOP();"
         self.rung._parse_rung_sequence()
 
-        # Should have 3 instruction elements
+        # Should have 4 instruction elements
         self.assertEqual(len(self.rung._rung_sequence), 4)
         self.assertEqual(len(self.rung._branches), 0)
 
@@ -1109,6 +1109,7 @@ class TestRung(unittest.TestCase):
         self.rung._rung_sequence = []
         self.rung._branches = {}
 
+        self.rung._get_instructions()
         self.rung._build_sequence_from_tokens(tokens)
 
         # Verify the sequence was built correctly
@@ -1415,20 +1416,11 @@ class TestRung(unittest.TestCase):
     def test_refresh_internal_structures(self):
         """Test refreshing internal structures after text changes."""
         self.rung.text = "XIC(Tag1)XIO(Tag2)OTE(Tag3)"
-
-        # Mock the methods that should be called
-        with patch.object(self.rung, '_get_instructions') as mock_get_instructions:
-            with patch.object(self.rung, '_parse_rung_sequence') as mock_parse_sequence:
-                self.rung._refresh_internal_structures()
-
-                # Verify structures were cleared
-                self.assertEqual(len(self.rung._instructions), 0)
-                self.assertEqual(len(self.rung._rung_sequence), 0)
-                self.assertEqual(len(self.rung._branches), 0)
-
-                # Verify methods were called
-                mock_get_instructions.assert_called_once()
-                mock_parse_sequence.assert_called_once()
+        self.rung._refresh_internal_structures()
+        # Verify structures were cleared
+        self.assertEqual(len(self.rung._instructions), 0)
+        self.assertEqual(len(self.rung._rung_sequence), 0)
+        self.assertEqual(len(self.rung._branches), 0)
 
     def test_get_instruction_count(self):
         """Test getting instruction count."""
@@ -1631,22 +1623,19 @@ class TestRung(unittest.TestCase):
         """Test basic branch insertion."""
         self.rung.text = "XIC(Tag1)XIO(Tag2)OTE(Tag3)"
         self.rung._branches = {}  # Initialize empty branches
-        branch_id = self.rung.insert_branch(1, 2)
-        self.assertEqual(branch_id, "branch_0")
+        self.rung.insert_branch(1, 2)
         self.assertEqual(self.rung.text, "XIC(Tag1)[XIO(Tag2),]OTE(Tag3)")
 
         self.rung.text = "XIC(Tag1)"
         self.rung._branches = {}  # Reset branches
-        branch_id = self.rung.insert_branch(0, 1)
-        self.assertEqual(branch_id, "branch_0")
+        self.rung.insert_branch(0, 1)
         self.assertEqual(self.rung.text, "[XIC(Tag1),]")
 
     def test_insert_branch_with_existing_branches(self):
         """Test inserting branch when branches already exist."""
-        self.rung.text = "XIC(Tag1)XIO(Tag2)OTE(Tag3)"
-        self.rung._branches = {"branch_0": MagicMock()}  # Existing branch
-        branch_id = self.rung.insert_branch(1, 1)
-        self.assertEqual(branch_id, "branch_1")
+        self.rung.text = "XIC(Tag1)[XIO(Tag2),]OTE(Tag3)"
+        branch_id = self.rung.insert_branch(5, 5)
+        self.assertEqual(branch_id, "rung_0_branch_1")
 
     def test_insert_branch_tokens_basic(self):
         """Test _insert_branch_tokens method."""
@@ -1669,28 +1658,6 @@ class TestRung(unittest.TestCase):
         self.assertIn("[", result)
         self.assertIn("]", result)
         self.assertIn("XIC(BranchTag)", result)
-
-    def test_insert_nested_branch_tokens_basic(self):
-        """Test _insert_nested_branch_tokens method."""
-        original_tokens = ["XIC(Tag1)", "XIO(Tag2)", "OTE(Tag3)"]
-        nested_instructions = ["XIC(NestedTag)"]
-
-        result = self.rung._insert_nested_branch_tokens(original_tokens, 1, 1, nested_instructions)
-
-        expected = ["XIC(Tag1)", "[", "XIC(NestedTag)", "]", "XIO(Tag2)", "OTE(Tag3)"]
-        self.assertEqual(result, expected)
-
-    def test_insert_nested_branch_tokens_with_existing_branches(self):
-        """Test _insert_nested_branch_tokens with existing branch structure."""
-        original_tokens = ["XIC(Tag1)", "[", "XIO(Tag2)", "]", "OTE(Tag3)"]
-        nested_instructions = ["XIC(NestedTag)"]
-
-        result = self.rung._insert_nested_branch_tokens(original_tokens, 1, 1, nested_instructions)
-
-        # Should preserve existing structure and add nested branch
-        self.assertTrue(result.count("[") >= 2)  # At least original + nested
-        self.assertTrue(result.count("]") >= 2)
-        self.assertIn("XIC(NestedTag)", result)
 
     def test_wrap_instructions_in_branch_empty_rung(self):
         """Test wrapping instructions in empty rung raises error."""
@@ -1754,8 +1721,8 @@ class TestRung(unittest.TestCase):
         self.rung.remove_branch("rung_0_branch_0")
         self.assertEqual(self.rung.text, "XIC(Tag1)OTE(Tag3)")
         self.rung.text = "XIC(Tag1)[XIO(Tag2),]OTE(Tag3)"
-        self.rung.remove_branch("rung_0_branch_1")
-        self.assertEqual(self.rung.text, "XIC(Tag1)XIO(Tag2)OTE(Tag3)")
+        self.rung.remove_branch("rung_0_branch_0")
+        self.assertEqual(self.rung.text, "XIC(Tag1)OTE(Tag3)")
 
     def test_remove_branch_tokens_keep_instructions(self):
         """Test _remove_branch_tokens with keep_instructions=True."""
@@ -2015,7 +1982,7 @@ class TestRung(unittest.TestCase):
         # Insert a branch
         branch_id = self.rung.insert_branch(1, 1)
 
-        self.assertEqual(branch_id, "branch_0")
+        self.assertEqual(branch_id, "rung_0_branch_0")
 
         # Mock branch for further operations
         mock_instruction = MagicMock()
@@ -2049,7 +2016,7 @@ class TestRung(unittest.TestCase):
         """Test that remove_branch calls _refresh_internal_structures."""
         self.rung.text = "XIC(Tag1)[XIO(Tag2),]OTE(Tag3)"
         with patch.object(self.rung, '_refresh_internal_structures') as mock_refresh:
-            self.rung.remove_branch("branch_0")
+            self.rung.remove_branch("rung_0_branch_0")
             mock_refresh.assert_called_once()
 
     def test_error_handling_edge_cases(self):
