@@ -369,20 +369,6 @@ class PlcObject(EnforcesNaming, PyroxObject):
         """
         return self._on_compiling
 
-    def compile(self) -> Self:
-        """Compile this object.
-
-        Additionally, this method will call all functions in the on_compiled list.
-
-        Returns:
-            Self: This object for method chaining.
-        """
-        [call() for call in self._on_compiling]
-        self._compile_from_meta_data()
-        self._init_dict_order()
-        [call() for call in self._on_compiled]
-        return self
-
     def _compile_from_meta_data(self):
         """Compile this object from its metadata.
 
@@ -405,6 +391,20 @@ class PlcObject(EnforcesNaming, PyroxObject):
             for index, key in enumerate(self.dict_key_order):
                 if key not in self.meta_data:
                     insert_key_at_index(d=self.meta_data, key=key, index=index)
+
+    def compile(self) -> Self:
+        """Compile this object.
+
+        Additionally, this method will call all functions in the on_compiled list.
+
+        Returns:
+            Self: This object for method chaining.
+        """
+        [call() for call in self._on_compiling]
+        self._compile_from_meta_data()
+        self._init_dict_order()
+        [call() for call in self._on_compiled]
+        return self
 
     def validate(self, report: Optional['ControllerReportItem'] = None) -> 'ControllerReportItem':
         """Validate this object.
@@ -3659,7 +3659,8 @@ class Controller(NamedPlcObject, Loggable):
                  config: Optional[ControllerConfiguration] = None,
                  file_location: Optional[str] = None,
                  ip_address: Optional[str] = None,
-                 slot: Optional[int] = 0):
+                 slot: Optional[int] = 0,
+                 compile_immediately: bool = False):
 
         self._root_meta_data: dict = meta_data or l5x_dict_from_file(PLC_ROOT_FILE)
         self._file_location, self._ip_address, self._slot = file_location, ip_address, slot
@@ -3671,15 +3672,19 @@ class Controller(NamedPlcObject, Loggable):
                                 description=description,
                                 controller=self)
         Loggable.__init__(self)
-        self._aois: HashList
-        self._datatypes: HashList
-        self._modules: HashList
-        self._programs: HashList
-        self._tags: HashList
-        self._compile_from_meta_data()
+        self._aois: Optional[HashList[AddOnInstruction]] = None
+        self._datatypes: Optional[HashList[Datatype]] = None
+        self._modules: Optional[HashList[Module]] = None
+        self._programs: Optional[HashList[Program]] = None
+        self._tags: Optional[HashList[Tag]] = None
+
+        if compile_immediately:
+            self._compile_from_meta_data()
 
     @property
     def aois(self) -> HashList[AddOnInstruction]:
+        if not self._aois:
+            self._compile_aois()
         return self._aois
 
     @property
@@ -3707,11 +3712,12 @@ class Controller(NamedPlcObject, Loggable):
 
     @property
     def datatypes(self) -> HashList[Datatype]:
+        if not self._datatypes:
+            self._compile_datatypes()
         return self._datatypes
 
     @property
     def raw_datatypes(self) -> list[dict]:
-
         if not self['DataTypes']:
             self['DataTypes'] = {'DataType': []}
         if not isinstance(self['DataTypes']['DataType'], list):
@@ -3720,7 +3726,6 @@ class Controller(NamedPlcObject, Loggable):
 
     @property
     def file_location(self) -> str:
-
         return self._file_location
 
     @file_location.setter
@@ -3778,6 +3783,8 @@ class Controller(NamedPlcObject, Loggable):
 
     @property
     def modules(self) -> HashList[Module]:
+        if not self._modules:
+            self._compile_modules()
         return self._modules
 
     @property
@@ -3807,6 +3814,8 @@ class Controller(NamedPlcObject, Loggable):
 
     @property
     def programs(self) -> HashList[Program]:
+        if not self._programs:
+            self._compile_programs()
         return self._programs
 
     @property
@@ -3834,6 +3843,8 @@ class Controller(NamedPlcObject, Loggable):
 
     @property
     def tags(self) -> HashList[Tag]:
+        if not self._tags:
+            self._compile_tags()
         return self._tags
 
     @property
@@ -3894,54 +3905,123 @@ class Controller(NamedPlcObject, Loggable):
                          config=config)
         return controller
 
+    def _compile_aois(self) -> None:
+        """Compile Add-On Instructions from the controller's AOIs.
+        """
+        if self._aois is None:
+            self._aois = HashList('name')
+            for aoi in self.raw_aois:
+                if isinstance(aoi, dict):
+                    self._aois.append(
+                        self.config.aoi_type(
+                            meta_data=aoi,
+                            controller=self
+                        )
+                    )
+                else:
+                    self.logger.warning(f'Invalid AOI data: {aoi}. Skipping...')
+
     def _compile_atomic_datatypes(self) -> None:
         """Compile atomic datatypes from the controller's datatypes."""
-        self.datatypes.append(Datatype(meta_data={'@Name': 'BOOL'}, controller=self))
-        self.datatypes.append(Datatype(meta_data={'@Name': 'BIT'}, controller=self))
-        self.datatypes.append(Datatype(meta_data={'@Name': 'SINT'}, controller=self))
-        self.datatypes.append(Datatype(meta_data={'@Name': 'INT'}, controller=self))
-        self.datatypes.append(Datatype(meta_data={'@Name': 'DINT'}, controller=self))
-        self.datatypes.append(Datatype(meta_data={'@Name': 'LINT'}, controller=self))
-        self.datatypes.append(Datatype(meta_data={'@Name': 'USINT'}, controller=self))
-        self.datatypes.append(Datatype(meta_data={'@Name': 'UINT'}, controller=self))
-        self.datatypes.append(Datatype(meta_data={'@Name': 'UDINT'}, controller=self))
-        self.datatypes.append(Datatype(meta_data={'@Name': 'ULINT'}, controller=self))
-        self.datatypes.append(Datatype(meta_data={'@Name': 'REAL'}, controller=self))
-        self.datatypes.append(Datatype(meta_data={'@Name': 'LREAL'}, controller=self))
-        self.datatypes.append(Datatype(meta_data={'@Name': 'STRING'}, controller=self))
-        self.datatypes.append(Datatype(meta_data={'@Name': 'TIMER',
-                                                  'Members': {'Member': [
-                                                      {'@Name': 'PRE'},
-                                                      {'@Name': 'ACC'},
-                                                      {'@Name': 'EN'},
-                                                      {'@Name': 'TT'},
-                                                      {'@Name': 'DN'}
-                                                  ]}}, controller=self))
+        self._datatypes.append(Datatype(meta_data={'@Name': 'BOOL'}, controller=self))
+        self._datatypes.append(Datatype(meta_data={'@Name': 'BIT'}, controller=self))
+        self._datatypes.append(Datatype(meta_data={'@Name': 'SINT'}, controller=self))
+        self._datatypes.append(Datatype(meta_data={'@Name': 'INT'}, controller=self))
+        self._datatypes.append(Datatype(meta_data={'@Name': 'DINT'}, controller=self))
+        self._datatypes.append(Datatype(meta_data={'@Name': 'LINT'}, controller=self))
+        self._datatypes.append(Datatype(meta_data={'@Name': 'USINT'}, controller=self))
+        self._datatypes.append(Datatype(meta_data={'@Name': 'UINT'}, controller=self))
+        self._datatypes.append(Datatype(meta_data={'@Name': 'UDINT'}, controller=self))
+        self._datatypes.append(Datatype(meta_data={'@Name': 'ULINT'}, controller=self))
+        self._datatypes.append(Datatype(meta_data={'@Name': 'REAL'}, controller=self))
+        self._datatypes.append(Datatype(meta_data={'@Name': 'LREAL'}, controller=self))
+        self._datatypes.append(Datatype(meta_data={'@Name': 'STRING'}, controller=self))
+        self._datatypes.append(Datatype(meta_data={'@Name': 'TIMER',
+                                                   'Members': {'Member': [
+                                                       {'@Name': 'PRE'},
+                                                       {'@Name': 'ACC'},
+                                                       {'@Name': 'EN'},
+                                                       {'@Name': 'TT'},
+                                                       {'@Name': 'DN'}
+                                                   ]}}, controller=self))
+
+    def _compile_datatypes(self) -> None:
+        """Compile datatypes from the controller's datatypes."""
+        if self._datatypes is None:
+            self._datatypes = HashList('name')
+            self._compile_atomic_datatypes()
+            for datatype in self.raw_datatypes:
+                if isinstance(datatype, dict):
+                    self._datatypes.append(
+                        self.config.datatype_type(
+                            meta_data=datatype,
+                            controller=self
+                        ))
+                else:
+                    self.logger.warning(
+                        f'Invalid datatype data: {datatype}. Skipping...'
+                    )
+
+    def _compile_modules(self) -> None:
+        """Compile modules from the controller's modules."""
+        if self._modules is None:
+            self._modules = HashList('name')
+            for module in self.raw_modules:
+                if isinstance(module, dict):
+                    self._modules.append(
+                        self.config.module_type(
+                            l5x_meta_data=module,
+                            controller=self
+                        ))
+                else:
+                    self.logger.warning(f'Invalid module data: {module}. Skipping...')
+
+    def _compile_programs(self) -> None:
+        """Compile programs from the controller's programs."""
+        if self._programs is None:
+            self._programs = HashList('name')
+            for program in self.raw_programs:
+                if isinstance(program, dict):
+                    self._programs.append(
+                        self.config.program_type(
+                            meta_data=program,
+                            controller=self
+                        ))
+                else:
+                    self.logger.warning(f'Invalid program data: {program}. Skipping...')
+
+    def _compile_tags(self) -> None:
+        """Compile tags from the controller's tags."""
+        if self._tags is None:
+            self._tags = HashList('name')
+            for tag in self.raw_tags:
+                if isinstance(tag, dict):
+                    self._tags.append(
+                        self.config.tag_type(
+                            meta_data=tag,
+                            controller=self,
+                            container=self
+                        ))
+                else:
+                    self.logger.warning(f'Invalid tag data: {tag}. Skipping...')
 
     def _compile_from_meta_data(self):
         """Compile this controller from its meta data."""
         self.logger.info('Compiling controller from meta data...')
-        self._aois = HashList('name')
-        [self._aois.append(self.config.aoi_type(meta_data=x, controller=self))
-         for x in self.raw_aois]
+        self._aois = None
+        self._compile_aois()
 
-        self._datatypes = HashList('name')
-        self._compile_atomic_datatypes()
-        [self._datatypes.append(self.config.datatype_type(meta_data=x, controller=self))
-         for x in self.raw_datatypes]
+        self._datatypes = None
+        self._compile_datatypes()
 
-        self._modules = HashList('name')
-        [self._modules.append(self.config.module_type(l5x_meta_data=x, controller=self))
-         for x in self.raw_modules]
+        self._modules = None
+        self._compile_modules()
 
-        self._programs = HashList('name')
-        [self._programs.append(self.config.program_type(meta_data=x, controller=self))
-         for x in self.raw_programs]
+        self._programs = None
+        self._compile_programs()
 
-        self._tags = HashList('name')
-        [self._tags.append(self.config.tag_type(meta_data=x, controller=self, container=self))
-         for x in self.raw_tags]
-        self.logger.info('Controller compiled successfully.')
+        self._tags = None
+        self._compile_tags()
 
     def _assign_address(self,
                         address: str):
@@ -4031,8 +4111,8 @@ class Controller(NamedPlcObject, Loggable):
             If True, skip the compilation step after adding the AOI.
         """
         self._add_common(aoi,
-                         self._config.aoi_type,
-                         self._aois,
+                         self.config.aoi_type,
+                         self.aois,
                          self.raw_aois)
         if not skip_compile:
             self._compile_from_meta_data()
@@ -4049,8 +4129,8 @@ class Controller(NamedPlcObject, Loggable):
             If True, skip the compilation step after adding the datatype.
         """
         self._add_common(datatype,
-                         self._config.datatype_type,
-                         self._datatypes,
+                         self.config.datatype_type,
+                         self.datatypes,
                          self.raw_datatypes)
         if not skip_compile:
             self._compile_from_meta_data()
@@ -4067,8 +4147,8 @@ class Controller(NamedPlcObject, Loggable):
             If True, skip the compilation step after adding the module.
         """
         self._add_common(module,
-                         self._config.module_type,
-                         self._modules,
+                         self.config.module_type,
+                         self.modules,
                          self.raw_modules)
         if not skip_compile:
             self._compile_from_meta_data()
@@ -4085,8 +4165,8 @@ class Controller(NamedPlcObject, Loggable):
             If True, skip the compilation step after adding the program.
         """
         self._add_common(program,
-                         self._config.program_type,
-                         self._programs,
+                         self.config.program_type,
+                         self.programs,
                          self.raw_programs)
         if not skip_compile:
             self._compile_from_meta_data()
@@ -4103,8 +4183,8 @@ class Controller(NamedPlcObject, Loggable):
             If True, skip the compilation step after adding the tag.
         """
         self._add_common(tag,
-                         self._config.tag_type,
-                         self._tags,
+                         self.config.tag_type,
+                         self.tags,
                          self.raw_tags)
         if not skip_compile:
             self._compile_from_meta_data()

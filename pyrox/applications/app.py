@@ -467,6 +467,7 @@ class App(Application):
             return
 
         self.logger.info('Refreshing application gui...')
+        self.set_app_state_busy()
         self.clear_organizer()
         self.clear_workspace()
         if self.controller:

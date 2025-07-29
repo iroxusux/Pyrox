@@ -2,9 +2,11 @@
     """
 from __future__ import annotations
 
+import importlib
+
 from pyrox.applications.app import App, AppTask
 from pyrox.models.plc import Controller, Program, Routine
-from pyrox.applications.general_motors.gm import GmController
+from pyrox.applications.general_motors import gm
 import json
 from tkinter import Menu
 
@@ -41,9 +43,10 @@ class ControllerGenerateTask(AppTask):
         if not self.application.controller:
             self.logger.error('No controller set in the application.')
             return
-        if not isinstance(self.application.controller, GmController):
+        if not isinstance(self.application.controller, gm.GmController):
             self.logger.error('Controller is not a GM controller. Cannot generate emulation routine.')
             return
+        importlib.reload(gm)
         self.application.controller.generate_emulation_logic()
 
     def remove_gm_emulation_routine(self):
