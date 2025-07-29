@@ -6,7 +6,6 @@ from enum import Enum
 import tkinter as tk
 from tkinter import ttk, Canvas
 from typing import Any, Optional, Dict, List, Literal, Union
-import re
 
 from .frames import TaskFrame
 from ..plc import plc
@@ -2189,7 +2188,7 @@ class LadderCanvas(Canvas, Loggable):
         self._elements.append(ladder_element)
         parent_branch.end_x = ladder_element.x + ladder_element.width
         parent_branch.end_position = element.position
-        
+
         last_child = self._branches.get(parent_branch.children_branch_ids[-1], None)
         if not last_child:
             raise ValueError(f"Last child branch with ID {parent_branch.children_branch_ids[-1]} not found.")
@@ -2842,6 +2841,12 @@ class LadderCanvas(Canvas, Loggable):
                     max_y = element.y + element.height
         return max_y
 
+    def _go_to_rung(self):
+        """Go to a specific rung number."""
+        rung_number = tk.simpledialog.askinteger("Go to Rung", "Enter rung number:")
+        if rung_number is not None:
+            self.scroll_to_rung(rung_number)
+
     def _hide_tooltip(self):
         """Hide the current tooltip."""
         if self._tooltip_id:
@@ -3153,6 +3158,7 @@ class LadderCanvas(Canvas, Loggable):
                 self.itemconfig(element.canvas_id, outline=THEME["highlight_color"], width=3)
                 element.is_selected = True
                 self._selected_elements.append(element)
+                self.auto_scroll_to_element(element)
             else:
                 self.itemconfig(
                     element.canvas_id,
@@ -3192,16 +3198,25 @@ class LadderCanvas(Canvas, Loggable):
             pady=4
         )
         frame.pack()
+        frame.update_idletasks()
 
         # Get generic infos
         self._add_generic_tooltip_content(frame, element)
 
-        if element.element_type == 'branch_rail_connector':
-            # self._add_branch_connector_tooltip_content(frame, element)
-            pass
-        elif self._debug_mode:
+        if self._debug_mode:
             # Debug mode: show tooltips for other non-instruction elements
             self._add_debug_element_tooltip_content(frame, element)
+
+        screen_width, screen_height = self.winfo_screenwidth(), self.winfo_screenheight()
+        frame_x, frame_y = frame.winfo_x(), frame.winfo_y()
+        frame_width, frame_height = frame.winfo_reqwidth(), frame.winfo_reqheight()
+
+        if frame_x + frame_width > screen_width:
+            x = screen_width - frame_width
+            frame.wm_geometry(f"+{x}+{y + 15}")
+        if frame_y + frame_height > screen_height:
+            y = screen_height - frame_height
+            frame.wm_geometry(f"+{x + 15}+{y}")
 
     def _show_context_menu(self, event, element: LadderElement):
         """Show context menu for element."""
@@ -3352,6 +3367,79 @@ class LadderCanvas(Canvas, Loggable):
 
         return len(self._routine.rungs) - 1
 
+    def auto_scroll_to_element(
+        self,
+        element: LadderElement,
+        margin: int = 50
+    ) -> None:
+        """Auto-scroll canvas to ensure element is fully visible.
+
+        Args:
+            element: The LadderElement to scroll to
+            margin: Additional margin around the element in pixels
+        """
+        if not element:
+            return
+
+        # Get canvas dimensions
+        canvas_width = self.winfo_width()
+        canvas_height = self.winfo_height()
+
+        # Get current scroll region
+        scroll_region = self.cget('scrollregion')
+        if not scroll_region:
+            return
+
+        # Parse scroll region: "x1 y1 x2 y2"
+        scroll_parts = scroll_region.split()
+        if len(scroll_parts) != 4:
+            return
+
+        total_width = float(scroll_parts[2]) - float(scroll_parts[0])
+        total_height = float(scroll_parts[3]) - float(scroll_parts[1])
+
+        # Get element bounds with margin
+        element_top = element.y - margin
+        element_bottom = element.y + element.height + margin
+        element_left = element.x - margin
+        element_right = element.x + element.width + margin
+
+        # Get current visible area
+        current_top = self.canvasy(0)
+        current_bottom = self.canvasy(canvas_height)
+        current_left = self.canvasx(0)
+        current_right = self.canvasx(canvas_width)
+
+        # Calculate if scrolling is needed
+        scroll_y_needed = False
+        scroll_x_needed = False
+
+        # Check Y direction
+        if element_top < current_top:
+            # Element is above visible area
+            new_y_fraction = max(0, element_top / total_height)
+            scroll_y_needed = True
+        elif element_bottom > current_bottom:
+            # Element is below visible area
+            new_y_fraction = min(1, (element_bottom - canvas_height) / total_height)
+            scroll_y_needed = True
+
+        # Check X direction
+        if element_left < current_left:
+            # Element is left of visible area
+            new_x_fraction = max(0, element_left / total_width)
+            scroll_x_needed = True
+        elif element_right > current_right:
+            # Element is right of visible area
+            new_x_fraction = min(1, (element_right - canvas_width) / total_width)
+            scroll_x_needed = True
+
+        # Perform scrolling
+        if scroll_y_needed:
+            self.yview_moveto(new_y_fraction)
+        if scroll_x_needed:
+            self.xview_moveto(new_x_fraction)
+
     def clear_canvas(self):
         """Clear all elements from the canvas."""
         self.delete("all")
@@ -3375,6 +3463,26 @@ class LadderCanvas(Canvas, Loggable):
         self._draw_routine()
 
         self.logger.info(f"Deleted rung {rung_number}")
+
+    def scroll_to_rung(self, rung_number: int, margin: int = 50):
+        """Scroll to a specific rung.
+
+        Args:
+            rung_number: The rung number to scroll to
+            margin: Additional margin around the rung
+        """
+        if rung_number not in self._rung_y_positions:
+            return
+
+        # Find the rung element
+        rung_element = None
+        for element in self._elements:
+            if element.rung_number == rung_number and element.element_type == 'rung':
+                rung_element = element
+                break
+
+        if rung_element:
+            self.auto_scroll_to_element(rung_element, margin)
 
 
 class LadderEditorTaskFrame(TaskFrame):
