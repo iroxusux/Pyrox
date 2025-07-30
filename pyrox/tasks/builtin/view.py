@@ -83,3 +83,13 @@ class ViewTask(ApplicationTask):
         for dir_name in self.application.directory_service.all_directories:
             drop_down.add_command(label=dir_name, command=lambda d=dir_name: self._open_dir(
                 self.application.directory_service.all_directories[d]))
+        self.application.menu.view.add_separator()
+        self.application.menu.view.add_command(
+            label='Toggle Organizer',
+            command=self.application.toggle_organizer,
+            accelerator='Ctrl+B',
+            underline=0
+        )
+        self.application.tk_app.bind_all(
+            '<Control-b>', self.application.toggle_organizer
+        )

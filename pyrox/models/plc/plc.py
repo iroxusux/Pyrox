@@ -903,6 +903,17 @@ class LogixInstruction(PlcObject):
         return self._instruction_name
 
     @property
+    def is_add_on_instruction(self) -> bool:
+        """Check if this instruction is an Add-On Instruction
+        Returns:
+            bool: True if this is an Add-On Instruction, False otherwise.
+        """
+        if not self.container or not self.container.controller:
+            return False
+
+        return self.instruction_name in self.container.controller.aois
+
+    @property
     def operands(self) -> list[LogixOperand]:
         """get the instruction operands
 
@@ -2298,16 +2309,28 @@ class Rung(PlcObject):
                 branch_level_history.append(branch_level)
                 branch_level = 0  # Reset branch level for new branch
 
-                branch_start = RungElement(element_type=RungElementType.BRANCH_START,
-                                           branch_id=branch_id, root_branch_id=root_branch_id,
-                                           branch_level=branch_level, position=position, rung_number=int(self.number))
+                branch_start = RungElement(
+                    element_type=RungElementType.BRANCH_START,
+                    branch_id=branch_id,
+                    root_branch_id=root_branch_id,
+                    branch_level=branch_level,
+                    position=position,
+                    rung_number=int(self.number)
+                )
 
-                branch = RungBranch(branch_id=branch_id, root_branch_id=root_branch_id,
-                                    start_position=position, end_position=-1, nested_branches=[],)
+                branch = RungBranch(
+                    branch_id=branch_id,
+                    root_branch_id=root_branch_id,
+                    start_position=position,
+                    end_position=-1,
+                    nested_branches=[],
+                )
 
                 branch_stack.append(branch)
                 self._branches[branch_id] = branch
                 self._rung_sequence.append(branch_start)
+                branch_root_id_history.append(root_branch_id)  # Save current root branch id
+                root_branch_id = branch_id  # Change branch id after assignment so we get the proper parent
                 position += 1
 
             elif token == ']':  # Branch end
@@ -2350,8 +2373,7 @@ class Rung(PlcObject):
                                           position=position, rung_number=int(self.number))
                 nested_branch = RungBranch(branch_id=branch_id, start_position=position,
                                            end_position=-1, root_branch_id=parent_branch.branch_id)
-                branch_root_id_history.append(root_branch_id)  # Save current root branch id
-                root_branch_id = branch_id  # Change branch id after assignment so we get the proper parent
+                
                 parent_branch.nested_branches.append(nested_branch)
                 self._branches[branch_id] = nested_branch
                 self._rung_sequence.append(next_branch)

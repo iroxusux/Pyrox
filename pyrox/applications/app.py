@@ -222,6 +222,10 @@ class App(Application):
         self._paned_window: Optional[PanedWindow] = None
         self._registered_frames: HashList[TaskFrame] = HashList('name')
         self._workspace: Optional[PyroxFrame] = None
+
+        # Add organizer toggle state
+        self._organizer_visible = True
+        self._organizer_width = 300  # Store the width when
         self.logger.info('Pyrox Application initialized.')
 
     @property
@@ -317,6 +321,13 @@ class App(Application):
         self._unset_frames_selected()
         frame.shown_var.set(True)
 
+    def _setup_keybinds(
+        self
+    ) -> None:
+        """Setup keybinds for the application."""
+        self._tk_app.bind('<Control-b>', lambda _: self.toggle_organizer())
+        self._tk_app.bind('<Control-B>', lambda _: self.toggle_organizer())  # Handle uppercase
+
     def _transform_controller(self,
                               controller: plc.Controller,
                               sub_class: Optional[type[plc.Controller]] = None) -> plc.Controller:
@@ -364,10 +375,12 @@ class App(Application):
         super().build()
 
         self._paned_window = PanedWindow(self.frame, orient='horizontal')
-        self._organizer: AppOrganizer = AppOrganizer(master=self._paned_window,
-                                                     application=self,
-                                                     controller=self._controller,
-                                                     text='Organizer')
+        self._organizer: AppOrganizer = AppOrganizer(
+            master=self._paned_window,
+            application=self,
+            controller=self._controller,
+            text='Organizer'
+        )
         self._organizer.pack(side='left', fill='y')
         self._organizer.context_menu.on_refresh.append(self.refresh)
 
@@ -390,6 +403,8 @@ class App(Application):
         self._paned_window.add(sub_frame)
         self._paned_window.pack(fill='both', expand=True)
         self._paned_window.configure(sashrelief='groove', sashwidth=5, sashpad=5)
+
+        self._setup_keybinds()
 
         last_plc_file_location = self._runtime_info.data.get('last_plc_file_location', None)
         if last_plc_file_location and os.path.isfile(last_plc_file_location):
@@ -560,6 +575,25 @@ class App(Application):
 
         """
         self._raise_frame(frame)
+
+    def toggle_organizer(self) -> None:
+        """Toggle the visibility of the organizer panel."""
+        if not self._paned_window or not self._organizer:
+            return
+
+        if self._organizer_visible:
+            # Hide organizer
+            self._organizer_width = self._organizer.winfo_width()  # Store current width
+            self._paned_window.forget(self._organizer)  # Remove from paned window
+            self._organizer_visible = False
+            self.logger.info('Organizer hidden')
+        else:
+            # Show organizer
+            self._paned_window.add(self._organizer, before=self._paned_window.panes()[0] if self._paned_window.panes() else None)
+            # Restore the saved width
+            self._paned_window.paneconfigure(self._organizer, width=self._organizer_width)
+            self._organizer_visible = True
+            self.logger.info('Organizer shown')
 
     def unregister_frame(self,
                          frame: TaskFrame) -> None:
