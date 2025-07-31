@@ -26,7 +26,7 @@ class LazyLoadingTreeView(Treeview):
         self._context_menu = context_menu or ContextMenu(master=self,
                                                          tearoff=0)
         self.bind('<Button-3>', self.on_right_click)
-        self.bind('<Button-1>', self.on_click)
+        self.bind('<<TreeviewOpen>>', self.on_expand)
         self._lazy_load_map = {}
         self._item_hash = {}
 
@@ -44,12 +44,19 @@ class LazyLoadingTreeView(Treeview):
         self._lazy_load_map.clear()
         self._item_hash.clear()
 
-    def on_click(self, event):
-        """Handle click events to load items lazily."""
-        item = self.identify_row(event.y)
+    def on_expand(self, _: Event):
+        """Handle expand events to load items lazily when about to be expanded."""
+        # Get the item that's being expanded
+        selection = self.selection()
+        if not selection:
+            return
+
+        item = selection[0]
+
+        # Check if this item needs lazy loading
         if item and self._lazy_load_map.get(item):
             self.load_children(item)
-            del self._lazy_load_map[item]  # Remove item from map after loading
+            del self._lazy_load_map[item]
 
     def on_right_click(self,
                        event: Event,
