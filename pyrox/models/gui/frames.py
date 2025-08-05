@@ -5,48 +5,16 @@ from dataclasses import dataclass
 import tkinter as tk
 from tkinter import ttk, messagebox
 from tkinter.ttk import Widget
-from logging import INFO, WARNING, ERROR
+import sys
 from typing import Any, Optional, Union
-from tkinter import (
-    BooleanVar,
-    BOTH,
-    Button,
-    BOTTOM,
-    Entry,
-    Frame,
-    LabelFrame,
-    Label,
-    LEFT,
-    RIGHT,
-    Scrollbar,
-    TclError,
-    Text,
-    TOP,
-    Toplevel,
-    VERTICAL,
-    X,
-    Y
-)
 
-
+from . import meta
 from .treeview import LazyLoadingTreeView
 from ..abc.meta import Loggable
 
 
-class PyroxFrame(LabelFrame, Loggable):
-    """A custom LabelFrame with built-in logging capabilities.
-
-    This frame extends tkinter.LabelFrame and adds logging functionality
-    through the Loggable mixin. It provides a standardized frame appearance
-    with borders and padding.
-
-    Args:
-        *args: Variable length argument list passed to LabelFrame.
-        **kwargs: Arbitrary keyword arguments. Special kwargs 'context_menu',
-            'controller', and 'parent' are removed before passing to LabelFrame.
-
-    Attributes:
-        Inherits all LabelFrame and Loggable attributes.
+class PyroxFrame(tk.LabelFrame, Loggable):
+    """A custom LabelFrame.
     """
 
     def __init__(self, *args, **kwargs):
@@ -56,17 +24,17 @@ class PyroxFrame(LabelFrame, Loggable):
             del kwargs['controller']
         if 'parent' in kwargs:  # this is gross, but it works
             del kwargs['parent']
-        LabelFrame.__init__(self,
-                            *args,
-                            borderwidth=1,
-                            padx=4,
-                            pady=4,
-                            relief='solid',
-                            **kwargs)
+        tk.LabelFrame.__init__(self,
+                               *args,
+                               borderwidth=1,
+                               padx=4,
+                               pady=4,
+                               relief='solid',
+                               **kwargs)
         Loggable.__init__(self)
 
 
-class PyroxTopLevelFrame(Toplevel, Loggable):
+class PyroxTopLevelFrame(tk.Toplevel, Loggable):
     """A custom Toplevel window with built-in logging capabilities.
 
     This class extends tkinter.Toplevel and adds logging functionality
@@ -98,79 +66,291 @@ class PyroxTopLevelFrame(Toplevel, Loggable):
 
 
 class LogWindow(PyroxFrame):
-    """A specialized frame for displaying log messages.
+    """Enhanced log window that captures both logging and stderr/stdout."""
 
-    This frame provides a text widget with scrollbar for displaying
-    log messages with color-coded severity levels (INFO, WARNING, ERROR).
-    The text widget has a black background with white text for console-like
-    appearance.
+    def __init__(
+        self,
+        parent,
+        *args,
+    ):
+        super().__init__(
+            parent,
+            text='Logger',
+            *args,
+        )
 
-    Args:
-        *args: Variable length argument list passed to PyroxFrame.
-        **kwargs: Arbitrary keyword arguments passed to PyroxFrame.
+        self.capture_stderr = True
+        self.capture_stdout = True
+        self._original_stderr = None
+        self._original_stdout = None
+        self._stderr_stream = None
+        self._stdout_stream = None
 
-    Attributes:
-        _logtext (Text): The text widget for displaying log messages.
-    """
+        # Create toolbar frame
+        self._toolbar = tk.Frame(
+            self,
+            height=30,
+            bg='lightgrey',
+            relief='raised',
+            bd=1
+        )
+        self._toolbar.pack(
+            fill=tk.X,
+            side=tk.TOP)
+        self._toolbar.pack_propagate(False)
 
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args,
-                         text='Logger',
-                         **kwargs)
+        # Setup toolbar
+        self._setup_toolbar()
 
-        self._logtext = Text(self, state='disabled', background='black', foreground='white', wrap='word')
-        vscrollbar = Scrollbar(self, orient=VERTICAL, command=self._logtext.yview)
-        self._logtext['yscrollcommand'] = vscrollbar.set
+        # Create text widget with scrollbar
+        self._setup_text_widget()
 
-        vscrollbar.pack(fill=Y, side=RIGHT)
-        self._logtext.pack(side=BOTTOM, fill=BOTH, expand=True)
+        # Configure text tags for different message types
+        self._setup_text_tags()
 
-    @property
-    def log_text(self) -> Optional[Text]:
-        """Get the log text widget.
+        # Setup stream redirection
+        self._setup_stream_redirection()
 
-        Returns:
-            Optional[Text]: The text widget used for displaying log messages,
-                or None if not initialized.
-        """
-        return self._logtext
+    def _setup_text_widget(self):
+        """Setup the main text widget and scrollbar."""
+        text_frame = tk.Frame(self)
+        text_frame.pack(
+            side=tk.BOTTOM,
+            fill=tk.BOTH,
+            expand=True
+        )
 
-    def log(self, message: str):
-        """Log a message to the log text area with color coding.
+        self._logtext = tk.Text(
+            text_frame,
+            state='disabled',
+            background='black',
+            foreground='white',
+            wrap='word',
+            font=('Consolas', 10)
+        )
 
-        Args:
-            message (str): The message to log. The severity level is determined
-                by the presence of '| WARNING |' or '| ERROR |' in the message.
+        # Scrollbars
+        v_scrollbar = tk.Scrollbar(
+            text_frame,
+            orient=tk.VERTICAL,
+            command=self._logtext.yview)
+        h_scrollbar = tk.Scrollbar(
+            text_frame,
+            orient=tk.HORIZONTAL,
+            command=self._logtext.xview)
 
-        Note:
-            - WARNING messages are displayed with black text on yellow background
-            - ERROR messages are displayed with white text on red background
-            - INFO messages are displayed with white text on black background
-            - The log automatically scrolls to show the newest messages
-            - Only the last 100 lines are kept to prevent memory issues
-        """
-        severity = WARNING if '| WARNING | ' in message else \
-            ERROR if '| ERROR | ' in message else INFO
+        self._logtext.configure(
+            yscrollcommand=v_scrollbar.set,
+            xscrollcommand=h_scrollbar.set
+        )
 
+        # Grid layout
+        self._logtext.grid(row=0, column=0, sticky='nsew')
+        v_scrollbar.grid(row=0, column=1, sticky='ns')
+        h_scrollbar.grid(row=1, column=0, sticky='ew')
+
+        text_frame.grid_rowconfigure(0, weight=1)
+        text_frame.grid_columnconfigure(0, weight=1)
+
+    def _setup_text_tags(self):
+        """Setup text tags for different types of messages."""
+        # Standard logging levels
+        self._logtext.tag_configure(
+            'INFO',
+            foreground='white',
+            background='black'
+        )
+        self._logtext.tag_configure(
+            'WARNING',
+            foreground='black',
+            background='yellow'
+        )
+        self._logtext.tag_configure(
+            'ERROR',
+            foreground='white',
+            background='red'
+        )
+        self._logtext.tag_configure(
+            'DEBUG',
+            foreground='cyan',
+            background='black'
+        )
+
+        # Stream types
+        self._logtext.tag_configure(
+            'STDERR',
+            foreground='orange',
+            background='black'
+        )
+        self._logtext.tag_configure(
+            'STDOUT',
+            foreground='lightgreen',
+            background='black'
+        )
+
+    def _setup_stream_redirection(self):
+        """Setup redirection of stderr and stdout to the text widget."""
+        if self.capture_stderr:
+            self._original_stderr = sys.stderr
+            self._stderr_stream = meta.TextWidgetStream(
+                self._logtext,
+                'STDERR',
+                self.log,
+            )
+            sys.stderr = self._stderr_stream
+
+        if self.capture_stdout:
+            self._original_stdout = sys.stdout
+            self._stdout_stream = meta.TextWidgetStream(
+                self._logtext,
+                'STDOUT',
+                self.log,
+            )
+            sys.stdout = self._stdout_stream
+
+    def _setup_toolbar(self):
+        """Setup the toolbar with control buttons."""
+        # Clear button
+        self.add_toolbar_button(
+            "Clear",
+            self.clear_log_window,
+            bg='lightcoral'
+        )
+
+    def toggle_stderr_capture(self):
+        """Toggle stderr capture on/off."""
+        if sys.stderr == self._stderr_stream:
+            # Restore original stderr
+            sys.stderr = self._original_stderr
+            self._log_message("STDERR capture disabled\n", 'INFO')
+        else:
+            # Redirect to our stream
+            sys.stderr = self._stderr_stream
+            self._log_message("STDERR capture enabled\n", 'INFO')
+
+    def toggle_stdout_capture(self):
+        """Toggle stdout capture on/off."""
+        if sys.stdout == self._stdout_stream:
+            # Restore original stdout
+            sys.stdout = self._original_stdout
+            self._log_message("STDOUT capture disabled\n", 'INFO')
+        else:
+            # Redirect to our stream
+            sys.stdout = self._stdout_stream
+            self._log_message("STDOUT capture enabled\n", 'INFO')
+
+    def save_log_to_file(self):
+        """Save the current log content to a file."""
+        from tkinter import filedialog
+
+        filename = filedialog.asksaveasfilename(
+            defaultextension=".log",
+            filetypes=[("Log files", "*.log"), ("Text files", "*.txt"), ("All files", "*.*")]
+        )
+
+        if filename:
+            try:
+                content = self._logtext.get('1.0', 'end-1c')
+                with open(filename, 'w', encoding='utf-8') as f:
+                    f.write(content)
+                self._log_message(f"Log saved to: {filename}\n", 'INFO')
+            except Exception as e:
+                self._log_message(f"Failed to save log: {e}\n", 'ERROR')
+
+    def _log_message(self, message: str, tag: str = 'INFO'):
+        """Log a message directly to the text widget."""
         try:
             self._logtext.config(state='normal')
-            msg_begin = self._logtext.index('end-1c')
-            self._logtext.insert('end', f'{message}\n')
-            msg_end = self._logtext.index('end-1c')
-            self._logtext.tag_add(message, msg_begin, msg_end)
-            self._logtext.tag_config(message,
-                                     foreground='black' if severity == WARNING else 'white',
-                                     background='yellow' if severity == WARNING else 'red' if severity == ERROR else 'black',
-                                     font=('Courier New', 12, 'bold'))
+
+            # Insert message
+            start_idx = self._logtext.index('end-1c')
+            self._logtext.insert('end', message)
+            end_idx = self._logtext.index('end-1c')
+
+            # Apply tag
+            self._logtext.tag_add(message, start_idx, end_idx)
+            self._logtext.tag_configure(message,
+                                        foreground='black' if tag == 'WARNING' else 'white',
+                                        background='yellow' if tag == 'WARNING' else 'red' if tag == 'ERROR' else 'black',
+                                        font=('Courier New', 12, 'bold'))
+
+            # Auto-scroll and limit lines
             self._logtext.see('end')
-            line_count = self._logtext.count('1.0', 'end', 'lines')[0]
-            if line_count > 100:
-                dlt_count = abs(line_count - 100) + 1
-                self._logtext.delete('1.0', float(dlt_count))
+            lines = int(self._logtext.index('end-1c').split('.')[0])
+            if lines > 1000:
+                self._logtext.delete('1.0', f'{lines-1000}.0')
+
             self._logtext.config(state='disabled')
-        except TclError as e:
-            print('Tcl error, original msg -> %s' % e)
-        self.update()
+
+        except tk.TclError as e:
+            print(f'Error logging message: {e}')
+
+    def log(self, message: str):
+        """Log a message with automatic severity detection."""
+        # Detect severity from message content
+        if '| ERROR |' in message:
+            tag = 'ERROR'
+        elif '| WARNING |' in message:
+            tag = 'WARNING'
+        elif '| DEBUG |' in message:
+            tag = 'DEBUG'
+        else:
+            tag = 'INFO'
+
+        if not message.endswith('\n'):
+            message += '\n'
+        self._log_message(message, tag)
+
+    def clear_log_window(self):
+        """Clear all text from the log window."""
+        try:
+            self._logtext.config(state='normal')
+            self._logtext.delete('1.0', 'end')
+            self._logtext.config(state='disabled')
+            self.update()
+        except tk.TclError as e:
+            print(f'Error clearing log window: {e}')
+
+    def destroy(self):
+        """Clean up stream redirection when destroying the widget."""
+        # Restore original streams
+        if self._stderr_stream:
+            self._stderr_stream.close()
+            if sys.stderr == self._stderr_stream:
+                sys.stderr = self._original_stderr
+
+        if self._stdout_stream:
+            self._stdout_stream.close()
+            if sys.stdout == self._stdout_stream:
+                sys.stdout = self._original_stdout
+
+        super().destroy()
+
+    # Keep existing methods for compatibility
+    def add_toolbar_button(self, text: str, command: callable, **button_kwargs):
+        """Add a custom button to the toolbar."""
+        default_kwargs = {
+            'width': 8,
+            'height': 1,
+            'relief': 'raised',
+            'bd': 1
+        }
+        default_kwargs.update(button_kwargs)
+
+        button = tk.Button(
+            self._toolbar,
+            text=text,
+            command=command,
+            **default_kwargs
+        )
+        button.pack(side=tk.LEFT, padx=2, pady=2)
+        return button
+
+    def add_toolbar_separator(self):
+        """Add a visual separator to the toolbar."""
+        separator = tk.Frame(self._toolbar, width=2, bg='grey', relief='sunken', bd=1)
+        separator.pack(side=tk.LEFT, fill=tk.Y, padx=5, pady=2)
+        return separator
 
 
 class FrameWithTreeViewAndScrollbar(PyroxFrame):
@@ -205,13 +385,13 @@ class FrameWithTreeViewAndScrollbar(PyroxFrame):
         self._tree.heading('#0', text='Name')
         self._tree.heading('Value', text='Value')
 
-        vscrollbar = Scrollbar(self,
-                               orient=VERTICAL,
-                               command=self._tree.yview)
+        vscrollbar = tk.Scrollbar(self,
+                                  orient=tk.VERTICAL,
+                                  command=self._tree.yview)
         self._tree['yscrollcommand'] = vscrollbar.set
 
-        vscrollbar.pack(fill=Y, side=RIGHT)
-        self._tree.pack(fill=BOTH, expand=True)
+        vscrollbar.pack(fill=tk.Y, side=tk.RIGHT)
+        self._tree.pack(fill=tk.BOTH, expand=True)
 
     @property
     def tree(self) -> LazyLoadingTreeView:
@@ -234,12 +414,12 @@ class FrameWithTreeViewAndScrollbar(PyroxFrame):
         """
         if isinstance(value, LazyLoadingTreeView):
             self._tree = value
-            self._tree.pack(fill=BOTH, expand=True)
+            self._tree.pack(fill=tk.BOTH, expand=True)
         else:
             raise TypeError(f'Expected LazyLoadingTreeView, got {type(value)}')
 
 
-class TaskFrame(Frame):
+class TaskFrame(tk.Frame):
     """A frame for tasks in the application with title bar and close button.
 
     This frame provides a standardized interface for task windows with
@@ -269,27 +449,27 @@ class TaskFrame(Frame):
         super().__init__(*args, **kwargs)
         self._name = name or 'Task Frame'
         self._shown: bool = False
-        self._shown_var: BooleanVar = BooleanVar(value=self._shown)
-        self._title_bar = Frame(self, height=20, bg='lightgrey')
+        self._shown_var: tk.BooleanVar = tk.BooleanVar(value=self._shown)
+        self._title_bar = tk.Frame(self, height=20, bg='lightgrey')
 
-        self._close_button = Button(self._title_bar,
-                                    text='X',
-                                    command=self.destroy,
-                                    width=3,)
-        self._close_button.pack(side=RIGHT, padx=5, pady=5)
+        self._close_button = tk.Button(self._title_bar,
+                                       text='X',
+                                       command=self.destroy,
+                                       width=3,)
+        self._close_button.pack(side=tk.RIGHT, padx=5, pady=5)
 
-        self._title_label = Label(self._title_bar, text=name or 'Task Frame', bg='lightgrey')
-        self._title_label.pack(side=LEFT, padx=5, pady=5)
+        self._title_label = tk.Label(self._title_bar, text=name or 'Task Frame', bg='lightgrey')
+        self._title_label.pack(side=tk.LEFT, padx=5, pady=5)
 
-        self._title_bar.pack(fill=X, side=TOP)
+        self._title_bar.pack(fill=tk.X, side=tk.TOP)
 
-        self._content_frame = Frame(self)
-        self._content_frame.pack(fill=BOTH, expand=True, side=TOP)
+        self._content_frame = tk.Frame(self)
+        self._content_frame.pack(fill=tk.BOTH, expand=True, side=tk.TOP)
 
         self._on_destroy: list[callable] = []
 
     @property
-    def content_frame(self) -> Frame:
+    def content_frame(self) -> tk.Frame:
         """Get the content frame for adding widgets.
 
         Returns:
@@ -339,7 +519,7 @@ class TaskFrame(Frame):
         self._shown = value
 
     @property
-    def shown_var(self) -> BooleanVar:
+    def shown_var(self) -> tk.BooleanVar:
         """Get the BooleanVar tracking the shown state.
 
         Returns:
@@ -391,13 +571,13 @@ class ToplevelWithTreeViewAndScrollbar(PyroxTopLevelFrame):
         self._tree.heading('#0', text='Name')
         self._tree.heading('Value', text='Value')
 
-        vscrollbar = Scrollbar(self,
-                               orient=VERTICAL,
-                               command=self._tree.yview)
+        vscrollbar = tk.Scrollbar(self,
+                                  orient=tk.VERTICAL,
+                                  command=self._tree.yview)
         self._tree['yscrollcommand'] = vscrollbar.set
 
-        vscrollbar.pack(fill=Y, side=RIGHT)
-        self._tree.pack(fill=BOTH, expand=True)
+        vscrollbar.pack(fill=tk.Y, side=tk.RIGHT)
+        self._tree.pack(fill=tk.BOTH, expand=True)
 
     @property
     def tree(self) -> LazyLoadingTreeView:
@@ -588,10 +768,10 @@ class ValueEditPopup(PyroxTopLevelFrame):
         self.callback = callback
         self.result = None
 
-        self.label = Label(self, text="Modify value:")
+        self.label = tk.Label(self, text="Modify value:")
         self.label.pack(padx=10, pady=(10, 0))
 
-        self.entry = Entry(self)
+        self.entry = tk.Entry(self)
         self.entry.insert(0, str(value))
         self.entry.pack(padx=10, pady=5, fill='x')
         self.entry.focus_set()
@@ -599,9 +779,9 @@ class ValueEditPopup(PyroxTopLevelFrame):
         button_frame = tk.Frame(self)
         button_frame.pack(pady=(0, 10))
 
-        self.ok_button = Button(button_frame, text="OK", width=10, command=self.on_ok)
+        self.ok_button = tk.Button(button_frame, text="OK", width=10, command=self.on_ok)
         self.ok_button.pack(side='left', padx=5)
-        self.cancel_button = Button(button_frame, text="Cancel", width=10, command=self.on_cancel)
+        self.cancel_button = tk.Button(button_frame, text="Cancel", width=10, command=self.on_cancel)
         self.cancel_button.pack(side='left', padx=5)
 
         self.bind("<Return>", lambda event: self.on_ok())

@@ -22,6 +22,7 @@ from ..models.gui import (
     PyroxGuiObject,
     TaskFrame,
 )
+from .. import models
 from ..models.gui.plc import PlcGuiObject
 
 from ..services.dictionary_services import remove_none_values_inplace
@@ -43,7 +44,6 @@ class AppOrganizerContextMenu(ContextMenu):
                          **kwargs)
         self._controller: Optional[plc.Controller] = controller
         self._parent: Optional[AppOrganizer] = parent
-        self.logger.info('Organizer context menu initialized.')
         self.on_refresh: list[callable] = []
 
     @property
@@ -140,7 +140,6 @@ class AppFrameWithTreeViewAndScrollbar(FrameWithTreeViewAndScrollbar):
         super().__init__(*args,
                          base_gui_class=PlcGuiObject,
                          **kwargs)
-        self.logger.info('AppFrameWithTreeViewAndScrollbar initialized.')
 
 
 class AppOrganizer(AppFrameWithTreeViewAndScrollbar):
@@ -162,7 +161,6 @@ class AppOrganizer(AppFrameWithTreeViewAndScrollbar):
                          **kwargs)
         self._application: Optional[App] = application
         self._controller: Optional[plc.Controller] = controller
-        self.logger.info('Organizer initialized.')
 
     @property
     def application(self) -> Optional[App]:
@@ -213,7 +211,6 @@ class App(Application):
                  *args,
                  **kwargs):
         super().__init__(*args,
-                         add_to_globals=True,
                          **kwargs)
 
         self._controller: Optional[plc.Controller] = None
@@ -225,8 +222,7 @@ class App(Application):
 
         # Add organizer toggle state
         self._organizer_visible = True
-        self._organizer_width = 300  # Store the width when
-        self.logger.info('Pyrox Application initialized.')
+        self._organizer_width = 300
 
     @property
     def controller(self) -> Optional[plc.Controller]:
@@ -296,7 +292,7 @@ class App(Application):
         try:
             importlib.reload(plc)
             return plc.Controller(l5x_dict_from_file(file_location))
-        except KeyError as e:
+        except (KeyError, ValueError, TypeError) as e:
             self.logger.error('error parsing controller from file %s: %s', file_location, e)
         finally:
             self.set_app_state_normal()
@@ -325,8 +321,7 @@ class App(Application):
         self
     ) -> None:
         """Setup keybinds for the application."""
-        self._tk_app.bind('<Control-b>', lambda _: self.toggle_organizer())
-        self._tk_app.bind('<Control-B>', lambda _: self.toggle_organizer())  # Handle uppercase
+        self._tk_app.bind('<Control-b>', self.toggle_organizer)
 
     def _transform_controller(self,
                               controller: plc.Controller,
@@ -393,10 +388,11 @@ class App(Application):
         self._workspace.pack(side='top', fill='x')
         sub_frame.add(self._workspace)
 
-        self._log_window = LogWindow(sub_frame)
-        self._log_window.pack(side='bottom', fill='x')
-
+        self._log_window = LogWindow(self.frame)
+        self._log_window.pack(fill='both', expand=True)
         sub_frame.add(self._log_window)
+        models.abc.Loggable.force_all_loggers_to_stderr()
+
         sub_frame.pack(fill='both', expand=True)
         sub_frame.configure(sashrelief='groove', sashwidth=5, sashpad=5)
 
@@ -433,8 +429,10 @@ class App(Application):
             child.pack_forget()
         self._unset_frames_selected()
 
-    def load_controller(self,
-                        file_location: str) -> None:
+    def load_controller(
+        self,
+        file_location: str
+    ) -> None:
         """Attempt to load a :class:`Controller` from a provided .L5X Allen Bradley PLC File.
 
         .. ------------------------------------------------------------
@@ -446,28 +444,15 @@ class App(Application):
 
         """
         ctrl = self._load_controller(file_location)
-        if not ctrl:
-            self.logger.error('Failed to load controller from file: %s', file_location)
-            return
         self.logger.info('new ctrl loaded -> %s', ctrl.name)
 
         # General Motors PLC detection
-        if 'zz_Version' in ctrl.datatypes:
+        if 'zz_Version' in ctrl.datatypes:  # This is gross, fix this
             ctrl = self._transform_controller(ctrl, GmController)
-            if not ctrl:
-                self.logger.error('Failed to transform controller to GmController.')
-                return
             self.logger.info('Loaded GmController from metadata: %s', ctrl.name)
 
         ctrl.file_location = file_location
         self.controller = ctrl
-
-    def log(self,
-            message: str) -> None:
-        super().log(message)
-        if not self._log_window:
-            return
-        self._log_window.log(message)
 
     def new_controller(self) -> None:
         """Create a new controller instance."""
@@ -576,7 +561,10 @@ class App(Application):
         """
         self._raise_frame(frame)
 
-    def toggle_organizer(self) -> None:
+    def toggle_organizer(
+        self,
+        *_,
+    ) -> None:
         """Toggle the visibility of the organizer panel."""
         if not self._paned_window or not self._organizer:
             return

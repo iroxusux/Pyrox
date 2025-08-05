@@ -31,7 +31,6 @@ from .list import (
 from .meta import (
     _IdGenerator,
     Buildable,
-    ConsolePanelHandler,
     EnforcesNaming,
     Loggable,
     NamedPyroxObject,
@@ -219,24 +218,6 @@ class TestPyroxObject(unittest.TestCase):
     def test_repr_returns_class_name(self):
         obj = PyroxObject()
         self.assertEqual(repr(obj), 'PyroxObject')
-
-    def test_get_all_properties_returns_dict(self):
-        class CustomPyroxObject(PyroxObject):
-            @property
-            def foo(self):
-                return 'bar'
-
-            @property
-            def bar(self):
-                return 42
-
-        obj = CustomPyroxObject()
-        props = obj.get_all_properties()
-        self.assertIsInstance(props, dict)
-        self.assertIn('foo', props)
-        self.assertIn('bar', props)
-        self.assertEqual(props['foo'], 'bar')
-        self.assertEqual(props['bar'], 42)
 
 
 class TestNamedPyroxObject(unittest.TestCase):
@@ -445,30 +426,11 @@ class TestSupportsJsonLoading(unittest.TestCase):
         self.assertIsNone(result)
 
 
-class TestConsolePanelHandler(unittest.TestCase):
-    def test_emit(self):
-        messages = []
-        handler = ConsolePanelHandler(callback=messages.append)
-        logger = logging.getLogger('test_logger')
-        logger.addHandler(handler)
-        logger.error('Test error message')
-        self.assertIn('Test error message', messages[0])
-
-    def test_set_callback(self):
-        messages = []
-        handler = ConsolePanelHandler(callback=None)
-        handler.set_callback(messages.append)
-        logger = logging.getLogger('test_logger')
-        logger.addHandler(handler)
-        logger.error('Test error message')
-        self.assertIn('Test error message', messages[0])
-
-
 class TestLoggable(unittest.TestCase):
     def test_logger_initialization(self):
         loggable = Loggable()
         self.assertIsInstance(loggable.logger, logging.Logger)
-        self.assertIsInstance(loggable.log_handler, ConsolePanelHandler)
+        # self.assertIsInstance(loggable.log_handler, ConsolePanelHandler)
 
 
 class TestBuildable(unittest.TestCase):

@@ -1,4 +1,4 @@
-from . import ladder
+from . import ladder, meta
 from .frames import (
     FrameWithTreeViewAndScrollbar,
     LogWindow,
@@ -20,9 +20,10 @@ __all__ = (
     'FrameWithTreeViewAndScrollbar',
     'ladder',
     'LogWindow',
-    'MenuItem',
     'ObjectEditField',
     'ObjectEditTaskFrame',
+    'MenuItem',
+    'meta',
     'PyroxFrame',
     'ProgressBar',
     'PyroxGuiObject',

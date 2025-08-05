@@ -15,7 +15,6 @@ from .list import (
 
 from .meta import (
     Buildable,
-    ConsolePanelHandler,
     EnforcesNaming,
     Loggable,
     PyroxObject,
@@ -35,7 +34,6 @@ __all__ = (
     'ApplicationTkType',
     'BaseMenu',
     'Buildable',
-    'ConsolePanelHandler',
     'EnforcesNaming',
     'HashList',
     'Loggable',

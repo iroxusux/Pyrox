@@ -9,10 +9,10 @@ import sys
 
 
 from pyrox.services.file import get_open_file, get_save_file
-from pyrox.models import ApplicationTask
+from pyrox.applications import AppTask
 
 
-class FileTask(ApplicationTask):
+class FileTask(AppTask):
     """PLC Tasker `Task`
 
     Injects `New` and `Save` tk menu buttons into parent :class:`Application`.
@@ -44,7 +44,7 @@ class FileTask(ApplicationTask):
                 "A controller is currently loaded. Do you want to continue and open a new file?"
             )
             if not proceed:
-                self.logger.info('User cancelled opening a new file.')
+                self.logger.debug('User cancelled file operation.')
                 return False
         return True
 
@@ -62,7 +62,6 @@ class FileTask(ApplicationTask):
         """Create a new controller instance."""
         if not self._prompt_for_controller_closing():
             return
-        self.application.controller = None
         self.application.new_controller()
 
     def _on_file_open(self,
@@ -77,8 +76,6 @@ class FileTask(ApplicationTask):
             self.logger.warning('No file selected...')
             return
 
-        self.application.controller = None
-        self.logger.info('File location:\n%s', file_location)
         self.application.load_controller(file_location)
 
     def _on_file_save(self,
@@ -100,7 +97,6 @@ class FileTask(ApplicationTask):
             self.logger.warning('No save location selected...')
             return
 
-        self.logger.info('Save location:\n%s', file_location)
         self.application.save_controller(file_location)
 
     def inject(self) -> None:

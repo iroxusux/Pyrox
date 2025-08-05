@@ -2,7 +2,6 @@
 from __future__ import annotations
 
 from enum import Enum
-import inspect
 import logging
 import json
 from pathlib import Path
@@ -12,7 +11,6 @@ from typing import Any, Callable, Optional
 
 __all__ = (
     'Buildable',
-    'ConsolePanelHandler',
     'DEF_APP_NAME',
     'DEF_AUTHOR_NAME',
     'DEF_DATE_FMT',
@@ -410,17 +408,6 @@ class PyroxObject(SnowFlake):
     def __repr__(self) -> str:
         return self.__class__.__name__
 
-    def get_all_properties(self) -> dict:
-        """Get all properties of this object.
-
-        Returns:
-            dict: A dictionary of all properties of this object.
-        """
-        return {
-            name: getattr(self, name)
-            for name, _ in inspect.getmembers(type(self), lambda v: isinstance(v, property))
-        }
-
 
 class NamedPyroxObject(PyroxObject):
     """A base class for all Pyrox objects that have a name.
@@ -431,7 +418,11 @@ class NamedPyroxObject(PyroxObject):
     """
     __slots__ = ('_name', '_description')
 
-    def __init__(self, name: Optional[str] = None, description: Optional[str] = None):
+    def __init__(
+        self,
+        name: Optional[str] = None,
+        description: Optional[str] = None
+    ) -> None:
         super().__init__()
         self._name = name or self.__class__.__name__
         self._description = description or ''
@@ -637,104 +628,28 @@ class SupportsJsonLoading(SupportsLoading):
             raise IOError(f"Failed to load JSON from {path}: {e}")
 
 
-class ConsolePanelHandler(logging.Handler):
-    """A handler for logging that emits messages to specified callbacks.
-
-    Attributes:
-        callback: Callback to call when emitting a message.
-        formatter: The logging formatter for this handler.
-    """
-    __slots__ = ('_callback', '_formatter')
-
-    def __init__(self, callback: Optional[Callable] = None):
-        super().__init__()
-        self._callback: Callable = callback
-        self._formatter: logging.Formatter = logging.Formatter(fmt=DEF_FORMATTER, datefmt=DEF_DATE_FMT)
-
-    @property
-    def formatter(self) -> logging.Formatter:
-        """Get the formatter for this handler.
-
-        Returns:
-            logging.Formatter: The current formatter.
-        """
-        return self._formatter
-
-    @formatter.setter
-    def formatter(self, value: logging.Formatter) -> None:
-        """Set the formatter for this handler.
-
-        Args:
-            value: Formatter to set for this handler.
-
-        Raises:
-            TypeError: If the value is not a logging.Formatter or None.
-        """
-        if isinstance(value, logging.Formatter) or value is None:
-            self._formatter = value
-        else:
-            raise TypeError(f'Expected logging.Formatter, got {type(value)}')
-
-    def emit(self, record: logging.LogRecord) -> None:
-        """Emit a log record to the callback.
-
-        Args:
-            record: The log record to emit.
-        """
-        if self._callback:
-            self._callback(self.format(record))
-
-    def set_callback(self, callback: Callable) -> None:
-        """Set the callback for this handler's emit method.
-
-        Args:
-            callback: Callback to set for this class's emit method.
-
-        Raises:
-            TypeError: If the callback is not callable.
-        """
-        if not callable(callback):
-            raise TypeError(f'Expected callable, got {type(callback)}')
-        self._callback = callback
-
-
 class Loggable(NamedPyroxObject):
     """A loggable entity, using the logging.Logger class.
 
     Args:
         name: Name to assign to this handler. Otherwise, defaults to class name.
-        add_to_globals: Whether to add this loggable's handler to the global handlers list.
 
     Attributes:
         logger: Logger for this loggable object.
-        log_handler: User Handler for this loggable object.
     """
-    global_handlers: list[logging.Handler] = []
+    curr_logging_level = logging.INFO
     _curr_loggers = {}
 
-    __slots__ = ('_logger', '_log_handler')
+    __slots__ = ('_logger')
 
-    def __init__(self, add_to_globals: bool = False, name: Optional[str] = None, **_):
+    def __init__(
+        self,
+        name: Optional[str] = None
+    ) -> None:
         super().__init__(name=name)
-        self._logger: logging.Logger = self._get(name=name or self.__class__.__name__,)
-        self._log_handler = next((hndl for hndl in self._logger.handlers if isinstance(hndl, ConsolePanelHandler)), None)
-        if not self._log_handler:
-            self._log_handler: ConsolePanelHandler = ConsolePanelHandler()
-            self._logger.addHandler(self._log_handler)
-
-        if add_to_globals is True and self._log_handler not in Loggable.global_handlers:
-            Loggable.global_handlers.append(self._log_handler)
-
-    @property
-    def log_handler(self) -> ConsolePanelHandler:
-        """User Handler for this loggable object.
-
-        Meant for user to modify with their own callbacks, for easy log displaying.
-
-        Returns:
-            ConsolePanelHandler: The log handler for this object.
-        """
-        return self._log_handler
+        self._logger: logging.Logger = self._get_or_create_logger(
+            name=name or self.__class__.__name__,
+        )
 
     @property
     def logger(self) -> logging.Logger:
@@ -746,48 +661,85 @@ class Loggable(NamedPyroxObject):
         return self._logger
 
     @staticmethod
-    def _get(name: str = __name__, ignore_globals: bool = False) -> logging.Logger:
+    def _create_logger(name: str = __name__) -> logging.Logger:
+        """Create a logger that outputs to stderr (which gets captured)."""
+        logger = logging.getLogger(name)
+
+        # Remove any existing handlers to avoid duplicates
+        for handler in logger.handlers[:]:
+            logger.removeHandler(handler)
+
+        # Use stdout handler - this will be captured by our LogWindow
+        handler = logging.StreamHandler(sys.stderr)
+        formatter = logging.Formatter(
+            fmt=DEF_FORMATTER,
+            datefmt=DEF_DATE_FMT
+        )
+        logger.propagate = False
+        logger.setLevel(Loggable.curr_logging_level)
+        handler.setLevel(Loggable.curr_logging_level)
+        handler.setFormatter(formatter)
+        logger.addHandler(handler)
+
+        Loggable._curr_loggers[name] = logger
+        return logger
+
+    @staticmethod
+    def _get_or_create_logger(
+        name: str = __name__,
+    ) -> logging.Logger:
         """Get or create a logger with the specified name.
 
         Args:
             name: The name for the logger.
-            ignore_globals: Whether to ignore global handlers.
 
         Returns:
             logging.Logger: The logger instance.
         """
-        if Loggable._curr_loggers.get(name):
-            return Loggable._curr_loggers.get(name)
-
-        _logger = logging.getLogger(name)
-        _logger.setLevel(logging.INFO)
-
-        cons = logging.StreamHandler()
-        cons.setLevel(logging.INFO)
-
-        formatter = logging.Formatter(fmt=DEF_FORMATTER, datefmt=DEF_DATE_FMT)
-
-        cons.setFormatter(formatter)
-        _logger.addHandler(cons)
-
-        # additionally, apply any global handlers to the newly created logger
-        if not ignore_globals:
-            for glob in Loggable.global_handlers:
-                if glob not in _logger.handlers:
-                    _logger.addHandler(glob)
-
-        Loggable._curr_loggers[name] = _logger
-        return _logger
+        return Loggable._curr_loggers.get(name, Loggable._create_logger(name=name))
 
     @staticmethod
-    def init_sys_excepthook():
-        """Initialize the system exception hook to log uncaught exceptions."""
-        def excepthook(exc_type, exc_value, exc_traceback):
-            if issubclass(exc_type, KeyboardInterrupt):
-                return
-            root_logger = logging.getLogger()
-            root_logger.error("Uncaught exception", exc_info=(exc_type, exc_value, exc_traceback))
-        sys.excepthook = excepthook
+    def force_all_loggers_to_stderr():
+        """Force all existing loggers to use sys.stderr."""
+
+        # Update root logger
+        root_logger = logging.getLogger()
+        for handler in root_logger.handlers[:]:
+            root_logger.removeHandler(handler)
+
+        stderr_handler = logging.StreamHandler(sys.stderr)
+        formatter = logging.Formatter(
+            fmt=DEF_FORMATTER,
+            datefmt=DEF_DATE_FMT
+        )
+        stderr_handler.setFormatter(formatter)
+        root_logger.addHandler(stderr_handler)
+        root_logger.setLevel(Loggable.curr_logging_level)
+        root_logger.propagate = False
+
+        # Update all existing loggers in the manager
+        for name in list(logging.Logger.manager.loggerDict.keys()):
+            logger = logging.getLogger(name)
+            if isinstance(logger, logging.Logger):
+                for handler in logger.handlers[:]:
+                    logger.removeHandler(handler)
+
+                stderr_handler = logging.StreamHandler(sys.stderr)
+                stderr_handler.setFormatter(formatter)
+                logger.addHandler(stderr_handler)
+                logger.setLevel(Loggable.curr_logging_level)
+                logger.propagate = False
+
+        # Update the Loggable class loggers too
+        for name, logger in Loggable._curr_loggers.items():
+            for handler in logger.handlers[:]:
+                logger.removeHandler(handler)
+
+            stderr_handler = logging.StreamHandler(sys.stderr)
+            stderr_handler.setFormatter(formatter)
+            logger.addHandler(stderr_handler)
+            logger.setLevel(Loggable.curr_logging_level)
+            logger.propagate = False
 
     @staticmethod
     def set_logging_level(log_level: int = logging.INFO):
@@ -796,6 +748,7 @@ class Loggable(NamedPyroxObject):
         Args:
             log_level: The logging level to set for all current loggers.
         """
+        Loggable.curr_logging_level = log_level
         for logger in Loggable._curr_loggers.values():
             logger.setLevel(log_level)
             for handler in logger.handlers:

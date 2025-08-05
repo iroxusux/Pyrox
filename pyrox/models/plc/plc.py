@@ -5,7 +5,15 @@ from collections import defaultdict
 from dataclasses import dataclass, field
 from enum import Enum
 import re
-from typing import (Callable, Dict, List, Optional, Self, TypeVar, Union,)
+from typing import (
+    Callable,
+    Dict,
+    List,
+    Optional,
+    Self,
+    TypeVar,
+    Union,
+)
 
 from .mod import IntrospectiveModule
 from ..abc.meta import EnforcesNaming, Loggable, PyroxObject, NamedPyroxObject
@@ -22,6 +30,7 @@ __all__ = (
     'ConnectionParameters',
     'Controller',
     'ControllerModificationSchema',
+    'ControllerSafetyInfo',
     'Datatype',
     'DatatypeMember',
     'DataValueMember',
@@ -270,6 +279,9 @@ class PlcObject(EnforcesNaming, PyroxObject):
                  controller: 'Controller' = None,
                  default_loader: Callable = lambda: defaultdict(None),
                  meta_data: Union[dict, str] = defaultdict(None)):
+        if not isinstance(controller, (Controller, type(None))):
+            raise TypeError("Controller must be of type Controller or None!")
+
         self._meta_data = meta_data or default_loader()
         self._controller = controller
         self._on_compiling: list[Callable] = []
@@ -1045,7 +1057,7 @@ class ContainsTags(NamedPlcObject):
         """compile this object from its meta data
         """
         self._tags: HashList = HashList('name')
-        [self._tags.append(self.config.tag_type(meta_data=x, controller=self))
+        [self._tags.append(self.config.tag_type(meta_data=x, controller=self.controller))
          for x in self.raw_tags]
 
     def add_tag(self, tag: 'Tag', skip_compile: bool = False) -> None:
@@ -1530,7 +1542,6 @@ class Datatype(NamedPlcObject):
             else:
                 datatype = self.controller.datatypes.get(member['@DataType'], None)
                 if not datatype:
-                    self.logger.warning(f"Datatype {member['@DataType']} not found for member {member.name} in {self.name}.")
                     continue
                 self._endpoint_operands.extend([f'.{member.name}{x}' for x in datatype.endpoint_operands])
         return self._endpoint_operands
@@ -2058,6 +2069,7 @@ class RungElement:
     root_branch_id: Optional[str] = None  # ID of the parent branch if this is a nested branch
     branch_level: Optional[int] = 0  # Level of the branch in the rung
     position: int = 0  # Sequential position in rung
+    rung: Optional[Rung] = None  # Reference to the Rung this element belongs to
     rung_number: int = 0  # Rung number this element belongs to
 
 
@@ -2187,6 +2199,8 @@ class Rung(PlcObject):
 
     @text.setter
     def text(self, value: str):
+        if value is not None and not value.endswith(';'):
+            value += ';'
         self['Text'] = value
         self._parse_rung_sequence()
 
@@ -2315,6 +2329,7 @@ class Rung(PlcObject):
                     root_branch_id=root_branch_id,
                     branch_level=branch_level,
                     position=position,
+                    rung=self,
                     rung_number=int(self.number)
                 )
 
@@ -2349,9 +2364,15 @@ class Rung(PlcObject):
                 branch_id = self._branches[branch.branch_id].root_branch_id
                 branch_level = branch_level_history.pop() if branch_level_history else 0
 
-                branch_end = RungElement(element_type=RungElementType.BRANCH_END,
-                                         branch_id=branch.branch_id, root_branch_id=branch.root_branch_id,
-                                         branch_level=branch_level, position=position, rung_number=int(self.number))
+                branch_end = RungElement(
+                    element_type=RungElementType.BRANCH_END,
+                    branch_id=branch.branch_id,
+                    root_branch_id=branch.root_branch_id,
+                    branch_level=branch_level,
+                    position=position,
+                    rung=self,
+                    rung_number=int(self.number)
+                )
 
                 self._rung_sequence.append(branch_end)
                 position += 1
@@ -2368,12 +2389,18 @@ class Rung(PlcObject):
                     # update the previous nested branch's end position
                     parent_branch.nested_branches[-1].end_position = position - 1  # ends at the previous position
 
-                next_branch = RungElement(element_type=RungElementType.BRANCH_NEXT, branch_id=branch_id,
-                                          root_branch_id=root_branch_id, branch_level=branch_level,
-                                          position=position, rung_number=int(self.number))
+                next_branch = RungElement(
+                    element_type=RungElementType.BRANCH_NEXT,
+                    branch_id=branch_id,
+                    root_branch_id=root_branch_id,
+                    branch_level=branch_level,
+                    position=position,
+                    rung=self,
+                    rung_number=int(self.number)
+                )
                 nested_branch = RungBranch(branch_id=branch_id, start_position=position,
                                            end_position=-1, root_branch_id=parent_branch.branch_id)
-                
+
                 parent_branch.nested_branches.append(nested_branch)
                 self._branches[branch_id] = nested_branch
                 self._rung_sequence.append(next_branch)
@@ -2382,9 +2409,16 @@ class Rung(PlcObject):
             else:  # Regular instruction
                 instruction = self._find_instruction_by_text(token, instruction_index)
                 if instruction:
-                    element = RungElement(element_type=RungElementType.INSTRUCTION, instruction=instruction,
-                                          position=position, branch_id=branch_id, root_branch_id=root_branch_id,
-                                          branch_level=branch_level, rung_number=int(self.number))
+                    element = RungElement(
+                        element_type=RungElementType.INSTRUCTION,
+                        instruction=instruction,
+                        position=position,
+                        branch_id=branch_id,
+                        root_branch_id=root_branch_id,
+                        branch_level=branch_level,
+                        rung=self,
+                        rung_number=int(self.number)
+                    )
 
                     self._rung_sequence.append(element)
                     position += 1
@@ -3494,12 +3528,10 @@ class Tag(NamedPlcObject):
 
         datatype = self.controller.datatypes.get(self.datatype, None)
         if not datatype:
-            self.logger.warning(f"Datatype {self.datatype} not found for tag {self.name}.")
             return []
 
         endpoints = datatype.endpoint_operands
         if not endpoints:
-            self.logger.warning(f"No endpoint operands found for datatype {self.datatype} in tag {self.name}.")
             return []
 
         return [TagEndpoint(meta_data=f'{self.name}{x}',
@@ -3645,6 +3677,119 @@ class DataValueMember(NamedPlcObject):
         return self._parent
 
 
+class ControllerSafetyInfo(PlcObject):
+    def __init__(self,
+                 meta_data: str,
+                 controller: 'Controller'):
+        super().__init__(meta_data=meta_data,
+                         controller=controller)
+
+    @property
+    def safety_locked(self) -> str:
+        return self['@SafetyLocked']
+
+    @safety_locked.setter
+    def safety_locked(self, value: str):
+        if not self.is_valid_rockwell_bool(value):
+            raise ValueError("Safety locked must be a valid boolean string (true/false)!")
+
+        self['@SafetyLocked'] = value
+
+    @property
+    def signature_runmode_protect(self) -> str:
+        return self['@SignatureRunModeProtect']
+
+    @signature_runmode_protect.setter
+    def signature_runmode_protect(self, value: str):
+        if not self.is_valid_rockwell_bool(value):
+            raise ValueError("Signature run mode protect must be a valid boolean string (true/false)!")
+
+        self['@SignatureRunModeProtect'] = value
+
+    @property
+    def configure_safety_io_always(self) -> str:
+        return self['@ConfigureSafetyIOAlways']
+
+    @configure_safety_io_always.setter
+    def configure_safety_io_always(self, value: str):
+        if not self.is_valid_rockwell_bool(value):
+            raise ValueError("Configure safety IO always must be a valid boolean string (true/false)!")
+
+        self['@ConfigureSafetyIOAlways'] = value
+
+    @property
+    def safety_level(self) -> str:
+        return self['@SafetyLevel']
+
+    @safety_level.setter
+    def safety_level(self, value: str):
+        if not isinstance(value, str):
+            raise ValueError("Safety level must be a string!")
+
+        if not any(x in value for x in ['SIL1', 'SIL2', 'SIL3', 'SIL4']):
+            raise ValueError("Safety level must contain one of: SIL1, SIL2, SIL3, SIL4!")
+
+        self['@SafetyLevel'] = value
+
+    @property
+    def safety_tag_map(self) -> list[dict]:
+        if self['SafetyTagMap'] is None:
+            return []
+
+        if not isinstance(self['SafetyTagMap'], str):
+            raise ValueError("Safety tag map must be a string!")
+
+        string_data = self['SafetyTagMap'].strip().split(',')
+        if len(string_data) == 1 and string_data[0] == '':
+            return []
+
+        dict_list = []
+        for pair in string_data:
+            dict_list.append({
+                '@Name': pair.split('=')[0].strip(),
+                'TagName': pair.split('=')[0].strip(),
+                'SafetyTagName': pair.split('=')[1].strip()
+            })
+
+        return dict_list
+
+    @safety_tag_map.setter
+    def safety_tag_map(self, value: str):
+        if not isinstance(value, str):
+            raise ValueError("Safety tag map must be a string!")
+
+        if not value:
+            self['SafetyTagMap'] = None
+            return
+
+        # Validate format: should be "tag_name=safety_tag_name, ..."
+        pairs = value.split(',')
+        for pair in pairs:
+            if '=' not in pair or len(pair.split('=')) != 2:
+                raise ValueError("Safety tag map must be in the format 'tag_name=safety_tag_name, ...'")
+
+        self['SafetyTagMap'] = value.strip()
+
+    def add_safety_tag_mapping(
+        self,
+        tag_name: str,
+        safety_tag_name: str
+    ):
+        """Add a new safety tag mapping to the safety tag map."""
+        if not isinstance(tag_name, str) or not isinstance(safety_tag_name, str):
+            raise ValueError("Tag names must be strings!")
+
+        if not self['SafetyTagMap']:
+            self['SafetyTagMap'] = f"{tag_name}={safety_tag_name}"
+        else:
+            self['SafetyTagMap'] = self['SafetyTagMap'].strip()
+            if f',{tag_name}={safety_tag_name}' in self['SafetyTagMap']:
+                self['SafetyTagMap'] = self['SafetyTagMap'].replace(f",{tag_name}={safety_tag_name}", '')
+            elif f"{tag_name}={safety_tag_name}," in self['SafetyTagMap']:
+                self['SafetyTagMap'] = self['SafetyTagMap'].replace(f"{tag_name}={safety_tag_name},", '')
+            self['SafetyTagMap'] += f",{tag_name}={safety_tag_name}"
+
+
 @dataclass
 class ControllerConfiguration:
     aoi_type: type = AddOnInstruction
@@ -3699,6 +3844,7 @@ class Controller(NamedPlcObject, Loggable):
         self._modules: Optional[HashList[Module]] = None
         self._programs: Optional[HashList[Program]] = None
         self._tags: Optional[HashList[Tag]] = None
+        self._safety_info: Optional[ControllerSafetyInfo] = None
 
         if compile_immediately:
             self._compile_from_meta_data()
@@ -3851,6 +3997,12 @@ class Controller(NamedPlcObject, Loggable):
     @property
     def root_meta_data(self) -> dict:
         return self._root_meta_data
+
+    @property
+    def safety_info(self) -> Optional[ControllerSafetyInfo]:
+        if not self._safety_info:
+            self._compile_safety_info()
+        return self._safety_info
 
     @property
     def slot(self) -> int:
@@ -4027,6 +4179,18 @@ class Controller(NamedPlcObject, Loggable):
                 else:
                     self.logger.warning(f'Invalid tag data: {tag}. Skipping...')
 
+    def _compile_safety_info(self) -> None:
+        """Compile safety information from the controller's safety info."""
+        if self._safety_info is None:
+            safety_info_data = self.content_meta_data['Controller'].get('SafetyInfo', None)
+            if safety_info_data:
+                self._safety_info = ControllerSafetyInfo(
+                    meta_data=safety_info_data,
+                    controller=self
+                )
+            else:
+                self.logger.warning('No SafetyInfo found in controller metadata.')
+
     def _compile_from_meta_data(self):
         """Compile this controller from its meta data."""
         self.logger.info('Compiling controller from meta data...')
@@ -4044,6 +4208,9 @@ class Controller(NamedPlcObject, Loggable):
 
         self._tags = None
         self._compile_tags()
+
+        self._safety_info = None
+        self._compile_safety_info()
 
     def _assign_address(self,
                         address: str):
@@ -4067,6 +4234,7 @@ class Controller(NamedPlcObject, Loggable):
             raise TypeError(f"{item.name} must be of type {item_class}!")
 
         if item.name in target_list:
+            self.logger.debug(f'{item.name} already exists in this collection. Updating...')
             target_meta_list.remove(next((x for x in target_meta_list if x['@Name'] == item.name), None))
 
         target_meta_list.append(item.meta_data)
@@ -4483,13 +4651,14 @@ class ControllerReport(Loggable):
         return self
 
 
-class ControllerModificationSchema:
+class ControllerModificationSchema(Loggable):
     """
     Defines a schema for modifying a controller, such as migrating assets between controllers,
     or importing assets from an L5X dictionary.
     """
 
     def __init__(self, source: Controller, destination: Controller):
+        super().__init__()
         self.source = source
         self.destination = destination
         self.actions = []  # List of migration actions
@@ -4595,8 +4764,20 @@ class ControllerModificationSchema:
             raise ValueError(f'No valid L5X data found in file {file_location}')
         self.add_import_from_l5x_dict(l5x_dict, asset_types)
 
+    def add_safety_tag_mapping(self, std_tag: str, sfty_tag: str):
+        """Add a mapping for tags from standard to safety code space."""
+        if not isinstance(std_tag, str) or not isinstance(sfty_tag, str):
+            raise ValueError('Source and destination tags must be strings.')
+        self.actions.append({
+            'type': 'safety_tag_mapping',
+            'standard': std_tag,
+            'safety': sfty_tag
+        })
+
     def execute(self):
         """Perform all migration and import actions."""
+        self.logger.info('Executing controller modification schema...')
+
         for action in self.actions:
             if action['type'] == 'datatype':
                 dt = self.source.datatypes.get(action['name'])
@@ -4645,5 +4826,7 @@ class ControllerModificationSchema:
                     if routine:
                         new_rung = Rung(meta_data=action['new_rung'], controller=self.destination, routine=routine)
                         routine.add_rung(rung=new_rung, index=action['rung_number'], skip_compile=True)
+            elif action['type'] == 'safety_tag_mapping':
+                self.destination.safety_info.add_safety_tag_mapping(action['standard'], action['safety'])
         # Compile after all imports
         self.destination.compile()

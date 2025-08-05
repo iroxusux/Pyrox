@@ -909,7 +909,7 @@ class TestRung(unittest.TestCase):
             "@Number": "0",
             "@Type": "RLL",
             "Comment": "Test rung",
-            "Text": "XIC(Tag1) OTE(Tag2)"
+            "Text": "XIC(Tag1) OTE(Tag2);"
         }
         self.routine = Routine(meta_data={"@Name": "Routine1"}, controller=self.controller)
         self.rung = Rung(meta_data=self.meta_data, controller=self.controller, routine=self.routine)
@@ -939,9 +939,9 @@ class TestRung(unittest.TestCase):
         self.assertIs(self.rung.routine, new_routine)
 
     def test_text_property(self):
-        self.assertEqual(self.rung.text, "XIC(Tag1) OTE(Tag2)")
+        self.assertEqual(self.rung.text, "XIC(Tag1) OTE(Tag2);")
         self.rung.text = "XIC(Tag3) OTE(Tag4)"
-        self.assertEqual(self.rung.text, "XIC(Tag3) OTE(Tag4)")
+        self.assertEqual(self.rung.text, "XIC(Tag3) OTE(Tag4);")
 
     def test_type_property(self):
         self.assertEqual(self.rung.type, "RLL")
@@ -1159,7 +1159,7 @@ class TestRung(unittest.TestCase):
 
         self.rung.add_instruction("XIC(Tag1)")
 
-        self.assertEqual(self.rung.text, "XIC(Tag1)")
+        self.assertEqual(self.rung.text, "XIC(Tag1);")
         self.assertEqual(len(self.rung.instructions), 1)
 
     def test_add_instruction_invalid_format(self):
@@ -1189,7 +1189,7 @@ class TestRung(unittest.TestCase):
 
         self.rung.add_instruction("OTE(Tag3)")
 
-        self.assertEqual(self.rung.text, "XIC(Tag1)XIO(Tag2)OTE(Tag3)")
+        self.assertEqual(self.rung.text, "XIC(Tag1)XIO(Tag2)OTE(Tag3);")
 
     def test_add_instruction_at_beginning(self):
         """Test adding instruction at beginning."""
@@ -1197,13 +1197,13 @@ class TestRung(unittest.TestCase):
 
         self.rung.add_instruction("XIC(NewTag)", position=0)
 
-        self.assertEqual(self.rung.text, "XIC(NewTag)XIC(Tag1)XIO(Tag2)OTE(Tag3)")
+        self.assertEqual(self.rung.text, "XIC(NewTag)XIC(Tag1)XIO(Tag2)OTE(Tag3);")
 
     def test_add_instruction_at_middle_position(self):
         """Test adding instruction at middle position."""
         self.rung.text = "XIC(Tag1)XIO(Tag2)OTE(Tag3)"
         self.rung.add_instruction("XIC(NewTag)", position=1)
-        self.assertEqual(self.rung.text, "XIC(Tag1)XIC(NewTag)XIO(Tag2)OTE(Tag3)")
+        self.assertEqual(self.rung.text, "XIC(Tag1)XIC(NewTag)XIO(Tag2)OTE(Tag3);")
 
     def test_add_instruction_position_out_of_range(self):
         """Test adding instruction with position beyond range."""
@@ -1212,7 +1212,7 @@ class TestRung(unittest.TestCase):
         self.rung.add_instruction("OTE(Tag3)", position=10)
 
         # Should append to end
-        self.assertEqual(self.rung.text, "XIC(Tag1)XIO(Tag2)OTE(Tag3)")
+        self.assertEqual(self.rung.text, "XIC(Tag1)XIO(Tag2)OTE(Tag3);")
 
     def test_remove_instruction_empty_rung(self):
         """Test removing instruction from empty rung."""
@@ -1221,7 +1221,7 @@ class TestRung(unittest.TestCase):
         with self.assertRaises(ValueError) as context:
             self.rung.remove_instruction("XIC(Tag1)")
 
-        self.assertIn("Cannot remove instruction from empty rung", str(context.exception))
+        self.assertIn("No instructions found in rung!", str(context.exception))
 
     def test_remove_instruction_no_instructions(self):
         """Test removing instruction when no instructions exist."""
@@ -1236,23 +1236,23 @@ class TestRung(unittest.TestCase):
         """Test removing instruction by string."""
         self.rung.text = "XIC(Tag1)XIO(Tag2)OTE(Tag3)"
         self.rung.remove_instruction("XIO(Tag2)")
-        self.assertEqual(self.rung.text, "XIC(Tag1)OTE(Tag3)")
+        self.assertEqual(self.rung.text, "XIC(Tag1)OTE(Tag3);")
 
     def test_remove_instruction_by_index(self):
         """Test removing instruction by index."""
         self.rung.text = "XIC(Tag1)XIO(Tag2)OTE(Tag3)"
         self.rung.remove_instruction(1)  # Remove middle instruction
-        self.assertEqual(self.rung.text, "XIC(Tag1)OTE(Tag3)")
+        self.assertEqual(self.rung.text, "XIC(Tag1)OTE(Tag3);")
 
     def test_remove_instruction_by_logix_instruction(self):
         """Test removing instruction by LogixInstruction object."""
-        self.rung.text = "XIC(Tag1)XIO(Tag2)OTE(Tag3)"
+        self.rung.text = "XIC(Tag1)XIO(Tag2)OTE(Tag3);"
 
         # Mock instruction object
         mock_instruction = MagicMock(spec=LogixInstruction)
         mock_instruction.meta_data = "XIO(Tag2)"
         self.rung.remove_instruction(mock_instruction)
-        self.assertEqual(self.rung.text, "XIC(Tag1)OTE(Tag3)")
+        self.assertEqual(self.rung.text, "XIC(Tag1)OTE(Tag3);")
 
     def test_remove_instruction_index_out_of_range(self):
         """Test removing instruction with index out of range."""
@@ -1285,19 +1285,19 @@ class TestRung(unittest.TestCase):
 
         self.rung.remove_instruction("XIC(Tag1)")
 
-        self.assertEqual(self.rung.text, "")
+        self.assertEqual(self.rung.text, ";")
 
     def test_replace_instruction_by_string(self):
         """Test replacing instruction by string."""
         self.rung.text = "XIC(Tag1)XIO(Tag2)OTE(Tag3)"
         self.rung.replace_instruction("XIO(Tag2)", "XIC(NewTag)")
-        self.assertEqual(self.rung.text, "XIC(Tag1)XIC(NewTag)OTE(Tag3)")
+        self.assertEqual(self.rung.text, "XIC(Tag1)XIC(NewTag)OTE(Tag3);")
 
     def test_replace_instruction_by_index(self):
         """Test replacing instruction by index."""
         self.rung.text = "XIC(Tag1)XIO(Tag2)OTE(Tag3)"
         self.rung.replace_instruction(1, "XIC(NewTag)")
-        self.assertEqual(self.rung.text, "XIC(Tag1)XIC(NewTag)OTE(Tag3)")
+        self.assertEqual(self.rung.text, "XIC(Tag1)XIC(NewTag)OTE(Tag3);")
 
     def test_replace_instruction_by_logix_instruction(self):
         """Test replacing instruction by LogixInstruction object."""
@@ -1306,7 +1306,7 @@ class TestRung(unittest.TestCase):
         mock_instruction = MagicMock(spec=LogixInstruction)
         mock_instruction.meta_data = "XIO(Tag2)"
         self.rung.replace_instruction(mock_instruction, "XIC(NewTag)")
-        self.assertEqual(self.rung.text, "XIC(Tag1)XIC(NewTag)OTE(Tag3)")
+        self.assertEqual(self.rung.text, "XIC(Tag1)XIC(NewTag)OTE(Tag3);")
 
     def test_replace_instruction_invalid_new_format(self):
         """Test replacing instruction with invalid new instruction format."""
@@ -1337,13 +1337,13 @@ class TestRung(unittest.TestCase):
         """Test moving instruction by string."""
         self.rung.text = "XIC(Tag1)XIO(Tag2)XIC(Tag3)OTE(Tag4)"
         self.rung.move_instruction("XIO(Tag2)", 2)
-        self.assertEqual(self.rung.text, "XIC(Tag1)XIC(Tag3)XIO(Tag2)OTE(Tag4)")
+        self.assertEqual(self.rung.text, "XIC(Tag1)XIC(Tag3)XIO(Tag2)OTE(Tag4);")
 
     def test_move_instruction_by_index(self):
         """Test moving instruction by index."""
         self.rung.text = "XIC(Tag1)XIO(Tag2)XIC(Tag3)OTE(Tag4)"
         self.rung.move_instruction(1, 2)
-        self.assertEqual(self.rung.text, "XIC(Tag1)XIC(Tag3)XIO(Tag2)OTE(Tag4)")
+        self.assertEqual(self.rung.text, "XIC(Tag1)XIC(Tag3)XIO(Tag2)OTE(Tag4);")
 
     def test_move_instruction_same_position(self):
         """Test moving instruction to same position (no-op)."""
@@ -1503,19 +1503,19 @@ class TestRung(unittest.TestCase):
         """Test removing instruction with specific occurrence."""
         self.rung.text = "XIC(Tag1)XIC(Tag1)XIO(Tag2)XIC(Tag1)"
         self.rung.remove_instruction("XIC(Tag1)", occurrence=1)
-        self.assertEqual(self.rung.text, "XIC(Tag1)XIO(Tag2)XIC(Tag1)")
+        self.assertEqual(self.rung.text, "XIC(Tag1)XIO(Tag2)XIC(Tag1);")
 
     def test_replace_instruction_occurrence_parameter(self):
         """Test replacing instruction with specific occurrence."""
         self.rung.text = "XIC(Tag1)XIC(Tag1)XIO(Tag2)"
         self.rung.replace_instruction("XIC(Tag1)", "XIC(NewTag)", occurrence=1)
-        self.assertEqual(self.rung.text, "XIC(Tag1)XIC(NewTag)XIO(Tag2)")
+        self.assertEqual(self.rung.text, "XIC(Tag1)XIC(NewTag)XIO(Tag2);")
 
     def test_move_instruction_occurrence_parameter(self):
         """Test moving instruction with specific occurrence."""
         self.rung.text = "XIC(Tag1)XIC(Tag1)XIO(Tag2)OTE(Tag3)"
         self.rung.move_instruction("XIC(Tag1)", 2, occurrence=1)
-        self.assertEqual(self.rung.text, "XIC(Tag1)XIO(Tag2)XIC(Tag1)OTE(Tag3)")
+        self.assertEqual(self.rung.text, "XIC(Tag1)XIO(Tag2)XIC(Tag1)OTE(Tag3);")
 
     def test_add_instruction_calls_refresh(self):
         """Test that add_instruction calls refresh_internal_structures."""
@@ -1558,39 +1558,39 @@ class TestRung(unittest.TestCase):
 
         # Add several instructions
         self.rung.add_instruction("XIC(Tag1)")
-        self.assertEqual(self.rung.text, "XIC(Tag1)")
+        self.assertEqual(self.rung.text, "XIC(Tag1);")
 
         self.rung.add_instruction("XIO(Tag2)")
-        self.assertEqual(self.rung.text, "XIC(Tag1)XIO(Tag2)")
+        self.assertEqual(self.rung.text, "XIC(Tag1)XIO(Tag2);")
 
         self.rung.add_instruction("OTE(Tag3)")
-        self.assertEqual(self.rung.text, "XIC(Tag1)XIO(Tag2)OTE(Tag3)")
+        self.assertEqual(self.rung.text, "XIC(Tag1)XIO(Tag2)OTE(Tag3);")
 
         # Insert in middle
         self.rung.add_instruction("XIC(MiddleTag)", position=1)
-        self.assertEqual(self.rung.text, "XIC(Tag1)XIC(MiddleTag)XIO(Tag2)OTE(Tag3)")
+        self.assertEqual(self.rung.text, "XIC(Tag1)XIC(MiddleTag)XIO(Tag2)OTE(Tag3);")
 
         # Replace instruction
         self.rung.replace_instruction("XIO(Tag2)", "XIC(ReplacedTag)")
-        self.assertEqual(self.rung.text, "XIC(Tag1)XIC(MiddleTag)XIC(ReplacedTag)OTE(Tag3)")
+        self.assertEqual(self.rung.text, "XIC(Tag1)XIC(MiddleTag)XIC(ReplacedTag)OTE(Tag3);")
 
         # Remove instruction
         self.rung.remove_instruction("XIC(MiddleTag)")
-        self.assertEqual(self.rung.text, "XIC(Tag1)XIC(ReplacedTag)OTE(Tag3)")
+        self.assertEqual(self.rung.text, "XIC(Tag1)XIC(ReplacedTag)OTE(Tag3);")
 
     def test_insert_branch_empty_rung(self):
         """Test inserting branch in empty rung raises error."""
         self.rung.text = ""
 
         self.rung.insert_branch()
-        self.assertEqual(self.rung.text, "[,]")
+        self.assertEqual(self.rung.text, "[,];")
 
     def test_insert_branch_no_instructions(self):
         """Test inserting branch when no instructions found raises error."""
         self.rung.text = "Some text without instructions"
 
         self.rung.insert_branch()
-        self.assertEqual(self.rung.text, "[,]")
+        self.assertEqual(self.rung.text, "[,];")
 
     def test_insert_branch_negative_positions(self):
         """Test inserting branch with negative positions raises error."""
@@ -1624,12 +1624,12 @@ class TestRung(unittest.TestCase):
         self.rung.text = "XIC(Tag1)XIO(Tag2)OTE(Tag3)"
         self.rung._branches = {}  # Initialize empty branches
         self.rung.insert_branch(1, 2)
-        self.assertEqual(self.rung.text, "XIC(Tag1)[XIO(Tag2),]OTE(Tag3)")
+        self.assertEqual(self.rung.text, "XIC(Tag1)[XIO(Tag2),]OTE(Tag3);")
 
         self.rung.text = "XIC(Tag1)"
         self.rung._branches = {}  # Reset branches
         self.rung.insert_branch(0, 1)
-        self.assertEqual(self.rung.text, "[XIC(Tag1),]")
+        self.assertEqual(self.rung.text, "[XIC(Tag1),];")
 
     def test_insert_branch_with_existing_branches(self):
         """Test inserting branch when branches already exist."""
@@ -1666,7 +1666,7 @@ class TestRung(unittest.TestCase):
         with self.assertRaises(ValueError) as context:
             self.rung.wrap_instructions_in_branch(0, 1)
 
-        self.assertIn("Cannot wrap instructions in empty rung", str(context.exception))
+        self.assertIn("No instructions found in rung!", str(context.exception))
 
     def test_wrap_instructions_in_branch_no_instructions(self):
         """Test wrapping instructions when none found raises error."""
@@ -1719,10 +1719,10 @@ class TestRung(unittest.TestCase):
         self.rung._branches = {"test_branch": mock_branch}
         self.rung.text = "XIC(Tag1)[XIO(Tag2),]OTE(Tag3)"
         self.rung.remove_branch("rung_0_branch_0")
-        self.assertEqual(self.rung.text, "XIC(Tag1)OTE(Tag3)")
+        self.assertEqual(self.rung.text, "XIC(Tag1)OTE(Tag3);")
         self.rung.text = "XIC(Tag1)[XIO(Tag2),]OTE(Tag3)"
         self.rung.remove_branch("rung_0_branch_0")
-        self.assertEqual(self.rung.text, "XIC(Tag1)OTE(Tag3)")
+        self.assertEqual(self.rung.text, "XIC(Tag1)OTE(Tag3);")
 
     def test_remove_branch_tokens_keep_instructions(self):
         """Test _remove_branch_tokens with keep_instructions=True."""
@@ -1945,9 +1945,8 @@ class TestRung(unittest.TestCase):
         """Test finding matching branch end with empty text."""
         self.rung.text = ""
 
-        end_pos = self.rung.find_matching_branch_end(0)
-
-        self.assertIsNone(end_pos)
+        with self.assertRaises(ValueError) as _:
+            self.rung.find_matching_branch_end(0)
 
     def test_find_matching_branch_end_simple_branch(self):
         """Test finding matching branch end for simple branch."""
@@ -2102,7 +2101,7 @@ class TestRung(unittest.TestCase):
         self.rung.insert_branch_level(branch_start_pos)
 
         # Should add an additional ',' after the first instruction in the branch
-        expected_text = "XIC(Tag1)[XIC(Tag2),,XIC(Tag3)]OTE(Tag4)"
+        expected_text = "XIC(Tag1)[XIC(Tag2),,XIC(Tag3)]OTE(Tag4);"
         self.assertEqual(self.rung.text, expected_text)
 
     def test_insert_branch_level_start_position_out_of_range_negative(self):
@@ -2144,7 +2143,7 @@ class TestRung(unittest.TestCase):
         self.rung.insert_branch_level(branch_start_pos)
 
         # Should insert after the first instruction, creating additional nesting
-        expected_text = "XIC(Tag1)[XIC(Tag2),,XIC(Tag3),XIC(Tag4)]OTE(Tag5)"
+        expected_text = "XIC(Tag1)[XIC(Tag2),,XIC(Tag3),XIC(Tag4)]OTE(Tag5);"
         self.assertEqual(self.rung.text, expected_text)
 
     def test_insert_branch_level_nested_branches(self):
@@ -2159,7 +2158,7 @@ class TestRung(unittest.TestCase):
         self.rung.insert_branch_level(outer_branch_start)
 
         # Should add comma after first element of outer branch
-        expected_text = "XIC(Tag1)[XIC(Tag2)[XIC(Tag3),XIC(Tag4)],,XIC(Tag5)]OTE(Tag6)"
+        expected_text = "XIC(Tag1)[XIC(Tag2)[XIC(Tag3),XIC(Tag4)],,XIC(Tag5)]OTE(Tag6);"
         self.assertEqual(self.rung.text, expected_text)
 
     def test_insert_branch_level_calls_refresh_internal_structures(self):
@@ -2191,7 +2190,7 @@ class TestRung(unittest.TestCase):
         self.rung.insert_branch_level(branch_start_pos)
 
         # Should add another comma after the first instruction
-        expected_text = "XIC(Tag1)[XIC(Tag2),,]OTE(Tag3)"
+        expected_text = "XIC(Tag1)[XIC(Tag2),,]OTE(Tag3);"
         self.assertEqual(self.rung.text, expected_text)
 
     def test_insert_branch_level_preserves_array_references(self):
@@ -2204,7 +2203,7 @@ class TestRung(unittest.TestCase):
         self.rung.insert_branch_level(branch_start_pos)
 
         # Array references should be preserved
-        expected_text = "XIC(Array[0])[XIC(Data[1]),,XIO(Output[2])]OTE(Result[3])"
+        expected_text = "XIC(Array[0])[XIC(Data[1]),,XIO(Output[2])]OTE(Result[3]);"
         self.assertEqual(self.rung.text, expected_text)
 
         # Verify array references are still intact

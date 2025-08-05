@@ -9,19 +9,7 @@ from typing import Self
 
 from .frames import ObjectEditField
 from .pyroxguiobject import PyroxGuiObject
-from ..plc import (
-    PlcObject,
-    Controller,
-    AddOnInstruction,
-    Datatype,
-    Module,
-    Program,
-    Routine,
-    Rung,
-    Tag,
-    TagEndpoint,
-    DataValueMember,
-)
+from .. import plc
 
 
 class PlcGuiObject(PyroxGuiObject):
@@ -34,14 +22,14 @@ class PlcGuiObject(PyroxGuiObject):
     methods in a user-friendly manner."""
 
     def __init__(self,
-                 plc_object: PlcObject = None,
+                 plc_object: plc.PlcObject = None,
                  **kwargs):
         super().__init__(plc_object,
                          **kwargs)
 
     @classmethod
     def from_data(cls,
-                  data: PlcObject) -> Self:
+                  data: plc.PlcObject) -> Self:
         """Get a new instance of this class from data.
 
         This method is intended to be overridden by subclasses to provide a
@@ -50,23 +38,25 @@ class PlcGuiObject(PyroxGuiObject):
         Args:
             data (PlcObject): The PLC object to create the GUI representation for.
         """
-        if isinstance(data, Controller):
+        if isinstance(data, plc.Controller):
             return ControllerGuiObject(controller=data)
-        if isinstance(data, AddOnInstruction):
+        if isinstance(data, plc.ControllerSafetyInfo):
+            return ControllerSafetyInfoGuiObject(safety_info=data)
+        if isinstance(data, plc.AddOnInstruction):
             return AddOnInstructionGuiObject(aoi=data)
-        if isinstance(data, Datatype):
+        if isinstance(data, plc.Datatype):
             return DatatypeGuiObject(datatype=data)
-        if isinstance(data, Module):
+        if isinstance(data, plc.Module):
             return ModuleGuiObject(module=data)
-        if isinstance(data, Program):
+        if isinstance(data, plc.Program):
             return ProgramGuiObject(program=data)
-        if isinstance(data, Routine):
+        if isinstance(data, plc.Routine):
             return RoutineGuiObject(routine=data)
-        if isinstance(data, Rung):
+        if isinstance(data, plc.Rung):
             return RungGuiObject(rung=data)
-        if isinstance(data, Tag):
+        if isinstance(data, plc.Tag):
             return TagGuiObject(tag=data)
-        if isinstance(data, DataValueMember):
+        if isinstance(data, plc.DataValueMember):
             return DataValueMemberGuiObject(datavalue_member=data)
 
         return cls(plc_object=data)
@@ -100,7 +90,7 @@ class ControllerGuiObject(PlcGuiObject):
     properties and methods in a user-friendly manner."""
 
     def __init__(self,
-                 controller: Controller = None,
+                 controller: plc.Controller = None,
                  **kwargs):
         super().__init__(plc_object=controller,
                          **kwargs)
@@ -118,15 +108,32 @@ class ControllerGuiObject(PlcGuiObject):
             ObjectEditField('datatypes', 'Data Types', None, False),
             ObjectEditField('tags', 'Tags', None, False),
             ObjectEditField('programs', 'Programs', None, False),
+            ObjectEditField('safety_info', 'Safety Information', None, False),
             ObjectEditField('root_meta_data', 'Root Meta Data', None, False),
 
+        ]
+
+
+class ControllerSafetyInfoGuiObject(PlcGuiObject):
+    """A GUI representation of a ControllerSafetyInfo object."""
+
+    def __init__(self, safety_info: plc.ControllerSafetyInfo = None, **kwargs):
+        super().__init__(plc_object=safety_info, **kwargs)
+
+    def gui_interface_attributes(self):
+        return [
+            ObjectEditField('safety_locked', 'Safety Locked', tk.Checkbutton, True),
+            ObjectEditField('signature_runmode_protect', 'Signature Run Mode Protect', tk.Checkbutton, True),
+            ObjectEditField('configure_safety_io_always', 'Configure Safety I/O Always', tk.Checkbutton, True),
+            ObjectEditField('safety_level', 'Safety Level', tk.Label, False),
+            ObjectEditField('safety_tag_map', 'Safety Tag Map', tk.Text, False),
         ]
 
 
 class AddOnInstructionGuiObject(PlcGuiObject):
     """A GUI representation of an AddOnInstruction object."""
 
-    def __init__(self, aoi: AddOnInstruction = None, **kwargs):
+    def __init__(self, aoi: plc.AddOnInstruction = None, **kwargs):
         super().__init__(plc_object=aoi, **kwargs)
 
     def gui_interface_attributes(self):
@@ -151,7 +158,7 @@ class AddOnInstructionGuiObject(PlcGuiObject):
 class DatatypeGuiObject(PlcGuiObject):
     """A GUI representation of a Datatype object."""
 
-    def __init__(self, datatype: Datatype = None, **kwargs):
+    def __init__(self, datatype: plc.Datatype = None, **kwargs):
         super().__init__(plc_object=datatype, **kwargs)
 
     def gui_interface_attributes(self):
@@ -166,7 +173,7 @@ class DatatypeGuiObject(PlcGuiObject):
 class ModuleGuiObject(PlcGuiObject):
     """A GUI representation of a Module object."""
 
-    def __init__(self, module: Module = None, **kwargs):
+    def __init__(self, module: plc.Module = None, **kwargs):
         super().__init__(plc_object=module, **kwargs)
 
     def gui_interface_attributes(self):
@@ -192,7 +199,7 @@ class ModuleGuiObject(PlcGuiObject):
 class ProgramGuiObject(PlcGuiObject):
     """A GUI representation of a Program object."""
 
-    def __init__(self, program: Program = None, **kwargs):
+    def __init__(self, program: plc.Program = None, **kwargs):
         super().__init__(plc_object=program, **kwargs)
 
     def gui_interface_attributes(self):
@@ -213,7 +220,7 @@ class ProgramGuiObject(PlcGuiObject):
 class RoutineGuiObject(PlcGuiObject):
     """A GUI representation of a Routine object."""
 
-    def __init__(self, routine: Routine = None, **kwargs):
+    def __init__(self, routine: plc.Routine = None, **kwargs):
         super().__init__(plc_object=routine, **kwargs)
 
     def gui_interface_attributes(self):
@@ -231,7 +238,7 @@ class RoutineGuiObject(PlcGuiObject):
 class RungGuiObject(PlcGuiObject):
     """A GUI representation of a Rung object."""
 
-    def __init__(self, rung: Rung = None, **kwargs):
+    def __init__(self, rung: plc.Rung = None, **kwargs):
         super().__init__(plc_object=rung, **kwargs)
 
     def gui_interface_attributes(self):
@@ -249,7 +256,7 @@ class RungGuiObject(PlcGuiObject):
 class TagEndpointGuiObject(PlcGuiObject):
     """A GUI representation of a TagEndpoint object."""
 
-    def __init__(self, tag_endpoint: TagEndpoint = None, **kwargs):
+    def __init__(self, tag_endpoint: plc.TagEndpoint = None, **kwargs):
         super().__init__(plc_object=tag_endpoint, **kwargs)
 
     def gui_interface_attributes(self):
@@ -261,7 +268,7 @@ class TagEndpointGuiObject(PlcGuiObject):
 class TagGuiObject(PlcGuiObject):
     """A GUI representation of a Tag object."""
 
-    def __init__(self, tag: Tag = None, **kwargs):
+    def __init__(self, tag: plc.Tag = None, **kwargs):
         super().__init__(plc_object=tag, **kwargs)
 
     def gui_interface_attributes(self):
@@ -288,7 +295,7 @@ class TagGuiObject(PlcGuiObject):
 class DataValueMemberGuiObject(PlcGuiObject):
     """A GUI representation of a DataValueMember object."""
 
-    def __init__(self, datavalue_member: DataValueMember = None, **kwargs):
+    def __init__(self, datavalue_member: plc.DataValueMember = None, **kwargs):
         super().__init__(plc_object=datavalue_member, **kwargs)
 
     def gui_interface_attributes(self):

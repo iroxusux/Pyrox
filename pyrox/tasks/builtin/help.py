@@ -83,6 +83,9 @@ class HelpTask(ApplicationTask):
                     for lvl, v in self._logger_var.items():
                         v.set(lvl == x)
 
-            drop_down.add_checkbutton(label=name, variable=var,
-                                      command=set_logger_level)
+            drop_down.add_checkbutton(
+                label=name,
+                variable=var,
+                command=set_logger_level
+            )
         self.application.menu.help.insert_separator(1)

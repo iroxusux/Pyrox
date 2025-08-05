@@ -69,7 +69,10 @@ unittesting plc file]]></Description>
 					</LocalTag>
 				</LocalTags>
 				<Routines>
-					<Routine Name="Logic" Type="RLL"></Routine>
+					<Routine Name="Logic" Type="RLL">
+						<RLLContent>
+						</RLLContent>
+					</Routine>
 				</Routines>
 			</AddOnInstructionDefinition>
 		</AddOnInstructionDefinitions>
@@ -233,6 +236,18 @@ program coil, aliased to global coil with no related input instruction
 -----]]></Comment>
 								<Text><![CDATA[OTE(pCoilWithNoInput);]]></Text>
 							</Rung>
+							<Rung Number="2" Type="N">
+								<Comment><![CDATA[//]]></Comment>
+								<Text><![CDATA[XIC(pCoilWithNoInput)OTE(AlwaysOn);]]></Text>
+							</Rung>
+						</RLLContent>
+					</Routine>
+					<Routine Name="MainRoutine" Type="RLL">
+						<Description><![CDATA[Main Routine]]></Description>
+						<RLLContent>
+							<Rung Number="0" Type="N">
+								<Text><![CDATA[XIC(gFirstOperand)OTE(gCoilWithNoInput);]]></Text>
+							</Rung>
 						</RLLContent>
 					</Routine>
 				</Routines>
@@ -347,6 +362,8 @@ Logix Operand unit testing code
 				</Routines>
 			</Program>
 			<Program Name="MainProgram" TestEdits="false" MainRoutineName="main" Disabled="false" Class="Standard" UseAsFolder="false">
+				<Tags>
+				</Tags>
 				<Routines>
 					<Routine Name="main" Type="RLL">
 						<RLLContent>
@@ -368,6 +385,8 @@ secondary globals to support alias unittesting
 				</Routines>
 			</Program>
 			<Program Name="NoneFlaggingLogic" TestEdits="false" MainRoutineName="main" Disabled="false" Class="Standard" UseAsFolder="false">
+				<Tags>
+				</Tags>
 				<Routines>
 					<Routine Name="main" Type="RLL">
 						<RLLContent>
@@ -398,6 +417,8 @@ this code means nothing other than an example of what SHOULDNT flag a fault, err
 				</Routines>
 			</Program>
 			<Program Name="SafetyProgram" TestEdits="false" MainRoutineName="MainRoutine" Disabled="false" Class="Safety" UseAsFolder="false">
+				<Tags>
+				</Tags>
 				<Routines>
 					<Routine Name="MainRoutine" Type="RLL">
 						<RLLContent>

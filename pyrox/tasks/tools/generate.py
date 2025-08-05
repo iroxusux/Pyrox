@@ -40,14 +40,19 @@ class ControllerGenerateTask(AppTask):
         self.application.controller = controller
 
     def generate_gm_emulation_routine(self):
-        if not self.application.controller:
+        controller = self.application.controller
+        # Debug information
+        self.logger.debug(f'Controller type: {type(controller)}')
+        self.logger.debug(f'Controller class name: {controller.__class__.__name__}')
+        self.logger.debug(f'Controller module: {controller.__class__.__module__}')
+        if not controller:
             self.logger.error('No controller set in the application.')
             return
-        if not isinstance(self.application.controller, gm.GmController):
+        if controller.__class__.__name__ != 'GmController':
             self.logger.error('Controller is not a GM controller. Cannot generate emulation routine.')
             return
         importlib.reload(gm)
-        self.application.controller.generate_emulation_logic()
+        controller.generate_emulation_logic()
 
     def remove_gm_emulation_routine(self):
         self.logger.info('Removing GM emulation routine...')

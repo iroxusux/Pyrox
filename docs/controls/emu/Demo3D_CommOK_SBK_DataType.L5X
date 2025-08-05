@@ -1,0 +1,47 @@
+﻿<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<RSLogix5000Content SchemaRevision="1.0" SoftwareRevision="34.03" TargetName="Demo3D_CommOK_SBK" TargetType="DataType" ContainsContext="true" Owner="EQUANS North America IT, CCG" ExportDate="Tue Aug 05 09:34:44 2025" ExportOptions="References NoRawData L5KData DecoratedData Context Dependencies ForceProtectedEncoding AllProjDocTrans">
+<Controller Use="Context" Name="CG_GDR02">
+<DataTypes Use="Context">
+<DataType Use="Target" Name="Demo3D_CommOK_SBK" Family="NoFamily" Class="User">
+<Members>
+<Member Name="ZZZZZZZZZZDemo3D_Com0" DataType="SINT" Dimension="0" Radix="Decimal" Hidden="true" ExternalAccess="Read/Write"/>
+<Member Name="SBK01" DataType="BIT" Dimension="0" Radix="Decimal" Hidden="false" Target="ZZZZZZZZZZDemo3D_Com0" BitNumber="0" ExternalAccess="Read/Write"/>
+<Member Name="SBK02" DataType="BIT" Dimension="0" Radix="Decimal" Hidden="false" Target="ZZZZZZZZZZDemo3D_Com0" BitNumber="1" ExternalAccess="Read/Write"/>
+<Member Name="SBK03" DataType="BIT" Dimension="0" Radix="Decimal" Hidden="false" Target="ZZZZZZZZZZDemo3D_Com0" BitNumber="2" ExternalAccess="Read/Write"/>
+<Member Name="SBK04" DataType="BIT" Dimension="0" Radix="Decimal" Hidden="false" Target="ZZZZZZZZZZDemo3D_Com0" BitNumber="3" ExternalAccess="Read/Write"/>
+<Member Name="SBK05" DataType="BIT" Dimension="0" Radix="Decimal" Hidden="false" Target="ZZZZZZZZZZDemo3D_Com0" BitNumber="4" ExternalAccess="Read/Write"/>
+<Member Name="SBK06" DataType="BIT" Dimension="0" Radix="Decimal" Hidden="false" Target="ZZZZZZZZZZDemo3D_Com0" BitNumber="5" ExternalAccess="Read/Write"/>
+<Member Name="SBK07" DataType="BIT" Dimension="0" Radix="Decimal" Hidden="false" Target="ZZZZZZZZZZDemo3D_Com0" BitNumber="6" ExternalAccess="Read/Write"/>
+<Member Name="SBK08" DataType="BIT" Dimension="0" Radix="Decimal" Hidden="false" Target="ZZZZZZZZZZDemo3D_Com0" BitNumber="7" ExternalAccess="Read/Write"/>
+<Member Name="ZZZZZZZZZZDemo3D_Com9" DataType="SINT" Dimension="0" Radix="Decimal" Hidden="true" ExternalAccess="Read/Write"/>
+<Member Name="SBK09" DataType="BIT" Dimension="0" Radix="Decimal" Hidden="false" Target="ZZZZZZZZZZDemo3D_Com9" BitNumber="0" ExternalAccess="Read/Write"/>
+<Member Name="SBK10" DataType="BIT" Dimension="0" Radix="Decimal" Hidden="false" Target="ZZZZZZZZZZDemo3D_Com9" BitNumber="1" ExternalAccess="Read/Write"/>
+<Member Name="SBK11" DataType="BIT" Dimension="0" Radix="Decimal" Hidden="false" Target="ZZZZZZZZZZDemo3D_Com9" BitNumber="2" ExternalAccess="Read/Write"/>
+<Member Name="SBK12" DataType="BIT" Dimension="0" Radix="Decimal" Hidden="false" Target="ZZZZZZZZZZDemo3D_Com9" BitNumber="3" ExternalAccess="Read/Write"/>
+<Member Name="SBK13" DataType="BIT" Dimension="0" Radix="Decimal" Hidden="false" Target="ZZZZZZZZZZDemo3D_Com9" BitNumber="4" ExternalAccess="Read/Write"/>
+<Member Name="SBK14" DataType="BIT" Dimension="0" Radix="Decimal" Hidden="false" Target="ZZZZZZZZZZDemo3D_Com9" BitNumber="5" ExternalAccess="Read/Write"/>
+<Member Name="SBK15" DataType="BIT" Dimension="0" Radix="Decimal" Hidden="false" Target="ZZZZZZZZZZDemo3D_Com9" BitNumber="6" ExternalAccess="Read/Write"/>
+<Member Name="SBK16" DataType="BIT" Dimension="0" Radix="Decimal" Hidden="false" Target="ZZZZZZZZZZDemo3D_Com9" BitNumber="7" ExternalAccess="Read/Write"/>
+<Member Name="ZZZZZZZZZZDemo3D_Com18" DataType="SINT" Dimension="0" Radix="Decimal" Hidden="true" ExternalAccess="Read/Write"/>
+<Member Name="SBK17" DataType="BIT" Dimension="0" Radix="Decimal" Hidden="false" Target="ZZZZZZZZZZDemo3D_Com18" BitNumber="0" ExternalAccess="Read/Write"/>
+<Member Name="SBK18" DataType="BIT" Dimension="0" Radix="Decimal" Hidden="false" Target="ZZZZZZZZZZDemo3D_Com18" BitNumber="1" ExternalAccess="Read/Write"/>
+<Member Name="SBK19" DataType="BIT" Dimension="0" Radix="Decimal" Hidden="false" Target="ZZZZZZZZZZDemo3D_Com18" BitNumber="2" ExternalAccess="Read/Write"/>
+<Member Name="SBK20" DataType="BIT" Dimension="0" Radix="Decimal" Hidden="false" Target="ZZZZZZZZZZDemo3D_Com18" BitNumber="3" ExternalAccess="Read/Write"/>
+<Member Name="SBK21" DataType="BIT" Dimension="0" Radix="Decimal" Hidden="false" Target="ZZZZZZZZZZDemo3D_Com18" BitNumber="4" ExternalAccess="Read/Write"/>
+<Member Name="SBK22" DataType="BIT" Dimension="0" Radix="Decimal" Hidden="false" Target="ZZZZZZZZZZDemo3D_Com18" BitNumber="5" ExternalAccess="Read/Write"/>
+<Member Name="SBK23" DataType="BIT" Dimension="0" Radix="Decimal" Hidden="false" Target="ZZZZZZZZZZDemo3D_Com18" BitNumber="6" ExternalAccess="Read/Write"/>
+<Member Name="SBK24" DataType="BIT" Dimension="0" Radix="Decimal" Hidden="false" Target="ZZZZZZZZZZDemo3D_Com18" BitNumber="7" ExternalAccess="Read/Write"/>
+<Member Name="ZZZZZZZZZZDemo3D_Com27" DataType="SINT" Dimension="0" Radix="Decimal" Hidden="true" ExternalAccess="Read/Write"/>
+<Member Name="SBK25" DataType="BIT" Dimension="0" Radix="Decimal" Hidden="false" Target="ZZZZZZZZZZDemo3D_Com27" BitNumber="0" ExternalAccess="Read/Write"/>
+<Member Name="SBK26" DataType="BIT" Dimension="0" Radix="Decimal" Hidden="false" Target="ZZZZZZZZZZDemo3D_Com27" BitNumber="1" ExternalAccess="Read/Write"/>
+<Member Name="SBK27" DataType="BIT" Dimension="0" Radix="Decimal" Hidden="false" Target="ZZZZZZZZZZDemo3D_Com27" BitNumber="2" ExternalAccess="Read/Write"/>
+<Member Name="SBK28" DataType="BIT" Dimension="0" Radix="Decimal" Hidden="false" Target="ZZZZZZZZZZDemo3D_Com27" BitNumber="3" ExternalAccess="Read/Write"/>
+<Member Name="SBK29" DataType="BIT" Dimension="0" Radix="Decimal" Hidden="false" Target="ZZZZZZZZZZDemo3D_Com27" BitNumber="4" ExternalAccess="Read/Write"/>
+<Member Name="SBK30" DataType="BIT" Dimension="0" Radix="Decimal" Hidden="false" Target="ZZZZZZZZZZDemo3D_Com27" BitNumber="5" ExternalAccess="Read/Write"/>
+<Member Name="SBK31" DataType="BIT" Dimension="0" Radix="Decimal" Hidden="false" Target="ZZZZZZZZZZDemo3D_Com27" BitNumber="6" ExternalAccess="Read/Write"/>
+<Member Name="SBK32" DataType="BIT" Dimension="0" Radix="Decimal" Hidden="false" Target="ZZZZZZZZZZDemo3D_Com27" BitNumber="7" ExternalAccess="Read/Write"/>
+</Members>
+</DataType>
+</DataTypes>
+</Controller>
+</RSLogix5000Content>

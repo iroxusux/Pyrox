@@ -676,8 +676,8 @@ class Application(Runnable):
     """
     __slots__ = ('_config', '_directory_service', '_frame', '_menu', '_runtime_info', '_tasks', '_tk_app')
 
-    def __init__(self, config: ApplicationConfiguration, add_to_globals: bool = False) -> None:
-        super().__init__(add_to_globals=add_to_globals)
+    def __init__(self, config: ApplicationConfiguration) -> None:
+        super().__init__()
         sys.excepthook = self._excepthook
         self._config: ApplicationConfiguration = config or ApplicationConfiguration.root()
         self._directory_service: ApplicationDirectoryService = ApplicationDirectoryService(
@@ -689,7 +689,6 @@ class Application(Runnable):
         self._runtime_info: ApplicationRuntimeInfo = None
         self._tasks: HashList[ApplicationTask] = None
         self._tk_app: Union[ThemedTk, Toplevel] = None
-        self._log_handler.set_callback(self.log)
 
     @property
     def tk_app(self) -> Union[ThemedTk, Toplevel]:
@@ -964,8 +963,6 @@ class Application(Runnable):
         if not isinstance(level, int):
             raise TypeError('Logging level must be an integer.')
         super().set_logging_level(level)
-        # self.logger.setLevel(level)
-        # self._log_handler.setLevel(level)
         self.logger.info(f'Logging level set to {logging.getLevelName(level)}')
         self.runtime_info.set('logging_level', level)
 

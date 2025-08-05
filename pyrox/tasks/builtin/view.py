@@ -90,6 +90,3 @@ class ViewTask(ApplicationTask):
             accelerator='Ctrl+B',
             underline=0
         )
-        self.application.tk_app.bind_all(
-            '<Control-b>', self.application.toggle_organizer
-        )
