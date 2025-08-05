@@ -53,9 +53,11 @@ class ContextMenu(Loggable, Menu):
     """
 
     def __init__(self,
-                 **kwargs):
+                 master: Optional[Any] = None,):
         Loggable.__init__(self)
-        Menu.__init__(self, **kwargs)
+        Menu.__init__(self,
+                      master=master,
+                      tearoff=0)
 
     def _build_menu(self, items: list[MenuItem]) -> None:
         """Build the context menu with the given items.

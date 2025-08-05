@@ -757,6 +757,64 @@ class Application(Runnable):
         """
         return self._tasks
 
+    def _build_app_icon(self) -> None:
+        icon_path = Path(self.config.icon)
+        if icon_path.exists():
+            self._tk_app.iconbitmap(self.config.icon)
+            self._tk_app.iconbitmap(default=self.config.icon)
+        else:
+            self.logger.warning(f'Icon file not found: {self.config.icon}.')
+
+    def _build_frame(self) -> None:
+        self._frame: Frame = Frame(master=self._tk_app, background='#2b2b2b')
+        self._frame.pack(fill='both', expand=True)
+
+    def _build_menu(self) -> None:
+        self._menu = MainApplicationMenu(self.tk_app)
+
+    def _build_runtime_info(self) -> None:
+        self._runtime_info = ApplicationRuntimeInfo(self)
+        if self.runtime_info.get('logging_level') is not None:
+            self.set_logging_level(self.runtime_info.get('logging_level'))
+
+    def _build_tasks(self) -> None:
+        self._tasks: HashList[ApplicationTask] = HashList('name')
+
+        try:
+            tasks_path = Path(__file__).parents[2] / 'tasks'
+            if tasks_path.exists():
+                tasks = class_services.find_and_instantiate_class(
+                    directory_path=str(tasks_path),
+                    class_name=ApplicationTask.__name__,
+                    as_subclass=True,
+                    ignoring_classes=['ApplicationTask', 'AppTask'],
+                    parent_class=ApplicationTask,
+                    application=self
+                )
+                self.add_tasks(tasks=tasks)
+            else:
+                self.logger.warning(f'Tasks directory not found: {tasks_path}')
+        except Exception as e:
+            self.logger.error(f'Failed to load tasks: {e}')
+
+    def _build_tk_app_instance(self) -> None:
+        if self.config.type_ == ApplicationTkType.ROOT:
+            self._tk_app = ThemedTk(
+                theme=self._runtime_info.get('theme', self.config.theme),
+                background='#2b2b2b'
+            )
+            self._tk_app.bind('<Configure>', self._on_tk_configure)
+            self._tk_app.bind('<F11>', lambda _: self.toggle_fullscreen(not self._tk_app.attributes('-fullscreen')))
+        elif self.config.type_ == ApplicationTkType.TOPLEVEL:
+            self._tk_app = Toplevel()
+        else:
+            raise ValueError('Application type is not supported. Please use ROOT or TOPLEVEL.')
+
+    def _connect_tk_attributes(self) -> None:
+        self._tk_app.report_callback_exception = self._excepthook
+        self._tk_app.protocol('WM_DELETE_WINDOW', self.close)
+        self._tk_app.title(self.config.title)
+
     def _excepthook(self, exc_type, exc_value, exc_traceback) -> None:
         """Handle uncaught exceptions.
 
@@ -790,6 +848,16 @@ class Application(Runnable):
         self._runtime_info.data['window_state'] = root.state()
         self._runtime_info.data.uninhibit()
 
+    def _restore_geometry_from_runtime_info(self) -> None:
+        try:
+            self.toggle_fullscreen(self._runtime_info.get('full_screen', False))
+            self._tk_app.geometry(self._runtime_info.get('window_size', self.config.size_))
+            self._tk_app.state(self._runtime_info.get('window_state', 'normal'))
+        except TclError as e:
+            self.logger.error(f'TclError: Could not set geometry or state for the application: {e}')
+            self._tk_app.geometry(self.config.size_)
+            self._tk_app.state('normal')
+
     def add_task(self, task: Union[ApplicationTask, type[ApplicationTask]]) -> None:
         """Add a task to this Application.
 
@@ -818,71 +886,15 @@ class Application(Runnable):
             self.add_task(task)
 
     def build(self) -> None:
-        """Build this Application.
-
-        This method initializes the tkinter application instance, sets up the main window,
-        and prepares the main frame and menu.
-
-        Raises:
-            ValueError: If the application type is not supported.
-        """
-        self._runtime_info = ApplicationRuntimeInfo(self)
-        if self.runtime_info.get('logging_level') is not None:
-            self.set_logging_level(self.runtime_info.get('logging_level'))
-
-        if self.config.type_ == ApplicationTkType.ROOT:
-            self._tk_app = ThemedTk(theme=self._runtime_info.get('theme', self.config.theme))
-            self._tk_app.bind('<Configure>', self._on_tk_configure)
-            self._tk_app.bind('<F11>', lambda _: self.toggle_fullscreen(not self._tk_app.attributes('-fullscreen')))
-        elif self.config.type_ == ApplicationTkType.TOPLEVEL:
-            self._tk_app = Toplevel()
-        else:
-            raise ValueError('Application type is not supported. Please use ROOT or TOPLEVEL.')
-
-        self._tk_app.report_callback_exception = self._excepthook
-        self._tk_app.protocol('WM_DELETE_WINDOW', self.close)
-        self._tk_app.title(self.config.title)
-
-        icon_path = Path(self.config.icon)
-        if icon_path.exists():
-            self._tk_app.iconbitmap(self.config.icon)
-            self._tk_app.iconbitmap(default=self.config.icon)
-        else:
-            self.logger.warning(f'Icon file not found: {self.config.icon}.')
-        self._frame: Frame = Frame(master=self._tk_app)
-        self._frame.pack(fill='both', expand=True)
-        self._tasks: HashList[ApplicationTask] = HashList('name')
-        self._menu = MainApplicationMenu(self.tk_app) if self.config.headless is False else None
-
-        try:
-            self.toggle_fullscreen(self._runtime_info.get('full_screen', False))
-            self._tk_app.geometry(self._runtime_info.get('window_size', self.config.size_))
-            self._tk_app.state(self._runtime_info.get('window_state', 'normal'))
-        except TclError as e:
-            self.logger.error(f'TclError: Could not set geometry or state for the application: {e}')
-            self._tk_app.geometry(self.config.size_)
-            self._tk_app.state('normal')
-
+        self._build_runtime_info()
+        self._build_tk_app_instance()
+        self._connect_tk_attributes()
+        self._build_app_icon()
+        self._build_frame()
+        self._build_menu()
+        self._build_tasks()
         self._directory_service.build_directory()
-
-        if self.menu:
-            try:
-                tasks_path = Path(__file__).parents[2] / 'tasks'
-                if tasks_path.exists():
-                    tasks = class_services.find_and_instantiate_class(
-                        directory_path=str(tasks_path),
-                        class_name=ApplicationTask.__name__,
-                        as_subclass=True,
-                        ignoring_classes=['ApplicationTask', 'AppTask'],
-                        parent_class=ApplicationTask,
-                        application=self
-                    )
-                    self.add_tasks(tasks=tasks)
-                else:
-                    self.logger.warning(f'Tasks directory not found: {tasks_path}')
-            except Exception as e:
-                self.logger.error(f'Failed to load tasks: {e}')
-
+        self._restore_geometry_from_runtime_info()
         super().build()
 
     def center(self) -> None:

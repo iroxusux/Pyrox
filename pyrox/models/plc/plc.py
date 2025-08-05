@@ -279,7 +279,7 @@ class PlcObject(EnforcesNaming, PyroxObject):
                  controller: 'Controller' = None,
                  default_loader: Callable = lambda: defaultdict(None),
                  meta_data: Union[dict, str] = defaultdict(None)):
-        if not isinstance(controller, (Controller, type(None))):
+        if controller is not None and not isinstance(controller, (Controller)):
             raise TypeError("Controller must be of type Controller or None!")
 
         self._meta_data = meta_data or default_loader()

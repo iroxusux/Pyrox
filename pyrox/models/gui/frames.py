@@ -13,24 +13,18 @@ from .treeview import LazyLoadingTreeView
 from ..abc.meta import Loggable
 
 
-class PyroxFrame(tk.LabelFrame, Loggable):
-    """A custom LabelFrame.
+class PyroxFrame(tk.Frame, Loggable):
+    """A custom frame.
     """
 
-    def __init__(self, *args, **kwargs):
-        if 'context_menu' in kwargs:  # this is gross, but it works
-            del kwargs['context_menu']
-        if 'controller' in kwargs:  # this is gross, but it works
-            del kwargs['controller']
-        if 'parent' in kwargs:  # this is gross, but it works
-            del kwargs['parent']
-        tk.LabelFrame.__init__(self,
-                               *args,
-                               borderwidth=1,
-                               padx=4,
-                               pady=4,
-                               relief='solid',
-                               **kwargs)
+    def __init__(
+        self,
+        master: Optional[Widget] = None,
+        bg: Optional[str] = None,
+        height: Optional[int] = None,
+        width: Optional[int] = None,
+    ) -> None:
+        tk.Frame.__init__(self, master=master, bg=bg, height=height, width=width)
         Loggable.__init__(self)
 
 
@@ -68,16 +62,8 @@ class PyroxTopLevelFrame(tk.Toplevel, Loggable):
 class LogWindow(PyroxFrame):
     """Enhanced log window that captures both logging and stderr/stdout."""
 
-    def __init__(
-        self,
-        parent,
-        *args,
-    ):
-        super().__init__(
-            parent,
-            text='Logger',
-            *args,
-        )
+    def __init__(self, parent,):
+        super().__init__(parent,)
 
         self.capture_stderr = True
         self.capture_stdout = True
@@ -92,23 +78,16 @@ class LogWindow(PyroxFrame):
             height=30,
             bg='lightgrey',
             relief='raised',
-            bd=1
+            # bd=1
         )
         self._toolbar.pack(
             fill=tk.X,
             side=tk.TOP)
         self._toolbar.pack_propagate(False)
 
-        # Setup toolbar
         self._setup_toolbar()
-
-        # Create text widget with scrollbar
         self._setup_text_widget()
-
-        # Configure text tags for different message types
         self._setup_text_tags()
-
-        # Setup stream redirection
         self._setup_stream_redirection()
 
     def _setup_text_widget(self):
@@ -371,23 +350,24 @@ class FrameWithTreeViewAndScrollbar(PyroxFrame):
     """
 
     def __init__(self,
-                 *args,
+                 master,
                  base_gui_class: type = None,
-                 **kwargs):
-        super().__init__(*args,
-                         **kwargs)
+                 context_menu: Optional[tk.Menu] = None,):
+        super().__init__(master=master)
 
         self._tree: LazyLoadingTreeView = LazyLoadingTreeView(master=self,
                                                               base_gui_class=base_gui_class,
                                                               columns=('Value',),
                                                               show='tree headings',
-                                                              context_menu=kwargs.get('context_menu', None))
+                                                              context_menu=context_menu)
         self._tree.heading('#0', text='Name')
         self._tree.heading('Value', text='Value')
 
-        vscrollbar = tk.Scrollbar(self,
-                                  orient=tk.VERTICAL,
-                                  command=self._tree.yview)
+        vscrollbar = tk.Scrollbar(
+            self,
+            orient=tk.VERTICAL,
+            command=self._tree.yview
+        )
         self._tree['yscrollcommand'] = vscrollbar.set
 
         vscrollbar.pack(fill=tk.Y, side=tk.RIGHT)

@@ -103,7 +103,7 @@ class TestKDiag(unittest.TestCase):
 class TestGmPlcObject(unittest.TestCase):
 
     def setUp(self):
-        self.obj = GmPlcObject("za_Action")
+        self.obj = GmPlcObject(meta_data="za_Action")
         self.obj._controller = None
 
     def test_config(self):

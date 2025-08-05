@@ -5,7 +5,8 @@ import importlib
 import os
 
 from typing import Any, Optional
-from tkinter import Event, PanedWindow
+import tkinter as tk
+from tkinter import ttk
 
 
 from ..models import Application, ApplicationTask, HashList
@@ -36,14 +37,16 @@ class AppOrganizerContextMenu(ContextMenu):
     It can be used to add, remove, or manage tasks and other elements in the organizer.
     """
 
-    def __init__(self,
-                 controller: Optional[plc.Controller] = None,
-                 parent: AppOrganizer = None,
-                 **kwargs):
-        super().__init__(tearoff=0,
-                         **kwargs)
-        self._controller: Optional[plc.Controller] = controller
-        self._parent: Optional[AppOrganizer] = parent
+    def __init__(
+        self,
+        master: Optional[AppFrameWithTreeViewAndScrollbar] = None,
+        app: Optional[App] = None,
+    ):
+        super().__init__(
+            master=master,
+        )
+        self._app = app
+        self._master = master
         self.on_refresh: list[callable] = []
 
     @property
@@ -58,25 +61,25 @@ class AppOrganizerContextMenu(ContextMenu):
                               item: str = None,
                               plc_object: plc.PlcObject = None) -> None:
         """Handle the modification of a PlcObject in the context menu."""
-        frame = ObjectEditTaskFrame(master=self._parent.application.workspace,
+        frame = ObjectEditTaskFrame(master=self._app.workspace,
                                     object_=plc_object,
                                     properties=PlcGuiObject.from_data(plc_object).gui_interface_attributes())
-        self._parent.application.register_frame(frame, raise_=True)
+        self._app.register_frame(frame, raise_=True)
 
     def _on_edit_routine(self,
                          routine: plc.Routine):
         importlib.reload(ladder_gui)
         ladder_frame = ladder_gui.LadderEditorTaskFrame(
-            master=self._parent.application.workspace,
-            controller=self._parent.application.controller,
+            master=self._app.workspace,
+            controller=self._app.controller,
             routine=routine)
-        self._parent.application.register_frame(ladder_frame, raise_=True)
+        self._app.register_frame(ladder_frame, raise_=True)
 
     def _on_refresh(self):
         [x() for x in self.on_refresh if callable(x)]
 
     def compile_menu_from_item(self,
-                               event: Event,
+                               event: tk.Event,
                                treeview_item: str,
                                hash_item: Any,
                                lookup_attribute: str) -> list[MenuItem]:
@@ -95,10 +98,10 @@ class AppOrganizerContextMenu(ContextMenu):
         elif isinstance(hash_item, PlcGuiObject):
             clicked_obj = getattr(hash_item, lookup_attribute, None)
         else:
-            clicked_obj_parent = self._parent.tree.parent(treeview_item)
+            clicked_obj_parent = self._master.tree.parent(treeview_item)
             if not clicked_obj_parent:
                 return menu_list
-            return self._parent.tree.on_right_click(event=event,
+            return self._master.tree.on_right_click(event=event,
                                                     treeview_item=clicked_obj_parent,)
 
         if isinstance(hash_item, PyroxGuiObject):
@@ -120,7 +123,7 @@ class AppOrganizerContextMenu(ContextMenu):
                                          command=lambda: self._on_edit_routine(routine=plc_obj)))
 
         if isinstance(plc_obj, plc.TagEndpoint):
-            task: 'AppTask' = self._parent.application.tasks.get('PlcIoTask')
+            task: 'AppTask' = self._app.tasks.get('PlcIoTask')
             if task and task.running:
                 menu_list.insert(0, MenuItem(label='Insert to Watch Table',
                                              command=lambda x=plc_obj: task.add_tag_to_watch_table(x.name)))
@@ -136,31 +139,35 @@ class AppFrameWithTreeViewAndScrollbar(FrameWithTreeViewAndScrollbar):
     tasks and other elements in the application.
     """
 
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args,
-                         base_gui_class=PlcGuiObject,
-                         **kwargs)
+    def __init__(
+            self,
+            master: tk.Widget,
+            application: Optional[App] = None,):
+        super().__init__(
+            master=master,
+            base_gui_class=PlcGuiObject,
+            context_menu=AppOrganizerContextMenu(
+                master=master,
+                app=application
+            )
+        ),
 
 
-class AppOrganizer(AppFrameWithTreeViewAndScrollbar):
+class AppOrganizer(ttk.Notebook):
     """Organizer window for the Pyrox Application.
-
-    This class extends `FrameWithTreeViewAndScrollbar` to provide an organizer
-    window that can be used to manage tasks and other elements in the application.
-    It is intended to be used as a part of the main application frame.
     """
 
-    def __init__(self,
-                 *args,
-                 application: Optional[App] = None,
-                 controller: Optional[plc.Controller] = None,
-                 **kwargs):
-        super().__init__(*args,
-                         context_menu=AppOrganizerContextMenu(controller=controller,
-                                                              parent=self),
-                         **kwargs)
+    def __init__(
+        self,
+        master: Optional[tk.Widget] = None,
+        application: Optional[App] = None,
+    ) -> None:
+        AppOrganizer.configure_style(master)
+        super().__init__(master=master,
+                         style='lefttab.TNotebook')
         self._application: Optional[App] = application
-        self._controller: Optional[plc.Controller] = controller
+        self._raw_l5x_frame: AppFrameWithTreeViewAndScrollbar = None
+        self._build_raw_view_frame()
 
     @property
     def application(self) -> Optional[App]:
@@ -175,18 +182,6 @@ class AppOrganizer(AppFrameWithTreeViewAndScrollbar):
         return self._application
 
     @property
-    def context_menu(self) -> AppOrganizerContextMenu:
-        """Context menu for this organizer.
-
-        .. ------------------------------------------------------------
-
-        Returns
-        -----------
-            context_menu: :class:`OrganizerContextMenu`
-        """
-        return self.tree.context_menu
-
-    @property
     def controller(self) -> Optional[plc.Controller]:
         """Controller associated with this organizer.
 
@@ -196,7 +191,45 @@ class AppOrganizer(AppFrameWithTreeViewAndScrollbar):
         -----------
             controller: Optional[:class:`Controller`]
         """
-        return self._controller
+        return self.application.controller
+
+    @staticmethod
+    def configure_style(master: tk.Widget) -> None:
+        style = ttk.Style(master)
+        style.configure('lefttab.TNotebook', tabposition='wn')
+
+    def _build_raw_view_frame(self) -> None:
+        """Assemble the raw view frame for the organizer."""
+        self._raw_l5x_frame = AppFrameWithTreeViewAndScrollbar(
+            master=self,
+            application=self.application
+        )
+        cm: AppOrganizerContextMenu = self._raw_l5x_frame.tree.context_menu
+        cm.on_refresh.append(self.application.refresh)
+        self.add(self._raw_l5x_frame, text='Raw\nL5X')
+
+    def clear_organizer(self) -> None:
+        """Clear organizer of all children.
+
+        This method will remove all children from the organizer window, if it exists.
+        """
+        self._raw_l5x_frame.tree.delete(*self._raw_l5x_frame.tree.get_children())
+
+    def populate_organizer(self,
+                           controller: plc.Controller) -> None:
+        """Populate the organizer with the provided controller.
+
+        This method will populate the organizer with the provided controller's data.
+        It will clear the existing data and add the new data from the controller.
+
+        .. ------------------------------------------------------------
+
+        Arguments
+        -----------
+        controller: :class:`Controller`
+            The controller to populate the organizer with.
+        """
+        self._raw_l5x_frame.tree.populate_tree('', controller)
 
 
 class App(Application):
@@ -207,16 +240,14 @@ class App(Application):
     functionality specific to the Pyrox framework.
     """
 
-    def __init__(self,
-                 *args,
-                 **kwargs):
-        super().__init__(*args,
-                         **kwargs)
+    def __init__(self, config: models.ApplicationConfiguration) -> None:
+        super().__init__(config=config)
 
         self._controller: Optional[plc.Controller] = None
         self._organizer: Optional[AppOrganizer] = None
         self._log_window: Optional[LogWindow] = None
-        self._paned_window: Optional[PanedWindow] = None
+        self._main_paned_window: Optional[tk.PanedWindow] = None
+        self._sub_paned_window: Optional[tk.PanedWindow] = None
         self._registered_frames: HashList[TaskFrame] = HashList('name')
         self._workspace: Optional[PyroxFrame] = None
 
@@ -274,6 +305,38 @@ class App(Application):
         """
         return self._workspace
 
+    def _build_and_pack_main_paned_window(self) -> None:
+        self._main_paned_window.add(self._sub_paned_window)
+        self._main_paned_window.pack(fill='both', expand=True)
+        self._main_paned_window.configure(sashwidth=3)
+
+    def _build_and_pack_sub_paned_window(self) -> None:
+        self._sub_paned_window.pack(fill='both', expand=True)
+        self._sub_paned_window.configure(sashwidth=3)
+
+    def _build_log_window(self) -> None:
+        self._log_window = LogWindow(self.frame)
+        self._log_window.pack(fill='both', expand=True)
+        self._sub_paned_window.add(self._log_window)
+        models.abc.Loggable.force_all_loggers_to_stderr()
+
+    def _build_organizer(self) -> None:
+        self._organizer: AppOrganizer = AppOrganizer(
+            master=self._main_paned_window,
+            application=self,
+        )
+        self._organizer.pack(side='left', fill='y')
+        self._main_paned_window.add(self._organizer)
+
+    def _build_workspace(self) -> None:
+        self._workspace = PyroxFrame(
+            self._sub_paned_window,
+            height=500,
+            bg='#2b2b2b',
+        )
+        self._workspace.pack(side='top', fill='x')
+        self._sub_paned_window.add(self._workspace)
+
     def _load_controller(self,
                          file_location: str) -> plc.Controller:
         """Load a controller from a file location.
@@ -296,6 +359,11 @@ class App(Application):
             self.logger.error('error parsing controller from file %s: %s', file_location, e)
         finally:
             self.set_app_state_normal()
+
+    def _load_last_opened_controller(self) -> None:
+        last_plc_file_location = self._runtime_info.data.get('last_plc_file_location', None)
+        if last_plc_file_location and os.path.isfile(last_plc_file_location):
+            self.load_controller(last_plc_file_location)
 
     def _raise_frame(self,
                      frame: TaskFrame) -> None:
@@ -365,48 +433,18 @@ class App(Application):
         """Build this :class:`Application`.
 
         This method will build the main menu, organizer window, log window and workspace if they are enabled in the configuration.
-
         """
         super().build()
 
-        self._paned_window = PanedWindow(self.frame, orient='horizontal')
-        self._organizer: AppOrganizer = AppOrganizer(
-            master=self._paned_window,
-            application=self,
-            controller=self._controller,
-            text='Organizer'
-        )
-        self._organizer.pack(side='left', fill='y')
-        self._organizer.context_menu.on_refresh.append(self.refresh)
-
-        self._paned_window.add(self._organizer)
-
-        # use an additional sub frame to pack widgets on left side of screen neatly
-        sub_frame = PanedWindow(self._paned_window, orient='vertical')
-
-        self._workspace = PyroxFrame(sub_frame, text='Workspace', height=500)
-        self._workspace.pack(side='top', fill='x')
-        sub_frame.add(self._workspace)
-
-        self._log_window = LogWindow(self.frame)
-        self._log_window.pack(fill='both', expand=True)
-        sub_frame.add(self._log_window)
-        models.abc.Loggable.force_all_loggers_to_stderr()
-
-        sub_frame.pack(fill='both', expand=True)
-        sub_frame.configure(sashrelief='groove', sashwidth=5, sashpad=5)
-
-        self._paned_window.add(sub_frame)
-        self._paned_window.pack(fill='both', expand=True)
-        self._paned_window.configure(sashrelief='groove', sashwidth=5, sashpad=5)
-
+        self._main_paned_window = tk.PanedWindow(self.frame, orient='horizontal', bg='#2b2b2b')
+        self._sub_paned_window = tk.PanedWindow(self._main_paned_window, orient='vertical', bg='#2b2b2b')
+        self._build_organizer()
+        self._build_workspace()
+        self._build_log_window()
+        self._build_and_pack_sub_paned_window()
+        self._build_and_pack_main_paned_window()
         self._setup_keybinds()
-
-        last_plc_file_location = self._runtime_info.data.get('last_plc_file_location', None)
-        if last_plc_file_location and os.path.isfile(last_plc_file_location):
-            self.load_controller(last_plc_file_location)
-            return
-        self.refresh()
+        self._load_last_opened_controller()
 
     def clear_organizer(self) -> None:
         """Clear organizer of all children.
@@ -417,7 +455,7 @@ class App(Application):
         if not self.organizer:
             return
 
-        self.organizer.tree.delete(*self.organizer.tree.get_children())
+        self.organizer.clear_organizer()
 
     def clear_workspace(self) -> None:
         """Clear workspace of all children.
@@ -472,7 +510,7 @@ class App(Application):
         self.clear_workspace()
         if self.controller:
             self._tk_app.title(f'{self.config.title} - [{self.controller.name}] - [{self.controller.file_location}]')
-            self._organizer.tree.populate_tree('', self.controller)
+            self._organizer.populate_organizer(self.controller)
         else:
             self._tk_app.title(self.config.title)
         self._menu.file.entryconfig('Save L5X', state='disabled' if not self.controller else 'normal')
@@ -566,20 +604,20 @@ class App(Application):
         *_,
     ) -> None:
         """Toggle the visibility of the organizer panel."""
-        if not self._paned_window or not self._organizer:
+        if not self._main_paned_window or not self._organizer:
             return
 
         if self._organizer_visible:
             # Hide organizer
             self._organizer_width = self._organizer.winfo_width()  # Store current width
-            self._paned_window.forget(self._organizer)  # Remove from paned window
+            self._main_paned_window.forget(self._organizer)  # Remove from paned window
             self._organizer_visible = False
             self.logger.info('Organizer hidden')
         else:
             # Show organizer
-            self._paned_window.add(self._organizer, before=self._paned_window.panes()[0] if self._paned_window.panes() else None)
+            self._main_paned_window.add(self._organizer, before=self._main_paned_window.panes()[0] if self._main_paned_window.panes() else None)
             # Restore the saved width
-            self._paned_window.paneconfigure(self._organizer, width=self._organizer_width)
+            self._main_paned_window.paneconfigure(self._organizer, width=self._organizer_width)
             self._organizer_visible = True
             self.logger.info('Organizer shown')
 

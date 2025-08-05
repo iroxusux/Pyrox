@@ -1,4 +1,4 @@
-from tkinter import Event
+from tkinter import Event, Widget
 from tkinter.ttk import Treeview
 
 from .menu import ContextMenu
@@ -16,15 +16,24 @@ class LazyLoadingTreeView(Treeview):
     items at once would be inefficient.
     """
 
-    def __init__(self,
-                 *args,
-                 base_gui_class: type[PyroxGuiObject] = None,
-                 context_menu: ContextMenu = None,
-                 **kwargs):
-        super().__init__(*args, **kwargs)
+    def __init__(
+        self,
+        master: Widget = None,
+        columns: list[str] = None,
+        show: str = 'tree',
+        base_gui_class: type[PyroxGuiObject] = None,
+        context_menu: ContextMenu = None
+    ) -> None:
+        super().__init__(
+            master=master,
+            columns=columns,
+            show=show
+        )
         self._base_gui_class: type[PyroxGuiObject] = base_gui_class or PyroxGuiObject
-        self._context_menu = context_menu or ContextMenu(master=self,
-                                                         tearoff=0)
+        self._context_menu = context_menu or ContextMenu(
+            master=self,
+            tearoff=0
+        )
         self.bind('<Button-3>', self.on_right_click)
         self.bind('<<TreeviewOpen>>', self.on_expand)
         self._lazy_load_map = {}
