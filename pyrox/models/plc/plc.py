@@ -1103,6 +1103,10 @@ class ContainsRoutines(ContainsTags):
         self._compile_from_meta_data()
 
     @property
+    def class_(self) -> str:
+        return self['@Class']
+
+    @property
     def input_instructions(self) -> list[LogixInstruction]:
         if self._input_instructions:
             return self._input_instructions
@@ -4005,6 +4009,12 @@ class Controller(NamedPlcObject, Loggable):
         return self._safety_info
 
     @property
+    def safety_programs(self) -> list[Program]:
+        val = [x for x in self.programs if x.class_ == 'Safety']
+        val.sort(key=lambda x: x.name)
+        return val
+
+    @property
     def slot(self) -> int:
         if not self.plc_module_icp_port:
             return None
@@ -4014,6 +4024,12 @@ class Controller(NamedPlcObject, Loggable):
     def slot(self,
              value: int):
         self._slot = int(value)
+
+    @property
+    def standard_programs(self) -> list[Program]:
+        val = [x for x in self.programs if x.class_ == 'Standard']
+        val.sort(key=lambda x: x.name)
+        return val
 
     @property
     def tags(self) -> HashList[Tag]:

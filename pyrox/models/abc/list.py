@@ -274,6 +274,18 @@ class HashList(Subscribable, Generic[T]):
             pass
         self.emit()
 
+    def sort(self):
+        """Sort this hash by its' keys.
+
+        .. ------------------------------------------------------------
+
+        Returns
+        --------
+            list: :type:`list`
+        """
+        self._hashes = dict(sorted(self._hashes.items()))
+        self.emit()
+
 
 class SafeList(list[T]):
     """List used to prevent duplicates from being appended.

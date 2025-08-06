@@ -13,6 +13,10 @@ from .treeview import LazyLoadingTreeView
 from ..abc.meta import Loggable
 
 
+WIDGET_BG = '#2b2b2b'
+WIDGET_HEADER_BG = "#1c1c1c"
+
+
 class PyroxFrame(tk.Frame, Loggable):
     """A custom frame.
     """
@@ -20,11 +24,21 @@ class PyroxFrame(tk.Frame, Loggable):
     def __init__(
         self,
         master: Optional[Widget] = None,
+        borderwidth: int = 1,
         bg: Optional[str] = None,
         height: Optional[int] = None,
+        relief: str = 'flat',
         width: Optional[int] = None,
     ) -> None:
-        tk.Frame.__init__(self, master=master, bg=bg, height=height, width=width)
+        tk.Frame.__init__(
+            self,
+            master=master,
+            bg=bg,
+            borderwidth=borderwidth,
+            height=height,
+            relief=relief,
+            width=width
+        )
         Loggable.__init__(self)
 
 
@@ -59,36 +73,130 @@ class PyroxTopLevelFrame(tk.Toplevel, Loggable):
         self.geometry(f'{width}x{height}+{x}+{y}')
 
 
-class LogWindow(PyroxFrame):
+class PyroxPanedWindow(tk.PanedWindow, Loggable):
+    """A custom PanedWindow with built-in logging capabilities.
+
+    This class extends tkinter.PanedWindow and adds logging functionality
+    through the Loggable mixin. It provides additional methods for
+    paned window management.
+
+    Args:
+        *args: Variable length argument list passed to PanedWindow.
+        **kwargs: Arbitrary keyword arguments passed to PanedWindow.
+
+    Attributes:
+        Inherits all PanedWindow and Loggable attributes.
+    """
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(
+            *args,
+            bg=kwargs.pop('bg', WIDGET_BG),
+            **kwargs)
+
+
+class FrameWithTreeViewAndScrollbar(PyroxFrame):
+    """A frame containing a LazyLoadingTreeView with vertical scrollbar.
+
+    This frame provides a ready-to-use treeview widget with scrollbar
+    for displaying hierarchical data. The treeview has columns for
+    'Name' and 'Value'.
+
+    Args:
+        *args: Variable length argument list passed to PyroxFrame.
+        base_gui_class (type, optional): The base GUI class for the treeview.
+        **kwargs: Arbitrary keyword arguments. 'context_menu' is extracted
+            and passed to the treeview.
+
+    Attributes:
+        _tree (LazyLoadingTreeView): The treeview widget.
+    """
+
+    def __init__(self,
+                 master,
+                 base_gui_class: type = None,
+                 context_menu: Optional[tk.Menu] = None,):
+        super().__init__(master=master)
+
+        self._tree: LazyLoadingTreeView = LazyLoadingTreeView(master=self,
+                                                              base_gui_class=base_gui_class,
+                                                              columns=('Value',),
+                                                              show='tree headings',
+                                                              context_menu=context_menu)
+        self._tree.heading('#0', text='Name')
+        self._tree.heading('Value', text='Value')
+
+        vscrollbar = tk.Scrollbar(
+            self,
+            orient=tk.VERTICAL,
+            command=self._tree.yview
+        )
+        self._tree['yscrollcommand'] = vscrollbar.set
+
+        vscrollbar.pack(fill=tk.Y, side=tk.RIGHT)
+        self._tree.pack(fill=tk.BOTH, expand=True)
+
+    @property
+    def tree(self) -> LazyLoadingTreeView:
+        """Get the treeview widget.
+
+        Returns:
+            LazyLoadingTreeView: The treeview widget contained in this frame.
+        """
+        return self._tree
+
+    @tree.setter
+    def tree(self, value: LazyLoadingTreeView):
+        """Set the treeview widget.
+
+        Args:
+            value (LazyLoadingTreeView): The new treeview widget to set.
+
+        Raises:
+            TypeError: If value is not a LazyLoadingTreeView instance.
+        """
+        if isinstance(value, LazyLoadingTreeView):
+            self._tree = value
+            self._tree.pack(fill=tk.BOTH, expand=True)
+        else:
+            raise TypeError(f'Expected LazyLoadingTreeView, got {type(value)}')
+
+
+class LogFrame(PyroxFrame):
     """Enhanced log window that captures both logging and stderr/stdout."""
 
     def __init__(self, parent,):
-        super().__init__(parent,)
-
-        self.capture_stderr = True
-        self.capture_stdout = True
-        self._original_stderr = None
-        self._original_stdout = None
-        self._stderr_stream = None
-        self._stdout_stream = None
+        super().__init__(parent)
 
         # Create toolbar frame
         self._toolbar = tk.Frame(
             self,
             height=30,
-            bg='lightgrey',
-            relief='raised',
-            # bd=1
+            bg=WIDGET_BG,
+            borderwidth=1,
+            relief='flat',
         )
         self._toolbar.pack(
             fill=tk.X,
-            side=tk.TOP)
+            side=tk.TOP
+        )
         self._toolbar.pack_propagate(False)
 
         self._setup_toolbar()
         self._setup_text_widget()
         self._setup_text_tags()
         self._setup_stream_redirection()
+
+    def _add_hover_effect(self, button, normal_bg, hover_bg, normal_fg='white', hover_fg='white'):
+        """Add hover effect to a button."""
+        def on_enter(event):
+            button.configure(bg=hover_bg, fg=hover_fg)
+
+        def on_leave(event):
+            button.configure(bg=normal_bg, fg=normal_fg)
+
+        button.bind('<Enter>', on_enter)
+        button.bind('<Leave>', on_leave)
 
     def _setup_text_widget(self):
         """Setup the main text widget and scrollbar."""
@@ -113,20 +221,14 @@ class LogWindow(PyroxFrame):
             text_frame,
             orient=tk.VERTICAL,
             command=self._logtext.yview)
-        h_scrollbar = tk.Scrollbar(
-            text_frame,
-            orient=tk.HORIZONTAL,
-            command=self._logtext.xview)
 
         self._logtext.configure(
             yscrollcommand=v_scrollbar.set,
-            xscrollcommand=h_scrollbar.set
         )
 
         # Grid layout
         self._logtext.grid(row=0, column=0, sticky='nsew')
         v_scrollbar.grid(row=0, column=1, sticky='ns')
-        h_scrollbar.grid(row=1, column=0, sticky='ew')
 
         text_frame.grid_rowconfigure(0, weight=1)
         text_frame.grid_columnconfigure(0, weight=1)
@@ -169,72 +271,34 @@ class LogWindow(PyroxFrame):
 
     def _setup_stream_redirection(self):
         """Setup redirection of stderr and stdout to the text widget."""
-        if self.capture_stderr:
-            self._original_stderr = sys.stderr
-            self._stderr_stream = meta.TextWidgetStream(
-                self._logtext,
-                'STDERR',
-                self.log,
-            )
-            sys.stderr = self._stderr_stream
+        self._stderr_stream = meta.TextWidgetStream(
+            self._logtext,
+            'STDERR',
+            self.log,
+        )
+        sys.stderr = self._stderr_stream
 
-        if self.capture_stdout:
-            self._original_stdout = sys.stdout
-            self._stdout_stream = meta.TextWidgetStream(
-                self._logtext,
-                'STDOUT',
-                self.log,
-            )
-            sys.stdout = self._stdout_stream
+        self._stdout_stream = meta.TextWidgetStream(
+            self._logtext,
+            'STDOUT',
+            self.log,
+        )
+        sys.stdout = self._stdout_stream
 
     def _setup_toolbar(self):
         """Setup the toolbar with control buttons."""
-        # Clear button
-        self.add_toolbar_button(
+        clear_button = self.add_toolbar_button(
             "Clear",
             self.clear_log_window,
-            bg='lightcoral'
+            bg=WIDGET_BG,
+            fg='white',
         )
 
-    def toggle_stderr_capture(self):
-        """Toggle stderr capture on/off."""
-        if sys.stderr == self._stderr_stream:
-            # Restore original stderr
-            sys.stderr = self._original_stderr
-            self._log_message("STDERR capture disabled\n", 'INFO')
-        else:
-            # Redirect to our stream
-            sys.stderr = self._stderr_stream
-            self._log_message("STDERR capture enabled\n", 'INFO')
-
-    def toggle_stdout_capture(self):
-        """Toggle stdout capture on/off."""
-        if sys.stdout == self._stdout_stream:
-            # Restore original stdout
-            sys.stdout = self._original_stdout
-            self._log_message("STDOUT capture disabled\n", 'INFO')
-        else:
-            # Redirect to our stream
-            sys.stdout = self._stdout_stream
-            self._log_message("STDOUT capture enabled\n", 'INFO')
-
-    def save_log_to_file(self):
-        """Save the current log content to a file."""
-        from tkinter import filedialog
-
-        filename = filedialog.asksaveasfilename(
-            defaultextension=".log",
-            filetypes=[("Log files", "*.log"), ("Text files", "*.txt"), ("All files", "*.*")]
-        )
-
-        if filename:
-            try:
-                content = self._logtext.get('1.0', 'end-1c')
-                with open(filename, 'w', encoding='utf-8') as f:
-                    f.write(content)
-                self._log_message(f"Log saved to: {filename}\n", 'INFO')
-            except Exception as e:
-                self._log_message(f"Failed to save log: {e}\n", 'ERROR')
+        self._add_hover_effect(clear_button,
+                               normal_bg=WIDGET_BG,
+                               hover_bg='#404040',
+                               normal_fg='white',
+                               hover_fg='white')
 
     def _log_message(self, message: str, tag: str = 'INFO'):
         """Log a message directly to the text widget."""
@@ -305,7 +369,6 @@ class LogWindow(PyroxFrame):
 
         super().destroy()
 
-    # Keep existing methods for compatibility
     def add_toolbar_button(self, text: str, command: callable, **button_kwargs):
         """Add a custom button to the toolbar."""
         default_kwargs = {
@@ -322,81 +385,36 @@ class LogWindow(PyroxFrame):
             command=command,
             **default_kwargs
         )
-        button.pack(side=tk.LEFT, padx=2, pady=2)
+        button.pack(side=tk.LEFT, fill=tk.Y)
         return button
 
-    def add_toolbar_separator(self):
-        """Add a visual separator to the toolbar."""
-        separator = tk.Frame(self._toolbar, width=2, bg='grey', relief='sunken', bd=1)
-        separator.pack(side=tk.LEFT, fill=tk.Y, padx=5, pady=2)
-        return separator
 
-
-class FrameWithTreeViewAndScrollbar(PyroxFrame):
-    """A frame containing a LazyLoadingTreeView with vertical scrollbar.
-
-    This frame provides a ready-to-use treeview widget with scrollbar
-    for displaying hierarchical data. The treeview has columns for
-    'Name' and 'Value'.
-
-    Args:
-        *args: Variable length argument list passed to PyroxFrame.
-        base_gui_class (type, optional): The base GUI class for the treeview.
-        **kwargs: Arbitrary keyword arguments. 'context_menu' is extracted
-            and passed to the treeview.
-
-    Attributes:
-        _tree (LazyLoadingTreeView): The treeview widget.
+class OrganizerWindow(PyroxFrame):
+    """Organizer Window for application purposes
     """
 
-    def __init__(self,
-                 master,
-                 base_gui_class: type = None,
-                 context_menu: Optional[tk.Menu] = None,):
-        super().__init__(master=master)
+    @staticmethod
+    def configure_style(master: tk.Widget) -> None:
+        style = ttk.Style(master)
+        style.configure('lefttab.TNotebook', tabposition='wn')
 
-        self._tree: LazyLoadingTreeView = LazyLoadingTreeView(master=self,
-                                                              base_gui_class=base_gui_class,
-                                                              columns=('Value',),
-                                                              show='tree headings',
-                                                              context_menu=context_menu)
-        self._tree.heading('#0', text='Name')
-        self._tree.heading('Value', text='Value')
-
-        vscrollbar = tk.Scrollbar(
+    def __init__(self, master):
+        super().__init__(master)
+        OrganizerWindow.configure_style(master)
+        self._notebook: ttk.Notebook = ttk.Notebook(
             self,
-            orient=tk.VERTICAL,
-            command=self._tree.yview
+            style='lefttab.TNotebook'
         )
-        self._tree['yscrollcommand'] = vscrollbar.set
+        self._notebook.pack(fill=tk.BOTH, expand=True)
 
-        vscrollbar.pack(fill=tk.Y, side=tk.RIGHT)
-        self._tree.pack(fill=tk.BOTH, expand=True)
-
-    @property
-    def tree(self) -> LazyLoadingTreeView:
-        """Get the treeview widget.
-
-        Returns:
-            LazyLoadingTreeView: The treeview widget contained in this frame.
-        """
-        return self._tree
-
-    @tree.setter
-    def tree(self, value: LazyLoadingTreeView):
-        """Set the treeview widget.
+    def register_tab(self, frame: tk.Frame, text: str) -> None:
+        """Register a new tab in the organizer window.
 
         Args:
-            value (LazyLoadingTreeView): The new treeview widget to set.
-
-        Raises:
-            TypeError: If value is not a LazyLoadingTreeView instance.
+            frame (Frame): The frame to add as a tab.
+            text (str): The text label for the tab.
         """
-        if isinstance(value, LazyLoadingTreeView):
-            self._tree = value
-            self._tree.pack(fill=tk.BOTH, expand=True)
-        else:
-            raise TypeError(f'Expected LazyLoadingTreeView, got {type(value)}')
+        self._notebook.add(frame, text=text, sticky='nsew')
 
 
 class TaskFrame(tk.Frame):

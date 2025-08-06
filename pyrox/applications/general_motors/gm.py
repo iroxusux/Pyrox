@@ -893,7 +893,7 @@ class GmEmulationGenerator(emu.BaseEmulationGenerator):
         # Generate HMI emulation logic
         for card in hmi_cards:
             std_tag = self.add_controller_tag(
-                tag_name=f'zz_Demo3D_{card.name}_I',
+                tag_name=f'zz_Demo3D_{card.parent_module}_I',
                 class_='Standard',
                 tag_type='Base',
                 datatype='Demo3D_HMI_IN',
@@ -902,7 +902,7 @@ class GmEmulationGenerator(emu.BaseEmulationGenerator):
             )
 
             sfty_tag = self.add_controller_tag(
-                tag_name=f'sz_Demo3D_{card.name}_I',
+                tag_name=f'sz_Demo3D_{card.parent_module}_I',
                 class_='Safety',
                 tag_type='Base',
                 datatype='Demo3D_HMI_IN',
@@ -911,7 +911,7 @@ class GmEmulationGenerator(emu.BaseEmulationGenerator):
             )
 
             self.add_controller_tag(
-                tag_name=f'zz_Demo3D_{card.name}_O',
+                tag_name=f'zz_Demo3D_{card.parent_module}_O',
                 tag_type='Base',
                 datatype='Demo3D_HMI_OUT',
                 constant=False,
@@ -932,7 +932,7 @@ class GmEmulationGenerator(emu.BaseEmulationGenerator):
 
             self._emu_routine.add_rung(Rung(
                 controller=self.controller,
-                text=f'COP({card.parent_module}:2:O,zz_Demo3D_{card.name}_O.S2,1);',
+                text=f'COP({card.parent_module}:2:O,zz_Demo3D_{card.parent_module}_O.S2,1);',
                 comment='Map output data from physical card to emulation card.'
             ))
 

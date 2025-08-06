@@ -1,15 +1,17 @@
 from . import ladder, meta
 from .frames import (
     FrameWithTreeViewAndScrollbar,
-    LogWindow,
+    LogFrame,
     ObjectEditField,
     ObjectEditTaskFrame,
+    OrganizerWindow,
     PyroxFrame,
     TaskFrame,
     ToplevelWithTreeViewAndScrollbar,
     ValueEditPopup,
     WatchTableTaskFrame
 )
+from .ladder import LadderEditorTaskFrame
 from .listbox import UserListbox
 from .menu import ContextMenu, MenuItem
 from .progress_bar import ProgressBar
@@ -19,9 +21,11 @@ __all__ = (
     'ContextMenu',
     'FrameWithTreeViewAndScrollbar',
     'ladder',
-    'LogWindow',
+    'LadderEditorTaskFrame',
+    'LogFrame',
     'ObjectEditField',
     'ObjectEditTaskFrame',
+    'OrganizerWindow',
     'MenuItem',
     'meta',
     'PyroxFrame',
