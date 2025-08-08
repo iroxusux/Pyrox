@@ -8,30 +8,12 @@ from typing import Any, Optional
 import tkinter as tk
 
 from .general_motors.gm import GmController
-from ..models import (
-    Application,
-    ApplicationConfiguration,
-    ApplicationTask,
-    ContextMenu,
-    FrameWithTreeViewAndScrollbar,
-    HashList,
-    LadderEditorTaskFrame,
-    Loggable,
-    LogFrame,
-    MenuItem,
-    ObjectEditTaskFrame,
-    OrganizerWindow,
-    plc,
-    PyroxFrame,
-    PyroxGuiObject,
-    TaskFrame,
-)
-from ..models.gui.plc import PlcGuiObject
+from .. import models
 from ..services.dictionary_services import remove_none_values_inplace
 from ..services.plc_services import dict_to_xml_file, l5x_dict_from_file
 
 
-class AppOrganizerContextMenu(ContextMenu):
+class AppOrganizerContextMenu(models.ContextMenu):
     """Context menu for the organizer window.
 
     This class extends `ContextMenu` to provide a context menu specific to the organizer window.
@@ -40,7 +22,7 @@ class AppOrganizerContextMenu(ContextMenu):
 
     def __init__(
         self,
-        master: Optional[FrameWithTreeViewAndScrollbar] = None,
+        master: Optional[models.FrameWithTreeViewAndScrollbar] = None,
         app: Optional[App] = None,
     ):
         super().__init__(
@@ -51,26 +33,26 @@ class AppOrganizerContextMenu(ContextMenu):
         self.on_refresh: list[callable] = []
 
     @property
-    def _default_menu_items(self) -> list[MenuItem]:
+    def _default_menu_items(self) -> list[models.MenuItem]:
         """Default menu items for the organizer context menu."""
         return [
-            MenuItem(label='Refresh',
-                     command=self._on_refresh),
+            models.MenuItem(label='Refresh',
+                            command=self._on_refresh),
         ]
 
     def _on_modify_plc_object(self,
                               item: str = None,
-                              plc_object: plc.PlcObject = None) -> None:
+                              plc_object: models.plc.PlcObject = None) -> None:
         """Handle the modification of a PlcObject in the context menu."""
-        frame = ObjectEditTaskFrame(master=self._app.workspace,
-                                    object_=plc_object,
-                                    properties=PlcGuiObject.from_data(plc_object).gui_interface_attributes())
+        frame = models.ObjectEditTaskFrame(master=self._app.workspace,
+                                           object_=plc_object,
+                                           properties=models.PlcGuiObject.from_data(plc_object).gui_interface_attributes())
         self._app.register_frame(frame, raise_=True)
 
     def _on_edit_routine(self,
-                         routine: plc.Routine):
-        importlib.reload(LadderEditorTaskFrame)
-        ladder_frame = LadderEditorTaskFrame(
+                         routine: models.plc.Routine):
+        importlib.reload(models)
+        ladder_frame = models.LadderEditorTaskFrame(
             master=self._app.workspace,
             controller=self._app.controller,
             routine=routine
@@ -84,7 +66,7 @@ class AppOrganizerContextMenu(ContextMenu):
                                event: tk.Event,
                                treeview_item: str,
                                hash_item: Any,
-                               lookup_attribute: str) -> list[MenuItem]:
+                               lookup_attribute: str) -> list[models.MenuItem]:
         menu_list = self._default_menu_items
 
         if None in [treeview_item, hash_item, lookup_attribute]:
@@ -93,11 +75,11 @@ class AppOrganizerContextMenu(ContextMenu):
         clicked_obj = None
         plc_obj = None
 
-        if isinstance(hash_item, (list, HashList)):
+        if isinstance(hash_item, (list, models.HashList)):
             clicked_obj = hash_item[lookup_attribute]
         elif isinstance(hash_item, dict):
             clicked_obj = hash_item.get(lookup_attribute, None)
-        elif isinstance(hash_item, PlcGuiObject):
+        elif isinstance(hash_item, models.PlcGuiObject):
             clicked_obj = getattr(hash_item, lookup_attribute, None)
         else:
             clicked_obj_parent = self._master.tree.parent(treeview_item)
@@ -106,34 +88,34 @@ class AppOrganizerContextMenu(ContextMenu):
             return self._master.tree.on_right_click(event=event,
                                                     treeview_item=clicked_obj_parent,)
 
-        if isinstance(hash_item, PyroxGuiObject):
-            plc_obj = clicked_obj if isinstance(clicked_obj, plc.PlcObject) else hash_item.pyrox_object
-        elif isinstance(clicked_obj, plc.PlcObject):
+        if isinstance(hash_item, models.PyroxGuiObject):
+            plc_obj = clicked_obj if isinstance(clicked_obj, models.plc.PlcObject) else hash_item.pyrox_object
+        elif isinstance(clicked_obj, models.plc.PlcObject):
             plc_obj = clicked_obj
 
-        if isinstance(plc_obj, plc.PlcObject):
-            menu_list.insert(0, MenuItem(label='Modify',
-                                         command=lambda: self._on_modify_plc_object(item=hash_item, plc_object=plc_obj)))
+        if isinstance(plc_obj, models.plc.PlcObject):
+            menu_list.insert(0, models.MenuItem(label='Modify',
+                                                command=lambda: self._on_modify_plc_object(item=hash_item, plc_object=plc_obj)))
 
-        if isinstance(plc_obj, plc.Program) and plc_obj.controller:
-            menu_list.insert(0, MenuItem(label='Add New Routine',
-                                         command=lambda: plc_obj.add_routine(plc.Routine(controller=plc_obj.controller,
-                                                                                         program=plc_obj))))
+        if isinstance(plc_obj, models.plc.Program) and plc_obj.controller:
+            menu_list.insert(0, models.MenuItem(label='Add New Routine',
+                                                command=lambda: plc_obj.add_routine(models.plc.Routine(controller=plc_obj.controller,
+                                                                                                       program=plc_obj))))
 
-        if isinstance(plc_obj, plc.Routine):
-            menu_list.insert(0, MenuItem(label='Edit Routine',
-                                         command=lambda: self._on_edit_routine(routine=plc_obj)))
+        if isinstance(plc_obj, models.plc.Routine):
+            menu_list.insert(0, models.MenuItem(label='Edit Routine',
+                                                command=lambda: self._on_edit_routine(routine=plc_obj)))
 
-        if isinstance(plc_obj, plc.TagEndpoint):
+        if isinstance(plc_obj, models.plc.TagEndpoint):
             task: 'AppTask' = self._app.tasks.get('PlcIoTask')
             if task and task.running:
-                menu_list.insert(0, MenuItem(label='Insert to Watch Table',
-                                             command=lambda x=plc_obj: task.add_tag_to_watch_table(x.name)))
+                menu_list.insert(0, models.MenuItem(label='Insert to Watch Table',
+                                                    command=lambda x=plc_obj: task.add_tag_to_watch_table(x.name)))
 
         return menu_list
 
 
-class AppOrganizer(Loggable):
+class AppOrganizer(models.Loggable):
     """Application orgranizer class.
     """
 
@@ -143,10 +125,10 @@ class AppOrganizer(Loggable):
     ) -> None:
         super().__init__()
         self._application: Optional[App] = application
-        self._window: OrganizerWindow = None
+        self._window: models.OrganizerWindow = None
 
-        self._raw_l5x_frame: Optional[FrameWithTreeViewAndScrollbar] = None
-        self._program_frame: Optional[FrameWithTreeViewAndScrollbar] = None
+        self._raw_l5x_frame: Optional[models.FrameWithTreeViewAndScrollbar] = None
+        self._program_frame: Optional[models.FrameWithTreeViewAndScrollbar] = None
 
     @property
     def application(self) -> Optional[App]:
@@ -167,9 +149,9 @@ class AppOrganizer(Loggable):
         )
         cm.on_refresh.append(self.application.refresh)
 
-        self._program_frame = FrameWithTreeViewAndScrollbar(
+        self._program_frame = models.FrameWithTreeViewAndScrollbar(
             master=self._window._notebook,
-            base_gui_class=PlcGuiObject,
+            base_gui_class=models.PlcGuiObject,
             context_menu=cm,
         )
         self._program_frame.pack(fill=tk.BOTH, expand=True)
@@ -186,9 +168,9 @@ class AppOrganizer(Loggable):
         )
         cm.on_refresh.append(self.application.refresh)
 
-        self._raw_l5x_frame = FrameWithTreeViewAndScrollbar(
+        self._raw_l5x_frame = models.FrameWithTreeViewAndScrollbar(
             master=self._window._notebook,
-            base_gui_class=PlcGuiObject,
+            base_gui_class=models.PlcGuiObject,
             context_menu=cm,
         )
         self._raw_l5x_frame.pack(fill=tk.BOTH, expand=True)
@@ -198,20 +180,29 @@ class AppOrganizer(Loggable):
             text='Raw\nL5X',
         )
 
-    def _populate_prog_tab(self, controller: plc.Controller) -> None:
+    def _build_standard_program_dict(self, program: models.plc.Program) -> dict:
+        """Build a dictionary of standard programs for the organizer."""
+        d = {
+            'name': program.name,
+        }
+        for routine in program.routines:
+            d[routine.name] = routine
+        return d
+
+    def _populate_prog_tab(self, controller: models.plc.Controller) -> None:
         self._program_frame.tree.populate_tree('', {
-            'Standard': controller.standard_programs,
-            'Safety': controller.safety_programs}
+            'Standard': [self._build_standard_program_dict(program) for program in controller.standard_programs],
+            'Safety': [self._build_standard_program_dict(program) for program in controller.safety_programs]}
         )
 
-    def _populate_raw_tab(self, controller: plc.Controller) -> None:
+    def _populate_raw_tab(self, controller: models.plc.Controller) -> None:
         self._raw_l5x_frame.tree.populate_tree('', controller)
 
     def build(
         self,
         master: tk.Widget
-    ) -> OrganizerWindow:
-        self._window = OrganizerWindow(master=master)
+    ) -> models.OrganizerWindow:
+        self._window = models.OrganizerWindow(master=master)
         self._window.pack(side=tk.LEFT, fill=tk.Y)
         self._build_organizer_raw_tab()
         self._build_organizer_programs_tab()
@@ -226,7 +217,7 @@ class AppOrganizer(Loggable):
         self._program_frame.tree.delete(*self._program_frame.tree.get_children())
 
     def populate_organizer(self,
-                           controller: plc.Controller) -> None:
+                           controller: models.plc.Controller) -> None:
         """Populate the organizer with the provided controller.
 
         This method will populate the organizer with the provided controller's data.
@@ -243,27 +234,27 @@ class AppOrganizer(Loggable):
         self._populate_prog_tab(controller)
 
 
-class App(Application):
+class App(models.Application):
     """App class for Pyrox.
     This extends a basic 'engine' application into a useful class to run our plc functions
     """
 
-    def __init__(self, config: ApplicationConfiguration) -> None:
+    def __init__(self, config: models.ApplicationConfiguration) -> None:
         super().__init__(config=config)
 
-        self._controller: Optional[plc.Controller] = None
+        self._controller: Optional[models.plc.Controller] = None
         self._organizer: Optional[AppOrganizer] = None
-        self._log_window: Optional[LogFrame] = None
+        self._log_window: Optional[models.LogFrame] = None
         self._main_paned_window: Optional[tk.PanedWindow] = None
         self._sub_paned_window: Optional[tk.PanedWindow] = None
-        self._registered_frames: HashList[TaskFrame] = HashList('name')
-        self._workspace: Optional[PyroxFrame] = None
+        self._registered_frames: models.HashList[models.TaskFrame] = models.HashList('name')
+        self._workspace: Optional[models.PyroxFrame] = None
 
         self._organizer_visible = True
         self._organizer_width = 300
 
     @property
-    def controller(self) -> Optional[plc.Controller]:
+    def controller(self) -> Optional[models.plc.Controller]:
         """Allen Bradley L5X Controller Object associated with this :class:`Model`.
 
         .. ------------------------------------------------------------
@@ -276,8 +267,8 @@ class App(Application):
 
     @controller.setter
     def controller(self,
-                   value: plc.Controller):
-        if not isinstance(value, plc.Controller) and value is not None:
+                   value: models.plc.Controller):
+        if not isinstance(value, models.plc.Controller) and value is not None:
             raise TypeError(f'Expected Controller, got {type(value)}')
         self._controller = value
         if self._controller:
@@ -301,7 +292,7 @@ class App(Application):
         return self._organizer
 
     @property
-    def workspace(self) -> Optional[PyroxFrame]:
+    def workspace(self) -> Optional[models.PyroxFrame]:
         """The workspace window for this :class:`Application`.
 
         .. ------------------------------------------------------------
@@ -322,10 +313,10 @@ class App(Application):
         self._sub_paned_window.configure(sashwidth=3)
 
     def _build_log_window(self) -> None:
-        self._log_window = LogFrame(self.frame)
+        self._log_window = models.LogFrame(self.frame)
         self._log_window.pack(fill='both', expand=True)
         self._sub_paned_window.add(self._log_window)
-        Loggable.force_all_loggers_to_stderr()
+        models.Loggable.force_all_loggers_to_stderr()
 
     def _build_organizer(self) -> None:
         self._organizer: AppOrganizer = AppOrganizer(
@@ -335,7 +326,7 @@ class App(Application):
         self._main_paned_window.add(frame)
 
     def _build_workspace(self) -> None:
-        self._workspace = PyroxFrame(
+        self._workspace = models.PyroxFrame(
             self._sub_paned_window,
             height=500,
             bg='#2b2b2b',
@@ -350,7 +341,7 @@ class App(Application):
         self._menu.file.entryconfig('Close L5X', state='disabled' if not self.controller else 'normal')
 
     def _load_controller(self,
-                         file_location: str) -> plc.Controller:
+                         file_location: str) -> models.plc.Controller:
         """Load a controller from a file location.
         This private method also manages the ux of loading a controller.
         .. ------------------------------------------------------------
@@ -365,8 +356,8 @@ class App(Application):
         self.set_app_state_busy()
         self.logger.info('Loading controller from file: %s', file_location)
         try:
-            importlib.reload(plc)
-            return plc.Controller(l5x_dict_from_file(file_location))
+            importlib.reload(models.plc)
+            return models.plc.Controller(l5x_dict_from_file(file_location))
         except (KeyError, ValueError, TypeError) as e:
             self.logger.error('error parsing controller from file %s: %s', file_location, e)
         finally:
@@ -378,7 +369,7 @@ class App(Application):
             self.load_controller(last_plc_file_location)
 
     def _raise_frame(self,
-                     frame: TaskFrame) -> None:
+                     frame: models.TaskFrame) -> None:
         """Raise a frame to the top of the application."""
         self.clear_workspace()
         if not frame or not frame.winfo_exists():
@@ -411,8 +402,8 @@ class App(Application):
         self._tk_app.bind('<Control-b>', self.toggle_organizer)
 
     def _transform_controller(self,
-                              controller: plc.Controller,
-                              sub_class: Optional[type[plc.Controller]] = None) -> plc.Controller:
+                              controller: models.plc.Controller,
+                              sub_class: Optional[type[models.plc.Controller]] = None) -> models.plc.Controller:
         """Transform a controller to a specific subclass.
         This method will transform a controller to a specific subclass if provided.
         .. ------------------------------------------------------------
@@ -430,11 +421,11 @@ class App(Application):
             self.set_app_state_busy()
             if not sub_class:
                 return controller
-            if not issubclass(sub_class, plc.Controller):
+            if not issubclass(sub_class, models.plc.Controller):
                 raise TypeError(f'Subclass must be a Controller subclass, got {sub_class}')
             if isinstance(controller, sub_class):
                 return controller
-            if not isinstance(controller, plc.Controller):
+            if not isinstance(controller, models.plc.Controller):
                 raise TypeError(f'Controller must be a Controller instance, got {type(controller)}')
             if not controller.root_meta_data:
                 raise ValueError('Controller must have root_meta_data to transform.')
@@ -514,7 +505,7 @@ class App(Application):
     def new_controller(self) -> None:
         """Create a new controller instance."""
         self.logger.info('Creating new controller instance...')
-        ctrl = plc.Controller(l5x_dict_from_file(plc.BASE_FILES[0]))
+        ctrl = models.plc.Controller(l5x_dict_from_file(models.plc.BASE_FILES[0]))
         self.logger.info('New controller instance created: %s', ctrl.name)
         self.controller = ctrl
         self.logger.info('Controller instance set successfully.')
@@ -534,7 +525,7 @@ class App(Application):
         self.logger.info('Done!')
 
     def register_frame(self,
-                       frame: TaskFrame,
+                       frame: models.TaskFrame,
                        raise_=False) -> None:
         """Register a frame to this :class:`Application`.
 
@@ -549,7 +540,7 @@ class App(Application):
         if not frame:
             raise ValueError('Frame must be provided to register a frame.')
 
-        if not isinstance(frame, TaskFrame):
+        if not isinstance(frame, models.TaskFrame):
             raise TypeError(f'Expected TaskFrame, got {type(frame)}')
 
         if frame.name in self._registered_frames:
@@ -598,7 +589,7 @@ class App(Application):
             self.set_app_state_normal()
 
     def set_frame(self,
-                  frame: TaskFrame) -> None:
+                  frame: models.TaskFrame) -> None:
         """Set a frame to the top of the application.
 
         This method will raise the provided frame to the top of the application.
@@ -636,7 +627,7 @@ class App(Application):
             self.logger.info('Organizer shown')
 
     def unregister_frame(self,
-                         frame: TaskFrame) -> None:
+                         frame: models.TaskFrame) -> None:
         """Unregister a frame from this :class:`Application`.
 
         .. ------------------------------------------------------------
@@ -650,7 +641,7 @@ class App(Application):
         if not frame:
             raise ValueError('Frame must be provided to unregister a frame.')
 
-        if not isinstance(frame, TaskFrame):
+        if not isinstance(frame, models.TaskFrame):
             raise TypeError(f'Expected TaskFrame, got {type(frame)}')
 
         self.menu.view.delete(frame.name)
@@ -664,7 +655,7 @@ class App(Application):
             self._raise_frame(self._registered_frames[0])
 
 
-class AppTask(ApplicationTask):
+class AppTask(models.ApplicationTask):
     def __init__(self, application):
         super().__init__(application)
 
@@ -681,7 +672,7 @@ class AppTask(ApplicationTask):
         return super().application
 
     @property
-    def controller(self) -> Optional[plc.Controller]:
+    def controller(self) -> Optional[models.plc.Controller]:
         """Controller instance associated with this task.
 
         .. ------------------------------------------------------------

@@ -1,14 +1,14 @@
 from tkinter import Event, Widget
-from tkinter.ttk import Treeview
 
 from .menu import ContextMenu
+from .meta import PyroxTreeview
 from pyrox.models.abc import HashList, PyroxObject
 from pyrox.models.gui.pyroxguiobject import PyroxGuiObject
 
 UNITTEST_PLC_FILE = r'docs\controls\unittest.L5X'
 
 
-class LazyLoadingTreeView(Treeview):
+class LazyLoadingTreeView(PyroxTreeview):
     """A Treeview that supports lazy loading of items.
 
     This class extends the standard ttk.Treeview to support lazy loading

@@ -20,7 +20,6 @@ from tkinter import (
 from typing import Any, Callable, Optional, Self, Union
 
 from pyrox.services import file, class_services
-from ttkthemes import ThemedTk
 
 from .list import HashList
 from .meta import (
@@ -60,7 +59,7 @@ class BaseMenu(Buildable):
     """
     __slots__ = ('_root', '_menu')
 
-    def __init__(self, root: Union[ThemedTk, Toplevel]):
+    def __init__(self, root: Union[Tk, Toplevel]):
         super().__init__()
         self._root = root
         self._menu = Menu(self._root)
@@ -75,7 +74,7 @@ class BaseMenu(Buildable):
         return self._menu
 
     @property
-    def root(self) -> Union[ThemedTk, Toplevel]:
+    def root(self) -> Union[Tk, Toplevel]:
         """The parent root item of this menu.
 
         Returns:
@@ -122,7 +121,7 @@ class MainApplicationMenu(BaseMenu):
     """
     __slots__ = ('_file', '_edit', '_tools', '_view', '_help')
 
-    def __init__(self, root: Union[ThemedTk, Toplevel]):
+    def __init__(self, root: Union[Tk, Toplevel]):
         super().__init__(root=root)
         self._file: Menu = Menu(self.menu, name='file', tearoff=0)
         self._edit: Menu = Menu(self.menu, name='edit', tearoff=0)
@@ -688,10 +687,10 @@ class Application(Runnable):
         self._menu: MainApplicationMenu = None
         self._runtime_info: ApplicationRuntimeInfo = None
         self._tasks: HashList[ApplicationTask] = None
-        self._tk_app: Union[ThemedTk, Toplevel] = None
+        self._tk_app: Union[Tk, Toplevel] = None
 
     @property
-    def tk_app(self) -> Union[ThemedTk, Toplevel]:
+    def tk_app(self) -> Union[Tk, Toplevel]:
         """The tk application instance for this Application.
 
         Returns:
@@ -799,10 +798,7 @@ class Application(Runnable):
 
     def _build_tk_app_instance(self) -> None:
         if self.config.type_ == ApplicationTkType.ROOT:
-            self._tk_app = ThemedTk(
-                theme=self._runtime_info.get('theme', self.config.theme),
-                background='#2b2b2b'
-            )
+            self._tk_app = Tk()
             self._tk_app.bind('<Configure>', self._on_tk_configure)
             self._tk_app.bind('<F11>', lambda _: self.toggle_fullscreen(not self._tk_app.attributes('-fullscreen')))
         elif self.config.type_ == ApplicationTkType.TOPLEVEL:

@@ -3968,13 +3968,20 @@ class LadderCanvas(Canvas, Loggable):
 
     def _redraw_rung(
         self,
-        rung: plc.Rung,
+        rung: Union[plc.Rung, int],
         new_y_pos: Optional[int] = None
     ):
         """Redraw a specific rung with proper spacing.
         """
-        if not isinstance(rung, plc.Rung):
-            raise ValueError("Expected a plc.Rung instance.")
+        if not isinstance(rung, (plc.Rung, int)):
+            raise ValueError("Expected a plc.Rung instance or rung number instance.")
+        if isinstance(rung, int):
+            rung = self._routine.rungs[rung]
+        elif isinstance(rung, plc.Rung):
+            rung = rung
+
+        if not rung:
+            raise ValueError(f"Rung with number {rung} not found in routine.")
 
         rung_number = self._get_rung_number(rung)
         y_pos = self._rung_y_positions.get(rung_number, None)

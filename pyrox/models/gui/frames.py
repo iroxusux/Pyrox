@@ -24,10 +24,10 @@ class PyroxFrame(tk.Frame, Loggable):
     def __init__(
         self,
         master: Optional[Widget] = None,
-        borderwidth: int = 1,
-        bg: Optional[str] = None,
+        borderwidth: int = meta.PyroxDefaultTheme.borderwidth,
+        bg: Optional[str] = meta.PyroxDefaultTheme.background,
         height: Optional[int] = None,
-        relief: str = 'flat',
+        relief: str = meta.PyroxDefaultTheme.relief,
         width: Optional[int] = None,
     ) -> None:
         tk.Frame.__init__(
@@ -126,10 +126,22 @@ class FrameWithTreeViewAndScrollbar(PyroxFrame):
         self._tree.heading('#0', text='Name')
         self._tree.heading('Value', text='Value')
 
-        vscrollbar = tk.Scrollbar(
+        style = ttk.Style(self)
+        style.configure("TScrollbar",
+                        background=WIDGET_HEADER_BG,  # Color of the scrollbar's background
+                        troughcolor=WIDGET_BG,  # Color of the scrollbar's trough (the track)
+                        arrowcolor="white",  # Color of the arrows on the scrollbar
+                        gripcount=0,  # Set to 0 to hide the grip on the thumb
+                        gripborderwidth=0,  # Border width of the grip
+                        bordercolor=WIDGET_BG,  # Color of the border around the scrollbar
+                        arrowsize=12,  # Size of the arrows
+                        width=15)  # Thickness/width of the scrollbar
+
+        vscrollbar = ttk.Scrollbar(
             self,
             orient=tk.VERTICAL,
-            command=self._tree.yview
+            command=self._tree.yview,
+            style="TScrollbar"
         )
         self._tree['yscrollcommand'] = vscrollbar.set
 
@@ -393,17 +405,11 @@ class OrganizerWindow(PyroxFrame):
     """Organizer Window for application purposes
     """
 
-    @staticmethod
-    def configure_style(master: tk.Widget) -> None:
-        style = ttk.Style(master)
-        style.configure('lefttab.TNotebook', tabposition='wn')
-
     def __init__(self, master):
         super().__init__(master)
-        OrganizerWindow.configure_style(master)
-        self._notebook: ttk.Notebook = ttk.Notebook(
-            self,
-            style='lefttab.TNotebook'
+        self._notebook: meta.PyroxNotebook = meta.PyroxNotebook(
+            master=self,
+            tab_pos='wn',
         )
         self._notebook.pack(fill=tk.BOTH, expand=True)
 

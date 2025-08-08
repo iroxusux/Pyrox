@@ -1,4 +1,4 @@
-from . import ladder, meta
+from . import ladder, meta, plc
 from .frames import (
     FrameWithTreeViewAndScrollbar,
     LogFrame,
@@ -14,6 +14,7 @@ from .frames import (
 from .ladder import LadderEditorTaskFrame
 from .listbox import UserListbox
 from .menu import ContextMenu, MenuItem
+from .plc import PlcGuiObject
 from .progress_bar import ProgressBar
 from .pyroxguiobject import PyroxGuiObject
 
@@ -28,6 +29,8 @@ __all__ = (
     'OrganizerWindow',
     'MenuItem',
     'meta',
+    'plc',
+    'PlcGuiObject',
     'PyroxFrame',
     'ProgressBar',
     'PyroxGuiObject',
