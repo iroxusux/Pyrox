@@ -60,7 +60,7 @@ $pyinstallerArgs = @(
     "--distpath", "dist",
     "--workpath", "build",
     "--clean",
-    "__main__.py"
+    "pyrox/__main__.py"
 )
 
 try {

@@ -779,22 +779,20 @@ class Application(Runnable):
     def _build_tasks(self) -> None:
         self._tasks: HashList[ApplicationTask] = HashList('name')
 
-        try:
-            tasks_path = Path(__file__).parents[2] / 'tasks'
-            if tasks_path.exists():
-                tasks = class_services.find_and_instantiate_class(
-                    directory_path=str(tasks_path),
-                    class_name=ApplicationTask.__name__,
-                    as_subclass=True,
-                    ignoring_classes=['ApplicationTask', 'AppTask'],
-                    parent_class=ApplicationTask,
-                    application=self
-                )
-                self.add_tasks(tasks=tasks)
-            else:
-                self.logger.warning(f'Tasks directory not found: {tasks_path}')
-        except Exception as e:
-            self.logger.error(f'Failed to load tasks: {e}')
+        # tasks_path = Path(__file__).parents[2] / 'tasks'
+        tasks_path = Path('pyrox/tasks')
+        if tasks_path.exists():
+            tasks = class_services.find_and_instantiate_class(
+                directory_path=str(tasks_path),
+                class_name=ApplicationTask.__name__,
+                as_subclass=True,
+                ignoring_classes=['ApplicationTask', 'AppTask'],
+                parent_class=ApplicationTask,
+                application=self
+            )
+            self.add_tasks(tasks=tasks)
+        else:
+            raise FileNotFoundError(f'Tasks directory not found: {tasks_path}')
 
     def _build_tk_app_instance(self) -> None:
         if self.config.type_ == ApplicationTkType.ROOT:
@@ -878,6 +876,7 @@ class Application(Runnable):
         Args:
             tasks: List of ApplicationTask instances or types to add.
         """
+        self.logger.info(f'Adding {len(tasks)} tasks to the application.')
         for task in tasks:
             self.add_task(task)
 

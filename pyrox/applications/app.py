@@ -190,6 +190,9 @@ class AppOrganizer(models.Loggable):
         return d
 
     def _populate_prog_tab(self, controller: models.plc.Controller) -> None:
+        if not controller:
+            self.logger.debug('No controller provided to populate programs tab.')
+            return
         self.logger.debug('Populating programs tab with controller data.')
         self._program_frame.tree.populate_tree('', {
             'Standard': [self._build_standard_program_dict(program) for program in controller.standard_programs],

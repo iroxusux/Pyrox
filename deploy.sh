@@ -48,7 +48,7 @@ pyinstaller --name "Pyrox" \
     --distpath dist \
     --workpath build \
     --clean \
-    __main__.py
+    pyrox/__main__.py
 
 # Check if build was successful
 if [ $? -eq 0 ]; then
