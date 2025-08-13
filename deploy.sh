@@ -38,7 +38,6 @@ fi
 log_and_echo "Running PyInstaller..."
 pyinstaller --name "Pyrox" \
     --noconfirm \
-    --noconsole \
     --onedir \
     --icon="pyrox/ui/icons/_def.ico" \
     --add-data "pyrox/ui/icons:pyrox/ui/icons" \

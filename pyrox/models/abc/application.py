@@ -779,20 +779,43 @@ class Application(Runnable):
     def _build_tasks(self) -> None:
         self._tasks: HashList[ApplicationTask] = HashList('name')
 
-        # tasks_path = Path(__file__).parents[2] / 'tasks'
-        tasks_path = Path('pyrox/tasks')
-        if tasks_path.exists():
-            tasks = class_services.find_and_instantiate_class(
-                directory_path=str(tasks_path),
-                class_name=ApplicationTask.__name__,
-                as_subclass=True,
-                ignoring_classes=['ApplicationTask', 'AppTask'],
-                parent_class=ApplicationTask,
-                application=self
-            )
-            self.add_tasks(tasks=tasks)
-        else:
-            raise FileNotFoundError(f'Tasks directory not found: {tasks_path}')
+        try:
+            # Handle PyInstaller bundled executable
+            if getattr(sys, 'frozen', False) and hasattr(sys, '_MEIPASS'):
+                # Running as PyInstaller bundle
+                tasks_path = Path(sys._MEIPASS) / 'pyrox' / 'tasks'
+                self.logger.info(f"Running in PyInstaller bundle, tasks path: {tasks_path}")
+            else:
+                # Running in development environment
+                tasks_path = Path(__file__).parents[2] / 'tasks'
+                self.logger.info(f"Running in development, tasks path: {tasks_path}")
+
+            self.logger.info(f"Looking for tasks in: {tasks_path}")
+            self.logger.info(f"Tasks directory exists: {tasks_path.exists()}")
+
+            if tasks_path.exists():
+                # List what's actually in the directory
+                try:
+                    task_files = list(tasks_path.glob('*.py'))
+                    self.logger.info(f"Found task files: {[f.name for f in task_files]}")
+                except Exception as e:
+                    self.logger.warning(f"Could not list task files: {e}")
+
+                tasks = class_services.find_and_instantiate_class(
+                    directory_path=str(tasks_path),
+                    class_name=ApplicationTask.__name__,
+                    as_subclass=True,
+                    ignoring_classes=['ApplicationTask', 'AppTask'],
+                    parent_class=ApplicationTask,
+                    application=self
+                )
+                self.add_tasks(tasks=tasks)
+                self.logger.info(f"Successfully loaded {len(tasks)} tasks")
+            else:
+                self.logger.warning(f'Tasks directory not found: {tasks_path}')
+
+        except Exception as e:
+            self.logger.error(f'Failed to load tasks: {e}', exc_info=True)
 
     def _build_tk_app_instance(self) -> None:
         if self.config.type_ == ApplicationTkType.ROOT:

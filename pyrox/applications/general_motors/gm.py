@@ -1013,6 +1013,11 @@ class GmEmulationGenerator(emu.BaseEmulationGenerator):
             # Add to main emulation routine
             self._emu_routine.add_rung(Rung(
                 controller=self.controller,
+                text=f'[XIO(zz_Demo3D_{module.name}_I.Word1.0),XIC(zz_Demo3D_{module.name}_I.Word1.1)]FLL(0,zz_Demo3D_{module.name}_I.Word2,2);',  # noqa: E501
+                comment='If communication status is lost to the SBK via the emulation model, zero out the SBK words.'
+            ))
+            self._emu_routine.add_rung(Rung(
+                controller=self.controller,
                 text=f'COP({module.name}:O,zz_Demo3D_{module.name}_O,1);',
                 comment='Copy the output data from the safety block to the emulation tag.'
             ))
