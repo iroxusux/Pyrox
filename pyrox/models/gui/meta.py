@@ -169,19 +169,6 @@ class PyroxTreeview(ttk.Treeview):
         """Configure additional treeview-specific options."""
         self.configure(show='tree headings')
 
-    def _debug_states(self, event):
-        """Debug what states are active."""
-        item = self.identify_row(event.y)
-        if item:
-            print(f"Item: {item}")
-            style = ttk.Style()
-            # This will show what states ttk thinks are active
-            try:
-                state_info = style.map('Treeview')
-                print(f"Available states: {state_info}")
-            except:
-                pass
-
     def _on_hover(self, event):
         """Handle mouse hover over items."""
         item = self.identify_row(event.y)
