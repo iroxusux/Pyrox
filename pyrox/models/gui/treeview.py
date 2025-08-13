@@ -30,10 +30,7 @@ class LazyLoadingTreeView(PyroxTreeview):
             show=show
         )
         self._base_gui_class: type[PyroxGuiObject] = base_gui_class or PyroxGuiObject
-        self._context_menu = context_menu or ContextMenu(
-            master=self,
-            tearoff=0
-        )
+        self._context_menu = context_menu or ContextMenu(master=self)
         self.bind('<Button-3>', self.on_right_click)
         self.bind('<<TreeviewOpen>>', self.on_expand)
         self._lazy_load_map = {}

@@ -9,6 +9,10 @@ from typing import Callable, Optional
 
 __all__ = [
     'TextWidgetStream',
+    'PyroxNotebook',
+    'PyroxTreeview',
+    'PyroxThemeManager',
+    'PyroxDefaultTheme',
 ]
 
 
@@ -16,17 +20,20 @@ __all__ = [
 class PyroxDefaultTheme:
     """Default theme for Pyrox applications."""
     name: str = 'pyrox_default'
-    background: str = '#202020'
-    widget_background: str = '#2b2b2b'
+    background: str = "#2b2b2b"
+    background_selected: str = '#4b4b4b'
+    background_hover: str = '#3b3b3b'
+    widget_background: str = '#101010'
     borderwidth: int = 1
     foreground: str = '#aaaaaa'
     foreground_selected: str = '#FFFFFF'
+    foreground_hover: str = "#DDDDDD"
     relief: str = 'flat'
     font_family: str = 'Consolas'
     font_size: int = 10
     button_color: str = '#2b2b2b'
-    button_hover_color: str = '#6e6e6e'
-    button_active_color: str = '#2b2b2b'
+    button_hover: str = '#6e6e6e'
+    button_active: str = '#2b2b2b'
 
 
 class PyroxThemeManager:
@@ -50,7 +57,7 @@ class PyroxThemeManager:
                 'TNotebook': {
                     'configure': {
                         'background': PyroxDefaultTheme.background,
-                        'borderwidth': 1,
+                        'borderwidth': 0,
                     }
                 },
                 'TNotebook.Tab': {
@@ -58,7 +65,7 @@ class PyroxThemeManager:
                         'width': 8,
                         'padding': (8, 6),
                         'anchor': 'center',
-                        'background': PyroxDefaultTheme.widget_background,
+                        'background': PyroxDefaultTheme.background,
                         'foreground': PyroxDefaultTheme.foreground,
                         'borderwidth': 0,
                         'focuscolor': 'none'
@@ -66,12 +73,12 @@ class PyroxThemeManager:
                     'map': {
                         'background': [
                             ('selected', PyroxDefaultTheme.button_color),
-                            ('active', PyroxDefaultTheme.button_hover_color),
-                            ('!active', PyroxDefaultTheme.widget_background)
+                            ('active', PyroxDefaultTheme.button_hover),
+                            ('!active', PyroxDefaultTheme.background)
                         ],
                         'foreground': [
                             ('selected', PyroxDefaultTheme.foreground_selected),
-                            ('active', PyroxDefaultTheme.foreground_selected),
+                            ('active', PyroxDefaultTheme.foreground_hover),
                             ('!active', PyroxDefaultTheme.foreground)
                         ],
                     }
@@ -84,61 +91,29 @@ class PyroxThemeManager:
                         'fieldbackground': PyroxDefaultTheme.widget_background,
                         'borderwidth': 0,
                         'relief': 'flat',
+                        'focuscolor': 'none',
                         'font': (PyroxDefaultTheme.font_family, PyroxDefaultTheme.font_size),
                         'rowheight': 20,
                     },
                     'map': {
                         'background': [
-                            ('selected', PyroxDefaultTheme.button_color),
-                            ('active', PyroxDefaultTheme.button_hover_color),
-                            ('!active', PyroxDefaultTheme.widget_background)
+                            ('selected', PyroxDefaultTheme.background_selected),
                         ],
                         'foreground': [
                             ('selected', PyroxDefaultTheme.foreground_selected),
-                            ('active', PyroxDefaultTheme.foreground_selected),
-                            ('!active', PyroxDefaultTheme.foreground_selected)
                         ]
                     }
                 },
                 'Treeview.Heading': {
                     'configure': {
-                        'background': PyroxDefaultTheme.background,
+                        'background': PyroxDefaultTheme.widget_background,
                         'foreground': PyroxDefaultTheme.foreground_selected,
                         'borderwidth': 0,
                         'relief': 'raised',
                         'font': (PyroxDefaultTheme.font_family, PyroxDefaultTheme.font_size, 'bold'),
                         'padding': (5, 5),
                     },
-                    'map': {
-                        'background': [
-                            ('active', PyroxDefaultTheme.button_hover_color),
-                            ('pressed', PyroxDefaultTheme.button_active_color),
-                            ('!active', PyroxDefaultTheme.background)
-                        ],
-                        'foreground': [
-                            ('active', PyroxDefaultTheme.foreground_selected),
-                            ('pressed', PyroxDefaultTheme.foreground_selected),
-                            ('!active', PyroxDefaultTheme.foreground_selected)
-                        ]
-                    }
                 },
-                'Treeview.Item': {
-                    'configure': {
-                        'padding': (2, 2),
-                    },
-                    'map': {
-                        'background': [
-                            ('selected', PyroxDefaultTheme.button_color),
-                            ('active', PyroxDefaultTheme.button_hover_color),
-                            ('!active', PyroxDefaultTheme.widget_background)
-                        ],
-                        'foreground': [
-                            ('selected', PyroxDefaultTheme.foreground),
-                            ('active', PyroxDefaultTheme.foreground_selected),
-                            ('!active', PyroxDefaultTheme.foreground)
-                        ]
-                    }
-                }
             })
 
             # Apply the theme once
@@ -179,149 +154,46 @@ class PyroxTreeview(ttk.Treeview):
     def __init__(
         self,
         master=None,
-        show_tree_lines: bool = True,
-        stripe_rows: bool = True,
         **kwargs
     ) -> None:
         super().__init__(master, **kwargs)
-        self.show_tree_lines = show_tree_lines
-        self.stripe_rows = stripe_rows
         self._configure_style()
+        self.bind('<Motion>', self._on_hover)
 
     def _configure_style(self) -> None:
-        # Ensure shared theme is created and applied
         PyroxThemeManager.ensure_theme_created()
         self._configure_additional_options()
-
-    def _fallback_styling(self) -> None:
-        """Fallback styling if theme creation fails."""
-        style = ttk.Style()
-
-        # Create unique style name
-        treeview_style = f'Pyrox{id(self)}.Treeview'
-        heading_style = f'Pyrox{id(self)}.Treeview.Heading'
-
-        # Configure treeview
-        style.configure(
-            treeview_style,
-            background=PyroxDefaultTheme.widget_background,
-            foreground=PyroxDefaultTheme.foreground,
-            fieldbackground=PyroxDefaultTheme.widget_background,
-            borderwidth=1,
-            relief='flat',
-            rowheight=25
-        )
-
-        # Configure headings
-        style.configure(
-            heading_style,
-            background=PyroxDefaultTheme.background,
-            foreground=PyroxDefaultTheme.foreground_selected,
-            borderwidth=1,
-            relief='raised',
-            font=(PyroxDefaultTheme.font_family, PyroxDefaultTheme.font_size, 'bold')
-        )
-
-        # Map state-based styling
-        style.map(
-            treeview_style,
-            background=[
-                ('selected', PyroxDefaultTheme.button_color),
-                ('active', PyroxDefaultTheme.button_hover_color)
-            ],
-            foreground=[
-                ('selected', PyroxDefaultTheme.foreground_selected),
-                ('active', PyroxDefaultTheme.foreground_selected)
-            ]
-        )
-
-        style.map(
-            heading_style,
-            background=[('active', PyroxDefaultTheme.button_hover_color)],
-            foreground=[('active', PyroxDefaultTheme.foreground_selected)]
-        )
-
-        # Apply styles
-        self.configure(style=treeview_style)
+        self._setup_hover_tags()
 
     def _configure_additional_options(self) -> None:
         """Configure additional treeview-specific options."""
-        # Configure selection mode
-        self.configure(selectmode='extended')
+        self.configure(show='tree headings')
 
-        # Configure tree lines if requested
-        if self.show_tree_lines:
-            self.configure(show='tree headings')
-        else:
-            self.configure(show='headings')
+    def _debug_states(self, event):
+        """Debug what states are active."""
+        item = self.identify_row(event.y)
+        if item:
+            print(f"Item: {item}")
+            style = ttk.Style()
+            # This will show what states ttk thinks are active
+            try:
+                state_info = style.map('Treeview')
+                print(f"Available states: {state_info}")
+            except:
+                pass
 
-        # Set up alternating row colors if requested
-        if self.stripe_rows:
-            self._setup_alternating_rows()
+    def _on_hover(self, event):
+        """Handle mouse hover over items."""
+        item = self.identify_row(event.y)
+        self.tk.call(self, 'tag', 'remove', 'hover')
+        self.tk.call(self, 'tag', 'add', 'hover', item)
 
-    def _setup_alternating_rows(self) -> None:
-        """Set up alternating row colors for better readability."""
-        # Configure tag for alternating rows
-        self.tag_configure('oddrow',
-                           background=PyroxDefaultTheme.widget_background,
-                           foreground=PyroxDefaultTheme.foreground)
-        self.tag_configure('evenrow',
-                           background='#353535',  # Slightly lighter than widget_background
-                           foreground=PyroxDefaultTheme.foreground)
-
-        # Bind to item insertion to apply alternating colors
-        self.bind('<<TreeviewSelect>>', self._on_treeview_select)
-
-    def _on_treeview_select(self, event=None) -> None:
-        """Handle treeview selection events."""
-        # Custom selection handling can go here
-        pass
-
-    def insert_with_style(self, parent: str, index: str, iid: str = None, **kwargs) -> str:
-        """Insert an item with automatic alternating row styling."""
-        item_id = super().insert(parent, index, iid, **kwargs)
-
-        if self.stripe_rows:
-            # Apply alternating row colors
-            children = self.get_children(parent)
-            child_index = children.index(item_id)
-
-            if child_index % 2 == 0:
-                self.item(item_id, tags=('evenrow',))
-            else:
-                self.item(item_id, tags=('oddrow',))
-
-        return item_id
-
-    def configure_column(self, column: str, **options) -> None:
-        """Enhanced column configuration with default styling."""
-        default_options = {
-            'anchor': 'w',
-            'minwidth': 50,
-            'stretch': True
-        }
-        default_options.update(options)
-
-        self.column(column, **default_options)
-
-        # Configure heading with default styling
-        if 'text' in options:
-            self.heading(column, text=options['text'], anchor='w')
-
-    def add_column(self, column_id: str, text: str, width: int = 100, **options) -> None:
-        """Add a column with consistent styling."""
-        # Add to columns list
-        current_columns = list(self['columns'])
-        current_columns.append(column_id)
-        self.configure(columns=current_columns)
-
-        # Configure the column
-        column_options = {
-            'width': width,
-            'text': text,
-            **options
-        }
-        self.configure_column(column_id, **column_options)
+    def _setup_hover_tags(self):
+        """Set up tags for hover effects."""
+        # Configure hover tag with your desired color
+        self.tag_configure('hover',
+                           foreground=PyroxDefaultTheme.foreground_hover,
+                           background=PyroxDefaultTheme.background_hover)
 
     def clear_all(self) -> None:
         """Clear all items from the treeview."""

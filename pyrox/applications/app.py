@@ -190,12 +190,14 @@ class AppOrganizer(models.Loggable):
         return d
 
     def _populate_prog_tab(self, controller: models.plc.Controller) -> None:
+        self.logger.debug('Populating programs tab with controller data.')
         self._program_frame.tree.populate_tree('', {
             'Standard': [self._build_standard_program_dict(program) for program in controller.standard_programs],
             'Safety': [self._build_standard_program_dict(program) for program in controller.safety_programs]}
         )
 
     def _populate_raw_tab(self, controller: models.plc.Controller) -> None:
+        self.logger.debug('Populating raw tab with controller data.')
         self._raw_l5x_frame.tree.populate_tree('', controller)
 
     def build(
@@ -213,6 +215,7 @@ class AppOrganizer(models.Loggable):
 
         This method will remove all children from the organizer window, if it exists.
         """
+        self.logger.debug('Clearing organizer of all children.')
         self._raw_l5x_frame.tree.delete(*self._raw_l5x_frame.tree.get_children())
         self._program_frame.tree.delete(*self._program_frame.tree.get_children())
 
@@ -336,6 +339,7 @@ class App(models.Application):
 
     def _config_menu_file_entries(self) -> None:
         """Configure the file menu entries based on the controller state."""
+        self.logger.debug('Configuring file menu entries based on controller state.')
         self._menu.file.entryconfig('Save L5X', state='disabled' if not self.controller else 'normal')
         self._menu.file.entryconfig('Save L5X As...', state='disabled' if not self.controller else 'normal')
         self._menu.file.entryconfig('Close L5X', state='disabled' if not self.controller else 'normal')
@@ -472,6 +476,7 @@ class App(models.Application):
         """
         if not self.workspace:
             return
+        self.logger.debug('Clearing workspace of all children.')
 
         for child in self.workspace.winfo_children():
             child.pack_forget()

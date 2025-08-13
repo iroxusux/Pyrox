@@ -4,14 +4,17 @@ from __future__ import annotations
 
 
 from enum import Enum
+import tkinter as tk
 from typing import Callable, Optional, TYPE_CHECKING
 
 
 from pylogix import PLC
 from pylogix.lgx_tag import Tag
 from pylogix.lgx_response import Response
-
 from pyrox.models import Model, ConnectionParameters
+from pyrox.models.gui import FrameWithTreeViewAndScrollbar, TaskFrame, WatchTableTaskFrame
+
+from .app import AppTask
 
 
 if TYPE_CHECKING:
@@ -438,3 +441,214 @@ class PlcWatchTableModel(Model):
                                                              value,
                                                              None,  # data_type is not used for write commands
                                                              self._update_tag_value))
+
+
+class PlcIoFrame(TaskFrame):
+    """Connection view for PLC i/o.
+    """
+
+    def __init__(
+        self,
+        parent=None,
+        connection_params: ConnectionParameters = None,
+    ) -> None:
+        super().__init__(parent,
+                         name='PLC I/O',)
+
+        self._conn_params: ConnectionParameters = connection_params
+        if not self._conn_params:
+            self._conn_params = ConnectionParameters('120.15.35.2', '1')
+
+        self._plccfgframe = tk.LabelFrame(self.content_frame, text='PLC Connection Configuration')
+        self._plccfgframe.pack(side=tk.TOP, fill=tk.X)
+
+        self._status_canvas = tk.Canvas(self._plccfgframe, width=20, height=20, highlightthickness=0)
+        self._status_canvas.pack(side=tk.LEFT, padx=8)
+        self._status_led = self._status_canvas.create_oval(4, 4, 16, 16, fill="grey", outline="black")
+
+        _ip_addr = tk.StringVar(self._plccfgframe, self._conn_params.ip_address, 'PLC IP Address')
+        self._ip_addr_entry = tk.Entry(self._plccfgframe, textvariable=_ip_addr)
+        self._ip_addr_entry.pack(side=tk.LEFT)
+
+        _slot = tk.StringVar(self._plccfgframe, self._conn_params.slot, 'PLC Slot Number')
+        self._slot_entry = tk.Entry(self._plccfgframe, textvariable=_slot)
+        self._slot_entry.pack(side=tk.LEFT)
+
+        self._connect_pb = tk.Button(self._plccfgframe, text='Connect')
+        self._connect_pb.pack(side=tk.LEFT, fill=tk.X)
+
+        self._disconnect_pb = tk.Button(self._plccfgframe, text='Disconnect')
+        self._disconnect_pb.pack(side=tk.LEFT, fill=tk.X)
+
+        self._plccmdframe = tk.LabelFrame(self.content_frame, text='PLC Commands')
+        self._plccmdframe.pack(side=tk.TOP, fill=tk.X)
+
+        self._get_tags_pb = tk.Button(self._plccmdframe, text='Read Tags')
+        self._get_tags_pb.pack(side=tk.LEFT, fill=tk.X)
+
+        self._watch_table_pb = tk.Button(self._plccmdframe, text='Watch Table')
+        self._watch_table_pb.pack(side=tk.LEFT, fill=tk.X)
+
+        self._tags_frame = FrameWithTreeViewAndScrollbar(self.content_frame)
+        self._tags_frame.pack(side=tk.TOP, fill='both', expand=True)
+
+    @property
+    def connect_pb(self) -> tk.Button:
+        """Returns the connect button.
+        """
+        return self._connect_pb
+
+    @property
+    def disconnect_pb(self) -> tk.Button:
+        """Returns the disconnect button.
+        """
+        return self._disconnect_pb
+
+    @property
+    def get_tags_pb(self) -> tk.Button:
+        """Returns the get tags button.
+        """
+        return self._get_tags_pb
+
+    @property
+    def ip_addr(self) -> str:
+        """Returns the IP address variable.
+        """
+        return self._ip_addr_entry.get()
+
+    @property
+    def ip_addr_entry(self) -> tk.Entry:
+        """Returns the IP address entry.
+        """
+        return self._ip_addr_entry
+
+    @property
+    def slot(self) -> str:
+        """Returns the slot number variable.
+        """
+        return self._slot_entry.get()
+
+    @property
+    def slot_entry(self) -> tk.Entry:
+        """Returns the slot entry.
+        """
+        return self._slot_entry
+
+    @property
+    def tags_frame(self) -> FrameWithTreeViewAndScrollbar:
+        """Returns the tags tree view.
+        """
+        return self._tags_frame
+
+    @property
+    def watch_table_pb(self) -> tk.Button:
+        """Returns the watch table button.
+        """
+        return self._watch_table_pb
+
+    def set_status_led(self, connected: bool):
+        """Set the status LED color."""
+        color = "light green" if connected else "grey"
+        self._status_canvas.itemconfig(self._status_led, fill=color)
+
+
+class PlcIoTask(AppTask):
+    """Controller verification task for the PLC verification Application.
+    """
+
+    def __init__(self,
+                 application: App):
+        super().__init__(application=application)
+        self._connection_model: PlcControllerConnectionModel = PlcControllerConnectionModel(application)
+        self._connection_model.on_connection.append(self._on_connected)
+        self._connection_model.on_new_tags.append(lambda _: self._clear_and_populate_tags())
+        self._plc_watch_table_model: PlcWatchTableModel = PlcWatchTableModel(application, self._connection_model)
+        self._frame: Optional[PlcIoFrame] = None
+        self._watch_table_frame: Optional[WatchTableTaskFrame] = None
+
+        self._on_connect_lambda = lambda: self._connection_model.connect(ConnectionParameters(
+            self._frame.ip_addr,
+            self._frame.slot,
+            500))
+        self._on_new_tags_lambda = lambda _: self._watch_table_frame.update_symbols(self._connection_model.tag_list_as_names())
+        self._on_tick_lambda = lambda: self._plc_watch_table_model.on_tick(self._watch_table_frame.get_watch_table())
+
+    def _clear_and_populate_tags(self) -> None:
+        self._frame.tags_frame.tree.clear()
+        self._frame.tags_frame.tree.populate_tree('', self._connection_model.tag_list_as_dict())
+
+    def _launch_watch_table(self) -> None:
+        """Launch the watch table for PLC tags.
+        """
+        if not self._watch_table_frame or not self._watch_table_frame.winfo_exists():
+            self._watch_table_frame = WatchTableTaskFrame(self.application.workspace,
+                                                          all_symbols=self._connection_model.tag_list_as_names(),
+                                                          on_write=self._plc_watch_table_model.write_value)
+            if self._on_new_tags_lambda not in self._connection_model.on_new_tags:
+                self._connection_model.on_new_tags.append(self._on_new_tags_lambda)
+            if self._on_tick_lambda not in self._connection_model.on_tick:
+                self._connection_model.on_tick.append(self._on_tick_lambda)
+            if self._update_watch_table_value not in self._plc_watch_table_model.on_tag_value_update:
+                self._plc_watch_table_model.on_tag_value_update.append(self._update_watch_table_value)
+
+            self.application.register_frame(self._watch_table_frame, raise_=True)
+        else:
+            self.application.set_frame(self._watch_table_frame)
+
+    def _on_connected(self, connected: bool):
+        if connected:
+            self._frame.connect_pb.configure(state=tk.DISABLED)
+            self._frame.disconnect_pb.configure(state=tk.NORMAL)
+            self._frame.ip_addr_entry.configure(state=tk.DISABLED)
+            self._frame.slot_entry.configure(state=tk.DISABLED)
+        else:
+            self._frame.connect_pb.configure(state=tk.NORMAL)
+            self._frame.disconnect_pb.configure(state=tk.DISABLED)
+            self._frame.ip_addr_entry.configure(state=tk.NORMAL)
+            self._frame.slot_entry.configure(state=tk.NORMAL)
+        self._frame.set_status_led(connected)
+
+    def _update_watch_table_value(self, response):
+        """Update the watch table with the value of a tag.
+        This method is called when a read command response is received.
+        """
+        if not isinstance(response, Response):
+            raise TypeError(f'Expected Response, got {type(response)}')
+
+        # Notify the watch table model to update the value
+        self._watch_table_frame.update_row_by_name(response.TagName, response.Value)
+
+    def add_tag_to_watch_table(self, tag_name: str) -> None:
+        """Add a tag to the watch table.
+
+        Args:
+            tag_name (str): The name of the tag to add.
+        """
+        if not self._watch_table_frame or not self._watch_table_frame.winfo_exists():
+            return
+
+        # Add the tag to the watch table
+        self._watch_table_frame.add_tag(tag_name)
+
+    def start(self):
+        if not self._frame or not self._frame.winfo_exists():
+            self._frame = PlcIoFrame(
+                self.application.workspace,
+                ConnectionParameters(
+                    self.application.runtime_info.get('connection_params_ip_address', '192.168.1.2'),
+                    self.application.runtime_info.get('connection_params_slot', '0')
+                )
+            )
+
+            self._frame.connect_pb.config(command=self._on_connect_lambda)
+            self._frame.disconnect_pb.config(command=self._connection_model.disconnect)
+            self._frame.get_tags_pb.config(command=self._connection_model.get_controller_tags)
+            self._frame.watch_table_pb.config(command=self._launch_watch_table)
+            self._on_connected(self._connection_model.connected)
+            self.application.register_frame(self._frame, raise_=True)
+        else:
+            self.application.set_frame(self._frame)
+        super().start()
+
+    def inject(self) -> None:
+        self.application.menu.tools.add_command(label='PLC I/O', command=self.start)

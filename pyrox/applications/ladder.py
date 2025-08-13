@@ -25,5 +25,6 @@ class LadderEditorApplicationTask(AppTask):
             self._task_frame = ladder.LadderEditorTaskFrame(
                 master=self.application.workspace,
                 controller=controller or self.application.controller,
-                routine=routine)
+                routine=routine
+            )
         self.application.register_frame(self._task_frame, raise_=True)

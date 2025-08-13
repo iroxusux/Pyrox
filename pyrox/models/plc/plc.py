@@ -211,6 +211,10 @@ OUTPUT_INSTRUCTIONS = [INSTR_OTE,
                        INSTR_SIZE,
                        ISNTR_CPS]
 
+# ------------------ Special Instructions ----------------------- #
+# Special instructions not known to be input or output instructions
+INSTR_JSR = 'JSR'
+
 
 class LogixTagScope(Enum):
     """logix tag scope enumeration
@@ -226,6 +230,7 @@ class LogixInstructionType(Enum):
     INPUT = 1
     OUTPUT = 2
     UNKOWN = 3
+    JSR = 4
 
 
 class LogixAssetType(Enum):
@@ -404,6 +409,13 @@ class PlcObject(EnforcesNaming, PyroxObject):
                 if key not in self.meta_data:
                     insert_key_at_index(d=self.meta_data, key=key, index=index)
 
+    def _invalidate(self) -> None:
+        """Invalidate this object.
+
+        This method is called when the object needs to be recompiled or reset.
+        """
+        raise NotImplementedError("This method should be overridden by subclasses to invalidate the object.")
+
     def compile(self) -> Self:
         """Compile this object.
 
@@ -524,18 +536,18 @@ class NamedPlcObject(PlcObject, NamedPyroxObject):
         """
         self['Description'] = value
 
-    def _remove_asset_from_meta_data(self,
-                                     asset: Union['NamedPlcObject', str],
-                                     asset_list: HashList,
-                                     raw_asset_list: list[dict],
-                                     skip_compile: bool = False) -> None:
+    def _remove_asset_from_meta_data(
+        self,
+        asset: Union['NamedPlcObject', str],
+        asset_list: HashList,
+        raw_asset_list: list[dict]
+    ) -> None:
         """Remove an asset from this object's metadata.
 
         Args:
             asset: The asset to remove.
             asset_list: The HashList containing the asset.
             raw_asset_list: The raw metadata list.
-            skip_compile: Whether to skip compilation after removal.
 
         Raises:
             ValueError: If asset is wrong type or doesn't exist.
@@ -555,9 +567,7 @@ class NamedPlcObject(PlcObject, NamedPyroxObject):
             raise ValueError(f"Asset with name {asset_name} does not exist in this container!")
 
         raw_asset_list.remove(next((x for x in raw_asset_list if x['@Name'] == asset_name), None))
-
-        if not skip_compile:
-            self._compile_from_meta_data()
+        self._invalidate()
 
     def validate(self, report: Optional['ControllerReportItem'] = None) -> 'ControllerReportItem':
         """Validate this named PLC object.
@@ -697,6 +707,10 @@ class LogixOperand(PlcObject):
         if self._instruction_type:
             return self._instruction_type
 
+        if self.instruction.instruction_name == INSTR_JSR:
+            self._instruction_type = LogixInstructionType.JSR
+            return self._instruction_type
+
         if self.instruction.instruction_name in INPUT_INSTRUCTIONS:
             self._instruction_type = LogixInstructionType.INPUT
             return self._instruction_type
@@ -712,7 +726,6 @@ class LogixOperand(PlcObject):
 
         # for now, all AOI operands will be considered out, until i can later dig into this.
         if self.instruction.instruction_name in [aoi.name for aoi in self.instruction.rung.controller.aois]:
-            # if self.instruction.element in self.instruction.routine.controller.aois:
             self._instruction_type = LogixInstructionType.OUTPUT
             return self._instruction_type
 
@@ -992,7 +1005,7 @@ class LogixInstruction(PlcObject):
     def type(self) -> LogixInstructionType:
         if self._type:
             return self._type
-        self._type = LogixInstructionType.INPUT if self.instruction_name in INPUT_INSTRUCTIONS else LogixInstructionType.OUTPUT
+        self._type = self._get_instruction_type()
         return self._type
 
     def _get_operands(self):
@@ -1007,6 +1020,21 @@ class LogixInstruction(PlcObject):
             if not match:
                 continue
             self._operands.append(LogixOperand(match, self, index, self.controller))
+
+    def _get_instruction_type(self) -> LogixInstructionType:
+        """get the instruction type for this instruction
+
+        Returns:
+            :class:`LogixInstructionType`
+        """
+        if self.instruction_name in INPUT_INSTRUCTIONS:
+            return LogixInstructionType.INPUT
+        elif self.instruction_name in [x[0] for x in OUTPUT_INSTRUCTIONS]:
+            return LogixInstructionType.OUTPUT
+        elif self.instruction_name == INSTR_JSR:
+            return LogixInstructionType.JSR
+        else:
+            return LogixInstructionType.UNKOWN
 
     def as_report_dict(self) -> dict:
         """get this operand as a report dictionary
@@ -1032,14 +1060,16 @@ class LogixInstruction(PlcObject):
 
 
 class ContainsTags(NamedPlcObject):
-    def __init__(self,
-                 meta_data=defaultdict(None),
-                 controller=None):
-        super().__init__(meta_data=meta_data,
-                         controller=controller)
-
-        self._tags: HashList
-        self._compile_from_meta_data()
+    def __init__(
+        self,
+        meta_data=defaultdict(None),
+        controller=None
+    ) -> None:
+        super().__init__(
+            meta_data=meta_data,
+            controller=controller
+        )
+        self._tags: HashList = None
 
     @property
     def raw_tags(self) -> list[dict]:
@@ -1051,16 +1081,26 @@ class ContainsTags(NamedPlcObject):
 
     @property
     def tags(self) -> HashList:
+        if not self._tags:
+            self._compile_tags()
         return self._tags
 
     def _compile_from_meta_data(self):
         """compile this object from its meta data
         """
-        self._tags: HashList = HashList('name')
-        [self._tags.append(self.config.tag_type(meta_data=x, controller=self.controller))
-         for x in self.raw_tags]
+        self._compile_tags()
 
-    def add_tag(self, tag: 'Tag', skip_compile: bool = False) -> None:
+    def _compile_tags(self):
+        """compile the tags in this container
+        """
+        self._tags = HashList('name')
+        for tag in self.raw_tags:
+            self._tags.append(self.config.tag_type(meta_data=tag, controller=self.controller))
+
+    def _invalidate(self):
+        self._tags = None
+
+    def add_tag(self, tag: 'Tag') -> None:
         """add a tag to this container
 
         Args:
@@ -1069,14 +1109,13 @@ class ContainsTags(NamedPlcObject):
         if not isinstance(tag, Tag):
             raise TypeError("Tag must be of type Tag!")
 
-        if tag.name in self._tags:
-            self.remove_tag(tag, skip_compile=True)
+        if tag.name in self.tags:
+            self.remove_tag(tag)
 
         self.raw_tags.append(tag.meta_data)
-        if not skip_compile:
-            self._compile_from_meta_data()
+        self._invalidate()
 
-    def remove_tag(self, tag: Union['Tag', str], skip_compile: bool = False) -> None:
+    def remove_tag(self, tag: Union['Tag', str]) -> None:
         """remove a tag from this container
 
         Args:
@@ -1084,23 +1123,27 @@ class ContainsTags(NamedPlcObject):
         """
         self._remove_asset_from_meta_data(tag,
                                           self._tags,
-                                          self.raw_tags,
-                                          skip_compile=skip_compile)
+                                          self.raw_tags)
 
 
 class ContainsRoutines(ContainsTags):
     """This PLC Object contains routines
     """
 
-    def __init__(self,
-                 meta_data=defaultdict(None), controller=None):
-        super().__init__(meta_data, controller)
+    def __init__(
+        self,
+        meta_data=defaultdict(None),
+        controller=None
+    ) -> None:
+        super().__init__(
+            meta_data,
+            controller
+        )
 
-        self._input_instructions: list[LogixInstruction] = []
-        self._output_instructions: list[LogixInstruction] = []
-        self._instructions: list[LogixInstruction] = []
-        self._routines: HashList = HashList('name')
-        self._compile_from_meta_data()
+        self._input_instructions: list[LogixInstruction] = None
+        self._output_instructions: list[LogixInstruction] = None
+        self._instructions: list[LogixInstruction] = None
+        self._routines: HashList = None
 
     @property
     def class_(self) -> str:
@@ -1108,11 +1151,8 @@ class ContainsRoutines(ContainsTags):
 
     @property
     def input_instructions(self) -> list[LogixInstruction]:
-        if self._input_instructions:
-            return self._input_instructions
-
-        self._input_instructions = []
-        [self._input_instructions.extend(x.input_instructions) for x in self.routines]
+        if not self._input_instructions:
+            self._compile_instructions()
         return self._input_instructions
 
     @property
@@ -1122,23 +1162,20 @@ class ContainsRoutines(ContainsTags):
         Returns:
             :class:`list[LogixInstruction]`
         """
-        if self._instructions:
-            return self._instructions
-        self._instructions = []
-        [self._instructions.extend(x.instructions) for x in self.routines]
+        if not self._instructions:
+            self._compile_instructions()
         return self._instructions
 
     @property
     def output_instructions(self) -> list[LogixInstruction]:
-        if self._output_instructions:
-            return self._output_instructions
-
-        self._output_instructions = []
-        [self._output_instructions.extend(x.output_instructions) for x in self.routines]
+        if not self._output_instructions:
+            self._compile_instructions()
         return self._output_instructions
 
     @property
     def routines(self) -> list[Routine]:
+        if not self._routines:
+            self._compile_routines()
         return self._routines
 
     @property
@@ -1153,18 +1190,48 @@ class ContainsRoutines(ContainsTags):
         """compile this object from its meta data
         """
         super()._compile_from_meta_data()
+        self._compile_routines()
+        self._compile_instructions()
+
+    def _compile_instructions(self):
+        """compile the instructions in this container
+        """
         self._input_instructions = []
         self._output_instructions = []
         self._instructions = []
-        self._routines: HashList = HashList('name')
+
+        for routine in self.routines:
+            self._input_instructions.extend(routine.input_instructions)
+            self._output_instructions.extend(routine.output_instructions)
+            self._instructions.extend(routine.instructions)
+
+    def _compile_routines(self):
+        """compile the routines in this container
+
+        This method compiles the routines from the raw metadata and initializes the HashList.
+        """
+        self._routines = HashList('name')
         for routine in self.raw_routines:
             self._routines.append(
                 self.config.routine_type(
                     meta_data=routine,
                     controller=self.controller,
-                    program=self))
+                    program=self
+                )
+            )
 
-    def add_routine(self, routine: 'Routine', skip_compile: bool = False):
+    def _invalidate(self):
+        """invalidate this object
+
+        This method is called when the object needs to be recompiled or reset.
+        """
+        super()._invalidate()
+        self._input_instructions = []
+        self._output_instructions = []
+        self._instructions = []
+        self._routines = HashList('name')
+
+    def add_routine(self, routine: 'Routine'):
         """add a routine to this container
 
         Args:
@@ -1174,13 +1241,12 @@ class ContainsRoutines(ContainsTags):
             raise TypeError("Routine must be of type Routine!")
 
         if routine.name in self._routines:
-            self.remove_routine(routine, skip_compile=True)
+            self.remove_routine(routine)
 
         self.raw_routines.append(routine.meta_data)
-        if not skip_compile:
-            self._compile_from_meta_data()
+        self._invalidate()
 
-    def remove_routine(self, routine: Union[Routine, str], skip_compile: bool = False):
+    def remove_routine(self, routine: Union[Routine, str]):
         """remove a routine from this container
 
         Args:
@@ -1188,8 +1254,7 @@ class ContainsRoutines(ContainsTags):
         """
         self._remove_asset_from_meta_data(routine,
                                           self._routines,
-                                          self.raw_routines,
-                                          skip_compile=skip_compile)
+                                          self.raw_routines)
 
 
 class AddOnInstruction(ContainsRoutines):
@@ -1823,9 +1888,11 @@ class Module(NamedPlcObject):
 
 
 class Program(ContainsRoutines):
-    def __init__(self,
-                 meta_data: dict = None,
-                 controller: Controller = None):
+    def __init__(
+        self,
+        meta_data: dict = None,
+        controller: Controller = None
+    ) -> None:
         """type class for plc Program
 
         Args:
@@ -1833,8 +1900,10 @@ class Program(ContainsRoutines):
             controller (Self): controller dictionary
         """
 
-        super().__init__(meta_data=meta_data or l5x_dict_from_file(PLC_PROG_FILE)['Program'],
-                         controller=controller)
+        super().__init__(
+            meta_data=meta_data or l5x_dict_from_file(PLC_PROG_FILE)['Program'],
+            controller=controller
+        )
 
     @property
     def dict_key_order(self) -> list[str]:
@@ -1888,13 +1957,15 @@ class Program(ContainsRoutines):
 
 
 class Routine(NamedPlcObject):
-    def __init__(self,
-                 meta_data: dict = None,
-                 controller: Controller = None,
-                 program: Optional[Program] = None,
-                 aoi: Optional[AddOnInstruction] = None,
-                 name: Optional[str] = None,
-                 description: Optional[str] = None):
+    def __init__(
+        self,
+        meta_data: dict = None,
+        controller: Controller = None,
+        program: Optional[Program] = None,
+        aoi: Optional[AddOnInstruction] = None,
+        name: Optional[str] = None,
+        description: Optional[str] = None
+    ) -> None:
         """type class for plc Routine
 
         Args:
@@ -1902,10 +1973,12 @@ class Routine(NamedPlcObject):
             controller (Self): controller dictionary
         """
 
-        super().__init__(meta_data=meta_data or l5x_dict_from_file(PLC_ROUT_FILE)['Routine'],
-                         controller=controller,
-                         name=name,
-                         description=description)
+        super().__init__(
+            meta_data=meta_data or l5x_dict_from_file(PLC_ROUT_FILE)['Routine'],
+            controller=controller,
+            name=name,
+            description=description
+        )
 
         self._program: Optional[Program] = program
         self._aoi: Optional[AddOnInstruction] = aoi
@@ -1913,7 +1986,6 @@ class Routine(NamedPlcObject):
         self._input_instructions: list[LogixInstruction] = []
         self._output_instructions: list[LogixInstruction] = []
         self._rungs: list[Rung] = []
-        self._compile_from_meta_data()
 
     @property
     def dict_key_order(self) -> list[str]:
@@ -1934,10 +2006,8 @@ class Routine(NamedPlcObject):
 
     @property
     def input_instructions(self) -> list[LogixInstruction]:
-        if self._input_instructions:
-            return self._input_instructions
-        self._input_instructions = []
-        [self._input_instructions.extend(x.input_instructions) for x in self.rungs]
+        if not self._input_instructions:
+            self._compile_instructions()
         return self._input_instructions
 
     @property
@@ -1947,18 +2017,14 @@ class Routine(NamedPlcObject):
         Returns:
             :class:`list[LogixInstruction]`
         """
-        if self._instructions:
-            return self._instructions
-        self._instructions = []
-        [self._instructions.extend(x.instructions) for x in self.rungs]
+        if not self._instructions:
+            self._compile_instructions()
         return self._instructions
 
     @property
     def output_instructions(self) -> list[LogixInstruction]:
-        if self._output_instructions:
-            return self._output_instructions
-        self._output_instructions = []
-        [self._output_instructions.extend(x.output_instructions) for x in self.rungs]
+        if not self._output_instructions:
+            self._compile_instructions()
         return self._output_instructions
 
     @property
@@ -1967,6 +2033,8 @@ class Routine(NamedPlcObject):
 
     @property
     def rungs(self) -> list[Rung]:
+        if not self._rungs:
+            self._compile_rungs()
         return self._rungs
 
     @property
@@ -1992,10 +2060,41 @@ class Routine(NamedPlcObject):
                                                   rung_number=i))
          for i, x in enumerate(self.raw_rungs)]
 
+    def _compile_instructions(self):
+        """compile the instructions in this routine
+
+        This method compiles the instructions from the rungs and initializes the lists.
+        """
+        self._input_instructions = []
+        self._output_instructions = []
+        self._instructions = []
+
+        for rung in self.rungs:
+            self._input_instructions.extend(rung.input_instructions)
+            self._output_instructions.extend(rung.output_instructions)
+            self._instructions.extend(rung.instructions)
+
+    def _compile_rungs(self):
+        """compile the rungs in this routine
+
+        This method compiles the rungs from the raw metadata and initializes the list.
+        """
+        self._rungs = []
+        [self._rungs.append(self.config.rung_type(meta_data=x,
+                                                  controller=self.controller,
+                                                  routine=self,
+                                                  rung_number=i))
+         for i, x in enumerate(self.raw_rungs)]
+
+    def _invalidate(self):
+        self._instructions: list[LogixInstruction] = []
+        self._input_instructions: list[LogixInstruction] = []
+        self._output_instructions: list[LogixInstruction] = []
+        self._rungs: list[Rung] = []
+
     def add_rung(self,
                  rung: Rung,
-                 index: Optional[int] = None,
-                 skip_compile: bool = False):
+                 index: Optional[int] = None):
         """add a rung to this routine
 
         Args:
@@ -2010,8 +2109,25 @@ class Routine(NamedPlcObject):
             self.raw_rungs.insert(index, rung.meta_data)
         for i, rung_dict in enumerate(self.raw_rungs):
             rung_dict['@Number'] = str(i)
-        if not skip_compile:
-            self._compile_from_meta_data()
+        self._invalidate()
+
+    def check_for_jsr(
+        self,
+        routine_name: str,
+    ) -> bool:
+        """Check if this routine contains a JSR instruction to the specified routine.
+
+        Args:
+            routine_name (str): The name of the routine to check for in JSR instructions.
+
+        Returns:
+            bool: True if a JSR instruction to the specified routine is found, False otherwise.
+        """
+        for instruction in self.instructions:
+            if instruction.type == LogixInstructionType.JSR and instruction.operands:
+                if str(instruction.operands[0]) == routine_name:
+                    return True
+        return False
 
     def clear_rungs(self):
         """clear all rungs from this routine"""
@@ -2039,7 +2155,7 @@ class Routine(NamedPlcObject):
             raise ValueError("Rung must be an instance of Rung!")
 
         self.raw_rungs.remove(rung.meta_data)
-        self._compile_from_meta_data()
+        self._invalidate()
 
     def validate(self) -> ControllerReportItem:
         report = ControllerReportItem(self,
@@ -4098,6 +4214,7 @@ class Controller(NamedPlcObject, Loggable):
     def _compile_aois(self) -> None:
         """Compile Add-On Instructions from the controller's AOIs.
         """
+        self.logger.debug('Compiling AOIs from controller...')
         if self._aois is None:
             self._aois = HashList('name')
             for aoi in self.raw_aois:
@@ -4137,6 +4254,7 @@ class Controller(NamedPlcObject, Loggable):
 
     def _compile_datatypes(self) -> None:
         """Compile datatypes from the controller's datatypes."""
+        self.logger.debug('Compiling datatypes from controller...')
         if self._datatypes is None:
             self._datatypes = HashList('name')
             self._compile_atomic_datatypes()
@@ -4151,61 +4269,6 @@ class Controller(NamedPlcObject, Loggable):
                     self.logger.warning(
                         f'Invalid datatype data: {datatype}. Skipping...'
                     )
-
-    def _compile_modules(self) -> None:
-        """Compile modules from the controller's modules."""
-        if self._modules is None:
-            self._modules = HashList('name')
-            for module in self.raw_modules:
-                if isinstance(module, dict):
-                    self._modules.append(
-                        self.config.module_type(
-                            l5x_meta_data=module,
-                            controller=self
-                        ))
-                else:
-                    self.logger.warning(f'Invalid module data: {module}. Skipping...')
-
-    def _compile_programs(self) -> None:
-        """Compile programs from the controller's programs."""
-        if self._programs is None:
-            self._programs = HashList('name')
-            for program in self.raw_programs:
-                if isinstance(program, dict):
-                    self._programs.append(
-                        self.config.program_type(
-                            meta_data=program,
-                            controller=self
-                        ))
-                else:
-                    self.logger.warning(f'Invalid program data: {program}. Skipping...')
-
-    def _compile_tags(self) -> None:
-        """Compile tags from the controller's tags."""
-        if self._tags is None:
-            self._tags = HashList('name')
-            for tag in self.raw_tags:
-                if isinstance(tag, dict):
-                    self._tags.append(
-                        self.config.tag_type(
-                            meta_data=tag,
-                            controller=self,
-                            container=self
-                        ))
-                else:
-                    self.logger.warning(f'Invalid tag data: {tag}. Skipping...')
-
-    def _compile_safety_info(self) -> None:
-        """Compile safety information from the controller's safety info."""
-        if self._safety_info is None:
-            safety_info_data = self.content_meta_data['Controller'].get('SafetyInfo', None)
-            if safety_info_data:
-                self._safety_info = ControllerSafetyInfo(
-                    meta_data=safety_info_data,
-                    controller=self
-                )
-            else:
-                self.logger.warning('No SafetyInfo found in controller metadata.')
 
     def _compile_from_meta_data(self):
         """Compile this controller from its meta data."""
@@ -4227,6 +4290,65 @@ class Controller(NamedPlcObject, Loggable):
 
         self._safety_info = None
         self._compile_safety_info()
+
+    def _compile_modules(self) -> None:
+        """Compile modules from the controller's modules."""
+        self.logger.debug('Compiling modules from controller...')
+        if self._modules is None:
+            self._modules = HashList('name')
+            for module in self.raw_modules:
+                if isinstance(module, dict):
+                    self._modules.append(
+                        self.config.module_type(
+                            l5x_meta_data=module,
+                            controller=self
+                        ))
+                else:
+                    self.logger.warning(f'Invalid module data: {module}. Skipping...')
+
+    def _compile_programs(self) -> None:
+        """Compile programs from the controller's programs."""
+        self.logger.debug('Compiling programs from controller...')
+        if self._programs is None:
+            self._programs = HashList('name')
+            for program in self.raw_programs:
+                if isinstance(program, dict):
+                    self._programs.append(
+                        self.config.program_type(
+                            meta_data=program,
+                            controller=self
+                        ))
+                else:
+                    self.logger.warning(f'Invalid program data: {program}. Skipping...')
+
+    def _compile_tags(self) -> None:
+        """Compile tags from the controller's tags."""
+        self.logger.debug('Compiling tags from controller...')
+        if self._tags is None:
+            self._tags = HashList('name')
+            for tag in self.raw_tags:
+                if isinstance(tag, dict):
+                    self._tags.append(
+                        self.config.tag_type(
+                            meta_data=tag,
+                            controller=self,
+                            container=self
+                        ))
+                else:
+                    self.logger.warning(f'Invalid tag data: {tag}. Skipping...')
+
+    def _compile_safety_info(self) -> None:
+        """Compile safety information from the controller's safety info."""
+        self.logger.debug('Compiling safety info from controller...')
+        if self._safety_info is None:
+            safety_info_data = self.content_meta_data['Controller'].get('SafetyInfo', None)
+            if safety_info_data:
+                self._safety_info = ControllerSafetyInfo(
+                    meta_data=safety_info_data,
+                    controller=self
+                )
+            else:
+                self.logger.warning('No SafetyInfo found in controller metadata.')
 
     def _assign_address(self,
                         address: str):
@@ -4254,12 +4376,24 @@ class Controller(NamedPlcObject, Loggable):
             target_meta_list.remove(next((x for x in target_meta_list if x['@Name'] == item.name), None))
 
         target_meta_list.append(item.meta_data)
+        target_list = None  # invalidate the cached list
 
-    def _remove_common(self,
-                       plcobject: PlcObject,
-                       target_list: list):
-        if plcobject in target_list:
-            target_list.remove(plcobject)
+    def _remove_common(
+        self,
+        item: PlcObject,
+        target_list: HashList,
+        target_meta_list: list[dict]
+    ) -> None:
+        """Remove an item from the controller's collection."""
+        if not isinstance(item, PlcObject):
+            raise TypeError(f"{item.name} must be of type PlcObject!")
+
+        if item.name not in target_list:
+            self.logger.warning(f'{item.name} does not exist in this collection. Cannot remove.')
+            return
+
+        target_meta_list.remove(next((x for x in target_meta_list if x['@Name'] == item.name), None))
+        target_list = None  # invalidate the cached list
 
     def import_assets_from_file(self,
                                 file_location: str,):
@@ -4305,110 +4439,95 @@ class Controller(NamedPlcObject, Loggable):
             if any_adds:
                 self.compile()
 
-    def add_aoi(self,
-                aoi: AddOnInstruction,
-                skip_compile: Optional[bool] = False):
+    def add_aoi(
+        self,
+        aoi: AddOnInstruction
+    ) -> None:
         """Add an AOI to this controller.
         .. -------------------------------
         .. arguments::
         :class:`AddOnInstruction` aoi:
             the AOI to add
-        :class:`bool` skip_compile:
-            If True, skip the compilation step after adding the AOI.
         """
         self._add_common(aoi,
                          self.config.aoi_type,
-                         self.aois,
+                         self._aois,
                          self.raw_aois)
-        if not skip_compile:
-            self._compile_from_meta_data()
 
-    def add_datatype(self,
-                     datatype: Datatype,
-                     skip_compile: Optional[bool] = False):
+    def add_datatype(
+        self,
+        datatype: Datatype,
+    ) -> None:
         """Add a datatype to this controller.
         .. -------------------------------
         .. arguments::
         :class:`Datatype` datatype:
             the datatype to add
-        :class:`bool` skip_compile:
-            If True, skip the compilation step after adding the datatype.
         """
         self._add_common(datatype,
                          self.config.datatype_type,
-                         self.datatypes,
+                         self._datatypes,
                          self.raw_datatypes)
-        if not skip_compile:
-            self._compile_from_meta_data()
 
-    def add_module(self,
-                   module: Module,
-                   skip_compile: Optional[bool] = False):
+    def add_module(
+        self,
+        module: Module
+    ) -> None:
         """Add a module to this controller.
         .. -------------------------------
         .. arguments::
         :class:`Module` module:
             the module to add
-        :class:`bool` skip_compile:
-            If True, skip the compilation step after adding the module.
         """
         self._add_common(module,
                          self.config.module_type,
-                         self.modules,
+                         self._modules,
                          self.raw_modules)
-        if not skip_compile:
-            self._compile_from_meta_data()
 
-    def add_program(self,
-                    program: Program,
-                    skip_compile: Optional[bool] = False):
+    def add_program(
+        self,
+        program: Program
+    ) -> None:
         """Add a program to this controller.
         .. -------------------------------
         .. arguments::
         :class:`Program` program:
             the program to add
-        :class:`bool` skip_compile:
-            If True, skip the compilation step after adding the program.
         """
         self._add_common(program,
                          self.config.program_type,
-                         self.programs,
+                         self._programs,
                          self.raw_programs)
-        if not skip_compile:
-            self._compile_from_meta_data()
 
-    def add_tag(self,
-                tag: Tag,
-                skip_compile: Optional[bool] = False):
+    def add_tag(
+        self,
+        tag: Tag
+    ) -> None:
         """Add a tag to this controller.
         .. -------------------------------
         .. arguments::
         :class:`Tag` tag:
             the tag to add
-        :class:`bool` skip_compile:
-            If True, skip the compilation step after adding the tag.
         """
         self._add_common(tag,
                          self.config.tag_type,
-                         self.tags,
+                         self._tags,
                          self.raw_tags)
-        if not skip_compile:
-            self._compile_from_meta_data()
 
     def remove_aoi(self, aoi: AddOnInstruction):
-        self._remove_common(aoi, self._aois)
+        self._remove_common(aoi, self._aois, self.raw_aois)
 
     def remove_datatype(self, datatype: Datatype):
-        self._remove_common(datatype, self._datatypes)
+        self._remove_common(datatype, self._datatypes, self.raw_datatypes)
 
     def remove_module(self, module: Module):
-        self._remove_common(module, self._modules)
+        self._remove_common(module, self._modules, self.raw_modules)
 
     def remove_program(self, program: Program):
-        self._remove_common(program, self._programs)
+        self._remove_common(program, self._programs, self.raw_programs)
 
     def remove_tag(self, tag: Tag):
-        self._remove_common(tag, self._tags)
+        self._remove_common(tag, self._tags, self.raw_tags)
 
     def find_diagnostic_rungs(self) -> list[Rung]:
         diagnostic_rungs = []
@@ -4815,33 +4934,33 @@ class ControllerModificationSchema(Loggable):
                             dest_routine.rungs[rung_num] = new_rung
             elif action['type'] == 'import_datatypes':
                 dt = Datatype(meta_data=action['asset'], controller=self.destination)
-                self.destination.add_datatype(dt, skip_compile=True)
+                self.destination.add_datatype(dt)
             elif action['type'] == 'import_tags':
                 tag = Tag(meta_data=action['asset'], controller=self.destination)
-                self.destination.add_tag(tag, skip_compile=True)
+                self.destination.add_tag(tag)
             elif action['type'] == 'import_programs':
                 prog = Program(meta_data=action['asset'], controller=self.destination)
-                self.destination.add_program(prog, skip_compile=True)
+                self.destination.add_program(prog)
             elif action['type'] == 'import_tag':
                 tag: Tag = Tag(meta_data=action['asset'], controller=self.destination, container=self.destination)
-                self.destination.add_tag(tag, skip_compile=True)
+                self.destination.add_tag(tag)
             elif action['type'] == 'import_program_tag':
                 prog: Program = self.destination.programs.get(action['program'])
                 if prog:
                     tag: Tag = Tag(meta_data=action['asset'], controller=self.destination, container=prog)
-                    prog.add_tag(tag, skip_compile=True)
+                    prog.add_tag(tag)
             elif action['type'] == 'import_routine':
                 prog: Program = self.destination.programs.get(action['program'])
                 if prog:
                     routine: Routine = Routine(meta_data=action['routine'], controller=self.destination, program=prog)
-                    prog.add_routine(routine, skip_compile=True)
+                    prog.add_routine(routine)
             elif action['type'] == 'rung_import':
                 prog: Program = self.destination.programs.get(action['program'])
                 if prog:
                     routine: Routine = prog.routines.get(action['routine'])
                     if routine:
                         new_rung = Rung(meta_data=action['new_rung'], controller=self.destination, routine=routine)
-                        routine.add_rung(rung=new_rung, index=action['rung_number'], skip_compile=True)
+                        routine.add_rung(rung=new_rung, index=action['rung_number'])
             elif action['type'] == 'safety_tag_mapping':
                 self.destination.safety_info.add_safety_tag_mapping(action['standard'], action['safety'])
         # Compile after all imports

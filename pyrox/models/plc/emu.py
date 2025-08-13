@@ -128,21 +128,31 @@ class BaseEmulationGenerator(abc.Loggable, ABC, metaclass=EmulationGeneratorMeta
         if call_from_main:
             program = self.controller.programs.get(program_name)
             if program and program.main_routine:
-                jsr_rung = plc.Rung(
-                    controller=self.controller,
-                    text=f'JSR({routine_name},0);',
-                    comment=f'Call the {routine_name} routine.'
-                )
-                self.schema.add_rung_import(
-                    program_name=program_name,
-                    routine_name=program.main_routine_name,
-                    rung_number=rung_position,
-                    new_rung=jsr_rung
-                )
+                if program.main_routine.check_for_jsr(routine_name):
+                    self.logger.debug(f"JSR to '{routine_name}' already exists in main routine of program '{program_name}'")
+                else:
+                    self.logger.debug(f"Adding JSR call to '{routine_name}' in main routine of program '{program_name}'")
+                    jsr_rung = plc.Rung(
+                        controller=self.controller,
+                        text=f'JSR({routine_name},0);',
+                        comment=f'Call the {routine_name} routine.'
+                    )
+                    self.schema.add_rung_import(
+                        program_name=program_name,
+                        routine_name=program.main_routine_name,
+                        rung_number=rung_position,
+                        new_rung=jsr_rung
+                    )
 
         return routine
 
-    def add_program_tag(self, program_name: str, tag_name: str, datatype: str, **kwargs) -> plc.Tag:
+    def add_program_tag(
+        self,
+        program_name: str,
+        tag_name: str,
+        datatype: str,
+        **kwargs
+    ) -> plc.Tag:
         """Helper method to add a tag to a program.
 
         Args:

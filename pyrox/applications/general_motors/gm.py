@@ -780,12 +780,12 @@ class GmEmulationGenerator(emu.BaseEmulationGenerator):
 
         program_name = self.controller.mcp_program.name
 
-        self.add_program_tag(program_name, 'Uninhibit', 'INT')
-        self.add_program_tag(program_name, 'Inhibit', 'INT')
-        self.add_program_tag(program_name, 'toggle_inhibit', 'BOOL')
-        self.add_program_tag(program_name, 'LocalMode', 'INT')
-        self.add_program_tag(program_name, 'DeviceDataSize', 'DINT')
-        self.add_program_tag(program_name, 'SusLoopPtr', 'DINT')
+        self.add_program_tag(program_name, 'Uninhibit', 'INT', description='Uninhibit mode for the controller.')
+        self.add_program_tag(program_name, 'Inhibit', 'INT', description='Inhibit mode for the controller.')
+        self.add_program_tag(program_name, 'toggle_inhibit', 'BOOL', description='Toggle inhibit mode for the controller.')
+        self.add_program_tag(program_name, 'LocalMode', 'INT', description='Local mode for the controller.')
+        self.add_program_tag(program_name, 'DeviceDataSize', 'DINT', description='Size of the device data array.')
+        self.add_program_tag(program_name, 'SusLoopPtr', 'DINT', description='Pointer for the device loop.')
 
     def _add_base_rungs(self, emu_routine: Routine) -> None:
         """Add base emulation rungs."""
@@ -812,7 +812,7 @@ class GmEmulationGenerator(emu.BaseEmulationGenerator):
         emu_routine.add_rung(Rung(  # Device loop rung
             controller=self.controller,
             text='LBL(SusLoop)XIC(toggle_inhibit)LES(SusLoopPtr,DeviceDataSize)ADD(SusLoopPtr,1,SusLoopPtr)OTU(EnetStorage.DeviceData[SusLoopPtr].Connected)OTL(EnetStorage.DeviceData[SusLoopPtr].LinkStatusAvail)OTL(EnetStorage.DeviceData[SusLoopPtr].Link.Scanned)JMP(SusLoop);',  # noqa: E501
-            comment='Loop through the devices and check if they are connected.'
+            comment='Loop through the devices to force the GM Network model to accept all ethernet connections as "OK".'
         ))
 
         # Module mode setting
@@ -820,7 +820,7 @@ class GmEmulationGenerator(emu.BaseEmulationGenerator):
             emu_routine.add_rung(Rung(
                 controller=self.controller,
                 text=f'SSV(Module,{module.name},Mode,LocalMode);',
-                comment=f'Set the mode of module {module.name} to LocalMode.'
+                comment=f'Set the communication mode of module {module.name} to LocalMode.'
             ))
 
     def _generate_g115_drive_emulation(self) -> None:
@@ -845,7 +845,8 @@ class GmEmulationGenerator(emu.BaseEmulationGenerator):
             tag_type='Base',
             dimensions='150',
             constant=False,
-            external_access='Read/Write'
+            external_access='Read/Write',
+            description='Emulation tag for Siemens G115 drives.'
         )
 
         # Generate drive emulation rungs
@@ -855,7 +856,7 @@ class GmEmulationGenerator(emu.BaseEmulationGenerator):
             self._emu_routine.add_rung(Rung(
                 controller=self.controller,
                 text=rung_text,
-                comment='Clear the fault and move the data from the G115 drive to the input data.'
+                comment='Move the emulation populated data to the hardware connection points.'
             ))
 
     def _generate_hmi_card_emulation(self) -> None:
@@ -930,9 +931,11 @@ class GmEmulationGenerator(emu.BaseEmulationGenerator):
                 comment='Clear the fault and move the data from the HMI card to the input data.'
             ))
 
+            instr1 = f'COP({card.parent_module}:1:O,zz_Demo3D_{card.parent_module}_O.S1,1)'
+            instr2 = f'COP({card.parent_module}:2:O,zz_Demo3D_{card.parent_module}_O.S2,1)'
             self._emu_routine.add_rung(Rung(
                 controller=self.controller,
-                text=f'COP({card.parent_module}:2:O,zz_Demo3D_{card.parent_module}_O.S2,1);',
+                text=f'{instr1}{instr2};',
                 comment='Map output data from physical card to emulation card.'
             ))
 
