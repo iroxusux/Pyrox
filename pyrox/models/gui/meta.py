@@ -9,7 +9,9 @@ from typing import Callable, Optional
 
 __all__ = [
     'TextWidgetStream',
+    'PyroxFrame',
     'PyroxNotebook',
+    'PyroxPanedWindow',
     'PyroxTreeview',
     'PyroxThemeManager',
     'PyroxDefaultTheme',
@@ -23,17 +25,18 @@ class PyroxDefaultTheme:
     background: str = "#2b2b2b"
     background_selected: str = '#4b4b4b'
     background_hover: str = '#3b3b3b'
-    widget_background: str = '#101010'
+    bordercolor: str = '#DDDDDD'
     borderwidth: int = 1
+    button_color: str = '#2b2b2b'
+    button_hover: str = '#6e6e6e'
+    button_active: str = '#2b2b2b'
+    font_family: str = 'Consolas'
+    font_size: int = 10
     foreground: str = '#aaaaaa'
     foreground_selected: str = '#FFFFFF'
     foreground_hover: str = "#DDDDDD"
     relief: str = 'flat'
-    font_family: str = 'Consolas'
-    font_size: int = 10
-    button_color: str = '#2b2b2b'
-    button_hover: str = '#6e6e6e'
-    button_active: str = '#2b2b2b'
+    widget_background: str = '#101010'
 
 
 class PyroxThemeManager:
@@ -57,7 +60,11 @@ class PyroxThemeManager:
                 'TNotebook': {
                     'configure': {
                         'background': PyroxDefaultTheme.background,
-                        'borderwidth': 0,
+                        'bordercolor': PyroxDefaultTheme.bordercolor,
+                        'borderwidth': PyroxDefaultTheme.borderwidth,
+                        'relief': PyroxDefaultTheme.relief,
+                        'padding': (1, 1),
+
                     }
                 },
                 'TNotebook.Tab': {
@@ -81,6 +88,138 @@ class PyroxThemeManager:
                             ('active', PyroxDefaultTheme.foreground_hover),
                             ('!active', PyroxDefaultTheme.foreground)
                         ],
+                    }
+                },
+                # PanedWindow styling
+                'TPanedwindow': {
+                    'configure': {
+                        'background': PyroxDefaultTheme.background,
+                        'bordercolor': PyroxDefaultTheme.bordercolor,
+                        'borderwidth': PyroxDefaultTheme.borderwidth,
+                        'relief': PyroxDefaultTheme.relief,
+                        'sashcolor': PyroxDefaultTheme.bordercolor,
+                        'sashrelief': PyroxDefaultTheme.relief,
+                        'sashwidth': PyroxDefaultTheme.borderwidth,
+                        'padding': (2, 2),
+                    }
+                },
+                # Frame styling
+                'TFrame': {
+                    'configure': {
+                        'background': PyroxDefaultTheme.background,
+                        'bordercolor': PyroxDefaultTheme.bordercolor,
+                        'borderwidth': PyroxDefaultTheme.borderwidth,
+                        'relief': PyroxDefaultTheme.relief,
+                        'padding': (5, 5),
+                    }
+                },
+                # Frame header styling
+                'TFrameHeader': {
+                    'configure': {
+                        'background': PyroxDefaultTheme.widget_background,
+                        'bordercolor': PyroxDefaultTheme.bordercolor,
+                        'borderwidth': PyroxDefaultTheme.borderwidth,
+                        'relief': PyroxDefaultTheme.relief,
+                        'padding': (5, 5),
+                    },
+                    # ↓ Add this layout section
+                    'layout': [
+                        ('Frame.border', {
+                            'sticky': 'nswe',
+                            'children': [
+                                ('Frame.padding', {
+                                    'sticky': 'nswe',
+                                })
+                            ]
+                        })
+                    ]
+                },
+                'TLabel': {
+                    'configure': {
+                        'background': PyroxDefaultTheme.background,
+                        'foreground': PyroxDefaultTheme.foreground,
+                        'font': (PyroxDefaultTheme.font_family, PyroxDefaultTheme.font_size),
+                    }
+                },
+                'TButton': {
+                    'configure': {
+                        'background': PyroxDefaultTheme.button_color,
+                        'foreground': PyroxDefaultTheme.foreground,
+                        'font': (PyroxDefaultTheme.font_family, PyroxDefaultTheme.font_size),
+                        'borderwidth': PyroxDefaultTheme.borderwidth,
+                        'focuscolor': 'none',
+                        'padding': (8, 4),
+                        'relief': PyroxDefaultTheme.relief,
+                    },
+                    'map': {
+                        'background': [
+                            ('active', PyroxDefaultTheme.button_hover),
+                            ('pressed', PyroxDefaultTheme.button_active),
+                            ('!active', PyroxDefaultTheme.button_color)
+                        ],
+                        'foreground': [
+                            ('active', PyroxDefaultTheme.foreground_selected),
+                            ('pressed', PyroxDefaultTheme.foreground_selected),
+                            ('!active', PyroxDefaultTheme.foreground)
+                        ]
+                    }
+                },
+                'TEntry': {
+                    'configure': {
+                        'fieldbackground': PyroxDefaultTheme.widget_background,
+                        'background': PyroxDefaultTheme.widget_background,
+                        'foreground': PyroxDefaultTheme.foreground,
+                        'borderwidth': PyroxDefaultTheme.borderwidth,
+                        'insertcolor': PyroxDefaultTheme.foreground_selected,
+                        'font': (PyroxDefaultTheme.font_family, PyroxDefaultTheme.font_size),
+                    },
+                    'map': {
+                        'fieldbackground': [
+                            ('focus', PyroxDefaultTheme.background_hover),
+                            ('!focus', PyroxDefaultTheme.widget_background)
+                        ],
+                        'foreground': [
+                            ('focus', PyroxDefaultTheme.foreground_selected),
+                            ('!focus', PyroxDefaultTheme.foreground)
+                        ]
+                    }
+                },
+                'Vertical.TScrollbar': {
+                    'configure': {
+                        'background': PyroxDefaultTheme.widget_background,
+                        'darkcolor': PyroxDefaultTheme.widget_background,
+                        'lightcolor': PyroxDefaultTheme.background_hover,
+                        'bordercolor': PyroxDefaultTheme.bordercolor,
+                        'arrowcolor': PyroxDefaultTheme.foreground,
+                        'troughcolor': PyroxDefaultTheme.widget_background,
+                        'borderwidth': 0,
+                        'relief': 'flat',
+                        'padding': (2, 2),
+                    },
+                    'map': {
+                        'background': [
+                            ('active', PyroxDefaultTheme.button_hover),
+                            ('!active', PyroxDefaultTheme.background)
+                        ]
+                    }
+                },
+                'Horizontal.TScrollbar': {
+                    'configure': {
+                        'background': PyroxDefaultTheme.background,
+                        'darkcolor': PyroxDefaultTheme.widget_background,
+                        'lightcolor': PyroxDefaultTheme.background_hover,
+                        'bordercolor': PyroxDefaultTheme.bordercolor,
+                        'arrowcolor': PyroxDefaultTheme.foreground,
+                        'troughcolor': PyroxDefaultTheme.widget_background,
+                        'borderwidth': 0,
+                        'relief': 'flat',
+                        'padding': (2, 2),
+                    },
+                    'map': {
+                        'background': [
+                            ('active', PyroxDefaultTheme.button_hover),
+                            ('!active', PyroxDefaultTheme.background)
+                        ]
                     }
                 },
                 # Treeview styling
@@ -127,6 +266,19 @@ class PyroxThemeManager:
         return cls._theme_name
 
 
+class PyroxFrame(ttk.Frame):
+    """A custom frame.
+    """
+
+    def __init__(
+        self,
+        master: Optional[ttk.Widget] = None,
+        **kwargs,
+    ) -> None:
+        PyroxThemeManager.ensure_theme_created()
+        super().__init__(master, **kwargs)
+
+
 class PyroxNotebook(ttk.Notebook):
     """A notebook widget with Pyrox default theme."""
 
@@ -135,10 +287,8 @@ class PyroxNotebook(ttk.Notebook):
         master=None,
         tab_pos: str = 'n',
     ) -> None:
-        super().__init__(
-            master,
-        )
         self._configure_style(tab_pos)
+        super().__init__(master)
 
     def _configure_style(self, tab_pos) -> None:
         # Ensure shared theme is created and applied
@@ -146,6 +296,14 @@ class PyroxNotebook(ttk.Notebook):
 
         style = ttk.Style()
         style.configure('TNotebook', tabposition=tab_pos)
+
+
+class PyroxPanedWindow(ttk.PanedWindow):
+    """A custom PanedWindow with built-in logging capabilities.
+    """
+
+    def __init__(self, master=None) -> None:
+        super().__init__(master)
 
 
 class PyroxTreeview(ttk.Treeview):

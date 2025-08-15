@@ -44,6 +44,18 @@ pyinstaller --name "Pyrox" \
     --add-data "pyrox/tasks:pyrox/tasks" \
     --add-data "pyrox/applications/mod:pyrox/applications/mod" \
     --add-data "docs/controls:docs/controls" \
+    --hidden-import="tkinter" \
+    --hidden-import="tkinter.colorchooser" \
+    --hidden-import="tkinter.commondialog" \
+    --hidden-import="tkinter.constants" \
+    --hidden-import="tkinter.dialog" \
+    --hidden-import="tkinter.dnd" \
+    --hidden-import="tkinter.filedialog" \
+    --hidden-import="tkinter.font" \
+    --hidden-import="tkinter.messagebox" \
+    --hidden-import="tkinter.scrolledtext" \
+    --hidden-import="tkinter.simpledialog" \
+    --hidden-import="tkinter.ttk" \
     --distpath dist \
     --workpath build \
     --clean \

@@ -10,92 +10,9 @@ from typing import Any, Optional, Union
 
 from . import meta
 from .treeview import LazyLoadingTreeView
-from ..abc.meta import Loggable
 
 
-WIDGET_BG = '#2b2b2b'
-WIDGET_HEADER_BG = "#1c1c1c"
-
-
-class PyroxFrame(tk.Frame, Loggable):
-    """A custom frame.
-    """
-
-    def __init__(
-        self,
-        master: Optional[Widget] = None,
-        borderwidth: int = meta.PyroxDefaultTheme.borderwidth,
-        bg: Optional[str] = meta.PyroxDefaultTheme.background,
-        height: Optional[int] = None,
-        relief: str = meta.PyroxDefaultTheme.relief,
-        width: Optional[int] = None,
-    ) -> None:
-        tk.Frame.__init__(
-            self,
-            master=master,
-            bg=bg,
-            borderwidth=borderwidth,
-            height=height,
-            relief=relief,
-            width=width
-        )
-        Loggable.__init__(self)
-
-
-class PyroxTopLevelFrame(tk.Toplevel, Loggable):
-    """A custom Toplevel window with built-in logging capabilities.
-
-    This class extends tkinter.Toplevel and adds logging functionality
-    through the Loggable mixin. It provides additional methods for
-    window management.
-
-    Args:
-        *args: Variable length argument list passed to Toplevel.
-        **kwargs: Arbitrary keyword arguments passed to Toplevel.
-
-    Attributes:
-        Inherits all Toplevel and Loggable attributes.
-    """
-
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-
-    def center(self):
-        """Center the toplevel window on the screen.
-
-        Calculates the screen dimensions and positions the window
-        in the center of the screen.
-        """
-        width = self.winfo_width()
-        height = self.winfo_height()
-        x = (self.winfo_screenwidth() // 2) - (width // 2)
-        y = (self.winfo_screenheight() // 2) - (height // 2)
-        self.geometry(f'{width}x{height}+{x}+{y}')
-
-
-class PyroxPanedWindow(tk.PanedWindow, Loggable):
-    """A custom PanedWindow with built-in logging capabilities.
-
-    This class extends tkinter.PanedWindow and adds logging functionality
-    through the Loggable mixin. It provides additional methods for
-    paned window management.
-
-    Args:
-        *args: Variable length argument list passed to PanedWindow.
-        **kwargs: Arbitrary keyword arguments passed to PanedWindow.
-
-    Attributes:
-        Inherits all PanedWindow and Loggable attributes.
-    """
-
-    def __init__(self, *args, **kwargs):
-        super().__init__(
-            *args,
-            bg=kwargs.pop('bg', WIDGET_BG),
-            **kwargs)
-
-
-class FrameWithTreeViewAndScrollbar(PyroxFrame):
+class FrameWithTreeViewAndScrollbar(meta.PyroxFrame):
     """A frame containing a LazyLoadingTreeView with vertical scrollbar.
 
     This frame provides a ready-to-use treeview widget with scrollbar
@@ -112,30 +29,23 @@ class FrameWithTreeViewAndScrollbar(PyroxFrame):
         _tree (LazyLoadingTreeView): The treeview widget.
     """
 
-    def __init__(self,
-                 master,
-                 base_gui_class: type = None,
-                 context_menu: Optional[tk.Menu] = None,):
+    def __init__(
+        self,
+        master,
+        base_gui_class: type = None,
+        context_menu: Optional[tk.Menu] = None
+    ) -> None:
         super().__init__(master=master)
 
-        self._tree: LazyLoadingTreeView = LazyLoadingTreeView(master=self,
-                                                              base_gui_class=base_gui_class,
-                                                              columns=('Value',),
-                                                              show='tree headings',
-                                                              context_menu=context_menu)
+        self._tree: LazyLoadingTreeView = LazyLoadingTreeView(
+            master=self,
+            base_gui_class=base_gui_class,
+            columns=('Value',),
+            show='tree headings',
+            context_menu=context_menu
+        )
         self._tree.heading('#0', text='Name')
         self._tree.heading('Value', text='Value')
-
-        style = ttk.Style(self)
-        style.configure("TScrollbar",
-                        background=WIDGET_HEADER_BG,  # Color of the scrollbar's background
-                        troughcolor=WIDGET_BG,  # Color of the scrollbar's trough (the track)
-                        arrowcolor="white",  # Color of the arrows on the scrollbar
-                        gripcount=0,  # Set to 0 to hide the grip on the thumb
-                        gripborderwidth=0,  # Border width of the grip
-                        bordercolor=WIDGET_BG,  # Color of the border around the scrollbar
-                        arrowsize=12,  # Size of the arrows
-                        width=15)  # Thickness/width of the scrollbar
 
         vscrollbar = ttk.Scrollbar(
             self,
@@ -174,19 +84,17 @@ class FrameWithTreeViewAndScrollbar(PyroxFrame):
             raise TypeError(f'Expected LazyLoadingTreeView, got {type(value)}')
 
 
-class LogFrame(PyroxFrame):
+class LogFrame(meta.PyroxFrame):
     """Enhanced log window that captures both logging and stderr/stdout."""
 
     def __init__(self, parent,):
         super().__init__(parent)
 
         # Create toolbar frame
-        self._toolbar = tk.Frame(
+        self._toolbar = meta.PyroxFrame(
             self,
             height=30,
-            bg=WIDGET_BG,
-            borderwidth=1,
-            relief='flat',
+            style='TFrameHeader',
         )
         self._toolbar.pack(
             fill=tk.X,
@@ -199,20 +107,9 @@ class LogFrame(PyroxFrame):
         self._setup_text_tags()
         self._setup_stream_redirection()
 
-    def _add_hover_effect(self, button, normal_bg, hover_bg, normal_fg='white', hover_fg='white'):
-        """Add hover effect to a button."""
-        def on_enter(event):
-            button.configure(bg=hover_bg, fg=hover_fg)
-
-        def on_leave(event):
-            button.configure(bg=normal_bg, fg=normal_fg)
-
-        button.bind('<Enter>', on_enter)
-        button.bind('<Leave>', on_leave)
-
     def _setup_text_widget(self):
         """Setup the main text widget and scrollbar."""
-        text_frame = tk.Frame(self)
+        text_frame = ttk.Frame(self)
         text_frame.pack(
             side=tk.BOTTOM,
             fill=tk.BOTH,
@@ -222,17 +119,19 @@ class LogFrame(PyroxFrame):
         self._logtext = tk.Text(
             text_frame,
             state='disabled',
-            background='black',
-            foreground='white',
+            background=meta.PyroxDefaultTheme.widget_background,
+            foreground=meta.PyroxDefaultTheme.foreground,
             wrap='word',
-            font=('Consolas', 10)
+            borderwidth=meta.PyroxDefaultTheme.borderwidth,
+            relief=meta.PyroxDefaultTheme.relief,
         )
 
         # Scrollbars
-        v_scrollbar = tk.Scrollbar(
+        v_scrollbar = ttk.Scrollbar(
             text_frame,
             orient=tk.VERTICAL,
-            command=self._logtext.yview)
+            command=self._logtext.yview
+        )
 
         self._logtext.configure(
             yscrollcommand=v_scrollbar.set,
@@ -250,35 +149,35 @@ class LogFrame(PyroxFrame):
         # Standard logging levels
         self._logtext.tag_configure(
             'INFO',
-            foreground='white',
-            background='black'
+            foreground=meta.PyroxDefaultTheme.foreground,
+            background=meta.PyroxDefaultTheme.widget_background
         )
         self._logtext.tag_configure(
             'WARNING',
-            foreground='black',
+            foreground=meta.PyroxDefaultTheme.widget_background,
             background='yellow'
         )
         self._logtext.tag_configure(
             'ERROR',
-            foreground='white',
+            foreground=meta.PyroxDefaultTheme.foreground,
             background='red'
         )
         self._logtext.tag_configure(
             'DEBUG',
             foreground='cyan',
-            background='black'
+            background=meta.PyroxDefaultTheme.widget_background
         )
 
         # Stream types
         self._logtext.tag_configure(
             'STDERR',
             foreground='orange',
-            background='black'
+            background=meta.PyroxDefaultTheme.widget_background
         )
         self._logtext.tag_configure(
             'STDOUT',
             foreground='lightgreen',
-            background='black'
+            background=meta.PyroxDefaultTheme.widget_background
         )
 
     def _setup_stream_redirection(self):
@@ -299,18 +198,10 @@ class LogFrame(PyroxFrame):
 
     def _setup_toolbar(self):
         """Setup the toolbar with control buttons."""
-        clear_button = self.add_toolbar_button(
+        self.add_toolbar_button(
             "Clear",
-            self.clear_log_window,
-            bg=WIDGET_BG,
-            fg='white',
+            self.clear_log_window
         )
-
-        self._add_hover_effect(clear_button,
-                               normal_bg=WIDGET_BG,
-                               hover_bg='#404040',
-                               normal_fg='white',
-                               hover_fg='white')
 
     def _log_message(self, message: str, tag: str = 'INFO'):
         """Log a message directly to the text widget."""
@@ -324,9 +215,11 @@ class LogFrame(PyroxFrame):
 
             # Apply tag
             self._logtext.tag_add(message, start_idx, end_idx)
+            black = meta.PyroxDefaultTheme.widget_background
+            white = meta.PyroxDefaultTheme.foreground_selected
             self._logtext.tag_configure(message,
-                                        foreground='black' if tag == 'WARNING' else 'white',
-                                        background='yellow' if tag == 'WARNING' else 'red' if tag == 'ERROR' else 'black',
+                                        foreground=black if tag == 'WARNING' else white,
+                                        background='yellow' if tag == 'WARNING' else 'red' if tag == 'ERROR' else black,
                                         font=('Courier New', 12, 'bold'))
 
             # Auto-scroll and limit lines
@@ -381,27 +274,19 @@ class LogFrame(PyroxFrame):
 
         super().destroy()
 
-    def add_toolbar_button(self, text: str, command: callable, **button_kwargs):
+    def add_toolbar_button(self, text: str, command: callable):
         """Add a custom button to the toolbar."""
-        default_kwargs = {
-            'width': 8,
-            'height': 1,
-            'relief': 'raised',
-            'bd': 1
-        }
-        default_kwargs.update(button_kwargs)
 
-        button = tk.Button(
+        button = ttk.Button(
             self._toolbar,
             text=text,
             command=command,
-            **default_kwargs
         )
         button.pack(side=tk.LEFT, fill=tk.Y)
         return button
 
 
-class OrganizerWindow(PyroxFrame):
+class OrganizerWindow(meta.PyroxFrame):
     """Organizer Window for application purposes
     """
 
@@ -543,45 +428,6 @@ class TaskFrame(tk.Frame):
             else:
                 self.logger.warning(f'Callback {callback} is not callable.')
         return super().destroy()
-
-
-class ToplevelWithTreeViewAndScrollbar(PyroxTopLevelFrame):
-    """A toplevel window containing a LazyLoadingTreeView with scrollbar.
-
-    This class provides a standalone window with a treeview widget
-    for displaying hierarchical data. Useful for popup dialogs or
-    secondary windows that need to display tree-structured information.
-
-    Args:
-        *args: Variable length argument list passed to PyroxTopLevelFrame.
-        text (str, optional): Text for the window (used as title).
-        **kwargs: Arbitrary keyword arguments passed to PyroxTopLevelFrame.
-
-    Attributes:
-        _tree (LazyLoadingTreeView): The treeview widget in the window.
-    """
-
-    def __init__(self,
-                 *args,
-                 text: str = None,
-                 **kwargs):
-        super().__init__(*args,
-                         text=text,
-                         **kwargs)
-
-        self._tree: LazyLoadingTreeView = LazyLoadingTreeView(master=self,
-                                                              columns=('Value',),
-                                                              show='tree headings')
-        self._tree.heading('#0', text='Name')
-        self._tree.heading('Value', text='Value')
-
-        vscrollbar = tk.Scrollbar(self,
-                                  orient=tk.VERTICAL,
-                                  command=self._tree.yview)
-        self._tree['yscrollcommand'] = vscrollbar.set
-
-        vscrollbar.pack(fill=tk.Y, side=tk.RIGHT)
-        self._tree.pack(fill=tk.BOTH, expand=True)
 
     @property
     def tree(self) -> LazyLoadingTreeView:
@@ -737,81 +583,6 @@ class ObjectEditTaskFrame(TaskFrame):
                 entry.config(state='normal' if prop.editable else 'disabled')
                 if prop.editable:
                     self._property_vars[prop.property_name] = var
-
-
-class ValueEditPopup(PyroxTopLevelFrame):
-    """A popup dialog for editing a single value.
-
-    This modal dialog allows the user to edit a single value with
-    Accept/Cancel buttons. The dialog blocks until the user makes
-    a choice and calls the provided callback if the value is accepted.
-
-    Args:
-        parent: The parent window for this dialog.
-        value: The initial value to display in the entry field.
-        callback: Function to call with the new value if accepted.
-        title (str, optional): The window title. Defaults to "Modify Value".
-
-    Attributes:
-        callback: The function to call with the new value.
-        result: The final value if accepted, None if cancelled.
-        label (Label): The instruction label.
-        entry (Entry): The value entry field.
-        ok_button (Button): The OK button.
-        cancel_button (Button): The Cancel button.
-    """
-
-    def __init__(self,
-                 parent,
-                 value,
-                 callback,
-                 title="Modify Value"):
-        super().__init__(parent)
-        self.transient(parent)
-        self.title(title)
-        self.callback = callback
-        self.result = None
-
-        self.label = tk.Label(self, text="Modify value:")
-        self.label.pack(padx=10, pady=(10, 0))
-
-        self.entry = tk.Entry(self)
-        self.entry.insert(0, str(value))
-        self.entry.pack(padx=10, pady=5, fill='x')
-        self.entry.focus_set()
-
-        button_frame = tk.Frame(self)
-        button_frame.pack(pady=(0, 10))
-
-        self.ok_button = tk.Button(button_frame, text="OK", width=10, command=self.on_ok)
-        self.ok_button.pack(side='left', padx=5)
-        self.cancel_button = tk.Button(button_frame, text="Cancel", width=10, command=self.on_cancel)
-        self.cancel_button.pack(side='left', padx=5)
-
-        self.bind("<Return>", lambda event: self.on_ok())
-        self.bind("<Escape>", lambda event: self.on_cancel())
-
-        self.grab_set()
-        self.protocol("WM_DELETE_WINDOW", self.on_cancel)
-        self.wait_window(self)
-
-    def on_ok(self):
-        """Handle OK button click.
-
-        Gets the value from the entry field, calls the callback function
-        with the new value, and destroys the dialog.
-        """
-        self.result = self.entry.get()
-        if self.callback:
-            self.callback(self.result)
-        self.destroy()
-
-    def on_cancel(self):
-        """Handle Cancel button click.
-
-        Destroys the dialog without calling the callback.
-        """
-        self.destroy()
 
 
 class WatchTableTaskFrame(TaskFrame):

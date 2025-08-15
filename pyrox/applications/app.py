@@ -6,6 +6,7 @@ import os
 
 from typing import Any, Optional
 import tkinter as tk
+from tkinter import ttk
 
 from .general_motors.gm import GmController
 from .. import models
@@ -312,11 +313,9 @@ class App(models.Application):
     def _build_and_pack_main_paned_window(self) -> None:
         self._main_paned_window.add(self._sub_paned_window)
         self._main_paned_window.pack(fill='both', expand=True)
-        self._main_paned_window.configure(sashwidth=3)
 
     def _build_and_pack_sub_paned_window(self) -> None:
         self._sub_paned_window.pack(fill='both', expand=True)
-        self._sub_paned_window.configure(sashwidth=3)
 
     def _build_log_window(self) -> None:
         self._log_window = models.LogFrame(self.frame)
@@ -325,9 +324,7 @@ class App(models.Application):
         models.Loggable.force_all_loggers_to_stderr()
 
     def _build_organizer(self) -> None:
-        self._organizer: AppOrganizer = AppOrganizer(
-            application=self,
-        )
+        self._organizer: AppOrganizer = AppOrganizer(application=self)
         frame = self._organizer.build(master=self._main_paned_window)
         self._main_paned_window.add(frame)
 
@@ -335,7 +332,6 @@ class App(models.Application):
         self._workspace = models.PyroxFrame(
             self._sub_paned_window,
             height=500,
-            bg='#2b2b2b',
         )
         self._workspace.pack(side='top', fill='x')
         self._sub_paned_window.add(self._workspace)
@@ -452,9 +448,8 @@ class App(models.Application):
         This method will build the main menu, organizer window, log window and workspace if they are enabled in the configuration.
         """
         super().build()
-
-        self._main_paned_window = tk.PanedWindow(self.frame, orient='horizontal', bg='#2b2b2b')
-        self._sub_paned_window = tk.PanedWindow(self._main_paned_window, orient='vertical', bg='#2b2b2b')
+        self._main_paned_window = ttk.PanedWindow(self.frame, orient='horizontal')
+        self._sub_paned_window = ttk.PanedWindow(self._main_paned_window, orient='vertical')
         self._build_organizer()
         self._build_workspace()
         self._build_log_window()
