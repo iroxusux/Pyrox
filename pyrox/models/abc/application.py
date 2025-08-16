@@ -21,21 +21,8 @@ from typing import Any, Callable, Optional, Self, Union
 
 from pyrox.services import file, class_services
 
+from . import meta
 from .list import HashList
-from .meta import (
-    Buildable,
-    Runnable,
-    RuntimeDict,
-    SupportsJsonLoading,
-    SupportsJsonSaving,
-    TK_CURSORS,
-    DEF_APP_NAME,
-    DEF_AUTHOR_NAME,
-    DEF_WIN_SIZE,
-    DEF_WIN_TITLE,
-    DEF_THEME,
-    DEF_ICON,
-)
 
 __all__ = (
     'BaseMenu',
@@ -47,7 +34,7 @@ __all__ = (
 )
 
 
-class BaseMenu(Buildable):
+class BaseMenu(meta.Buildable):
     """Base menu for use in a UI Application.
 
     Args:
@@ -183,7 +170,7 @@ class MainApplicationMenu(BaseMenu):
         return self._view
 
 
-class ApplicationTask(Runnable):
+class ApplicationTask(meta.Runnable):
     """Application task to add additional functionality to the application.
 
     Normally, these tasks are injected into the application's main menu toolbar.
@@ -263,13 +250,13 @@ class ApplicationConfiguration:
         tasks: A list of tasks to be executed by the application.
     """
     headless: bool = False
-    application_name: Optional[str] = DEF_APP_NAME
-    author_name: Optional[str] = DEF_AUTHOR_NAME
-    title: Optional[str] = DEF_WIN_TITLE
-    theme: Optional[str] = DEF_THEME
+    application_name: Optional[str] = meta.DEF_APP_NAME
+    author_name: Optional[str] = meta.DEF_AUTHOR_NAME
+    title: Optional[str] = meta.DEF_WIN_TITLE
+    theme: Optional[str] = meta.DEF_THEME
     type_: ApplicationTkType = ApplicationTkType.ROOT
-    icon: Optional[str] = DEF_ICON
-    size_: Optional[str] = DEF_WIN_SIZE
+    icon: Optional[str] = meta.DEF_ICON
+    size_: Optional[str] = meta.DEF_WIN_SIZE
     tasks: list[ApplicationTask] = field(default_factory=list)
 
     @classmethod
@@ -320,13 +307,13 @@ class ApplicationConfiguration:
         """
         return ApplicationConfiguration._common_assembly(
             headless=False,
-            application_name=DEF_APP_NAME,
-            author_name=DEF_AUTHOR_NAME,
-            title=DEF_WIN_TITLE,
-            theme=DEF_THEME,
+            application_name=meta.DEF_APP_NAME,
+            author_name=meta.DEF_AUTHOR_NAME,
+            title=meta.DEF_WIN_TITLE,
+            theme=meta.DEF_THEME,
             type_=ApplicationTkType.TOPLEVEL,
-            icon=DEF_ICON,
-            size_=DEF_WIN_SIZE,
+            icon=meta.DEF_ICON,
+            size_=meta.DEF_WIN_SIZE,
             tasks=[]
         )
 
@@ -339,13 +326,13 @@ class ApplicationConfiguration:
         """
         return ApplicationConfiguration._common_assembly(
             headless=False,
-            title=DEF_WIN_TITLE,
-            application_name=DEF_APP_NAME,
-            author_name=DEF_AUTHOR_NAME,
-            theme=DEF_THEME,
+            title=meta.DEF_WIN_TITLE,
+            application_name=meta.DEF_APP_NAME,
+            author_name=meta.DEF_AUTHOR_NAME,
+            theme=meta.DEF_THEME,
             type_=ApplicationTkType.ROOT,
-            icon=DEF_ICON,
-            size_=DEF_WIN_SIZE,
+            icon=meta.DEF_ICON,
+            size_=meta.DEF_WIN_SIZE,
             tasks=[]
         )
 
@@ -515,8 +502,17 @@ class ApplicationDirectoryService:
                     except OSError as e:
                         raise OSError(f'Failed to refresh directory {dir_path}: {e}') from e
 
+    def get_log_file_stream(self) -> Any:
+        """Get a SimpleStream for the user log file.
 
-class ApplicationRuntimeInfo(SupportsJsonSaving, SupportsJsonLoading):
+        Returns:
+            stream object: A stream object for the user log file.
+        """
+        log_file = open(self.user_log_file, 'a', encoding='utf-8')
+        return log_file
+
+
+class ApplicationRuntimeInfo(meta.SupportsJsonSaving, meta.SupportsJsonLoading):
     """Application Runtime Information manager.
 
     This class is used to store and manage runtime information for the application.
@@ -535,7 +531,7 @@ class ApplicationRuntimeInfo(SupportsJsonSaving, SupportsJsonLoading):
 
     def __init__(self, application: 'Application'):
         self._application: 'Application' = application
-        self._data = RuntimeDict(self.save_to_json)
+        self._data = meta.RuntimeDict(self.save_to_json)
         self.load_from_json()
         self._data['last_start_time'] = datetime.datetime.now().isoformat()
 
@@ -563,7 +559,7 @@ class ApplicationRuntimeInfo(SupportsJsonSaving, SupportsJsonLoading):
         )
 
     @property
-    def data(self) -> RuntimeDict:
+    def data(self) -> meta.RuntimeDict:
         """Runtime data dictionary.
 
         Returns:
@@ -640,7 +636,7 @@ class ApplicationRuntimeInfo(SupportsJsonSaving, SupportsJsonLoading):
             self.application.logger.warning(
                 'No data loaded from the runtime info file, initializing with empty RuntimeDict.'
             )
-            self._data = RuntimeDict(self.save_to_json)
+            self._data = meta.RuntimeDict(self.save_to_json)
             return
 
         if not isinstance(data, dict):
@@ -657,7 +653,7 @@ class ApplicationRuntimeInfo(SupportsJsonSaving, SupportsJsonLoading):
         self.data[key] = value
 
 
-class Application(Runnable):
+class Application(meta.Runnable):
     """A main Application class to manage running application data and services.
 
     Args:
@@ -688,6 +684,7 @@ class Application(Runnable):
         self._runtime_info: ApplicationRuntimeInfo = None
         self._tasks: HashList[ApplicationTask] = None
         self._tk_app: Union[Tk, Toplevel] = None
+        self._multi_stream: Optional[meta.MultiStream] = None
 
     @property
     def tk_app(self) -> Union[Tk, Toplevel]:
@@ -770,6 +767,23 @@ class Application(Runnable):
 
     def _build_menu(self) -> None:
         self._menu = MainApplicationMenu(self.tk_app)
+
+    def _build_multi_stream(self) -> None:
+        if self._multi_stream is not None:
+            self.logger.warning('MultiStream is already set up, skipping setup.')
+            return
+        try:
+            self._multi_stream = meta.MultiStream(
+                sys.__stdout__,
+                sys.__stderr__,
+                self._directory_service.get_log_file_stream(),
+                meta.SimpleStream(self.log))
+            sys.stdout = self._multi_stream
+            sys.stderr = self._multi_stream
+            meta.Loggable.force_all_loggers_to_stderr()
+            self.logger.info(f'Logging to file: {self._directory_service.user_log_file}')
+        except Exception as e:
+            print(f'Failed to set up multi-stream logging: {e}', file=sys.__stderr__)
 
     def _build_runtime_info(self) -> None:
         self._runtime_info = ApplicationRuntimeInfo(self)
@@ -904,6 +918,7 @@ class Application(Runnable):
             self.add_task(task)
 
     def build(self) -> None:
+        self._build_multi_stream()
         self._build_runtime_info()
         self._build_tk_app_instance()
         self._connect_tk_attributes()
@@ -948,16 +963,14 @@ class Application(Runnable):
             gc.collect()  # Process garbage collection for tk/tcl elements
 
     def log(self, message: str) -> None:
-        """Post a message to this Application's log text file.
+        """Post a message.
+
+        This method should be overridden to implement custom logging functionality.
 
         Args:
             message: Message to be sent to this Application's log file.
         """
-        try:
-            with open(self._directory_service.user_log_file, 'a', encoding='utf-8') as f:
-                f.write(f'{message}\n')
-        except IOError as e:
-            print(f'Error writing to log file {self._directory_service.user_log_file}: {e}')
+        ...
 
     def on_pre_run(self) -> None:
         """Method that is called directly before calling parent Tk mainloop.
@@ -975,14 +988,14 @@ class Application(Runnable):
 
         This method changes the cursor to a busy state, indicating that the application is processing.
         """
-        self.update_cursor(TK_CURSORS.WAIT)
+        self.update_cursor(meta.TK_CURSORS.WAIT)
 
     def set_app_state_normal(self) -> None:
         """Set the application state to normal.
 
         This method changes the cursor back to normal, indicating that the application is ready for user interaction.
         """
-        self.update_cursor(TK_CURSORS.DEFAULT)
+        self.update_cursor(meta.TK_CURSORS.DEFAULT)
 
     def set_logging_level(self, level: int) -> None:
         """Set the logging level for this Application.
@@ -1020,7 +1033,7 @@ class Application(Runnable):
             fullscreen = not self._runtime_info.get('full_screen', False)
         self.tk_app.attributes('-fullscreen', fullscreen)
 
-    def update_cursor(self, cursor: Union[TK_CURSORS, str]) -> None:
+    def update_cursor(self, cursor: Union[meta.TK_CURSORS, str]) -> None:
         """Update the cursor for this Application.
 
         This method changes the cursor style for the main application window.
@@ -1031,7 +1044,7 @@ class Application(Runnable):
         Raises:
             TypeError: If cursor is not a string or TK_CURSORS enum.
         """
-        if isinstance(cursor, TK_CURSORS):
+        if isinstance(cursor, meta.TK_CURSORS):
             cursor = cursor.value
         if not isinstance(cursor, str):
             raise TypeError('Cursor must be a string representing a valid Tkinter cursor type.')

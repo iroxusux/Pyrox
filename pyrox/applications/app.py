@@ -321,7 +321,6 @@ class App(models.Application):
         self._log_window = models.LogFrame(self.frame)
         self._log_window.pack(fill='both', expand=True)
         self._sub_paned_window.add(self._log_window)
-        models.Loggable.force_all_loggers_to_stderr()
 
     def _build_organizer(self) -> None:
         self._organizer: AppOrganizer = AppOrganizer(application=self)
@@ -356,15 +355,12 @@ class App(models.Application):
         :class:`Controller`:
             The loaded controller instance.
         """
-        self.set_app_state_busy()
-        self.logger.info('Loading controller from file: %s', file_location)
+
         try:
             importlib.reload(models.plc)
             return models.plc.Controller(l5x_dict_from_file(file_location))
         except (KeyError, ValueError, TypeError) as e:
             self.logger.error('error parsing controller from file %s: %s', file_location, e)
-        finally:
-            self.set_app_state_normal()
 
     def _load_last_opened_controller(self) -> None:
         last_plc_file_location = self._runtime_info.data.get('last_plc_file_location', None)
@@ -494,6 +490,8 @@ class App(models.Application):
             Location to open :class:`Controller` from.
 
         """
+        self.set_app_state_busy()
+        self.logger.info('Loading ctrl from file: %s', file_location)
         ctrl = self._load_controller(file_location)
         self.logger.info('new ctrl loaded -> %s', ctrl.name)
 
@@ -504,6 +502,23 @@ class App(models.Application):
 
         ctrl.file_location = file_location
         self.controller = ctrl
+        self.set_app_state_normal()
+
+    def log(self,
+            message: str
+            ) -> None:
+        """Log a message to the log window.
+
+        .. ------------------------------------------------------------
+
+        Arguments
+        -----------
+        message: :type:`str`
+            The message to log.
+
+        """
+        if self._log_window:
+            self._log_window.log(message)
 
     def new_controller(self) -> None:
         """Create a new controller instance."""

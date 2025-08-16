@@ -30,12 +30,13 @@ class PyroxDefaultTheme:
     button_color: str = '#2b2b2b'
     button_hover: str = '#6e6e6e'
     button_active: str = '#2b2b2b'
+    debug_text: str = '#00FFFF'
     font_family: str = 'Consolas'
     font_size: int = 10
     foreground: str = '#aaaaaa'
     foreground_selected: str = '#FFFFFF'
     foreground_hover: str = "#DDDDDD"
-    relief: str = 'flat'
+    relief: str = 'solid'
     widget_background: str = '#101010'
 
 
@@ -110,7 +111,7 @@ class PyroxThemeManager:
                         'bordercolor': PyroxDefaultTheme.bordercolor,
                         'borderwidth': PyroxDefaultTheme.borderwidth,
                         'relief': PyroxDefaultTheme.relief,
-                        'padding': (5, 5),
+                        'padding': (2, 2),
                     }
                 },
                 # Frame header styling
@@ -120,9 +121,8 @@ class PyroxThemeManager:
                         'bordercolor': PyroxDefaultTheme.bordercolor,
                         'borderwidth': PyroxDefaultTheme.borderwidth,
                         'relief': PyroxDefaultTheme.relief,
-                        'padding': (5, 5),
+                        'padding': (2, 2),
                     },
-                    # ↓ Add this layout section
                     'layout': [
                         ('Frame.border', {
                             'sticky': 'nswe',

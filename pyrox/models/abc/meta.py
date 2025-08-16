@@ -202,6 +202,91 @@ class EnforcesNaming:
         return True
 
 
+class SimpleStream:
+    """A simple stream that writes to a single provided callback.
+
+    Attributes:
+        callback: A callable that will be called with the text to write.
+        closed: Whether the stream is closed.
+    """
+
+    def __init__(self, callback: Callable):
+        if not callable(callback):
+            raise TypeError('Callback must be a callable function.')
+        self.callback = callback
+        self.closed = False
+
+    def write(self, text: str):
+        """Write text to the callback."""
+        if self.closed:
+            return
+        try:
+            self.callback(text)
+        except Exception as e:
+            sys.__stderr__.write(f"SimpleStream error: {e}\n")
+
+    def flush(self):
+        """Flush the stream (no-op for SimpleStream)."""
+        pass
+
+    def close(self):
+        """Close the stream."""
+        self.closed = True
+
+
+class MultiStream:
+    """A stream that writes to multiple destinations simultaneously."""
+
+    def __init__(self, *streams):
+        self.streams = list(streams)
+        self.closed = False
+
+    def _fallback_write(self, text):
+        """Fallback method to write to sys.__stderr__ if write fails."""
+        sys.__stderr__.write(f"MultiStream error: {text}\n")
+
+    def write(self, text):
+        """Write text to all streams."""
+        if self.closed:
+            return
+
+        for stream in self.streams:
+            try:
+                if hasattr(stream, 'write'):
+                    stream.write(text)
+            except Exception as e:
+                self._fallback_write(e)
+
+    def flush(self):
+        """Flush all streams."""
+        for stream in self.streams:
+            try:
+                if hasattr(stream, 'flush'):
+                    stream.flush()
+            except Exception as e:
+                self._fallback_write(e)
+
+    def close(self):
+        """Close all streams."""
+        self.closed = True
+        for stream in self.streams:
+            try:
+                if hasattr(stream, 'close') and stream not in (sys.__stdout__, sys.__stderr__):
+                    stream.close()
+            except Exception as e:
+                self._fallback_write(e)
+
+    def add_stream(self, stream):
+        """Add another stream to write to."""
+        if stream not in self.streams:
+            self.streams.append(stream)
+
+    def remove_stream(self, stream):
+        """Remove a stream from the list."""
+        if stream in self.streams:
+            self.streams.remove(stream)
+
+
 class SnowFlake:
     """A meta class for all classes to derive from to obtain unique IDs.
 
@@ -663,24 +748,7 @@ class Loggable(NamedPyroxObject):
     @staticmethod
     def _create_logger(name: str = __name__) -> logging.Logger:
         """Create a logger that outputs to stderr (which gets captured)."""
-        logger = logging.getLogger(name)
-
-        # Remove any existing handlers to avoid duplicates
-        for handler in logger.handlers[:]:
-            logger.removeHandler(handler)
-
-        # Use stdout handler - this will be captured by our LogWindow
-        handler = logging.StreamHandler(sys.stderr)
-        formatter = logging.Formatter(
-            fmt=DEF_FORMATTER,
-            datefmt=DEF_DATE_FMT
-        )
-        logger.propagate = False
-        logger.setLevel(Loggable.curr_logging_level)
-        handler.setLevel(Loggable.curr_logging_level)
-        handler.setFormatter(formatter)
-        logger.addHandler(handler)
-
+        logger = Loggable._setup_standard_logger(name=name)
         Loggable._curr_loggers[name] = logger
         return logger
 
@@ -699,47 +767,63 @@ class Loggable(NamedPyroxObject):
         return Loggable._curr_loggers.get(name, Loggable._create_logger(name=name))
 
     @staticmethod
+    def _get_standard_handler(stream) -> logging.StreamHandler:
+        """Get a standard logging handler that outputs to the specified stream.
+
+        Args:
+            stream: The stream to output logs to (default is sys.stderr).
+
+        Returns:
+            logging.StreamHandler: A configured StreamHandler instance.
+        """
+        handler = logging.StreamHandler(stream)
+        formatter = logging.Formatter(fmt=DEF_FORMATTER, datefmt=DEF_DATE_FMT)
+        handler.setFormatter(formatter)
+        handler.setLevel(Loggable.curr_logging_level)
+        return handler
+
+    @staticmethod
+    def _setup_standard_logger(name: str = None) -> logging.Logger:
+        """Get a standard logger with the specified name.
+
+        Args:
+            name: The name for the logger.
+
+        Returns:
+            logging.Logger: A configured Logger instance.
+        """
+        logger = logging.getLogger(name)
+        Loggable._remove_all_handlers(logger)
+        handler = Loggable._get_standard_handler(sys.stderr)
+        logger.addHandler(handler)
+        logger.setLevel(Loggable.curr_logging_level)
+        logger.propagate = False
+        return logger
+
+    @staticmethod
+    def _remove_all_handlers(logger: logging.Logger) -> None:
+        """Remove all handlers from the specified logger.
+
+        Args:
+            logger: The logger from which to remove handlers.
+        """
+        for handler in logger.handlers[:]:
+            logger.removeHandler(handler)
+
+    @staticmethod
     def force_all_loggers_to_stderr():
         """Force all existing loggers to use sys.stderr."""
 
         # Update root logger
-        root_logger = logging.getLogger()
-        for handler in root_logger.handlers[:]:
-            root_logger.removeHandler(handler)
-
-        stderr_handler = logging.StreamHandler(sys.stderr)
-        formatter = logging.Formatter(
-            fmt=DEF_FORMATTER,
-            datefmt=DEF_DATE_FMT
-        )
-        stderr_handler.setFormatter(formatter)
-        root_logger.addHandler(stderr_handler)
-        root_logger.setLevel(Loggable.curr_logging_level)
-        root_logger.propagate = False
+        Loggable._setup_standard_logger()
 
         # Update all existing loggers in the manager
         for name in list(logging.Logger.manager.loggerDict.keys()):
-            logger = logging.getLogger(name)
-            if isinstance(logger, logging.Logger):
-                for handler in logger.handlers[:]:
-                    logger.removeHandler(handler)
-
-                stderr_handler = logging.StreamHandler(sys.stderr)
-                stderr_handler.setFormatter(formatter)
-                logger.addHandler(stderr_handler)
-                logger.setLevel(Loggable.curr_logging_level)
-                logger.propagate = False
+            Loggable._setup_standard_logger(name)
 
         # Update the Loggable class loggers too
-        for name, logger in Loggable._curr_loggers.items():
-            for handler in logger.handlers[:]:
-                logger.removeHandler(handler)
-
-            stderr_handler = logging.StreamHandler(sys.stderr)
-            stderr_handler.setFormatter(formatter)
-            logger.addHandler(stderr_handler)
-            logger.setLevel(Loggable.curr_logging_level)
-            logger.propagate = False
+        for name, _ in Loggable._curr_loggers.items():
+            Loggable._setup_standard_logger(name)
 
     @staticmethod
     def set_logging_level(log_level: int = logging.INFO):

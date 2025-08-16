@@ -5,7 +5,6 @@ from dataclasses import dataclass
 import tkinter as tk
 from tkinter import ttk, messagebox
 from tkinter.ttk import Widget
-import sys
 from typing import Any, Optional, Union
 
 from . import meta
@@ -87,7 +86,8 @@ class FrameWithTreeViewAndScrollbar(meta.PyroxFrame):
 class LogFrame(meta.PyroxFrame):
     """Enhanced log window that captures both logging and stderr/stdout."""
 
-    def __init__(self, parent,):
+    def __init__(self,
+                 parent,):
         super().__init__(parent)
 
         # Create toolbar frame
@@ -105,7 +105,6 @@ class LogFrame(meta.PyroxFrame):
         self._setup_toolbar()
         self._setup_text_widget()
         self._setup_text_tags()
-        self._setup_stream_redirection()
 
     def _setup_text_widget(self):
         """Setup the main text widget and scrollbar."""
@@ -180,22 +179,6 @@ class LogFrame(meta.PyroxFrame):
             background=meta.PyroxDefaultTheme.widget_background
         )
 
-    def _setup_stream_redirection(self):
-        """Setup redirection of stderr and stdout to the text widget."""
-        self._stderr_stream = meta.TextWidgetStream(
-            self._logtext,
-            'STDERR',
-            self.log,
-        )
-        sys.stderr = self._stderr_stream
-
-        self._stdout_stream = meta.TextWidgetStream(
-            self._logtext,
-            'STDOUT',
-            self.log,
-        )
-        sys.stdout = self._stdout_stream
-
     def _setup_toolbar(self):
         """Setup the toolbar with control buttons."""
         self.add_toolbar_button(
@@ -217,8 +200,9 @@ class LogFrame(meta.PyroxFrame):
             self._logtext.tag_add(message, start_idx, end_idx)
             black = meta.PyroxDefaultTheme.widget_background
             white = meta.PyroxDefaultTheme.foreground_selected
+            cyan = meta.PyroxDefaultTheme.debug_text
             self._logtext.tag_configure(message,
-                                        foreground=black if tag == 'WARNING' else white,
+                                        foreground=black if tag == 'WARNING' else cyan if tag == 'DEBUG' else white,
                                         background='yellow' if tag == 'WARNING' else 'red' if tag == 'ERROR' else black,
                                         font=('Courier New', 12, 'bold'))
 
@@ -229,6 +213,9 @@ class LogFrame(meta.PyroxFrame):
                 self._logtext.delete('1.0', f'{lines-1000}.0')
 
             self._logtext.config(state='disabled')
+
+            self._logtext.update_idletasks()
+            self.update_idletasks()
 
         except tk.TclError as e:
             print(f'Error logging message: {e}')
@@ -258,21 +245,6 @@ class LogFrame(meta.PyroxFrame):
             self.update()
         except tk.TclError as e:
             print(f'Error clearing log window: {e}')
-
-    def destroy(self):
-        """Clean up stream redirection when destroying the widget."""
-        # Restore original streams
-        if self._stderr_stream:
-            self._stderr_stream.close()
-            if sys.stderr == self._stderr_stream:
-                sys.stderr = self._original_stderr
-
-        if self._stdout_stream:
-            self._stdout_stream.close()
-            if sys.stdout == self._stdout_stream:
-                sys.stdout = self._original_stdout
-
-        super().destroy()
 
     def add_toolbar_button(self, text: str, command: callable):
         """Add a custom button to the toolbar."""
