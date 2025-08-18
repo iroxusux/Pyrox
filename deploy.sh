@@ -44,6 +44,9 @@ pyinstaller --name "Pyrox" \
     --add-data "pyrox/tasks:pyrox/tasks" \
     --add-data "pyrox/applications/mod:pyrox/applications/mod" \
     --add-data "docs/controls:docs/controls" \
+    --hidden-import="PIL" \
+    --hidden-import="PIL.Image" \
+    --hidden-import="PIL.ImageTk" \
     --hidden-import="tkinter" \
     --hidden-import="tkinter.colorchooser" \
     --hidden-import="tkinter.commondialog" \

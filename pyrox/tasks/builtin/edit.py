@@ -9,7 +9,6 @@ import tkinter as tk
 from tkinter import colorchooser, messagebox, ttk
 import copy
 
-# Import THEME from ladder.py
 try:
     from pyrox.models.gui.ladder import THEME
 except ImportError:

@@ -813,7 +813,7 @@ class Application(meta.Runnable):
                     task_files = list(tasks_path.glob('*.py'))
                     self.logger.info(f"Found task files: {[f.name for f in task_files]}")
                 except Exception as e:
-                    self.logger.warning(f"Could not list task files: {e}")
+                    raise RuntimeError(f"Failed to list task files in {tasks_path}") from e
 
                 tasks = class_services.find_and_instantiate_class(
                     directory_path=str(tasks_path),
