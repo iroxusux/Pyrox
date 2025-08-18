@@ -1122,7 +1122,7 @@ class ContainsTags(NamedPlcObject):
             tag (Union[Tag, str]): tag to remove
         """
         self._remove_asset_from_meta_data(tag,
-                                          self._tags,
+                                          self.tags,
                                           self.raw_tags)
 
 
@@ -1240,7 +1240,7 @@ class ContainsRoutines(ContainsTags):
         if not isinstance(routine, Routine):
             raise TypeError("Routine must be of type Routine!")
 
-        if routine.name in self._routines:
+        if routine.name in self.routines:
             self.remove_routine(routine)
 
         self.raw_routines.append(routine.meta_data)
@@ -1253,7 +1253,7 @@ class ContainsRoutines(ContainsTags):
             routine (Routine): routine to remove
         """
         self._remove_asset_from_meta_data(routine,
-                                          self._routines,
+                                          self.routines,
                                           self.raw_routines)
 
 
@@ -4373,10 +4373,13 @@ class Controller(NamedPlcObject, Loggable):
 
         if item.name in target_list:
             self.logger.debug(f'{item.name} already exists in this collection. Updating...')
-            target_meta_list.remove(next((x for x in target_meta_list if x['@Name'] == item.name), None))
+            item = next((x for x in target_meta_list if x['@Name'] == item.name), None)
+            if not item:
+                raise ValueError(f'{item.name} not found in target meta list!')
+            target_meta_list.remove(item)
 
         target_meta_list.append(item.meta_data)
-        target_list = None  # invalidate the cached list
+        self._invalidate_list_cache(target_list)
 
     def _remove_common(
         self,
@@ -4393,7 +4396,25 @@ class Controller(NamedPlcObject, Loggable):
             return
 
         target_meta_list.remove(next((x for x in target_meta_list if x['@Name'] == item.name), None))
-        target_list = None  # invalidate the cached list
+        self._invalidate_list_cache(target_list)
+
+    def _invalidate_list_cache(
+        self,
+        target_list: HashList
+    ) -> None:
+        """Invalidate the cached list."""
+        if target_list is self.aois:
+            self._aois = None
+        elif target_list is self.datatypes:
+            self._datatypes = None
+        elif target_list is self.modules:
+            self._modules = None
+        elif target_list is self.programs:
+            self._programs = None
+        elif target_list is self.tags:
+            self._tags = None
+        else:
+            self.logger.warning('Unknown target list to invalidate cache for.')
 
     def import_assets_from_file(self,
                                 file_location: str,):
@@ -4451,7 +4472,7 @@ class Controller(NamedPlcObject, Loggable):
         """
         self._add_common(aoi,
                          self.config.aoi_type,
-                         self._aois,
+                         self.aois,
                          self.raw_aois)
 
     def add_datatype(
@@ -4466,7 +4487,7 @@ class Controller(NamedPlcObject, Loggable):
         """
         self._add_common(datatype,
                          self.config.datatype_type,
-                         self._datatypes,
+                         self.datatypes,
                          self.raw_datatypes)
 
     def add_module(
@@ -4481,7 +4502,7 @@ class Controller(NamedPlcObject, Loggable):
         """
         self._add_common(module,
                          self.config.module_type,
-                         self._modules,
+                         self.modules,
                          self.raw_modules)
 
     def add_program(
@@ -4496,7 +4517,7 @@ class Controller(NamedPlcObject, Loggable):
         """
         self._add_common(program,
                          self.config.program_type,
-                         self._programs,
+                         self.programs,
                          self.raw_programs)
 
     def add_tag(
@@ -4511,23 +4532,23 @@ class Controller(NamedPlcObject, Loggable):
         """
         self._add_common(tag,
                          self.config.tag_type,
-                         self._tags,
+                         self.tags,
                          self.raw_tags)
 
     def remove_aoi(self, aoi: AddOnInstruction):
-        self._remove_common(aoi, self._aois, self.raw_aois)
+        self._remove_common(aoi, self.aois, self.raw_aois)
 
     def remove_datatype(self, datatype: Datatype):
-        self._remove_common(datatype, self._datatypes, self.raw_datatypes)
+        self._remove_common(datatype, self.datatypes, self.raw_datatypes)
 
     def remove_module(self, module: Module):
-        self._remove_common(module, self._modules, self.raw_modules)
+        self._remove_common(module, self.modules, self.raw_modules)
 
     def remove_program(self, program: Program):
-        self._remove_common(program, self._programs, self.raw_programs)
+        self._remove_common(program, self.programs, self.raw_programs)
 
     def remove_tag(self, tag: Tag):
-        self._remove_common(tag, self._tags, self.raw_tags)
+        self._remove_common(tag, self.tags, self.raw_tags)
 
     def find_diagnostic_rungs(self) -> list[Rung]:
         diagnostic_rungs = []

@@ -8,7 +8,7 @@ version = "1.2.6"
 authors = [
   { name="Brian LaFond", email="Brian.L.LaFond@gmail.com" },
 ]
-description = "irox implimentation of tkinter in the form of a modifiable application with models."
+description = "Python based ladder logic editor and toolset."
 readme = "README.md"
 requires-python = ">=3.13"
 classifiers = [

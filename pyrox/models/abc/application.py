@@ -665,11 +665,21 @@ class Application(meta.Runnable):
         directory_service: The directory service for this Application.
         frame: The main frame for this Application.
         menu: The main Tk Menu for this Application.
+        multi_stream: The MultiStream for this Application.
         runtime_info: The runtime information for this Application.
         tasks: A hashed list of tasks for this Application.
         tk_app: The tk application instance for this Application.
     """
-    __slots__ = ('_config', '_directory_service', '_frame', '_menu', '_runtime_info', '_tasks', '_tk_app')
+    __slots__ = (
+        '_config',
+        '_directory_service',
+        '_frame',
+        '_menu',
+        '_multi_stream',
+        '_runtime_info',
+        '_tasks',
+        '_tk_app'
+    )
 
     def __init__(self, config: ApplicationConfiguration) -> None:
         super().__init__()
