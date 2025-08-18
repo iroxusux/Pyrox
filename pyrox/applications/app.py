@@ -591,6 +591,9 @@ class App(models.Application):
         if not file_location or not self.controller:
             return
 
+        if not file_location.endswith('.L5X'):
+            file_location += '.L5X'
+
         try:
             self.set_app_state_busy()
             self.controller.file_location = file_location

@@ -51,7 +51,7 @@ def l5x_dict_from_file(file_location: str) -> Optional[dict]:
         raise ValueError('can only parse .L5X files!')
 
     if not os.path.exists(file_location):
-        raise FileNotFoundError
+        raise FileNotFoundError(f"File {file_location} does not exist.")
 
     # use lxml and parse the .l5x xml into a dictionary
     try:
