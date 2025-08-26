@@ -4,17 +4,28 @@ import os
 import shutil
 import tkinter as tk
 from tkinter import filedialog
+from typing import Optional
 
 
-def get_open_file(filetypes: list[tuple]) -> str:
+def get_open_file(
+        filetypes: list[tuple],
+        title: Optional[str] = None
+) -> str:
     """get a file using tkinter as ui
+
+    Args:
+        filetypes (list[tuple]): file type arguments e.g. ('.L5x', 'L5X Files')
+        title (Optional[str]): title of the dialog
 
     Returns:
         str: file location
     """
     root = tk.Tk()
     root.withdraw()
-    filename = filedialog.askopenfilename(filetypes=filetypes)
+    filename = filedialog.askopenfilename(
+        filetypes=filetypes,
+        title=title,
+    )
     root.update()
     return filename
 

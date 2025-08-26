@@ -14,6 +14,12 @@ from ..services.dictionary_services import remove_none_values_inplace
 from ..services.plc_services import dict_to_xml_file, l5x_dict_from_file
 
 
+__all__ = [
+    'App',
+    'AppTask',
+]
+
+
 class AppOrganizerContextMenu(models.ContextMenu):
     """Context menu for the organizer window.
 

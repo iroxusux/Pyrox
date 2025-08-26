@@ -4,6 +4,7 @@ from __future__ import annotations
 from collections import defaultdict
 from dataclasses import dataclass, field
 from enum import Enum
+from pathlib import Path
 import re
 from typing import (
     Callable,
@@ -65,14 +66,14 @@ INST_RE_PATTERN: str = r'[A-Za-z0-9_]+\(\S*?\)'
 INST_TYPE_RE_PATTERN: str = r'([A-Za-z0-9_]+)(?:\(.*?)(?:\))'
 INST_OPER_RE_PATTERN: str = r'(?:[A-Za-z0-9_]+\()(.*?)(?:\))'
 
-PLC_ROOT_FILE = r'docs\controls\root.L5X'
-PLC_PROG_FILE = r'docs\controls\_program.L5X'
-PLC_ROUT_FILE = r'docs\controls\_routine.L5X'
-PLC_DT_FILE = r'docs\controls\_datatype.L5X'
-PLC_AOI_FILE = r'docs\controls\_aoi.L5X'
-PLC_MOD_FILE = r'docs\controls\_module.L5X'
-PLC_RUNG_FILE = r'docs\controls\_rung.L5X'
-PLC_TAG_FILE = r'docs\controls\_tag.L5X'
+PLC_ROOT_FILE = Path(__file__).resolve().parents[3] / 'docs' / 'controls' / 'root.L5X'
+PLC_PROG_FILE = Path(__file__).resolve().parents[3] / 'docs' / 'controls' / '_program.L5X'
+PLC_ROUT_FILE = Path(__file__).resolve().parents[3] / 'docs' / 'controls' / '_routine.L5X'
+PLC_DT_FILE = Path(__file__).resolve().parents[3] / 'docs' / 'controls' / '_datatype.L5X'
+PLC_AOI_FILE = Path(__file__).resolve().parents[3] / 'docs' / 'controls' / '_aoi.L5X'
+PLC_MOD_FILE = Path(__file__).resolve().parents[3] / 'docs' / 'controls' / '_module.L5X'
+PLC_RUNG_FILE = Path(__file__).resolve().parents[3] / 'docs' / 'controls' / '_rung.L5X'
+PLC_TAG_FILE = Path(__file__).resolve().parents[3] / 'docs' / 'controls' / '_tag.L5X'
 
 BASE_FILES = [
     PLC_ROOT_FILE,
@@ -4373,10 +4374,10 @@ class Controller(NamedPlcObject, Loggable):
 
         if item.name in target_list:
             self.logger.debug(f'{item.name} already exists in this collection. Updating...')
-            item = next((x for x in target_meta_list if x['@Name'] == item.name), None)
-            if not item:
+            meta_item = next((x for x in target_meta_list if x['@Name'] == item.name), None)
+            if not meta_item:
                 raise ValueError(f'{item.name} not found in target meta list!')
-            target_meta_list.remove(item)
+            target_meta_list.remove(meta_item)
 
         target_meta_list.append(item.meta_data)
         self._invalidate_list_cache(target_list)

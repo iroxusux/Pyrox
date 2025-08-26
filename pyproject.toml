@@ -36,6 +36,9 @@ dependencies = [
   "platformdirs",
   "pyinstaller",
   "pylogix",
+  "PyPDF2",
+  "pdfplumber",
+  "PyMuPDF",
   "pytest",
   "xmltodict",
 ]

@@ -942,7 +942,7 @@ class GmEmulationGenerator(emu.BaseEmulationGenerator):
             # Add to safety emulation routine
             self._s_emu_routine.add_rung(Rung(
                 controller=self.controller,
-                text=f'COP(sz_Demo3D_{card.name}_I,{card.parent_module}:1:I,1);',
+                text=f'COP(sz_Demo3D_{card.parent_module}_I,{card.parent_module}:1:I,1);',
                 comment='Copy the input data from the emulation tag to the safety input card.'
             ))
 

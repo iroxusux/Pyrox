@@ -5,6 +5,7 @@ import winreg
 
 
 import os
+from pathlib import Path
 import re
 from typing import Optional
 import xmltodict
@@ -47,6 +48,9 @@ def l5x_dict_from_file(file_location: str) -> Optional[dict]:
     Returns:
         dict: controller
     """
+    if isinstance(file_location, Path):
+        file_location = str(file_location)
+
     if not file_location.endswith('.L5X'):
         raise ValueError('can only parse .L5X files!')
 

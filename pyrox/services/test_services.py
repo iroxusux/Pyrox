@@ -1,5 +1,18 @@
 """testing module for services
     """
+from pyrox.services.eplan import (
+    EplanPDFParser,
+    EplanDrawingSet,
+    IODevice,
+    DeviceContact,
+    PowerStructure,
+    NetworkDevice,
+    parse_eplan_pdfs
+)
+import json
+from unittest.mock import Mock, patch
+import tempfile
+import os
 import sys
 from .plc_services import (
     cdata,
@@ -13,7 +26,6 @@ from .plc_services import (
 
 
 import unittest
-from unittest.mock import patch
 import lxml
 import lxml.etree as ET
 import pandas as pd
@@ -196,9 +208,554 @@ class TestFindRSLogixInstallations(unittest.TestCase):
         # You could use unittest.mock to patch winreg.OpenKey and EnumKey for more thorough testing
 
 
+class TestDeviceContact(unittest.TestCase):
+    """Test DeviceContact dataclass."""
+
+    def test_device_contact_creation(self):
+        """Test creating a DeviceContact."""
+        contact = DeviceContact(
+            terminal="TB1-1",
+            signal_name="START_CMD",
+            wire_number="W001",
+            device_reference="MS001",
+            contact_type="NO"
+        )
+
+        self.assertEqual(contact.terminal, "TB1-1")
+        self.assertEqual(contact.signal_name, "START_CMD")
+        self.assertEqual(contact.wire_number, "W001")
+        self.assertEqual(contact.device_reference, "MS001")
+        self.assertEqual(contact.contact_type, "NO")
+
+    def test_device_contact_defaults(self):
+        """Test DeviceContact with default values."""
+        contact = DeviceContact(terminal="TB1-2")
+
+        self.assertEqual(contact.terminal, "TB1-2")
+        self.assertEqual(contact.signal_name, "")
+        self.assertEqual(contact.wire_number, "")
+        self.assertEqual(contact.device_reference, "")
+        self.assertEqual(contact.contact_type, "")
+
+
+class TestIODevice(unittest.TestCase):
+    """Test IODevice dataclass."""
+
+    def test_io_device_creation(self):
+        """Test creating an IODevice."""
+        device = IODevice(
+            tag="AI001",
+            device_type="Analog Input",
+            manufacturer="Allen-Bradley",
+            part_number="1756-IF8",
+            ip_address="192.168.1.100"
+        )
+
+        self.assertEqual(device.tag, "AI001")
+        self.assertEqual(device.device_type, "Analog Input")
+        self.assertEqual(device.manufacturer, "Allen-Bradley")
+        self.assertEqual(device.part_number, "1756-IF8")
+        self.assertEqual(device.ip_address, "192.168.1.100")
+        self.assertEqual(device.contacts, [])
+
+    def test_io_device_with_contacts(self):
+        """Test IODevice with contacts."""
+        contact1 = DeviceContact(terminal="1", signal_name="CH1")
+        contact2 = DeviceContact(terminal="2", signal_name="CH2")
+
+        device = IODevice(
+            tag="DI001",
+            contacts=[contact1, contact2]
+        )
+
+        self.assertEqual(len(device.contacts), 2)
+        self.assertEqual(device.contacts[0].terminal, "1")
+        self.assertEqual(device.contacts[1].terminal, "2")
+
+
+class TestPowerStructure(unittest.TestCase):
+    """Test PowerStructure dataclass."""
+
+    def test_power_structure_creation(self):
+        """Test creating a PowerStructure."""
+        power = PowerStructure(
+            voltage_level="480V",
+            phase="L1, L2, L3",
+            current_rating="30A",
+            protection_device="CB001"
+        )
+
+        self.assertEqual(power.voltage_level, "480V")
+        self.assertEqual(power.phase, "L1, L2, L3")
+        self.assertEqual(power.current_rating, "30A")
+        self.assertEqual(power.protection_device, "CB001")
+        self.assertEqual(power.connected_devices, [])
+
+
+class TestNetworkDevice(unittest.TestCase):
+    """Test NetworkDevice dataclass."""
+
+    def test_network_device_creation(self):
+        """Test creating a NetworkDevice."""
+        net_device = NetworkDevice(
+            tag="SW001",
+            device_type="Ethernet Switch",
+            ip_address="192.168.1.10",
+            subnet_mask="255.255.255.0"
+        )
+
+        self.assertEqual(net_device.tag, "SW001")
+        self.assertEqual(net_device.device_type, "Ethernet Switch")
+        self.assertEqual(net_device.ip_address, "192.168.1.10")
+        self.assertEqual(net_device.subnet_mask, "255.255.255.0")
+
+
+class TestEplanDrawingSet(unittest.TestCase):
+    """Test EplanDrawingSet dataclass."""
+
+    def test_drawing_set_creation(self):
+        """Test creating an EplanDrawingSet."""
+        drawing_set = EplanDrawingSet(project_name="GM Test Project")
+
+        self.assertEqual(drawing_set.project_name, "GM Test Project")
+        self.assertEqual(drawing_set.drawing_numbers, [])
+        self.assertEqual(drawing_set.devices, {})
+        self.assertEqual(drawing_set.power_structure, {})
+        self.assertEqual(drawing_set.network_devices, {})
+
+
+class TestEplanPDFParser(unittest.TestCase):
+    """Test EplanPDFParser class."""
+
+    def setUp(self):
+        """Set up test fixtures."""
+        self.parser = EplanPDFParser()
+
+    def test_parser_initialization(self):
+        """Test parser initialization."""
+        self.assertIsInstance(self.parser.drawing_set, EplanDrawingSet)
+        self.assertIn('device_tag', self.parser._device_patterns)
+        self.assertIn('ip_address', self.parser._ip_patterns)
+        self.assertIn('voltage', self.parser._power_patterns)
+
+    def test_compile_device_patterns(self):
+        """Test device pattern compilation."""
+        patterns = self.parser._compile_device_patterns()
+
+        # Test device tag pattern
+        device_pattern = patterns['device_tag']
+        self.assertTrue(device_pattern.search("AI001"))
+        self.assertTrue(device_pattern.search("MS123"))
+        self.assertTrue(device_pattern.search("PLC1"))
+
+        # Test Allen-Bradley pattern
+        ab_pattern = patterns['allen_bradley']
+        self.assertTrue(ab_pattern.search("1756-IF8"))
+        self.assertTrue(ab_pattern.search("1769 OF2"))
+
+    def test_compile_ip_patterns(self):
+        """Test IP pattern compilation."""
+        patterns = self.parser._compile_ip_patterns()
+
+        # Test IP address pattern
+        ip_pattern = patterns['ip_address']
+        self.assertTrue(ip_pattern.search("192.168.1.100"))
+        self.assertTrue(ip_pattern.search("10.0.0.1"))
+        self.assertFalse(ip_pattern.search("999.999.999.999"))
+
+        # Test subnet mask pattern
+        subnet_pattern = patterns['subnet_mask']
+        self.assertTrue(subnet_pattern.search("255.255.255.0"))
+        self.assertTrue(subnet_pattern.search("255.255.252.0"))
+
+    def test_compile_power_patterns(self):
+        """Test power pattern compilation."""
+        patterns = self.parser._compile_power_patterns()
+
+        # Test voltage pattern
+        voltage_pattern = patterns['voltage']
+        self.assertTrue(voltage_pattern.search("480V"))
+        self.assertTrue(voltage_pattern.search("24 VDC"))
+        self.assertTrue(voltage_pattern.search("120VAC"))
+
+        # Test phase pattern
+        phase_pattern = patterns['phase']
+        self.assertTrue(phase_pattern.search("L1"))
+        self.assertTrue(phase_pattern.search("PE"))
+        self.assertTrue(phase_pattern.search("GND"))
+
+    def test_determine_device_type(self):
+        """Test device type determination."""
+        # Test by tag prefix
+        self.assertEqual(self.parser._determine_device_type("CPU001", ""), "PLC")
+        self.assertEqual(self.parser._determine_device_type("HMI001", ""), "HMI")
+        self.assertEqual(self.parser._determine_device_type("AI001", ""), "I/O Module")
+        self.assertEqual(self.parser._determine_device_type("MS001", ""), "Motor Starter")
+
+        # Test by context
+        context = "This is a controller module CPU processor"
+        self.assertEqual(self.parser._determine_device_type("DEV001", context), "PLC")
+
+        context = "HMI operator display panel"
+        self.assertEqual(self.parser._determine_device_type("DEV002", context), "HMI")
+
+    def test_extract_device_specs(self):
+        """Test device specification extraction."""
+        # Test Allen-Bradley
+        context = "Device: 1756-IF8 Analog Input Module"
+        manufacturer, part_number = self.parser._extract_device_specs(context)
+        self.assertEqual(manufacturer, "Allen-Bradley")
+        self.assertEqual(part_number, "1756-IF8")
+
+        # Test Siemens
+        context = "Module 6ES7-134-4GB01-0AB0"
+        manufacturer, part_number = self.parser._extract_device_specs(context)
+        self.assertEqual(manufacturer, "Siemens")
+        self.assertEqual(part_number, "6ES7-134-4GB01-0AB0")
+
+        # Test no match
+        context = "Unknown device specification"
+        manufacturer, part_number = self.parser._extract_device_specs(context)
+        self.assertEqual(manufacturer, "")
+        self.assertEqual(part_number, "")
+
+    def test_extract_location_info(self):
+        """Test location information extraction."""
+        context = "CABINET: MCC001 RACK: 1 SLOT: 5"
+        cabinet, rack, slot = self.parser._extract_location_info(context)
+
+        self.assertEqual(cabinet, "MCC001")
+        self.assertEqual(rack, "1")
+        self.assertEqual(slot, "5")
+
+    def test_extract_device_ip(self):
+        """Test device IP extraction."""
+        context = "Device IP Address: 192.168.1.100"
+        ip = self.parser._extract_device_ip(context)
+        self.assertEqual(ip, "192.168.1.100")
+
+        context = "No IP address here"
+        ip = self.parser._extract_device_ip(context)
+        self.assertEqual(ip, "")
+
+    def test_find_device_for_ip(self):
+        """Test finding device tag for IP address."""
+        context = "PLC001 IP: 192.168.1.100"
+        device_tag = self.parser._find_device_for_ip(context)
+        self.assertEqual(device_tag, "PLC001")
+
+    def test_extract_subnet_mask(self):
+        """Test subnet mask extraction."""
+        context = "Subnet Mask: 255.255.255.0"
+        mask = self.parser._extract_subnet_mask(context)
+        self.assertEqual(mask, "255.255.255.0")
+
+    def test_extract_mac_address(self):
+        """Test MAC address extraction."""
+        context = "MAC: 00:1A:2B:3C:4D:5E"
+        mac = self.parser._extract_mac_address(context)
+        self.assertEqual(mac, "00:1A:2B:3C:4D:5E")
+
+    def test_extract_vlan(self):
+        """Test VLAN extraction."""
+        context = "VLAN: 100"
+        vlan = self.parser._extract_vlan(context)
+        self.assertEqual(vlan, "100")
+
+    def test_is_io_table(self):
+        """Test I/O table identification."""
+        # Valid I/O table
+        io_table = [
+            ["Tag", "Address", "Description", "Type"],
+            ["AI001", "1:I.Data[0]", "Temperature", "Analog Input"],
+            ["DI001", "2:I.Data[0]", "Start Button", "Digital Input"]
+        ]
+        self.assertTrue(self.parser._is_io_table(io_table))
+
+        # Invalid table
+        invalid_table = [
+            ["Name", "Value", "Notes"],
+            ["Test", "123", "Sample"]
+        ]
+        self.assertFalse(self.parser._is_io_table(invalid_table))
+
+        # Empty table
+        self.assertFalse(self.parser._is_io_table([]))
+
+    def test_extract_cable_from(self):
+        """Test cable 'from' extraction."""
+        context = "FROM: PLC001 TO: HMI001"
+        from_location = self.parser._extract_cable_from(context)
+        self.assertEqual(from_location, "PLC001")
+
+    def test_extract_cable_to(self):
+        """Test cable 'to' extraction."""
+        context = "FROM: PLC001 TO: HMI001"
+        to_location = self.parser._extract_cable_to(context)
+        self.assertEqual(to_location, "HMI001")
+
+    def test_extract_cable_type(self):
+        """Test cable type extraction."""
+        context = "TYPE: CAT6 Ethernet Cable"
+        cable_type = self.parser._extract_cable_type(context)
+        self.assertEqual(cable_type, "CAT6 Ethernet Cable")
+
+    def test_extract_cable_length(self):
+        """Test cable length extraction."""
+        context = "Length: 50 FT"
+        length = self.parser._extract_cable_length(context)
+        self.assertEqual(length, "50 FT")
+
+    def test_combine_text_data(self):
+        """Test combining text data from multiple sources."""
+        text_data = {
+            'pdfplumber': [
+                {'text': 'Page 1 content', 'page': 1},
+                {'text': 'Page 2 content', 'page': 2}
+            ],
+            'pymupdf': [
+                {'text': 'PyMuPDF Page 1', 'page': 1}
+            ]
+        }
+
+        combined = self.parser._combine_text_data(text_data)
+        self.assertIn('Page 1 content', combined)
+        self.assertIn('Page 2 content', combined)
+        self.assertIn('PyMuPDF Page 1', combined)
+
+    def test_export_to_dict(self):
+        """Test exporting to dictionary format."""
+        # Add test data
+        device = IODevice(tag="TEST001", device_type="Test Device")
+        self.parser.drawing_set.devices["TEST001"] = device
+        self.parser.drawing_set.project_name = "Test Project"
+
+        result = self.parser.export_to_dict()
+
+        self.assertEqual(result['project_name'], "Test Project")
+        self.assertIn('TEST001', result['devices'])
+        self.assertEqual(result['devices']['TEST001']['tag'], "TEST001")
+
+    @patch('os.path.exists')
+    def test_parse_pdf_set_file_not_found(self, mock_exists):
+        """Test parsing when PDF file doesn't exist."""
+        mock_exists.return_value = False
+        result = self.parser.parse_pdf_set("nonexistent.pdf")
+        self.assertIsInstance(result, EplanDrawingSet)
+
+    @patch('pyrox.services.eplan.EplanPDFParser._extract_text_multiple_methods')
+    @patch('os.path.exists')
+    def test_parse_single_pdf_success(self, mock_exists, mock_extract):
+        """Test successful single PDF parsing."""
+        mock_exists.return_value = True
+        mock_extract.return_value = {
+            'pdfplumber': [{'text': 'TEST PROJECT PLC001 192.168.1.100', 'page': 1}],
+            'pymupdf': [],
+            'pypdf2': []
+        }
+
+        self.parser._parse_single_pdf("test.pdf")
+        self.assertIsNotNone(self.parser.drawing_set)
+
+    def test_post_process_data(self):
+        """Test post-processing of extracted data."""
+        # Set up test data
+        device = IODevice(tag="NET001")
+        net_device = NetworkDevice(tag="NET001", ip_address="192.168.1.50")
+
+        self.parser.drawing_set.devices["NET001"] = device
+        self.parser.drawing_set.network_devices["NET001"] = net_device
+        self.parser.drawing_set.drawing_numbers = ["DWG001", "DWG001", "DWG002"]
+
+        self.parser._post_process_data()
+
+        # Verify IP address was linked
+        self.assertEqual(self.parser.drawing_set.devices["NET001"].ip_address, "192.168.1.50")
+
+        # Verify duplicates were removed
+        self.assertEqual(len(self.parser.drawing_set.drawing_numbers), 2)
+        self.assertIn("DWG001", self.parser.drawing_set.drawing_numbers)
+        self.assertIn("DWG002", self.parser.drawing_set.drawing_numbers)
+
+
+class TestEplanPDFParserIntegration(unittest.TestCase):
+    """Integration tests for EPlan PDF parsing with mocked PDF libraries."""
+
+    @patch('pyrox.services.eplan.pdfplumber')
+    @patch('pyrox.services.eplan.fitz')
+    @patch('pyrox.services.eplan.PyPDF2')
+    @patch('os.path.exists')
+    def test_extract_text_multiple_methods(self, mock_exists, mock_pypdf2, mock_fitz, mock_pdfplumber):
+        """Test text extraction using multiple methods."""
+        mock_exists.return_value = True
+
+        # Mock pdfplumber
+        mock_pdf = Mock()
+        mock_page = Mock()
+        mock_page.extract_text.return_value = "Test content from pdfplumber"
+        mock_page.extract_tables.return_value = []
+        mock_pdf.pages = [mock_page]
+        mock_pdfplumber.open.return_value.__enter__.return_value = mock_pdf
+
+        # Mock PyMuPDF
+        mock_doc = Mock()
+        mock_doc.page_count = 1
+        mock_page_fitz = Mock()
+        mock_page_fitz.get_text.return_value = "Test content from PyMuPDF"
+        mock_page_fitz.get_text.return_value = {"blocks": []}
+        mock_fitz.open.return_value = mock_doc
+
+        # Mock PyPDF2
+        mock_reader = Mock()
+        mock_page_pypdf2 = Mock()
+        mock_page_pypdf2.extract_text.return_value = "Test content from PyPDF2"
+        mock_reader.pages = [mock_page_pypdf2]
+        mock_pypdf2.PdfReader.return_value = mock_reader
+
+        parser = EplanPDFParser()
+        result = parser._extract_text_multiple_methods("test.pdf")
+
+        self.assertIn('pdfplumber', result)
+        self.assertIn('pymupdf', result)
+        self.assertIn('pypdf2', result)
+
+        # Verify content was extracted
+        self.assertTrue(len(result['pdfplumber']) > 0)
+
+    def test_export_to_file_json(self):
+        """Test exporting to JSON file."""
+        parser = EplanPDFParser()
+        parser.drawing_set.project_name = "Test Export"
+
+        with tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False) as f:
+            temp_file = f.name
+
+        try:
+            parser.export_to_file(temp_file, 'json')
+
+            # Verify file was created and contains correct data
+            with open(temp_file, 'r') as f:
+                data = json.load(f)
+                self.assertEqual(data['project_name'], "Test Export")
+
+        finally:
+            os.unlink(temp_file)
+
+    def test_export_to_file_csv(self):
+        """Test exporting to CSV file."""
+        parser = EplanPDFParser()
+        device = IODevice(
+            tag="TEST001",
+            device_type="Test Device",
+            manufacturer="Test Mfg",
+            part_number="TEST-123",
+            ip_address="192.168.1.1"
+        )
+        parser.drawing_set.devices["TEST001"] = device
+
+        with tempfile.NamedTemporaryFile(mode='w', suffix='.csv', delete=False) as f:
+            temp_file = f.name
+
+        try:
+            parser.export_to_file(temp_file, 'csv')
+
+            # Verify CSV file was created
+            self.assertTrue(os.path.exists(temp_file))
+
+            with open(temp_file, 'r') as f:
+                content = f.read()
+                self.assertIn('TEST001', content)
+                self.assertIn('Test Device', content)
+
+        finally:
+            os.unlink(temp_file)
+
+
+class TestConvenienceFunction(unittest.TestCase):
+    """Test the convenience function parse_eplan_pdfs."""
+
+    @patch('pyrox.services.eplan.EplanPDFParser')
+    def test_parse_eplan_pdfs_single_file(self, mock_parser_class):
+        """Test parsing single PDF file."""
+        mock_parser = Mock()
+        mock_drawing_set = EplanDrawingSet(project_name="Test")
+        mock_parser.parse_pdf_set.return_value = mock_drawing_set
+        mock_parser_class.return_value = mock_parser
+
+        result = parse_eplan_pdfs("test.pdf")
+
+        mock_parser.parse_pdf_set.assert_called_once_with("test.pdf")
+        self.assertEqual(result.project_name, "Test")
+
+    @patch('pyrox.services.eplan.EplanPDFParser')
+    def test_parse_eplan_pdfs_multiple_files(self, mock_parser_class):
+        """Test parsing multiple PDF files."""
+        mock_parser = Mock()
+        mock_drawing_set = EplanDrawingSet(project_name="Multi Test")
+        mock_parser.parse_pdf_set.return_value = mock_drawing_set
+        mock_parser_class.return_value = mock_parser
+
+        pdf_files = ["test1.pdf", "test2.pdf", "test3.pdf"]
+        result = parse_eplan_pdfs(pdf_files)
+
+        mock_parser.parse_pdf_set.assert_called_once_with(pdf_files)
+        self.assertEqual(result.project_name, "Multi Test")
+
+    @patch('pyrox.services.eplan.EplanPDFParser')
+    def test_parse_eplan_pdfs_with_output_file(self, mock_parser_class):
+        """Test parsing with output file export."""
+        mock_parser = Mock()
+        mock_drawing_set = EplanDrawingSet(project_name="Export Test")
+        mock_parser.parse_pdf_set.return_value = mock_drawing_set
+        mock_parser_class.return_value = mock_parser
+
+        with tempfile.NamedTemporaryFile(suffix='.json', delete=False) as f:
+            output_file = f.name
+
+        try:
+            _ = parse_eplan_pdfs("test.pdf", output_file)
+
+            mock_parser.export_to_file.assert_called_once_with(output_file, 'json')
+
+        finally:
+            if os.path.exists(output_file):
+                os.unlink(output_file)
+
+
+class TestErrorHandling(unittest.TestCase):
+    """Test error handling scenarios."""
+
+    def test_missing_pdf_libraries(self):
+        """Test handling of missing PDF libraries."""
+        # This test would need to be run in an environment without the PDF libraries
+        # For now, we'll just verify the import structure is correct
+        self.assertTrue(hasattr(EplanPDFParser, '_extract_text_multiple_methods'))
+
+    @patch('os.path.exists')
+    def test_nonexistent_file_handling(self, mock_exists):
+        """Test handling of nonexistent files."""
+        mock_exists.return_value = False
+
+        parser = EplanPDFParser()
+        result = parser.parse_pdf_set("nonexistent.pdf")
+        self.assertIsInstance(result, EplanDrawingSet)
+
+    def test_regex_pattern_compilation(self):
+        """Test that all regex patterns compile without errors."""
+        parser = EplanPDFParser()
+
+        # Test device patterns
+        for pattern_name, pattern in parser._device_patterns.items():
+            self.assertIsNotNone(pattern)
+
+        # Test IP patterns
+        for pattern_name, pattern in parser._ip_patterns.items():
+            self.assertIsNotNone(pattern)
+
+        # Test power patterns
+        for pattern_name, pattern in parser._power_patterns.items():
+            self.assertIsNotNone(pattern)
+
+
 if __name__ == "__main__":
-    unittest.main()
-
-
-if __name__ == '__main__':
     unittest.main()
