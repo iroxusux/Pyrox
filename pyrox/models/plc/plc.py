@@ -97,19 +97,24 @@ MOVE_OPERAND_RE_PATTERN = r"(?:MOVE\()(.*?)(?:\))"
 COP_OPERAND_RE_PATTERN = r"(?:COP\()(.*?)(?:\))"
 CPS_OPERAND_RE_PATTERN = r"(?:CPS\()(.*?)(?:\))"
 
-OUTPUT_INSTRUCTIONS_RE_PATTERN = [OTE_OPERAND_RE_PATTERN,
-                                  OTL_OPERAND_RE_PATTERN,
-                                  OTU_OPERAND_RE_PATTERN,
-                                  MOV_OPERAND_RE_PATTERN,
-                                  MOVE_OPERAND_RE_PATTERN,
-                                  COP_OPERAND_RE_PATTERN,
-                                  CPS_OPERAND_RE_PATTERN]
+OUTPUT_INSTRUCTIONS_RE_PATTERN = [
+    OTE_OPERAND_RE_PATTERN,
+    OTL_OPERAND_RE_PATTERN,
+    OTU_OPERAND_RE_PATTERN,
+    MOV_OPERAND_RE_PATTERN,
+    MOVE_OPERAND_RE_PATTERN,
+    COP_OPERAND_RE_PATTERN,
+    CPS_OPERAND_RE_PATTERN
+]
 
 XIC_OPERAND_RE_PATTERN = r"(?:XIC\()(.*)(?:\))"
 XIO_OPERAND_RE_PATTERN = r"(?:XIO\()(.*)(?:\))"
 
-INPUT_INSTRUCTIONS_RE_PATTER = [XIC_OPERAND_RE_PATTERN,
-                                XIO_OPERAND_RE_PATTERN]
+INPUT_INSTRUCTIONS_RE_PATTER = [
+    XIC_OPERAND_RE_PATTERN,
+    XIO_OPERAND_RE_PATTERN
+]
+
 # ------------------ Input Instructions ----------------------- #
 # All input instructions assume every operand is type INPUT
 INSTR_XIC = 'XIC'
@@ -125,8 +130,10 @@ INSTR_GEQ = 'GEQ'
 INSTR_ISINF = 'IsINF'
 INSTR_ISNAN = 'IsNAN'
 
-INPUT_INSTRUCTIONS = [INSTR_XIC,
-                      INSTR_XIO]
+INPUT_INSTRUCTIONS = [
+    INSTR_XIC,
+    INSTR_XIO
+]
 
 # ------------------ Output Instructions ----------------------- #
 # The first index of the tuple is the instruction type
@@ -172,49 +179,66 @@ INSTR_AVE = ('AVE', 2)
 INSTR_SIZE = ('SIZE', -1)
 ISNTR_CPS = ('CPS', 1)
 
-OUTPUT_INSTRUCTIONS = [INSTR_OTE,
-                       INSTR_OTU,
-                       INSTR_OTL,
-                       INSTR_TON,
-                       INSTR_TOF,
-                       INSTR_RTO,
-                       INSTR_CTU,
-                       INSTR_CTD,
-                       INSTR_RES,
-                       INSTR_MSG,
-                       INSTR_GSV,
-                       ISNTR_ONS,
-                       INSTR_OSR,
-                       INSTR_OSF,
-                       INSTR_IOT,
-                       INSTR_CPT,
-                       INSTR_ADD,
-                       INSTR_SUB,
-                       INSTR_MUL,
-                       INSTR_DIV,
-                       INSTR_MOD,
-                       INSTR_SQR,
-                       INSTR_NEG,
-                       INSTR_ABS,
-                       INSTR_MOV,
-                       INSTR_MVM,
-                       INSTR_AND,
-                       INSTR_OR,
-                       INSTR_XOR,
-                       INSTR_NOT,
-                       INSTR_SWPB,
-                       INSTR_CLR,
-                       INSTR_BTD,
-                       INSTR_FAL,
-                       INSTR_COP,
-                       INSTR_FLL,
-                       INSTR_AVE,
-                       INSTR_SIZE,
-                       ISNTR_CPS]
+OUTPUT_INSTRUCTIONS = [
+    INSTR_OTE,
+    INSTR_OTU,
+    INSTR_OTL,
+    INSTR_TON,
+    INSTR_TOF,
+    INSTR_RTO,
+    INSTR_CTU,
+    INSTR_CTD,
+    INSTR_RES,
+    INSTR_MSG,
+    INSTR_GSV,
+    ISNTR_ONS,
+    INSTR_OSR,
+    INSTR_OSF,
+    INSTR_IOT,
+    INSTR_CPT,
+    INSTR_ADD,
+    INSTR_SUB,
+    INSTR_MUL,
+    INSTR_DIV,
+    INSTR_MOD,
+    INSTR_SQR,
+    INSTR_NEG,
+    INSTR_ABS,
+    INSTR_MOV,
+    INSTR_MVM,
+    INSTR_AND,
+    INSTR_OR,
+    INSTR_XOR,
+    INSTR_NOT,
+    INSTR_SWPB,
+    INSTR_CLR,
+    INSTR_BTD,
+    INSTR_FAL,
+    INSTR_COP,
+    INSTR_FLL,
+    INSTR_AVE,
+    INSTR_SIZE,
+    ISNTR_CPS
+]
 
 # ------------------ Special Instructions ----------------------- #
 # Special instructions not known to be input or output instructions
 INSTR_JSR = 'JSR'
+
+
+L5X_ASSET_DATATYPES = 'DataTypes'
+L5X_ASSET_TAGS = 'Tags'
+L5X_ASSET_PROGRAMS = 'Programs'
+L5X_ASSET_ADDONINSTRUCTIONDEFINITIONS = 'AddOnInstructionDefinitions'
+L5X_ASSET_MODULES = 'Modules'
+
+L5X_ASSETS = [
+    L5X_ASSET_DATATYPES,
+    L5X_ASSET_TAGS,
+    L5X_ASSET_PROGRAMS,
+    L5X_ASSET_ADDONINSTRUCTIONDEFINITIONS,
+    L5X_ASSET_MODULES
+]
 
 
 class LogixTagScope(Enum):
@@ -281,10 +305,12 @@ class PlcObject(EnforcesNaming, PyroxObject):
         else:
             raise TypeError("Meta data must be a dict!")
 
-    def __init__(self,
-                 controller: 'Controller' = None,
-                 default_loader: Callable = lambda: defaultdict(None),
-                 meta_data: Union[dict, str] = defaultdict(None)):
+    def __init__(
+        self,
+        controller: 'Controller' = None,
+        default_loader: Callable = lambda: defaultdict(None),
+        meta_data: Union[dict, str] = defaultdict(None)
+    ) -> None:
         if controller is not None and not isinstance(controller, (Controller)):
             raise TypeError("Controller must be of type Controller or None!")
 
@@ -483,11 +509,18 @@ class NamedPlcObject(PlcObject, NamedPyroxObject):
                            controller=controller,
                            default_loader=default_loader,
                            meta_data=meta_data)
-        NamedPyroxObject.__init__(self,
-                                  name=name or meta_data.get('@Name', None),
-                                  description=description or meta_data.get('Description', ''))
         if name:
-            self.name = name
+            meta_data['@Name'] = name
+
+        if meta_data.get('@Name', None) is None:
+            raise ValueError("A name must be provided via argument or meta_data!")
+
+        if description is not None:
+            meta_data['Description'] = description
+
+        NamedPyroxObject.__init__(self,
+                                  name=meta_data['@Name'],
+                                  description=meta_data.get('Description', None))
 
     def __repr__(self):
         return self.name
@@ -1947,6 +1980,25 @@ class Program(ContainsRoutines):
     def use_as_folder(self) -> str:
         return self['@UseAsFolder']
 
+    def get_instructions(
+        self,
+        instruction_filter: Optional[str],
+        operand_filter: Optional[str] = None
+    ) -> list[LogixInstruction]:
+        """get instructions in this program that match the given filters
+
+        Args:
+            instruction_filter (Optional[str]): filter for instruction name
+            operand_filter (Optional[str]): filter for operand name
+
+        Returns:
+            :class:`list[LogixInstruction]`: list of instructions that match the filters
+        """
+        instructions = []
+        for routine in self.routines:
+            instructions.extend(routine.get_instructions(instruction_filter, operand_filter))
+        return instructions
+
     def validate(self) -> ControllerReportItem:
         report = super().validate()
 
@@ -2134,6 +2186,25 @@ class Routine(NamedPlcObject):
         """clear all rungs from this routine"""
         self.raw_rungs.clear()
         self._compile_from_meta_data()
+
+    def get_instructions(
+        self,
+        instruction_filter: Optional[str],
+        operand_filter: Optional[str] = None
+    ) -> list[LogixInstruction]:
+        """Get instructions in this routine that match the specified filters.
+
+        Args:
+            instruction_filter (str): The instruction type to filter by (e.g., 'XIC', 'OTE').
+            operand_filter (str, optional): An optional operand to further filter the instructions.
+
+        Returns:
+            list[LogixInstruction]: A list of instructions that match the specified filters.
+        """
+        instr = []
+        for rung in self.rungs:
+            instr.extend(rung.get_instructions(instruction_filter, operand_filter))
+        return instr
 
     def remove_rung(self, rung: Union[Rung, int, str]):
         """remove a rung from this routine
@@ -3010,6 +3081,36 @@ class Rung(PlcObject):
             summary[inst_name] = summary.get(inst_name, 0) + 1
         return summary
 
+    def get_instructions(
+        self,
+        instruction_filter: Optional[str] = None,
+        operand_filter: Optional[str] = None
+    ) -> List[LogixInstruction]:
+        """Get instructions filtered by operand or name.
+
+        Args:
+            instruction_filter (Optional[str]): Instruction text to filter by
+            operand_filter (Optional[str]): Instruction name to filter by
+
+        Returns:
+            List[LogixInstruction]: List of matching instructions
+        """
+        filtered_instructions = self.instructions
+
+        if instruction_filter:
+            filtered_instructions = [
+                instr for instr in filtered_instructions
+                if instruction_filter == instr.instruction_name
+            ]
+
+        if operand_filter:
+            filtered_instructions = [
+                instr for instr in filtered_instructions
+                if any(operand_filter in op.meta_data for op in instr.operands)
+            ]
+
+        return filtered_instructions
+
     def get_branch_instructions(self, branch_id: str) -> List[LogixInstruction]:
         """Get all instructions within a specific branch."""
         if branch_id not in self._branches:
@@ -3495,10 +3596,12 @@ class Tag(NamedPlcObject):
         if controller is None and container is not None:
             controller = container.controller if isinstance(container, (Program, AddOnInstruction)) else None
         container = container or controller
-        super().__init__(controller=controller,
-                         meta_data=meta_data or l5x_dict_from_file(PLC_TAG_FILE)['Tag'],
-                         name=name,
-                         description=description)
+        super().__init__(
+            controller=controller,
+            meta_data=meta_data or l5x_dict_from_file(PLC_TAG_FILE)['Tag'],
+            name=name,
+            description=description
+        )
         self._container = container
         if class_:
             self.class_ = class_
@@ -3525,6 +3628,8 @@ class Tag(NamedPlcObject):
             '@AliasFor',
             '@Constant',
             '@ExternalAccess',
+            'ConsumeInfo',
+            'ProduceInfo',
             'Description',
             'Data',
         ]
@@ -3853,26 +3958,11 @@ class ControllerSafetyInfo(PlcObject):
         self['@SafetyLevel'] = value
 
     @property
-    def safety_tag_map(self) -> list[dict]:
+    def safety_tag_map(self) -> str:
         if self['SafetyTagMap'] is None:
-            return []
+            return ''
 
-        if not isinstance(self['SafetyTagMap'], str):
-            raise ValueError("Safety tag map must be a string!")
-
-        string_data = self['SafetyTagMap'].strip().split(',')
-        if len(string_data) == 1 and string_data[0] == '':
-            return []
-
-        dict_list = []
-        for pair in string_data:
-            dict_list.append({
-                '@Name': pair.split('=')[0].strip(),
-                'TagName': pair.split('=')[0].strip(),
-                'SafetyTagName': pair.split('=')[1].strip()
-            })
-
-        return dict_list
+        return self['SafetyTagMap']
 
     @safety_tag_map.setter
     def safety_tag_map(self, value: str):
@@ -3886,29 +3976,93 @@ class ControllerSafetyInfo(PlcObject):
         # Validate format: should be "tag_name=safety_tag_name, ..."
         pairs = value.split(',')
         for pair in pairs:
+            pair = pair.strip()
+            if not pair:
+                continue
             if '=' not in pair or len(pair.split('=')) != 2:
                 raise ValueError("Safety tag map must be in the format 'tag_name=safety_tag_name, ...'")
 
         self['SafetyTagMap'] = value.strip()
 
+    @property
+    def safety_tag_map_dict_list(self) -> list[dict]:
+        if not self.safety_tag_map:
+            return self.safety_tag_map
+
+        if not isinstance(self.safety_tag_map, str):
+            raise ValueError("Safety tag map must be a string!")
+
+        string_data = self.safety_tag_map.strip().split(',')
+        if len(string_data) == 1 and string_data[0] == '':
+            return []
+
+        dict_list = []
+        for pair in string_data:
+            dict_list.append({
+                '@Name': pair.split('=')[0].strip(),
+                'TagName': pair.split('=')[0].strip(),
+                'SafetyTagName': pair.split('=')[1].strip()
+            })
+
+        return dict_list
+
     def add_safety_tag_mapping(
         self,
         tag_name: str,
         safety_tag_name: str
-    ):
-        """Add a new safety tag mapping to the safety tag map."""
+    ) -> None:
+        """Add a new safety tag mapping to the safety tag map.
+
+        Args:
+            tag_name (str): The standard tag name
+            safety_tag_name (str): The corresponding safety tag name
+
+        Raises:
+            ValueError: If tag names are not strings
+        """
         if not isinstance(tag_name, str) or not isinstance(safety_tag_name, str):
             raise ValueError("Tag names must be strings!")
 
-        if not self['SafetyTagMap']:
-            self['SafetyTagMap'] = f"{tag_name}={safety_tag_name}"
-        else:
-            self['SafetyTagMap'] = self['SafetyTagMap'].strip()
-            if f',{tag_name}={safety_tag_name}' in self['SafetyTagMap']:
-                self['SafetyTagMap'] = self['SafetyTagMap'].replace(f",{tag_name}={safety_tag_name}", '')
-            elif f"{tag_name}={safety_tag_name}," in self['SafetyTagMap']:
-                self['SafetyTagMap'] = self['SafetyTagMap'].replace(f"{tag_name}={safety_tag_name},", '')
-            self['SafetyTagMap'] += f",{tag_name}={safety_tag_name}"
+        if not self.safety_tag_map:
+            self.safety_tag_map = f"{tag_name}={safety_tag_name}"
+            return
+
+        self.safety_tag_map = self.safety_tag_map.strip()
+        if f',{tag_name}={safety_tag_name}' in self.safety_tag_map:
+            self.safety_tag_map = self.safety_tag_map.replace(f",{tag_name}={safety_tag_name}", '')
+        elif f"{tag_name}={safety_tag_name}," in self.safety_tag_map:
+            self.safety_tag_map = self.safety_tag_map.replace(f"{tag_name}={safety_tag_name},", '')
+        self.safety_tag_map += f",{tag_name}={safety_tag_name}"
+
+    def remove_safety_tag_mapping(
+        self,
+        tag_name: str,
+        safety_tag_name: str
+    ) -> None:
+        """Remove a safety tag mapping from the safety tag map.
+
+        Args:
+            tag_name (str): The standard tag name
+            safety_tag_name (str): The corresponding safety tag name
+        Raises:
+            ValueError: If tag names are not strings
+        """
+        if not isinstance(tag_name, str) or not isinstance(safety_tag_name, str):
+            raise ValueError("Tag names must be strings!")
+
+        if not self.safety_tag_map:
+            return
+
+        self.safety_tag_map = self.safety_tag_map.strip()
+        if f",{tag_name}={safety_tag_name}" in self.safety_tag_map:
+            self.safety_tag_map = self.safety_tag_map.replace(f",{tag_name}={safety_tag_name}", '')
+        elif f"{tag_name}={safety_tag_name}," in self.safety_tag_map:
+            self.safety_tag_map = self.safety_tag_map.replace(f"{tag_name}={safety_tag_name},", '')
+        elif f"{tag_name}={safety_tag_name}" in self.safety_tag_map:
+            self.safety_tag_map = self.safety_tag_map.replace(f"{tag_name}={safety_tag_name}", '')
+
+        if not self.safety_tag_map:
+            self.safety_tag_map = None
 
 
 @dataclass
@@ -4415,51 +4569,93 @@ class Controller(NamedPlcObject, Loggable):
         elif target_list is self.tags:
             self._tags = None
         else:
-            self.logger.warning('Unknown target list to invalidate cache for.')
+            raise ValueError('Unknown target list!')
 
-    def import_assets_from_file(self,
-                                file_location: str,):
-        """Import assets from a file into this controller.
+    def import_assets_from_file(
+        self,
+        file_location: str,
+        asset_types: Optional[List[str]] = L5X_ASSETS
+    ) -> None:
+        """Import assets from an L5X file into this controller.
             .. -------------------------------
             .. arguments::
             :class:`str` file_location:
-                the file location to import from
+                the L5X file to import from
+            :class:`list[str]` asset_types:
+                the types of assets to import (e.g., ['DataTypes', 'Tags'])
             """
-        assets = l5x_dict_from_file(file_location)
-        if not assets:
-            self.logger.warning(f'No assets found in file {file_location}.')
+        l5x_dict = l5x_dict_from_file(file_location)
+        if not l5x_dict:
+            self.logger.warning(f'No L5X dictionary could be read from file: {file_location}')
             return
 
-        if 'RSLogix5000Content' not in assets:
-            self.logger.warning(f'No RSLogix5000Content found in file {file_location}.')
-            return
-        if 'Controller' not in assets['RSLogix5000Content']:
-            self.logger.warning(f'No Controller found in RSLogix5000Content in file {file_location}.')
+        self.import_assets_from_l5x_dict(l5x_dict, asset_types=asset_types)
+
+    def import_assets_from_l5x_dict(
+        self,
+        l5x_dict: dict,
+        asset_types: Optional[List[str]] = L5X_ASSETS
+    ) -> None:
+        """Import assets from an L5X dictionary into this controller.
+            .. -------------------------------
+            .. arguments::
+            :class:`dict` l5x_dict:
+                the L5X dictionary to import from
+            :class:`list[str]` asset_types:
+                the types of assets to import (e.g., ['DataTypes', 'Tags'])
+            """
+        if not l5x_dict:
+            self.logger.warning('No L5X dictionary provided for import.')
             return
 
-        # datatypes
-        if 'DataTypes' not in assets['RSLogix5000Content']['Controller']:
-            self.logger.warning(f'No DataTypes found in Controller in file {file_location}.')
-        else:
-            if 'DataType' not in assets['RSLogix5000Content']['Controller']['DataTypes']:
-                self.logger.warning(f'No DataType found in DataTypes in file {file_location}.')
-                return
-            dt_list = assets['RSLogix5000Content']['Controller']['DataTypes']['DataType']
-            if not isinstance(dt_list, list):
-                dt_list = [dt_list]
-            any_adds = False
-            for dt in dt_list:
-                datatype = Datatype(controller=self,
-                                    meta_data=dt)
+        if 'RSLogix5000Content' not in l5x_dict:
+            self.logger.warning('No RSLogix5000Content found in provided L5X dictionary.')
+            return
+        if 'Controller' not in l5x_dict['RSLogix5000Content']:
+            self.logger.warning('No Controller found in RSLogix5000Content in provided L5X dictionary.')
+            return
+
+        controller_data = l5x_dict['RSLogix5000Content']['Controller']
+
+        for asset_type in asset_types:
+            if asset_type not in controller_data:
+                self.logger.warning(f'No {asset_type} found in Controller in provided L5X dictionary.')
+                continue
+
+            items = controller_data[asset_type]
+
+            item_list = items.get(asset_type[:-1], [])
+            if not isinstance(item_list, list):
+                item_list = [item_list]
+
+            for item in item_list:
                 try:
-                    self.add_datatype(datatype, skip_compile=True)
-                    any_adds = True
+                    match asset_type:
+                        case 'DataTypes':
+                            datatype = self.config.datatype_type(controller=self, meta_data=item)
+                            self.add_datatype(datatype)
+                            self.logger.info(f'Datatype {datatype.name} imported successfully.')
+                        case 'Tags':
+                            tag = self.config.tag_type(controller=self, meta_data=item, container=self)
+                            self.add_tag(tag)
+                            self.logger.info(f'Tag {tag.name} imported successfully.')
+                        case 'Programs':
+                            program = self.config.program_type(controller=self, meta_data=item)
+                            self.add_program(program)
+                            self.logger.info(f'Program {program.name} imported successfully.')
+                        case 'AddOnInstructionDefinitions':
+                            aoi = self.config.aoi_type(controller=self, meta_data=item)
+                            self.add_aoi(aoi)
+                            self.logger.info(f'AOI {aoi.name} imported successfully.')
+                        case 'Modules':
+                            module = self.config.module_type(controller=self, l5x_meta_data=item)
+                            self.add_module(module)
+                            self.logger.info(f'Module {module.name} imported successfully.')
+                        case _:
+                            self.logger.warning(f'Unknown asset type: {asset_type}. Skipping...')
                 except ValueError as e:
-                    self.logger.warning(f'Failed to add datatype {datatype.name}:\n{e}')
+                    self.logger.warning(f'Failed to add {asset_type[:-1]}:\n{e}')
                     continue
-                self.logger.info('Datatype %s imported successfully.', datatype.name)
-            if any_adds:
-                self.compile()
 
     def add_aoi(
         self,
@@ -4531,10 +4727,12 @@ class Controller(NamedPlcObject, Loggable):
         :class:`Tag` tag:
             the tag to add
         """
-        self._add_common(tag,
-                         self.config.tag_type,
-                         self.tags,
-                         self.raw_tags)
+        self._add_common(
+            tag,
+            self.config.tag_type,
+            self.tags,
+            self.raw_tags
+        )
 
     def remove_aoi(self, aoi: AddOnInstruction):
         self._remove_common(aoi, self.aois, self.raw_aois)
@@ -4814,176 +5012,675 @@ class ControllerModificationSchema(Loggable):
     or importing assets from an L5X dictionary.
     """
 
-    def __init__(self, source: Controller, destination: Controller):
+    def __init__(
+        self,
+        source: Controller,
+        destination: Controller
+    ) -> None:
         super().__init__()
         self.source = source
         self.destination = destination
         self.actions = []  # List of migration actions
 
-    def add_datatype_migration(self, datatype_name: str):
-        """Specify a datatype to migrate from source to destination."""
-        self.actions.append({
-            'type': 'datatype',
-            'name': datatype_name
-        })
+    def _execute_add_controller_tag(
+        self,
+        action: dict
+    ) -> None:
+        tag_data = action.get('asset')
+        if not tag_data:
+            self.logger.warning('No tag data provided for add_controller_tag action.')
+            return
 
-    def add_tag_import(self, tag: Tag):
+        config = self.destination.config
+
+        tag = config.tag_type(
+            meta_data=tag_data,
+            controller=self.destination,
+            container=self.destination
+        )
+
+        try:
+            self.destination.add_tag(tag)
+            self.logger.info(f'Added tag {tag.name} to destination controller.')
+        except ValueError as e:
+            self.logger.warning(f'Failed to add tag {tag.name}:\n{e}')
+
+    def _execute_add_datatype(
+        self,
+        action: dict
+    ) -> None:
+        datatype_data = action.get('asset')
+        if not datatype_data:
+            self.logger.warning('No datatype data provided for add_datatype action.')
+            return
+
+        config = self.destination.config
+
+        datatype = config.datatype_type(
+            meta_data=datatype_data,
+            controller=self.destination
+        )
+
+        try:
+            self.destination.add_datatype(datatype)
+            self.logger.info(f'Added datatype {datatype.name} to destination controller.')
+        except ValueError as e:
+            self.logger.warning(f'Failed to add datatype {datatype.name}:\n{e}')
+
+    def _execute_add_program_tag(
+        self,
+        action: dict
+    ) -> None:
+        program_name = action.get('program')
+        tag_data = action.get('asset')
+        if not program_name or not tag_data:
+            self.logger.warning('Program name or tag data missing for add_program_tag action.')
+            return
+
+        program: Program = self.destination.programs.get(program_name)
+        if not program:
+            self.logger.warning(f'Program {program_name} not found in destination controller.')
+            return
+
+        config = self.destination.config
+
+        tag = config.tag_type(
+            meta_data=tag_data,
+            controller=self.destination,
+            container=program
+        )
+
+        try:
+            program.add_tag(tag)
+            self.logger.info(f'Added tag {tag.name} to program {program_name}.')
+        except ValueError as e:
+            self.logger.warning(f'Failed to add tag {tag.name} to program {program_name}:\n{e}')
+
+    def _execute_add_routine(
+        self,
+        action: dict
+    ) -> None:
+        program_name = action.get('program')
+        routine_data = action.get('routine')
+        if not program_name or not routine_data:
+            self.logger.warning('Program name or routine data missing for add_routine action.')
+            return
+
+        program: Program = self.destination.programs.get(program_name)
+        if not program:
+            self.logger.warning(f'Program {program_name} not found in destination controller.')
+            return
+
+        config = self.destination.config
+
+        routine = config.routine_type(
+            meta_data=routine_data,
+            program=program
+        )
+
+        try:
+            program.add_routine(routine)
+            self.logger.info(f'Added routine {routine.name} to program {program_name}.')
+        except ValueError as e:
+            self.logger.warning(f'Failed to add routine {routine.name} to program {program_name}:\n{e}')
+
+    def _execute_add_rung(
+        self,
+        action: dict
+    ) -> None:
+        program_name = action.get('program')
+        routine_name = action.get('routine')
+        rung_data = action.get('new_rung')
+        rung_number = action.get('rung_number')
+        if not program_name or not routine_name or not rung_data:
+            self.logger.warning('Program name, routine name, or rung data missing for add_rung action.')
+            return
+
+        program: Program = self.destination.programs.get(program_name)
+        if not program:
+            self.logger.warning(f'Program {program_name} not found in destination controller.')
+            return
+
+        routine: Routine = program.routines.get(routine_name)
+        if not routine:
+            self.logger.warning(f'Routine {routine_name} not found in program {program_name}.')
+            return
+
+        config = self.destination.config
+
+        rung = config.rung_type(
+            meta_data=rung_data,
+            routine=routine,
+            rung_number=rung_number
+        )
+
+        try:
+            routine.add_rung(rung, index=rung_number)
+            self.logger.info(f'Added rung {rung.number} to routine {routine_name} in program {program_name}.')
+        except ValueError as e:
+            self.logger.warning(f'Failed to add rung {rung.number} to routine {routine_name} in program {program_name}:\n{e}')
+
+    def _execute_add_safety_tag_mapping(
+        self,
+        action: dict
+    ) -> None:
+        std_tag = action.get('standard')
+        sfty_tag = action.get('safety')
+        if not std_tag or not sfty_tag:
+            self.logger.warning('Standard or safety tag missing for add_safety_tag_mapping action.')
+            return
+
+        try:
+            self.destination.safety_info.add_safety_tag_mapping(std_tag, sfty_tag)
+            self.logger.info(f'Added safety tag mapping: {std_tag} -> {sfty_tag}')
+        except ValueError as e:
+            self.logger.warning(f'Failed to add safety tag mapping {std_tag} -> {sfty_tag}:\n{e}')
+
+    def _execute_controller_tag_migration(
+        self,
+        action: dict
+    ) -> None:
+        tag_name = action.get('name')
+        tag: Tag = self.source.tags.get(tag_name)
+        if not tag:
+            self.logger.warning(f'Tag {tag_name} not found in source controller.')
+            return
+
+        try:
+            self.destination.add_tag(tag)
+            self.logger.info(f'Migrated tag {tag_name} to destination controller.')
+        except ValueError as e:
+            self.logger.warning(f'Failed to migrate tag {tag_name}:\n{e}')
+
+    def _execute_datatype_migration(
+        self,
+        action: dict
+    ) -> None:
+        datatype_name = action.get('name')
+        datatype: Datatype = self.source.datatypes.get(datatype_name)
+        if not datatype:
+            self.logger.warning(f'Datatype {datatype_name} not found in source controller.')
+            return
+
+        try:
+            self.destination.add_datatype(datatype)
+            self.logger.info(f'Migrated datatype {datatype_name} to destination controller.')
+        except ValueError as e:
+            self.logger.warning(f'Failed to migrate datatype {datatype_name}:\n{e}')
+
+    def _execute_import_assets_from_file(
+        self,
+        action: dict
+    ) -> None:
+        file_location = action.get('file')
+        asset_types = action.get('asset_types', L5X_ASSETS)
+        if not file_location:
+            self.logger.warning('No file location provided for import_datatypes_from_file action.')
+            return
+
+        try:
+            self.destination.import_assets_from_file(file_location, asset_types)
+            self.logger.info(f'Imported assets from file {file_location} to destination controller.')
+        except Exception as e:
+            self.logger.warning(f'Failed to import assets from file {file_location}:\n{e}')
+            raise e
+
+    def _execute_import_assets_from_l5x_dict(
+        self,
+        action: dict
+    ) -> None:
+        l5x_dict = action.get('l5x_dict')
+        asset_types = action.get('asset_types', L5X_ASSETS)
+        if not l5x_dict:
+            self.logger.warning('No L5X dictionary provided for import_assets_from_l5x_dict action.')
+            return
+
+        try:
+            self.destination.import_assets_from_l5x_dict(l5x_dict, asset_types)
+            self.logger.info('Imported assets from L5X dictionary to destination controller.')
+        except Exception as e:
+            self.logger.warning(f'Failed to import assets from L5X dictionary:\n{e}')
+            raise e
+
+    def _execute_remove_controller_tag(
+        self,
+        action: dict
+    ) -> None:
+        tag_name = action.get('name')
+        tag: Tag = self.destination.tags.get(tag_name)
+        if not tag:
+            self.logger.warning(f'Tag {tag_name} not found in destination controller.')
+            return
+
+        self.destination.remove_tag(tag)
+        self.logger.info(f'Removed tag {tag_name} from destination controller.')
+
+    def _execute_remove_datatype(
+        self,
+        action: dict
+    ) -> None:
+        datatype_name = action.get('name')
+        datatype: Datatype = self.destination.datatypes.get(datatype_name)
+        if not datatype:
+            self.logger.warning(f'Datatype {datatype_name} not found in destination controller.')
+            return
+
+        self.destination.remove_datatype(datatype)
+        self.logger.info(f'Removed datatype {datatype_name} from destination controller.')
+
+    def _execute_remove_program_tag(
+        self,
+        action: dict
+    ) -> None:
+        program_name = action.get('program')
+        tag_name = action.get('name')
+
+        program: Program = self.destination.programs.get(program_name)
+        if not program:
+            self.logger.warning(f'Program {program_name} not found in destination controller.')
+            return
+
+        tag: Tag = program.tags.get(tag_name)
+        if not tag:
+            self.logger.warning(f'Tag {tag_name} not found in program {program_name}.')
+            return
+
+        program.remove_tag(tag)
+        self.logger.info(f'Removed tag {tag_name} from program {program_name}.')
+
+    def _execute_remove_routine(
+        self,
+        action: dict
+    ) -> None:
+        program_name = action.get('program')
+        routine_name = action.get('name')
+
+        program: Program = self.destination.programs.get(program_name)
+        if not program:
+            self.logger.warning(f'Program {program_name} not found in destination controller.')
+            return
+
+        routine: Routine = program.routines.get(routine_name)
+        if not routine:
+            self.logger.warning(f'Routine {routine_name} not found in program {program_name}.')
+            return
+
+        program.remove_routine(routine)
+        self.logger.info(f'Removed routine {routine_name} from program {program_name}.')
+        self.logger.debug('Searching for JSR instructions to %s...', routine_name)
+        jsr = program.get_instructions('JSR', routine_name)
+        if jsr:
+            for op in jsr:
+                rung: Rung = op.rung
+                if not rung:
+                    raise ValueError('JSR instruction has no parent rung!')
+                jsr_routine: Routine = program.routines.get(rung.routine.name)
+                self.logger.debug('Found JSR in rung %s of routine %s. Removing rung...', rung.number, jsr_routine.name)
+                jsr_routine.remove_rung(rung)
+
+    def _execute_remove_safety_tag_mapping(
+        self,
+        action: dict
+    ) -> None:
+        std_tag = action.get('standard')
+        sfty_tag = action.get('safety')
+        self.logger.debug(f'Removing safety tag mapping: {std_tag} -> {sfty_tag}')
+        self.destination.safety_info.remove_safety_tag_mapping(std_tag, sfty_tag)
+
+    def _execute_routine_migration(
+        self,
+        action: dict
+    ) -> None:
+        source_program_name = action.get('source_program')
+        destination_program_name = action.get('destination_program')
+        routine_name = action.get('routine')
+        rung_updates = action.get('rung_updates', {})
+
+        source_program: Program = self.source.programs.get(source_program_name)
+        if not source_program:
+            self.logger.warning(f'Program {source_program_name} not found in source controller.')
+            return
+
+        source_routine: Routine = source_program.routines.get(routine_name)
+        if not source_routine:
+            self.logger.warning(f'Routine {routine_name} not found in program {source_program_name}.')
+            return
+
+        destination_program: Program = self.destination.programs.get(destination_program_name)
+        if not destination_program:
+            self.logger.warning(f'Program {destination_program_name} not found in destination controller.')
+            return
+
+        destination_program.add_routine(source_routine)
+        self.logger.info(f'Migrated routine {routine_name} from program {source_program_name} to program {destination_program_name}.')
+
+        dest_routine = self.destination.programs.get(destination_program_name).routines.get(routine_name)
+        for rung_num, new_rung in rung_updates.items():
+            dest_routine.rungs[rung_num] = new_rung
+            self.logger.info(f'Updated rung {rung_num} in routine {routine_name} of program {destination_program_name}.')
+
+    def _safe_register_action(
+        self,
+        action: dict
+    ) -> None:
+        if action not in self.actions:
+            self.actions.append(action)
+        else:
+            self.logger.debug('Action already registered, skipping duplicate.')
+
+    def add_controller_tag(
+        self,
+        tag: Tag
+    ) -> None:
         """Add an individual tag to import directly to the destination controller.
+
+        Args:
+            tag (Tag): The tag to add.
+
+        Raises:
+            ValueError: If the provided tag is not an instance of the Tag class.
         """
         if not isinstance(tag, Tag):
             raise ValueError('Tag must be an instance of Tag class.')
-        self.actions.append({
-            'type': 'import_tag',
-            'asset': tag.meta_data
+        self._safe_register_action({
+            'type': 'add_controller_tag',
+            'asset': tag.meta_data,
+            'method': self._execute_add_controller_tag
         })
 
-    def add_tag_migration(self, tag_name: str):
-        """Specify a tag to migrate from source to destination."""
-        self.actions.append({
-            'type': 'tag',
-            'name': tag_name
+    def add_controller_tag_migration(
+        self,
+        tag_name: str
+    ) -> None:
+        """Specify a tag to migrate from source to destination.
+
+        Args:
+            tag_name (str): The name of the tag to migrate.
+        """
+        self._safe_register_action({
+            'type': 'migrate_controller_tag',
+            'name': tag_name,
+            'method': self._execute_controller_tag_migration
         })
 
-    def add_program_tag_import(self, program_name: str, tag: Tag):
-        """Add a tag to import directly to the destination controller within a specific program."""
+    def add_datatype_migration(
+        self,
+        datatype_name: str
+    ) -> None:
+        """Specify a datatype to migrate from source to destination.
+
+        Args:
+            datatype_name (str): The name of the datatype to migrate.
+        """
+        self._safe_register_action({
+            'type': 'migrate_datatype',
+            'name': datatype_name,
+            'method': self._execute_datatype_migration
+        })
+
+    def add_program_tag(
+        self,
+        program_name: str,
+        tag: Tag
+    ) -> None:
+        """Add a tag to import directly to the destination controller within a specific program.
+
+        Args:
+            program_name (str): The name of the program to add the tag to.
+            tag (Tag): The tag to add.
+
+        Raises:
+            ValueError: If the provided tag is not an instance of the Tag class.
+        """
         if not isinstance(tag, Tag):
             raise ValueError('Tag must be an instance of Tag class.')
-        self.actions.append({
-            'type': 'import_program_tag',
+        self._safe_register_action({
+            'type': 'add_program_tag',
             'program': program_name,
-            'asset': tag.meta_data
+            'asset': tag.meta_data,
+            'method': self._execute_add_program_tag
         })
 
-    def add_routine_import(self, program_name: str, routine: Routine):
-        """Add a routine to import directly to the destination controller."""
+    def add_routine(
+        self,
+        program_name: str,
+        routine: Routine
+    ) -> None:
+        """Add a routine to import directly to the destination controller.
+
+        Args:
+            program_name (str): The name of the program to add the routine to.
+            routine (Routine): The routine to add.
+
+        Raises:
+            ValueError: If the provided routine is not an instance of the Routine class.
+        """
         if not isinstance(routine, Routine):
             raise ValueError('Routine must be an instance of Routine class.')
-        self.actions.append({
-            'type': 'import_routine',
+        self._safe_register_action({
+            'type': 'add_routine',
             'program': program_name,
-            'routine': routine.meta_data
+            'routine': routine.meta_data,
+            'method': self._execute_add_routine
         })
 
-    def add_rung_import(self, program_name: str, routine_name: str, rung_number: int, new_rung: Rung):
-        """Add a rung to import directly to the destination controller."""
+    def add_routine_migration(
+        self,
+        source_program_name: str,
+        routine_name: str,
+        destination_program_name: str = None,
+        rung_updates: dict = None
+    ) -> None:
+        """Specify a routine to migrate, with optional rung updates.
+
+        Args:
+            source_program_name (str): The name of the program containing the routine from the source controller.
+            routine_name (str): The name of the routine to migrate.
+            destination_program_name (str, optional): The name of the program to add the routine to in the destination controller.
+                                                        \n\tIf None, uses the same program name as the source.
+            rung_updates (dict, optional): A dictionary of rung updates to apply during migration.
+        """
+        self._safe_register_action({
+            'type': 'migrate_routine',
+            'source_program': source_program_name,
+            'routine': routine_name,
+            'destination_program': destination_program_name or source_program_name,
+            'rung_updates': rung_updates or {},
+            'method': self._execute_routine_migration
+        })
+
+    def add_rung(
+        self,
+        program_name: str,
+        routine_name: str,
+        rung_number: int,
+        new_rung: Rung
+    ) -> None:
+        """Add a rung to import directly to the destination controller.
+
+        Args:
+            program_name (str): The name of the program containing the routine.
+            routine_name (str): The name of the routine to add the rung to.
+            rung_number (int): The number of the rung to add.
+            new_rung (Rung): The rung to add.
+
+        Raises:
+            ValueError: If the provided rung is not an instance of the Rung class.
+        """
         if not isinstance(new_rung, Rung):
             raise ValueError('Rung must be an instance of Rung class.')
-        self.actions.append({
-            'type': 'rung_import',
+        self._safe_register_action({
+            'type': 'add_rung',
             'program': program_name,
             'routine': routine_name,
             'rung_number': rung_number,
-            'new_rung': new_rung.meta_data
+            'new_rung': new_rung.meta_data,
+            'method': self._execute_add_rung
         })
 
-    def add_routine_migration(self, program_name: str, routine_name: str, rung_updates: dict = None):
-        """Specify a routine to migrate, with optional rung updates."""
-        self.actions.append({
-            'type': 'routine',
-            'program': program_name,
-            'routine': routine_name,
-            'rung_updates': rung_updates or {}
-        })
-
-    def add_import_from_l5x_dict(self, l5x_dict: dict, asset_types: list[str] = None):
+    def add_import_from_l5x_dict(
+        self,
+        l5x_dict: dict,
+        asset_types: list[str] = L5X_ASSETS
+    ) -> None:
         """
         Add actions to import assets from an L5X dictionary.
-        asset_types: list of asset types to import, e.g. ['DataTypes', 'Tags', 'Programs']
+
+        Args:
+            l5x_dict (dict): The L5X data as a dictionary.
+            asset_types (list[str], optional): List of asset types to import, e.g. ['DataTypes', 'Tags', 'Programs'].
+                                                \n\tDefaults to all if None.
         """
-        if not asset_types:
-            asset_types = ['DataTypes', 'Tags', 'Programs']
 
-        rslogix = l5x_dict.get('RSLogix5000Content', {})
-        controller_dict = rslogix.get('Controller', {})
+        self._safe_register_action({
+            'type': 'import_from_l5x_dict',
+            'l5x_dict': l5x_dict,
+            'asset_types': asset_types,
+            'method': self._execute_import_assets_from_l5x_dict
+        })
 
-        for asset_type in asset_types:
-            if asset_type in controller_dict:
-                items = controller_dict[asset_type]
-                # Normalize to list
-                key = asset_type[:-1] if asset_type.endswith('s') else asset_type
-                if key in items:
-                    asset_list = items[key]
-                    if not isinstance(asset_list, list):
-                        asset_list = [asset_list]
-                    for asset in asset_list:
-                        self.actions.append({
-                            'type': f'import_{asset_type.lower()}',
-                            'asset': asset
-                        })
-
-    def add_import_from_file(self, file_location: str, asset_types: list[str] = None):
+    def add_import_from_file(
+        self,
+        file_location: str,
+        asset_types: list[str] = L5X_ASSETS
+    ) -> None:
         """
         Add actions to import assets from an L5X file.
-        asset_types: list of asset types to import, e.g. ['DataTypes', 'Tags', 'Programs']
-        """
-        l5x_dict = l5x_dict_from_file(file_location)
-        if not l5x_dict:
-            raise ValueError(f'No valid L5X data found in file {file_location}')
-        self.add_import_from_l5x_dict(l5x_dict, asset_types)
 
-    def add_safety_tag_mapping(self, std_tag: str, sfty_tag: str):
-        """Add a mapping for tags from standard to safety code space."""
+        Args:
+            file_location (str): The path to the L5X file.
+            asset_types (list[str], optional): List of asset types to import, e.g. ['DataTypes', 'Tags', 'Programs'].
+                                                \n\tDefaults to all if None.
+
+        Raises:
+            ValueError: If no valid L5X data is found in the specified file.
+        """
+
+        self._safe_register_action({
+            'type': 'import_from_file',
+            'file': file_location,
+            'asset_types': asset_types,
+            'method': self._execute_import_assets_from_file
+        })
+
+    def add_safety_tag_mapping(
+        self,
+        std_tag: str,
+        sfty_tag: str
+    ) -> None:
+        """Add a mapping for tags from standard to safety code space.
+
+        Args:
+            std_tag (str): The standard tag name.
+            sfty_tag (str): The safety tag name.
+
+        Raises:
+            ValueError: If either tag name is not a string.
+        """
         if not isinstance(std_tag, str) or not isinstance(sfty_tag, str):
             raise ValueError('Source and destination tags must be strings.')
-        self.actions.append({
+        self._safe_register_action({
             'type': 'safety_tag_mapping',
             'standard': std_tag,
-            'safety': sfty_tag
+            'safety': sfty_tag,
+            'method': self._execute_add_safety_tag_mapping
+        })
+
+    def remove_controller_tag(
+        self,
+        tag_name: str
+    ) -> None:
+        """Specify a tag to remove from the destination controller.
+
+        Args:
+            tag_name (str): The name of the tag to remove.
+        """
+        self._safe_register_action({
+            'type': 'remove_controller_tag',
+            'name': tag_name,
+            'method': self._execute_remove_controller_tag
+        })
+
+    def remove_datatype(
+        self,
+        datatype_name: str
+    ) -> None:
+        """Specify a datatype to remove from the destination controller.
+
+        Args:
+            datatype_name (str): The name of the datatype to remove.
+        """
+        self._safe_register_action({
+            'type': 'remove_datatype',
+            'name': datatype_name,
+            'method': self._execute_remove_datatype
+        })
+
+    def remove_program_tag(
+        self,
+        program_name: str,
+        tag_name: str
+    ) -> None:
+        """Specify a tag to remove from a specific program in the destination controller.
+
+        Args:
+            program_name (str): The name of the program containing the tag.
+            tag_name (str): The name of the tag to remove.
+        """
+        self._safe_register_action({
+            'type': 'remove_program_tag',
+            'program': program_name,
+            'name': tag_name,
+            'method': self._execute_remove_program_tag
+        })
+
+    def remove_routine(
+        self,
+        program_name: str,
+        routine_name: str
+    ) -> None:
+        """Specify a routine to remove from a specific program in the destination controller.
+
+        Args:
+            program_name (str): The name of the program containing the routine.
+            routine_name (str): The name of the routine to remove.
+        """
+        self._safe_register_action({
+            'type': 'remove_routine',
+            'program': program_name,
+            'name': routine_name,
+            'method': self._execute_remove_routine
+        })
+
+    def remove_safety_tag_mapping(
+        self,
+        std_tag: str,
+        sfty_tag: str
+    ) -> None:
+        """Specify a safety tag mapping to remove from the destination controller.
+
+        Args:
+            std_tag (str): The standard tag name.
+            sfty_tag (str): The safety tag name.
+        """
+        self._safe_register_action({
+            'type': 'remove_safety_tag_mapping',
+            'standard': std_tag,
+            'safety': sfty_tag,
+            'method': self._execute_remove_safety_tag_mapping
         })
 
     def execute(self):
         """Perform all migration and import actions."""
         self.logger.info('Executing controller modification schema...')
 
+        # call all action's methods
         for action in self.actions:
-            if action['type'] == 'datatype':
-                dt = self.source.datatypes.get(action['name'])
-                if dt:
-                    self.destination.add_datatype(dt)
-            elif action['type'] == 'tag':
-                tag = self.source.tags.get(action['name'])
-                if tag:
-                    self.destination.add_tag(tag)
-            elif action['type'] == 'routine':
-                prog: Program = self.source.programs.get(action['program'])
-                if prog:
-                    routine: Routine = prog.routines.get(action['routine'])
-                    if routine:
-                        self.destination.programs.get(action['program']).add_routine(routine)
-                        # Optionally update rungs
-                        for rung_num, new_rung in action['rung_updates'].items():
-                            dest_routine = self.destination.programs.get(action['program']).routines.get(action['routine'])
-                            dest_routine.rungs[rung_num] = new_rung
-            elif action['type'] == 'import_datatypes':
-                dt = Datatype(meta_data=action['asset'], controller=self.destination)
-                self.destination.add_datatype(dt)
-            elif action['type'] == 'import_tags':
-                tag = Tag(meta_data=action['asset'], controller=self.destination)
-                self.destination.add_tag(tag)
-            elif action['type'] == 'import_programs':
-                prog = Program(meta_data=action['asset'], controller=self.destination)
-                self.destination.add_program(prog)
-            elif action['type'] == 'import_tag':
-                tag: Tag = Tag(meta_data=action['asset'], controller=self.destination, container=self.destination)
-                self.destination.add_tag(tag)
-            elif action['type'] == 'import_program_tag':
-                prog: Program = self.destination.programs.get(action['program'])
-                if prog:
-                    tag: Tag = Tag(meta_data=action['asset'], controller=self.destination, container=prog)
-                    prog.add_tag(tag)
-            elif action['type'] == 'import_routine':
-                prog: Program = self.destination.programs.get(action['program'])
-                if prog:
-                    routine: Routine = Routine(meta_data=action['routine'], controller=self.destination, program=prog)
-                    prog.add_routine(routine)
-            elif action['type'] == 'rung_import':
-                prog: Program = self.destination.programs.get(action['program'])
-                if prog:
-                    routine: Routine = prog.routines.get(action['routine'])
-                    if routine:
-                        new_rung = Rung(meta_data=action['new_rung'], controller=self.destination, routine=routine)
-                        routine.add_rung(rung=new_rung, index=action['rung_number'])
-            elif action['type'] == 'safety_tag_mapping':
-                self.destination.safety_info.add_safety_tag_mapping(action['standard'], action['safety'])
+            method = action.get('method')
+            if callable(method):
+                method(action)
+            else:
+                self.logger.warning(f"No method defined for action type: {action['type']}. Skipping...")
+
         # Compile after all imports
         self.destination.compile()

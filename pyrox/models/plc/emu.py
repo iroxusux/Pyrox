@@ -44,6 +44,26 @@ class BaseEmulationGenerator(abc.Loggable, ABC, metaclass=EmulationGeneratorMeta
         )
 
     @abstractmethod
+    def generate_base_emulation(self) -> None:
+        """Generate the base emulation logic common to all controllers."""
+        pass
+
+    @abstractmethod
+    def generate_module_emulation(self) -> None:
+        """Generate module-specific emulation logic."""
+        pass
+
+    @abstractmethod
+    def remove_base_emulation(self) -> None:
+        """Remove the base emulation logic common to all controllers."""
+        pass
+
+    @abstractmethod
+    def remove_module_emulation(self) -> None:
+        """Remove module-specific emulation logic."""
+        pass
+
+    @abstractmethod
     def validate_controller(self) -> bool:
         """Validate that the controller is compatible with this generator.
 
@@ -55,14 +75,8 @@ class BaseEmulationGenerator(abc.Loggable, ABC, metaclass=EmulationGeneratorMeta
         """
         pass
 
-    @abstractmethod
-    def generate_base_emulation(self) -> None:
-        """Generate the base emulation logic common to all controllers."""
-        pass
-
-    @abstractmethod
-    def generate_module_emulation(self) -> None:
-        """Generate module-specific emulation logic."""
+    def generate_custom_logic(self) -> None:
+        """Generate custom emulation logic. Override in subclasses if needed."""
         pass
 
     def generate_emulation_logic(self) -> plc.ControllerModificationSchema:
@@ -88,9 +102,24 @@ class BaseEmulationGenerator(abc.Loggable, ABC, metaclass=EmulationGeneratorMeta
         self.logger.info(f"Emulation generation completed for {self.controller.name}")
         return self.schema
 
-    def generate_custom_logic(self) -> None:
-        """Generate custom emulation logic. Override in subclasses if needed."""
-        pass
+    def remove_emulation_logic(self) -> plc.ControllerModificationSchema:
+        """Remove previously added emulation logic.
+
+        Returns:
+            ControllerModificationSchema: The modification schema with all removals.
+        """
+        self.logger.info(f"Starting emulation removal for {self.controller.name}")
+
+        # Remove emulation logic
+        self.remove_base_emulation()
+        self.remove_module_emulation()
+        self.remove_custom_logic()
+
+        # Execute the schema to remove added elements
+        self.schema.execute()
+
+        self.logger.info(f"Emulation removal completed for {self.controller.name}")
+        return self.schema
 
     def add_emulation_routine(self,
                               program_name: str,
@@ -119,7 +148,7 @@ class BaseEmulationGenerator(abc.Loggable, ABC, metaclass=EmulationGeneratorMeta
         routine.clear_rungs()
 
         # Add routine to program
-        self.schema.add_routine_import(
+        self.schema.add_routine(
             program_name=program_name,
             routine=routine
         )
@@ -137,7 +166,7 @@ class BaseEmulationGenerator(abc.Loggable, ABC, metaclass=EmulationGeneratorMeta
                         text=f'JSR({routine_name},0);',
                         comment=f'Call the {routine_name} routine.'
                     )
-                    self.schema.add_rung_import(
+                    self.schema.add_rung(
                         program_name=program_name,
                         routine_name=program.main_routine_name,
                         rung_number=rung_position,
@@ -173,14 +202,20 @@ class BaseEmulationGenerator(abc.Loggable, ABC, metaclass=EmulationGeneratorMeta
             **kwargs
         )
 
-        self.schema.add_program_tag_import(
+        self.schema.add_program_tag(
             program_name=program_name,
             tag=tag
         )
 
         return tag
 
-    def add_controller_tag(self, tag_name: str, datatype: str, **kwargs) -> plc.Tag:
+    def add_controller_tag(
+        self,
+        tag_name: str,
+        datatype: str,
+        description: str = "",
+        **kwargs
+    ) -> plc.Tag:
         """Helper method to add a controller-scoped tag.
 
         Args:
@@ -193,14 +228,15 @@ class BaseEmulationGenerator(abc.Loggable, ABC, metaclass=EmulationGeneratorMeta
         """
         self.logger.debug(f"Adding controller tag: {tag_name} with datatype {datatype}")
 
-        tag = plc.Tag(
+        tag = self.controller.config.tag_type(
             controller=self.controller,
             name=tag_name,
             datatype=datatype,
+            description=description,
             **kwargs
         )
 
-        self.schema.add_tag_import(tag)
+        self.schema.add_controller_tag(tag)
         return tag
 
     def get_modules_by_type(self, module_type: str) -> List[plc.Module]:
@@ -229,6 +265,76 @@ class BaseEmulationGenerator(abc.Loggable, ABC, metaclass=EmulationGeneratorMeta
 
         return [module for module in self.controller.modules
                 if module.description and pattern in module.description]
+
+    def remove_custom_logic(self) -> None:
+        """Remove custom emulation logic."""
+        pass
+
+    def remove_controller_tag(
+        self,
+        tag_name: str
+    ) -> None:
+        """Helper method to remove a controller-scoped tag.
+
+        Args:
+            tag_name: Name of the tag to remove
+        """
+        self.logger.debug(f"Removing controller tag '{tag_name}'")
+
+        self.schema.remove_controller_tag(
+            tag_name=tag_name
+        )
+
+    def remove_datatype(
+        self,
+        datatype_name: str
+    ) -> None:
+        """Helper method to remove a datatype from the controller.
+
+        Args:
+            datatype_name: Name of the datatype to remove
+        """
+        self.logger.debug(f"Removing datatype '{datatype_name}' from controller")
+
+        self.schema.remove_datatype(
+            datatype_name=datatype_name
+        )
+
+    def remove_program_tag(
+        self,
+        program_name: str,
+        tag_name: str
+    ) -> None:
+        """Helper method to remove a tag from a program.
+
+        Args:
+            program_name: Name of the program
+            tag_name: Name of the tag to remove
+        """
+        self.logger.debug(f"Removing tag '{tag_name}' from program '{program_name}'")
+
+        self.schema.remove_program_tag(
+            program_name=program_name,
+            tag_name=tag_name
+        )
+
+    def remove_routine(
+            self,
+            program_name: str,
+            routine_name: str
+    ) -> None:
+        """Helper method to remove a routine from the controller.
+
+        Args:
+            program_name: Name of the program containing the routine
+            routine_name: Name of the routine to remove
+        """
+        self.logger.debug(f"Removing routine '{routine_name}' from controller")
+
+        self.schema.remove_routine(
+            program_name,
+            routine_name
+        )
 
 
 class EmulationFactory:

@@ -123,6 +123,19 @@ class TestPlcObject(unittest.TestCase):
         with self.assertRaises(NotImplementedError):
             self.plc_object._compile_from_meta_data()
 
+    def test_invalidate_not_implemented(self):
+        with self.assertRaises(NotImplementedError):
+            self.plc_object._invalidate()
+
+    def test_compile(self):
+        # Test that compile calls _compile_from_meta_data and on_compiled callbacks
+        self.plc_object._compile_from_meta_data = MagicMock()
+        callback = MagicMock()
+        self.plc_object._on_compiled.append(callback)
+        self.plc_object.compile()
+        self.plc_object._compile_from_meta_data.assert_called_once()
+        callback.assert_called_once()
+
 
 class TestNamedPlcObject(unittest.TestCase):
     def setUp(self):
@@ -900,6 +913,11 @@ class TestRoutine(unittest.TestCase):
         self.assertIsInstance(report, ControllerReportItem)
         self.assertTrue(isinstance(report.pass_fail, bool))
         self.assertIsInstance(report.test_notes, list)
+
+    def test_get_instructions(self):
+        instructions = self.routine.get_instructions("Tag1")
+        self.assertIsInstance(instructions, list)
+        self.assertTrue(all(isinstance(i, LogixInstruction) for i in instructions))
 
 
 class TestRung(unittest.TestCase):
@@ -2212,6 +2230,19 @@ class TestRung(unittest.TestCase):
         self.assertIn("Output[2]", self.rung.text)
         self.assertIn("Result[3]", self.rung.text)
 
+    def test_get_instructions(self) -> None:
+        """Test retrieving instructions from the rung."""
+        self.rung.text = "XIC(Tag1)XIO(Tag2)OTE(Tag3)"
+        instructions = self.rung.get_instructions()
+        self.assertEqual(len(instructions), 3)
+        self.assertEqual(instructions[0].meta_data, "XIC(Tag1)")
+        self.assertEqual(instructions[1].meta_data, "XIO(Tag2)")
+        self.assertEqual(instructions[2].meta_data, "OTE(Tag3)")
+        self.rung.text = "XIC(AlwaysOn)JSR(Program1,0);"
+        instructions = self.rung.get_instructions('JSR', 'Program1')
+        self.assertEqual(len(instructions), 1)
+        self.assertEqual(instructions[0].meta_data, "JSR(Program1,0)")
+
 
 class TestTag(unittest.TestCase):
     def setUp(self):
@@ -2478,32 +2509,32 @@ class TestControllerModificationSchema(unittest.TestCase):
 
     def test_add_tag_import(self):
         tag = Tag(meta_data={"@Name": "TAG2"}, controller=self.controller_dst)
-        self.schema.add_tag_import(tag)
+        self.schema.add_controller_tag(tag)
         self.assertEqual(self.schema.actions[-1]['type'], 'import_tag')
         self.assertEqual(self.schema.actions[-1]['asset'], tag.meta_data)
 
     def test_add_tag_migration(self):
-        self.schema.add_tag_migration("TAG1")
+        self.schema.add_controller_tag_migration("TAG1")
         self.assertEqual(self.schema.actions[-1]['type'], 'tag')
         self.assertEqual(self.schema.actions[-1]['name'], 'TAG1')
 
     def test_add_program_tag_import(self):
         tag = Tag(meta_data={"@Name": "TAG3"}, controller=self.controller_dst)
-        self.schema.add_program_tag_import("PROG1", tag)
+        self.schema.add_program_tag("PROG1", tag)
         self.assertEqual(self.schema.actions[-1]['type'], 'import_program_tag')
         self.assertEqual(self.schema.actions[-1]['program'], "PROG1")
         self.assertEqual(self.schema.actions[-1]['asset'], tag.meta_data)
 
     def test_add_routine_import(self):
         routine = Routine(meta_data={"@Name": "ROUT2"}, controller=self.controller_dst)
-        self.schema.add_routine_import("PROG1", routine)
+        self.schema.add_routine("PROG1", routine)
         self.assertEqual(self.schema.actions[-1]['type'], 'import_routine')
         self.assertEqual(self.schema.actions[-1]['program'], "PROG1")
         self.assertEqual(self.schema.actions[-1]['routine'], routine.meta_data)
 
     def test_add_rung_import(self):
         rung = Rung(meta_data={"@Number": "0", "Text": "XIC(Tag1)"}, controller=self.controller_dst)
-        self.schema.add_rung_import("PROG1", "ROUT1", 0, rung)
+        self.schema.add_rung("PROG1", "ROUT1", 0, rung)
         self.assertEqual(self.schema.actions[-1]['type'], 'rung_import')
         self.assertEqual(self.schema.actions[-1]['program'], "PROG1")
         self.assertEqual(self.schema.actions[-1]['routine'], "ROUT1")
@@ -2536,7 +2567,7 @@ class TestControllerModificationSchema(unittest.TestCase):
     def test_execute(self):
         # Should not raise
         self.schema.add_datatype_migration("DT1")
-        self.schema.add_tag_migration("TAG1")
+        self.schema.add_controller_tag_migration("TAG1")
         self.schema.add_routine_migration("PROG1", "ROUT1")
         self.schema.execute()
         # Check that destination controller has the migrated assets

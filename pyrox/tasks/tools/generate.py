@@ -5,10 +5,11 @@ from __future__ import annotations
 import importlib
 
 from pyrox.applications.app import App, AppTask
-from pyrox.models.plc import Controller, Program, Routine
+from pyrox.models.plc import Controller
 from pyrox.applications.general_motors import gm
 import json
 from tkinter import Menu
+from typing import Union
 
 BASE_PLC_FILE = r'docs\controls\root.L5X'
 GM_CONFIG_FILE = r'docs\_gm_controller.json'
@@ -21,6 +22,21 @@ class ControllerGenerateTask(AppTask):
     def __init__(self,
                  application: App):
         super().__init__(application=application)
+
+    def _generate_gm_precheck(self) -> Union[gm.GmController, None]:
+        importlib.reload(gm)
+        controller = self.application.controller
+
+        if not controller:
+            self.logger.error('No controller set in the application.')
+            return None
+
+        if not isinstance(controller, gm.GmController) and not controller.__class__.__name__ == 'GmController':
+            self.logger.error('Current controller is not a GM controller.')
+            return None
+
+        self.logger.debug('Reloading GM module...')
+        return controller
 
     def generate_gm(self):
         self.logger.info('Generating GM controller...')
@@ -40,62 +56,16 @@ class ControllerGenerateTask(AppTask):
         self.application.controller = controller
 
     def generate_gm_emulation_routine(self):
-        controller = self.application.controller
-        # Debug information
-        self.logger.debug(f'Controller type: {type(controller)}')
-        self.logger.debug(f'Controller class name: {controller.__class__.__name__}')
-        self.logger.debug(f'Controller module: {controller.__class__.__module__}')
+        controller = self._generate_gm_precheck()
         if not controller:
-            self.logger.error('No controller set in the application.')
             return
-        if controller.__class__.__name__ != 'GmController':
-            self.logger.error('Controller is not a GM controller. Cannot generate emulation routine.')
-            return
-        importlib.reload(gm)
         controller.generate_emulation_logic()
 
     def remove_gm_emulation_routine(self):
-        self.logger.info('Removing GM emulation routine...')
-
-        if not self.application.controller:
-            self.logger.error('No controller set in the application.')
+        controller = self._generate_gm_precheck()
+        if not controller:
             return
-
-        mcp_program: Program = self.application.controller.programs.get('MCP', None)
-        if not mcp_program:
-            self.logger.error('MCP program not found in the controller.')
-            return
-
-        emulation_routine: Routine = mcp_program.routines.get('aaa_Emulation', None)
-        if not emulation_routine:
-            self.logger.warning('Emulation routine does not exist, skipping removal.')
-            return
-
-        emulation_jsr = next((x for x in mcp_program.main_routine.rungs if f'JSR({emulation_routine.name},0)' in x.text), None)
-        if emulation_jsr:
-            self.logger.info('Removing JSR rung from main routine...')
-            mcp_program.main_routine.remove_rung(emulation_jsr.number)
-
-        mcp_program.remove_routine(emulation_routine)
-        inhibit_tag = mcp_program.tags.get('Inhibit', None)
-        uninhibit_tag = mcp_program.tags.get('Uninhibit', None)
-        toggle_inhibit_tag = mcp_program.tags.get('toggle_inhibit', None)
-        local_mode_tag = mcp_program.tags.get('LocalMode', None)
-        device_data_size_tag = mcp_program.tags.get('DeviceDataSize', None)
-        sus_loop_ptr_tag = mcp_program.tags.get('SusLoopPtr', None)
-        if inhibit_tag:
-            mcp_program.remove_tag(inhibit_tag.name)
-        if uninhibit_tag:
-            mcp_program.remove_tag(uninhibit_tag.name)
-        if toggle_inhibit_tag:
-            mcp_program.remove_tag(toggle_inhibit_tag.name)
-        if local_mode_tag:
-            mcp_program.remove_tag(local_mode_tag.name)
-        if device_data_size_tag:
-            mcp_program.remove_tag(device_data_size_tag.name)
-        if sus_loop_ptr_tag:
-            mcp_program.remove_tag(sus_loop_ptr_tag.name)
-        self.application.refresh()
+        controller.remove_emulation_logic()
 
     def generate_ford(self):
         self.logger.info('Generating Ford controller...')

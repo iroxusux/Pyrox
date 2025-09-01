@@ -509,8 +509,8 @@ class NamedPyroxObject(PyroxObject):
         description: Optional[str] = None
     ) -> None:
         super().__init__()
-        self._name = name or self.__class__.__name__
-        self._description = description or ''
+        self._name = name if name else self.__class__.__name__
+        self._description = description if description else ''
 
     @property
     def name(self) -> str:
