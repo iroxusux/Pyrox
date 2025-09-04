@@ -3,7 +3,7 @@
     """
 from __future__ import annotations
 
-
+from enum import Enum
 from pathlib import Path
 from pyrox.services import class_services
 from typing import Optional, TYPE_CHECKING
@@ -11,6 +11,15 @@ from typing import Optional, TYPE_CHECKING
 
 if TYPE_CHECKING:
     from pyrox.models.plc import Module
+
+
+class ModuleControlsType(Enum):
+    """Module controls type enumeration
+    """
+    PLC = 'PLC'
+    BLOCK = 'Block'
+    SAFETY_BLOCK = 'SafetyBlock'
+    DRIVE = 'Drive'
 
 
 class IntrospectiveModule:
@@ -42,12 +51,20 @@ class IntrospectiveModule:
     It is used to extend capabilities of known modules, or to provide a way to introspect unknown modules.
     """
 
-    def __init__(self, module: Optional[Module] = None):
+    def __init__(
+        self,
+        module: Optional[Module] = None
+    ) -> None:
         self._module = module
 
     @property
     def catalog_number(self) -> str:
         """The catalog number of the module."""
+        raise NotImplementedError('This method should be implemented by the subclass.')
+
+    @property
+    def controls_type(self) -> ModuleControlsType:
+        """The controls type of the module."""
         raise NotImplementedError('This method should be implemented by the subclass.')
 
     @property
@@ -66,9 +83,25 @@ class IntrospectiveModule:
         raise NotImplementedError('This method should be implemented by the subclass.')
 
     @property
+    def module(self) -> Optional[Module]:
+        """The module being wrapped by the IntrospectiveModule."""
+        return self._module
+
+    @module.setter
+    def module(self, value: Module) -> None:
+        if not isinstance(value, Module):
+            raise ValueError('Module must be an instance of Module.')
+        self._module = value
+
+    @property
     def output_size(self) -> int:
         """The output size of the module."""
         raise NotImplementedError('This method should be implemented by the subclass.')
+
+    @property
+    def type_(self) -> str:
+        """Get the type of the module."""
+        return self.__class__.__name__
 
     @classmethod
     def from_meta_data(cls,
@@ -103,7 +136,22 @@ class IntrospectiveModule:
                     return m.__class__(module)
         return cls(module)
 
-    @property
-    def type_(self) -> str:
-        """Get the type of the module."""
-        return self.__class__.__name__
+    def get_safety_emulation_rung_text(self) -> str:
+        """Get the emulation rung text for the safety module.
+        This is used to generate the emulation logic for the safety module.
+        .. ------------------------------------------------------------
+        .. returns::
+            :class:`str`
+                The emulation rung text for the safety module.
+        """
+        raise NotImplementedError('This method should be implemented by the subclass.')
+
+    def get_standard_emulation_rung_text(self) -> str:
+        """Get the emulation rung text for the module.
+        This is used to generate the emulation logic for the module.
+        .. ------------------------------------------------------------
+        .. returns::
+            :class:`str`
+                The emulation rung text for the module.
+        """
+        raise NotImplementedError('This method should be implemented by the subclass.')

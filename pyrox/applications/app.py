@@ -348,8 +348,10 @@ class App(models.Application):
         self._menu.file.entryconfig('Save L5X As...', state='disabled' if not self.controller else 'normal')
         self._menu.file.entryconfig('Close L5X', state='disabled' if not self.controller else 'normal')
 
-    def _load_controller(self,
-                         file_location: str) -> models.plc.Controller:
+    def _load_controller(
+        self,
+        file_location: str
+    ) -> models.plc.Controller:
         """Load a controller from a file location.
         This private method also manages the ux of loading a controller.
         .. ------------------------------------------------------------
@@ -364,9 +366,10 @@ class App(models.Application):
 
         try:
             importlib.reload(models.plc)
-            return models.plc.Controller(l5x_dict_from_file(file_location))
+            return models.plc.Controller.from_file(file_location)
         except (KeyError, ValueError, TypeError) as e:
             self.logger.error('error parsing controller from file %s: %s', file_location, e)
+            raise e
 
     def _load_last_opened_controller(self) -> None:
         last_plc_file_location = self._runtime_info.data.get('last_plc_file_location', None)
@@ -497,18 +500,24 @@ class App(models.Application):
 
         """
         self.set_app_state_busy()
-        self.logger.info('Loading ctrl from file: %s', file_location)
-        ctrl = self._load_controller(file_location)
-        self.logger.info('new ctrl loaded -> %s', ctrl.name)
+        try:
+            self.logger.info('Loading ctrl from file: %s', file_location)
+            ctrl = self._load_controller(file_location)
+            if ctrl is None:
+                self.logger.error('Failed to load controller from file: %s', file_location)
+                return
 
-        # General Motors PLC detection
-        if 'zz_Version' in ctrl.datatypes:  # This is gross, fix this
-            ctrl = self._transform_controller(ctrl, GmController)
-            self.logger.info('Loaded GmController from metadata: %s', ctrl.name)
+            self.logger.info('new ctrl loaded -> %s', ctrl.name)
 
-        ctrl.file_location = file_location
-        self.controller = ctrl
-        self.set_app_state_normal()
+            # General Motors PLC detection
+            if 'zz_Version' in ctrl.datatypes:  # This is gross, fix this
+                ctrl = self._transform_controller(ctrl, GmController)
+                self.logger.info('Loaded GmController from metadata: %s', ctrl.name)
+
+            ctrl.file_location = file_location
+            self.controller = ctrl
+        finally:
+            self.set_app_state_normal()
 
     def log(self,
             message: str

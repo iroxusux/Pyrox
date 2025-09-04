@@ -2,11 +2,9 @@
     """
 from __future__ import annotations
 
-import importlib
-
 from pyrox.applications.app import App, AppTask
 from pyrox.models.plc import Controller
-from pyrox.applications.general_motors import gm
+from pyrox.models.plc.emu import BaseEmulationGenerator
 import json
 from tkinter import Menu
 from typing import Union
@@ -23,20 +21,21 @@ class ControllerGenerateTask(AppTask):
                  application: App):
         super().__init__(application=application)
 
-    def _generate_gm_precheck(self) -> Union[gm.GmController, None]:
-        importlib.reload(gm)
+    def _generate_precheck(self) -> Union[Controller, None]:
         controller = self.application.controller
 
         if not controller:
             self.logger.error('No controller set in the application.')
             return None
 
-        if not isinstance(controller, gm.GmController) and not controller.__class__.__name__ == 'GmController':
-            self.logger.error('Current controller is not a GM controller.')
-            return None
-
-        self.logger.debug('Reloading GM module...')
         return controller
+
+    @staticmethod
+    def _get_generator(controller: Controller) -> BaseEmulationGenerator:
+        generator: BaseEmulationGenerator = BaseEmulationGenerator.get_generator(controller)
+        if not isinstance(generator, BaseEmulationGenerator):
+            raise ValueError('No valid generator found for this controller type!')
+        return generator
 
     def generate_gm(self):
         self.logger.info('Generating GM controller...')
@@ -55,17 +54,27 @@ class ControllerGenerateTask(AppTask):
         self.logger.info('Assigning generated controller to application...')
         self.application.controller = controller
 
-    def generate_gm_emulation_routine(self):
-        controller = self._generate_gm_precheck()
-        if not controller:
+    def inject_emulation_routine(self):
+        """Injects emulation routine into the current controller.
+        """
+        controller = self._generate_precheck()
+        generator = self._get_generator(controller)
+        if not controller or not generator:
+            self.logger.error('Emulation routine injection failed due to precheck failure.')
             return
-        controller.generate_emulation_logic()
+        self.logger.info(f'Injecting emulation routine using {generator.__class__.__name__}...')
+        generator.generate_emulation_logic()
 
-    def remove_gm_emulation_routine(self):
-        controller = self._generate_gm_precheck()
-        if not controller:
+    def remove_emulation_routine(self):
+        """Removes emulation routine from the current controller.
+        """
+        controller = self._generate_precheck()
+        generator = self._get_generator(controller)
+        if not controller or not generator:
+            self.logger.error('Emulation routine removal failed due to precheck failure.')
             return
-        controller.remove_emulation_logic()
+        self.logger.info(f'Removing emulation routine using {generator.__class__.__name__}...')
+        generator.remove_emulation_logic()
 
     def generate_ford(self):
         self.logger.info('Generating Ford controller...')
@@ -87,5 +96,5 @@ class ControllerGenerateTask(AppTask):
         emu_drop_down = Menu(drop_down, name='emu_tasks', tearoff=0)
         drop_down.add_cascade(label='Emulation Tasks', menu=emu_drop_down)
 
-        emu_drop_down.add_command(label='Create GM Emulation Routine', command=self.generate_gm_emulation_routine)
-        emu_drop_down.add_command(label='Remove GM Emulation Routine', command=self.remove_gm_emulation_routine)
+        emu_drop_down.add_command(label='Inject Emulation Routine', command=self.inject_emulation_routine)
+        emu_drop_down.add_command(label='Remove Emulation Routine', command=self.remove_emulation_routine)

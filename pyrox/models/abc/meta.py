@@ -1,13 +1,14 @@
 """Meta module for Pyrox framework base classes and utilities."""
 from __future__ import annotations
 
+from abc import ABC, ABCMeta
 from enum import Enum
 import logging
 import json
 from pathlib import Path
 import re
 import sys
-from typing import Any, Callable, Optional
+from typing import Any, Callable, Optional, Self, Type
 
 __all__ = (
     'Buildable',
@@ -21,7 +22,9 @@ __all__ = (
     'DEF_WIN_TITLE',
     'DEF_WIN_SIZE',
     'EnforcesNaming',
+    'FactoryTypeMeta',
     'Loggable',
+    'MetaFactory',
     'PyroxObject',
     'Runnable',
     'SnowFlake',
@@ -32,7 +35,7 @@ __all__ = (
     'TK_CURSORS',
 )
 
-ALLOWED_CHARS = re.compile(f'[^{r'a-zA-Z0-9_'}]')
+ALLOWED_CHARS = re.compile(f'[^{r'a-zA-Z0-9_[]'}]')
 ALLOWED_REV_CHARS = re.compile(f'[^{r'0-9.'}]')
 ALLOWED_MOD_CHARS = re.compile(f'[^{r'a-zA-Z0-9_.-'}]')
 DEF_APP_NAME = 'Pyrox Application'
@@ -483,6 +486,21 @@ class RuntimeDict:
         self._callback()
 
 
+class LazyLoggable:
+    """An easier mixin class that doesn't require a name property for logging.
+    \n Rather, it uses the inheriting class's builtin name.
+    """
+
+    @classmethod
+    def get_logger(self) -> logging.Logger:
+        """Logger for this object.
+
+        Returns:
+            logging.Logger: The logger instance.
+        """
+        return Loggable.get_or_create_logger(name=self.__class__.__name__)
+
+
 class PyroxObject(SnowFlake):
     """A base class for all Pyrox objects."""
     __slots__ = ()
@@ -811,6 +829,18 @@ class Loggable(NamedPyroxObject):
             logger.removeHandler(handler)
 
     @staticmethod
+    def get_or_create_logger(name: str = __name__) -> logging.Logger:
+        """Get or create a logger with the specified name.
+
+        Args:
+            name: The name for the logger.
+
+        Returns:
+            logging.Logger: The logger instance.
+        """
+        return Loggable._get_or_create_logger(name=name)
+
+    @staticmethod
     def force_all_loggers_to_stderr():
         """Force all existing loggers to use sys.stderr."""
 
@@ -898,3 +928,92 @@ class Runnable(Buildable):
     def stop(self) -> None:
         """Stop this object."""
         self._running = False
+
+
+class MetaFactory(ABC, LazyLoggable):
+    """Meta class for factory patterns.
+
+    This meta class is used to create factories that can register and retrieve types.
+    """
+
+    _registered_types: dict = {}
+
+    @classmethod
+    def registered_types(cls) -> dict:
+        """Get the registered types for this factory.
+
+        Returns:
+            dict: A dictionary of registered types.
+        """
+        return cls._registered_types
+
+    @classmethod
+    def register_type(
+        cls,
+        type_class: Type
+    ) -> None:
+        """Register a type with the factory.
+
+        Args:
+            type_class: The class type to register.
+        """
+        cls._registered_types[type_class.__name__] = type_class
+
+
+class FactoryTypeMeta(ABCMeta, LazyLoggable):
+    """Meta class for types that are used in factory patterns."""
+
+    def __new__(
+        cls,
+        name,
+        bases,
+        attrs,
+        **_
+    ) -> Type[Self]:
+        new_cls = super().__new__(cls, name, bases, attrs)
+
+        factory = cls.get_factory()
+        if factory is None:
+            cls.get_logger().debug(
+                f'FactoryTypeMeta: No factory found for class {name}.'
+            )
+            return new_cls
+
+        factory_class = cls.get_class()
+        if factory_class is None:
+            cls.get_logger().debug(
+                f'FactoryTypeMeta: No factory class found for class {name}.'
+            )
+            return new_cls
+
+        if (name != factory_class.__name__ and
+                issubclass(new_cls, factory_class)):
+            factory = cls.get_factory()
+            if factory is None:
+                cls.get_logger().debug(
+                    f'FactoryTypeMeta: No factory found for class {name}.'
+                )
+                return new_cls
+
+            registered_types = factory.registered_types()
+            registered_types[new_cls.__name__] = new_cls
+
+        return new_cls
+
+    @classmethod
+    def get_class(cls) -> Optional[Type]:
+        """Get the type that this meta class was created for, if any.
+
+        Returns:
+            Optional[Type]: The type, or None if not set.
+        """
+        return cls
+
+    @classmethod
+    def get_factory(cls) -> Optional[MetaFactory]:
+        """Get the factory associated with this meta class, if any.
+
+        Returns:
+            Optional[MetaFactory]: The factory instance, or None if not set.
+        """
+        return None

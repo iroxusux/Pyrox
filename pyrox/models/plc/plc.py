@@ -4,6 +4,7 @@ from __future__ import annotations
 from collections import defaultdict
 from dataclasses import dataclass, field
 from enum import Enum
+import fnmatch
 from pathlib import Path
 import re
 from typing import (
@@ -12,12 +13,14 @@ from typing import (
     List,
     Optional,
     Self,
+    Tuple,
+    Type,
     TypeVar,
     Union,
 )
 
 from .mod import IntrospectiveModule
-from ..abc.meta import EnforcesNaming, Loggable, PyroxObject, NamedPyroxObject
+from ..abc.meta import EnforcesNaming, Loggable, PyroxObject, NamedPyroxObject, FactoryTypeMeta, MetaFactory
 from ..abc.list import HashList
 from ...services.dictionary_services import insert_key_at_index
 from ...services.plc_services import l5x_dict_from_file
@@ -30,6 +33,7 @@ __all__ = (
     'ConnectionCommand',
     'ConnectionParameters',
     'Controller',
+    'ControllerFactory',
     'ControllerModificationSchema',
     'ControllerSafetyInfo',
     'Datatype',
@@ -484,7 +488,7 @@ class PlcObject(EnforcesNaming, PyroxObject):
         return report
 
 
-class NamedPlcObject(PlcObject, NamedPyroxObject):
+class NamedPlcObject(PlcObject, Loggable):
     """Supports a name and description for a PLC object.
 
     Args:
@@ -569,6 +573,14 @@ class NamedPlcObject(PlcObject, NamedPyroxObject):
             value: The description to set.
         """
         self['Description'] = value
+
+    @property
+    def process_name(self) -> str:
+        """Get the name of this controller without Customer plant identification prefixes
+
+        Overrides the base class to return the name instead of the metadata string.
+        """
+        return self.name
 
     def _remove_asset_from_meta_data(
         self,
@@ -1177,7 +1189,7 @@ class ContainsRoutines(ContainsTags):
         self._input_instructions: list[LogixInstruction] = None
         self._output_instructions: list[LogixInstruction] = None
         self._instructions: list[LogixInstruction] = None
-        self._routines: HashList = None
+        self._routines: HashList[Routine] = None
 
     @property
     def class_(self) -> str:
@@ -1207,7 +1219,7 @@ class ContainsRoutines(ContainsTags):
         return self._output_instructions
 
     @property
-    def routines(self) -> list[Routine]:
+    def routines(self) -> HashList[Routine]:
         if not self._routines:
             self._compile_routines()
         return self._routines
@@ -2184,6 +2196,7 @@ class Routine(NamedPlcObject):
 
     def clear_rungs(self):
         """clear all rungs from this routine"""
+        self.logger.debug(f"Clearing all rungs from routine {self.name}")
         self.raw_rungs.clear()
         self._compile_from_meta_data()
 
@@ -4076,15 +4089,86 @@ class ControllerConfiguration:
     tag_type: type = Tag
 
 
-class Controller(NamedPlcObject, Loggable):
+class ControllerMeta(FactoryTypeMeta):
+    """Metaclass for auto-registering Controller subclasses."""
+
+    @classmethod
+    def get_class(cls) -> Type['Controller']:
+        try:
+            return Controller
+        except Exception:
+            return None
+
+    @classmethod
+    def get_factory(cls):
+        return ControllerFactory
+
+
+class ControllerFactory(MetaFactory):
+    """Controller factory with scoring-based matching."""
+
+    _registered_types: dict = {}
+
+    @classmethod
+    def get_best_match(
+        cls,
+        controller_data: dict,
+        min_score: float = 0.3
+    ) -> Type:
+        """Get the best matching controller type based on scoring."""
+        if not controller_data:
+            cls.logger.warning("No controller data provided")
+            return None
+
+        scored_matches: List[Tuple[float, Type]] = []
+
+        for _, matcher in ControllerMatcherFactory.registered_types().items():
+            score = matcher.calculate_score(controller_data)
+            ctrl_class = matcher.get_controller_constructor()
+            if score >= min_score:
+                scored_matches.append((score, matcher.get_controller_constructor()))
+                cls.get_logger().info(
+                    f"Matched {ctrl_class.__name__} with score {score:.2f}"
+                )
+            else:
+                cls.get_logger().info(
+                    f"{ctrl_class.__name__} score {score:.2f} below min score {min_score}"
+                )
+
+        if not scored_matches:
+            cls.get_logger().info(f"No matches found above min score {min_score}")
+            return None
+
+        # Sort by score (highest first) and return the best match
+        scored_matches.sort(key=lambda x: x[0], reverse=True)
+        best_score, best_class = scored_matches[0]
+
+        cls.get_logger().info(f"Best match: {best_class} with score {best_score:.2f}")
+        return best_class
+
+    @classmethod
+    def create_controller(
+        cls,
+        controller_data: dict,
+        **kwargs
+    ) -> object:
+        """Create the best matching controller instance."""
+        controller_class = cls.get_best_match(controller_data)
+        if not controller_class:
+            return None
+        return controller_class(meta_data=controller_data, **kwargs)
+
+
+class Controller(NamedPlcObject, Loggable, metaclass=ControllerMeta):
     """Controller container for Allen Bradley L5X Files.
     .. ------------------------------------------------------------
 
     .. package:: emulation_preparation.types.plc
 
     .. ------------------------------------------------------------
+    """
 
-        """
+    controller_type = 'Controller'
 
     def __setitem__(self, key, value):
         super().__setitem__(key, value)
@@ -4330,25 +4414,50 @@ class Controller(NamedPlcObject, Loggable):
             self['Tags']['Tag'] = value
 
     @classmethod
-    def from_file(cls: Self,
-                  file_location: str) -> Optional[Self]:
+    def from_file(
+        cls: Self,
+        file_location: str
+    ) -> Optional[Self]:
+        """Create a Controller instance from an L5X file.
+
+        Args:
+            file_location (str): The file path to the L5X file.
+
+        Returns:
+            Optional[Controller]: The created Controller instance, or None if the file could not be read.
+        """
         root_data = l5x_dict_from_file(file_location)
         if not root_data:
             return None
 
-        return cls(root_data)
+        ctrl = ControllerFactory.create_controller(root_data)
+        if not ctrl:
+            print('Could not determine controller type from file! Creating generic controller')
+            ctrl = cls(
+                meta_data=root_data,
+                file_location=file_location
+            )
+        return ctrl
 
     @classmethod
-    def from_meta_data(cls: Self,
-                       meta_data: dict,
-                       config: Optional[ControllerConfiguration] = None) -> Self:
+    def from_meta_data(
+        cls: Self,
+        meta_data: dict,
+        config: Optional[ControllerConfiguration] = None
+    ) -> Self:
         """Create a Controller instance from meta data.
-        .. -------------------------------
-        .. arguments::
-        :class:`dict` meta_data:
-            the meta data to create the controller from
-        :class:`ControllerConfiguration` config:
-            the configuration to use for the controller
+
+        Args:
+            meta_data (dict): The meta data dictionary to create the controller from.
+            config (ControllerConfiguration, optional): Configuration for custom types. Defaults to None.
+
+        Returns:
+            Controller: The created Controller instance.
+
+        Raises:
+            ValueError: If meta_data is None or not a dictionary
+            \n\tor if required keys are missing
+            \n\tor if config is not a ControllerConfiguration instance.
         """
         if not meta_data:
             raise ValueError('Meta data cannot be None!')
@@ -4734,21 +4843,6 @@ class Controller(NamedPlcObject, Loggable):
             self.raw_tags
         )
 
-    def remove_aoi(self, aoi: AddOnInstruction):
-        self._remove_common(aoi, self.aois, self.raw_aois)
-
-    def remove_datatype(self, datatype: Datatype):
-        self._remove_common(datatype, self.datatypes, self.raw_datatypes)
-
-    def remove_module(self, module: Module):
-        self._remove_common(module, self.modules, self.raw_modules)
-
-    def remove_program(self, program: Program):
-        self._remove_common(program, self.programs, self.raw_programs)
-
-    def remove_tag(self, tag: Tag):
-        self._remove_common(tag, self.tags, self.raw_tags)
-
     def find_diagnostic_rungs(self) -> list[Rung]:
         diagnostic_rungs = []
 
@@ -4807,6 +4901,21 @@ class Controller(NamedPlcObject, Loggable):
                 del outputs[key]
 
         return outputs
+
+    def remove_aoi(self, aoi: AddOnInstruction):
+        self._remove_common(aoi, self.aois, self.raw_aois)
+
+    def remove_datatype(self, datatype: Datatype):
+        self._remove_common(datatype, self.datatypes, self.raw_datatypes)
+
+    def remove_module(self, module: Module):
+        self._remove_common(module, self.modules, self.raw_modules)
+
+    def remove_program(self, program: Program):
+        self._remove_common(program, self.programs, self.raw_programs)
+
+    def remove_tag(self, tag: Tag):
+        self._remove_common(tag, self.tags, self.raw_tags)
 
     def rename_asset(self,
                      element_type: LogixAssetType,
@@ -5493,16 +5602,16 @@ class ControllerModificationSchema(Loggable):
         self,
         program_name: str,
         routine_name: str,
-        rung_number: int,
-        new_rung: Rung
+        new_rung: Rung,
+        rung_number: Optional[int] = None
     ) -> None:
         """Add a rung to import directly to the destination controller.
 
         Args:
             program_name (str): The name of the program containing the routine.
             routine_name (str): The name of the routine to add the rung to.
-            rung_number (int): The number of the rung to add.
             new_rung (Rung): The rung to add.
+            rung_number (Optional[int]): The index at which to insert the new rung. If None, appends to the end.
 
         Raises:
             ValueError: If the provided rung is not an instance of the Rung class.
@@ -5684,3 +5793,222 @@ class ControllerModificationSchema(Loggable):
 
         # Compile after all imports
         self.destination.compile()
+
+
+def check_wildcard_patterns(
+    items: List[str],
+    patterns: List[str]
+) -> bool:
+    """Check if any item matches any wildcard pattern."""
+    for item in items:
+        for pattern in patterns:
+            if fnmatch.fnmatch(item, pattern):
+                return True
+    return False
+
+
+class ControllerMatcherFactory(MetaFactory):
+    """Controller matcher factory."""
+
+    _registered_types: dict = {}
+
+
+class ControllerMatcherMeta(FactoryTypeMeta):
+    """Metaclass for controller matchers."""
+
+    @classmethod
+    def get_class(cls) -> Type['ControllerMatcher']:
+        try:
+            return ControllerMatcher
+        except NameError:
+            return None
+
+    @classmethod
+    def get_factory(cls):
+        return ControllerMatcherFactory
+
+
+class ControllerMatcher(metaclass=ControllerMatcherMeta):
+    """Abstract base class for controller matching strategies."""
+
+    def get_datatype_patterns(self) -> List[str]:
+        """List of patterns to identify the controller by datatype."""
+        raise NotImplementedError("Subclasses must implement this method")
+
+    def get_module_patterns(self) -> List[str]:
+        """List of patterns to identify the controller by module."""
+        raise NotImplementedError("Subclasses must implement this method")
+
+    def get_program_patterns(self) -> List[str]:
+        """List of patterns to identify the controller by program."""
+        raise NotImplementedError("Subclasses must implement this method")
+
+    def get_safety_program_patterns(self) -> List[str]:
+        """List of patterns to identify the controller by safety program."""
+        raise NotImplementedError("Subclasses must implement this method")
+
+    def get_tag_patterns(self) -> List[str]:
+        """List of patterns to identify the controller by tag."""
+        raise NotImplementedError("Subclasses must implement this method")
+
+    @classmethod
+    def calculate_score(
+        cls,
+        controller_data: dict
+    ) -> float:
+        """Calculate a matching score (0.0 to 1.0, higher is better).
+
+        Args:
+            controller_data (dict): The controller data to evaluate.
+        """
+        score = 0.0
+        if cls.check_controller_datatypes(controller_data):
+            score += 0.2
+        if cls.check_controller_modules(controller_data):
+            score += 0.2
+        if cls.check_controller_programs(controller_data):
+            score += 0.2
+        if cls.check_controller_safety_programs(controller_data):
+            score += 0.2
+        if cls.check_controller_tags(controller_data):
+            score += 0.2
+        return score
+
+    @classmethod
+    def get_controller_constructor(
+        cls,
+    ) -> Type[Controller]:
+        """Get the appropriate controller constructor for this matcher.
+
+        Returns:
+            Type[Controller]: The constructor for the appropriate controller type.
+        """
+        raise NotImplementedError("Subclasses must implement this method")
+
+    @classmethod
+    def check_controller_datatypes(
+        cls,
+        controller_data: dict,
+    ) -> bool:
+        """Check if controller datatypes match controller pattern.
+
+        Args:
+            controller_data (dict): The controller data to evaluate.
+        """
+        return cls.check_dict_list_for_patterns(
+            cls.get_controller_data_list(controller_data, 'DataType'),
+            '@Name',
+            cls.get_datatype_patterns()
+        )
+
+    @classmethod
+    def check_controller_modules(
+        cls,
+        controller_data: dict,
+    ) -> bool:
+        """Check if controller modules match controller pattern."""
+        return cls.check_dict_list_for_patterns(
+            cls.get_controller_data_list(controller_data, 'Module'),
+            '@Name',
+            cls.get_module_patterns()
+        )
+
+    @classmethod
+    def check_controller_programs(
+        cls,
+        controller_data: dict,
+    ) -> bool:
+        """Check if controller programs match controller pattern."""
+        return cls.check_dict_list_for_patterns(
+            cls.get_controller_data_list(controller_data, 'Program'),
+            '@Name',
+            cls.get_program_patterns()
+        )
+
+    @classmethod
+    def check_controller_safety_programs(
+        cls,
+        controller_data: dict,
+    ) -> bool:
+        """Check if controller safety programs match controller pattern."""
+        programs = cls.get_controller_data_list(controller_data, 'Program')
+        safety_programs = [p for p in programs if p.get('@Class') == 'Safety']
+        return cls.check_dict_list_for_patterns(
+            safety_programs,
+            '@Name',
+            cls.get_safety_program_patterns()
+        )
+
+    @classmethod
+    def check_controller_tags(
+        cls,
+        controller_data: dict,
+    ) -> bool:
+        """Check if controller tags match controller pattern."""
+        return cls.check_dict_list_for_patterns(
+            cls.get_controller_data_list(controller_data, 'Tag'),
+            '@Name',
+            cls.get_tag_patterns()
+        )
+
+    @classmethod
+    def check_dict_list_for_patterns(
+        cls,
+        dict_list: List[dict],
+        key: str,
+        patterns: List[str]
+    ) -> bool:
+        """Check if any dictionary in the list has a value for the given key that matches any of the patterns.
+
+        Args:
+            dict_list (List[dict]): List of dictionaries to check.
+            key (str): The key in the dictionary to check the value of.
+            patterns (List[str]): List of patterns to match against the value.
+
+        Returns:
+            bool: True if any value matches any pattern, False otherwise.
+        """
+        if not patterns:
+            return False
+        cls.get_logger().debug(f"Checking patterns {patterns} in key '{key}' of dict list")
+        result = check_wildcard_patterns(
+            [item.get(key, '') for item in dict_list],
+            patterns
+        )
+        cls.get_logger().debug(f"Pattern match result: {result}")
+        return result
+
+    @classmethod
+    def get_controller_meta(
+        cls,
+        controller_data: dict
+    ) -> dict:
+        """Extract relevant metadata for the controller.
+
+        Args:
+        something
+        """
+        if not controller_data:
+            raise ValueError("No controller data provided")
+        return controller_data.get('RSLogix5000Content', {}).get('Controller', {})
+
+    @classmethod
+    def get_controller_data_list(
+        cls,
+        controller_data: dict,
+        data_string: str,
+    ) -> List[dict]:
+        """Extract the list of data from the controller data.
+
+        Args:
+            controller_data (dict): The controller data to extract from.
+            data_string (str): The key string to extract (e.g., 'Program', 'Tag').
+
+        Returns:
+            List[dict]: The list of data dictionaries.
+        """
+        controller_meta = cls.get_controller_meta(controller_data)
+        data_list = controller_meta.get(f'{data_string}s', {}).get(data_string, [])
+        if isinstance(data_list, dict):
+            data_list = [data_list]
+        return data_list

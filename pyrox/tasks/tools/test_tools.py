@@ -27,7 +27,7 @@ class TestControllerGenerateTask(unittest.TestCase):
     def test_generate_gm_emulation_routine(self):
         return  # this needs to be updated later...
         self.assertNotIn('aaa_Emulation', self.program.routines)
-        self.task.generate_gm_emulation_routine()
+        self.task.inject_emulation_routine()
         self.assertIn('aaa_Emulation', self.program.routines)
 
     def test_generate_ford(self):

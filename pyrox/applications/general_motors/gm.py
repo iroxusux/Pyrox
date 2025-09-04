@@ -2,17 +2,16 @@
     """
 from enum import Enum
 import fnmatch
-import importlib
 from pyrox.models import HashList
+from pyrox.models.abc.generator import GeneratorFactory
 import re
 from typing import Optional, Union
 
-from ...models.plc import emu
-
-
-from ...models.plc.plc import (
+from ...models.plc import (
     AddOnInstruction,
     Controller,
+    ControllerConfiguration,
+    ControllerMatcher,
     Datatype,
     Module,
     NamedPlcObject,
@@ -20,8 +19,7 @@ from ...models.plc.plc import (
     Routine,
     Rung,
     PlcObject,
-    Tag,
-    ControllerConfiguration
+    Tag
 )
 
 
@@ -211,7 +209,6 @@ class NamedGmPlcObject(NamedPlcObject, GmPlcObject):
 
     @property
     def process_name(self) -> str:
-        """Get the name of this controller without GM plant identification prefixes"""
         if self.name.startswith(('CG_', 'zz_', 'sz_', 'zs_')):
             return self.name[3:]
 
@@ -499,6 +496,8 @@ class GmController(NamedGmPlcObject, Controller):
     """General Motors Plc Controller
     """
 
+    controller_type = 'GmController'
+
     @property
     def kdiags(self) -> list[KDiag]:
         x = []
@@ -557,7 +556,7 @@ class GmController(NamedGmPlcObject, Controller):
 
     def generate_emulation_logic(self):
         """Generate GM emulation logic for the controller using the factory pattern."""
-        generator = emu.EmulationFactory.create_generator(self)
+        generator = GeneratorFactory.create_generator(self)
         return generator.generate_emulation_logic()
 
     def remove_emulation_logic(self):
@@ -573,3 +572,56 @@ class GmController(NamedGmPlcObject, Controller):
         duplicate_diags = find_duplicates(self.kdiags, True)
 
         return duplicate_diags
+
+
+class GmControllerMatcher(ControllerMatcher):
+    """Matcher for GM controllers."""
+
+    @classmethod
+    def get_controller_constructor(cls):
+        return GmController
+
+    @classmethod
+    def get_datatype_patterns(cls) -> list[str]:
+        return [
+            'zz_Version',
+            'zz_Prompt',
+            'zz_PFEAlarm',
+            'za_Toggle'
+        ]
+
+    @classmethod
+    def get_module_patterns(cls) -> list[str]:
+        return [
+            'sz_*',
+            'zz_*',
+            'cg_*',
+            'zs_*'
+        ]
+
+    @classmethod
+    def get_program_patterns(cls) -> list[str]:
+        return [
+            'MCP',
+            'PFE',
+            'GROUP1',
+            'GROUP2',
+            'HMI1',
+            'HMI2',
+        ]
+
+    @classmethod
+    def get_safety_program_patterns(cls) -> list[str]:
+        return [
+            's_Common',
+            's_Segment1',
+            's_Segment2',
+        ]
+
+    @classmethod
+    def get_tag_patterns(cls) -> list[str]:
+        return [
+            'z_FifoDataElement',
+            'z_JunkData',
+            'z_NoData'
+        ]

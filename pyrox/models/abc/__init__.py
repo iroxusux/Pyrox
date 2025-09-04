@@ -8,6 +8,8 @@ from .application import (
     BaseMenu,
 )
 
+from .generator import GeneratorMeta
+
 from .list import (
     HashList,
     SafeList
@@ -35,6 +37,7 @@ __all__ = (
     'BaseMenu',
     'Buildable',
     'EnforcesNaming',
+    'GeneratorMeta',
     'HashList',
     'Loggable',
     'Model',
