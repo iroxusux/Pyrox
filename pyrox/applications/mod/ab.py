@@ -1,10 +1,91 @@
 """Allen Bradley specific PLC Modules.
 """
 from __future__ import annotations
-from pyrox.models.plc import IntrospectiveModule, ModuleWarehouse, ModuleControlsType
+from pyrox.models.plc import AllenBradleyModule, ModuleControlsType
 
 
-class AB_1732Es(IntrospectiveModule):
+class AllenBradleyGenericSafetyBlock(AllenBradleyModule):
+    @property
+    def catalog_number(self) -> str:
+        """The catalog number of the G115 drive module."""
+        return 'GENERIC-SAFETY-BLOCK'
+
+    @property
+    def controls_type(self) -> ModuleControlsType:
+        """The controls type of the module."""
+        return ModuleControlsType.SAFETY_BLOCK
+
+    @classmethod
+    def get_required_imports(cls) -> list[tuple[str, list[str]]]:
+        """Get the required datatype imports for the module.
+
+        Returns:
+            list[tuple[str, str]]: List of tuples containing the module and class name to import.
+        """
+        return [
+            (r'docs\controls\emu\Demo3D_WDint_DataType.L5X', ['DataTypes']),
+            (r'docs\controls\emu\Demo3D_CommOK_SBK_DataType.L5X', ['DataTypes'])
+        ]
+
+    def get_required_safety_rungs(self):
+        rungs = []
+        module = self.module
+        controller = module.controller
+        constructor = module.controller.config.rung_type
+        rungs.append(constructor(
+            controller=controller,
+            text=f'COP(sz_Demo3D_{module.name}_I,{module.name}:I,1);',
+            comment='Copy the input data from the emulation tag to the safety block.'
+        ))
+        return rungs
+
+    def get_required_standard_rungs(self):
+        rungs = []
+        module = self.module
+        controller = module.controller
+        constructor = module.controller.config.rung_type
+        rungs.append(constructor(
+            controller=controller,
+            text=f'[XIO(zz_Demo3D_{module.name}_I.Word1.0),XIC(zz_Demo3D_{module.name}_I.Word1.1)]FLL(0,zz_Demo3D_{module.name}_I.Word2,2);',  # noqa: E501
+            comment='If communication status is lost to the SBK via the emulation model, zero out the SBK words.'
+        ))
+
+        rungs.append(constructor(
+            controller=controller,
+            text=f'COP({module.name}:O,zz_Demo3D_{module.name}_O,1);',
+            comment='Copy the output data from the safety block to the emulation tag.'
+        ))
+
+        return rungs
+
+    def get_required_tags(self) -> list[dict]:
+        tags = []
+        tags.append({
+            'tag_name': self.get_standard_input_tag_name(),
+            'datatype': 'Demo3D_WDint',
+        })
+        tags.append({
+            'tag_name': self.get_safety_input_tag_name(),
+            'class_': 'Safety',
+            'datatype': 'Demo3D_WDint',
+        })
+        tags.append({
+            'tag_name': self.get_standard_output_tag_name(),
+            'datatype': 'DINT',
+        })
+        return tags
+
+    def get_safety_input_tag_name(self):
+        return f'sz_Demo3D_{self.module.name}_I'
+
+    def get_standard_input_tag_name(self):
+        return f'zz_Demo3D_{self.module.name}_I'
+
+    def get_standard_output_tag_name(self):
+        return f'zz_Demo3D_{self.module.name}_O'
+
+
+class AB_1732Es(AllenBradleyGenericSafetyBlock):
     """Allen Bradley 1732ES Safety Block Module.
     """
     @property
@@ -12,13 +93,8 @@ class AB_1732Es(IntrospectiveModule):
         """The catalog number of the G115 drive module."""
         return '1732ES-IB'
 
-    @property
-    def controls_type(self) -> ModuleControlsType:
-        """The controls type of the module."""
-        return ModuleControlsType.SAFETY_BLOCK
 
-
-class AB_1734IB8S(IntrospectiveModule):
+class AB_1734IB8S(AllenBradleyGenericSafetyBlock):
     """Allen Bradley 1734-IB8S Module.
 
     This module represents an Allen Bradley 1734-IB8S input module.
@@ -29,35 +105,11 @@ class AB_1734IB8S(IntrospectiveModule):
         """The catalog number of the 1734-IB8S module."""
         return '1734-IB8S'
 
-    @property
-    def controls_type(self) -> ModuleControlsType:
-        """The controls type of the module."""
-        return ModuleControlsType.SAFETY_BLOCK
 
-
-class AB_1791ES(IntrospectiveModule):
+class AB_1791ES(AllenBradleyGenericSafetyBlock):
     """Allen Bradley 1791ES Safety Block Module.
     """
     @property
     def catalog_number(self) -> str:
         """The catalog number of the G115 drive module."""
         return '1791ES-IB'
-
-    @property
-    def controls_type(self) -> ModuleControlsType:
-        """The controls type of the module."""
-        return ModuleControlsType.SAFETY_BLOCK
-
-
-class AllenBradleyWarehouse(ModuleWarehouse):
-    """Warehouse for Allen Bradley specific modules."""
-
-    warehouse_type: str = 'AllenBradleyWarehouse'
-
-    @property
-    def known_modules(self) -> list[IntrospectiveModule]:
-        return [
-            m for m in IntrospectiveModule.get_known_modules() if
-            m.catalog_number.startswith('1732')
-            or m.catalog_number.startswith('1734')
-        ]

@@ -1,10 +1,10 @@
 """Siemens specific PLC Modules.
 """
 from __future__ import annotations
-from pyrox.models.plc import IntrospectiveModule, ModuleWarehouse, ModuleControlsType
+from pyrox.models.plc import SiemensModule, ModuleControlsType
 
 
-class G115Drive(IntrospectiveModule):
+class G115Drive(SiemensModule):
     """G115 Drive Module for Siemens PLCs.
 
     This module represents a G115 drive in a Siemens PLC system.
@@ -63,9 +63,3 @@ class G115Drive(IntrospectiveModule):
         i14 = f'CPS({pname}:O.Data[1],zz_Demo3D_{cname}_Siemens_Drives[{index}].Outputs.Setpoint,1)'
 
         return f'[{i1}{i2}{i3},{i4}{i5},{i6}{i7}{i8},{i9}{i10}{i11},{i12},{i13}{i14}];'
-
-
-class SiemensWarehouse(ModuleWarehouse):
-    """Warehouse for Allen Bradley specific modules."""
-
-    warehouse_type: str = 'SiemensWarehouse'

@@ -3,7 +3,7 @@ from . import gm
 from pyrox.models import plc
 
 
-class GmEmulationGenerator(plc.BaseEmulationGenerator):
+class GmEmulationGenerator(plc.EmulationGenerator):
     """General Motors specific emulation logic generator."""
 
     generator_type = "GmController"

@@ -531,8 +531,15 @@ class LaunchToStudioTask(ApplicationTask):
 
         self.logger.info('Launching Studio 5000 with file: %s', controller_file)
         try:
-            import os
-            os.startfile(controller_file)
+            import subprocess
+
+            # Launch Studio 5000 as a detached process
+            subprocess.Popen(
+                ['cmd', '/c', 'start', '', controller_file],
+                shell=True,
+                creationflags=subprocess.DETACHED_PROCESS | subprocess.CREATE_NEW_PROCESS_GROUP,
+                close_fds=True
+            )
         except Exception as e:
             self.logger.error(f'Failed to launch Studio 5000: {e}')
 

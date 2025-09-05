@@ -1,0 +1,54 @@
+﻿<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<RSLogix5000Content SchemaRevision="1.0" SoftwareRevision="36.00" TargetName="Demo3D_MMX_O" TargetType="DataType" ContainsContext="true" Owner="EQUANS North America IT, CCG" ExportDate="Thu Sep 04 17:05:09 2025" ExportOptions="References NoRawData L5KData DecoratedData Context Dependencies ForceProtectedEncoding AllProjDocTrans">
+<Controller Use="Context" Name="OHAP_T2_C01">
+<DataTypes Use="Context">
+<DataType Use="Target" Name="Demo3D_MMX_O" Family="NoFamily" Class="User">
+<Members>
+<Member Name="S1" DataType="Demo3D_WInt" Dimension="0" Radix="NullType" Hidden="false" ExternalAccess="Read/Write"/>
+<Member Name="S2" DataType="Demo3D_WInt" Dimension="0" Radix="NullType" Hidden="false" ExternalAccess="Read/Write"/>
+<Member Name="S3" DataType="Demo3D_WInt" Dimension="0" Radix="NullType" Hidden="false" ExternalAccess="Read/Write"/>
+<Member Name="S4" DataType="Demo3D_WInt" Dimension="0" Radix="NullType" Hidden="false" ExternalAccess="Read/Write"/>
+<Member Name="S5" DataType="Demo3D_WInt" Dimension="0" Radix="NullType" Hidden="false" ExternalAccess="Read/Write"/>
+<Member Name="S6" DataType="Demo3D_WInt" Dimension="0" Radix="NullType" Hidden="false" ExternalAccess="Read/Write"/>
+<Member Name="S7" DataType="Demo3D_WInt" Dimension="0" Radix="NullType" Hidden="false" ExternalAccess="Read/Write"/>
+<Member Name="S8" DataType="Demo3D_WInt" Dimension="0" Radix="NullType" Hidden="false" ExternalAccess="Read/Write"/>
+<Member Name="S9" DataType="Demo3D_WInt" Dimension="0" Radix="NullType" Hidden="false" ExternalAccess="Read/Write"/>
+<Member Name="S10" DataType="Demo3D_WInt" Dimension="0" Radix="NullType" Hidden="false" ExternalAccess="Read/Write"/>
+<Member Name="S11" DataType="Demo3D_WInt" Dimension="0" Radix="NullType" Hidden="false" ExternalAccess="Read/Write"/>
+<Member Name="S12" DataType="Demo3D_WInt" Dimension="0" Radix="NullType" Hidden="false" ExternalAccess="Read/Write"/>
+<Member Name="S13" DataType="Demo3D_WInt" Dimension="0" Radix="NullType" Hidden="false" ExternalAccess="Read/Write"/>
+<Member Name="S14" DataType="Demo3D_WInt" Dimension="0" Radix="NullType" Hidden="false" ExternalAccess="Read/Write"/>
+<Member Name="S15" DataType="Demo3D_WInt" Dimension="0" Radix="NullType" Hidden="false" ExternalAccess="Read/Write"/>
+<Member Name="S16" DataType="Demo3D_WInt" Dimension="0" Radix="NullType" Hidden="false" ExternalAccess="Read/Write"/>
+<Member Name="S17" DataType="Demo3D_WInt" Dimension="0" Radix="NullType" Hidden="false" ExternalAccess="Read/Write"/>
+</Members>
+<Dependencies>
+<Dependency Type="DataType" Name="Demo3D_WInt"/>
+<Dependency Type="DataType" Name="Demo3D_WInt"/>
+<Dependency Type="DataType" Name="Demo3D_WInt"/>
+<Dependency Type="DataType" Name="Demo3D_WInt"/>
+<Dependency Type="DataType" Name="Demo3D_WInt"/>
+<Dependency Type="DataType" Name="Demo3D_WInt"/>
+<Dependency Type="DataType" Name="Demo3D_WInt"/>
+<Dependency Type="DataType" Name="Demo3D_WInt"/>
+<Dependency Type="DataType" Name="Demo3D_WInt"/>
+<Dependency Type="DataType" Name="Demo3D_WInt"/>
+<Dependency Type="DataType" Name="Demo3D_WInt"/>
+<Dependency Type="DataType" Name="Demo3D_WInt"/>
+<Dependency Type="DataType" Name="Demo3D_WInt"/>
+<Dependency Type="DataType" Name="Demo3D_WInt"/>
+<Dependency Type="DataType" Name="Demo3D_WInt"/>
+<Dependency Type="DataType" Name="Demo3D_WInt"/>
+<Dependency Type="DataType" Name="Demo3D_WInt"/>
+</Dependencies>
+</DataType>
+<DataType Name="Demo3D_WInt" Family="NoFamily" Class="User">
+<Members>
+<Member Name="I0" DataType="INT" Dimension="0" Radix="Decimal" Hidden="false" ExternalAccess="Read/Write"/>
+<Member Name="I1" DataType="INT" Dimension="0" Radix="Decimal" Hidden="false" ExternalAccess="Read/Write"/>
+<Member Name="I2" DataType="INT" Dimension="0" Radix="Decimal" Hidden="false" ExternalAccess="Read/Write"/>
+</Members>
+</DataType>
+</DataTypes>
+</Controller>
+</RSLogix5000Content>

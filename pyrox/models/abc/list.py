@@ -133,16 +133,16 @@ class HashList(Subscribable, Generic[T]):
         else:
             raise TypeError(f'Item must be a dict, object or str, got {type(item)}')
 
-    def __getitem__(self, key):
+    def __getitem__(self, key) -> Optional[T]:
         if isinstance(key, int):
             return self.by_index(key)
         return self.hashes[key]
 
-    def __iter__(self):
+    def __iter__(self) -> T:
         for item in self.hashes:
             yield self.hashes[item]
 
-    def __len__(self):
+    def __len__(self) -> int:
         return len(self._hashes)
 
     @property

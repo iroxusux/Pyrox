@@ -1,0 +1,118 @@
+﻿<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<RSLogix5000Content SchemaRevision="1.0" SoftwareRevision="36.00" TargetName="Demo3D_MoviMotAdv" TargetType="DataType" ContainsContext="true" Owner="EQUANS North America IT, CCG" ExportDate="Tue Aug 26 17:12:24 2025" ExportOptions="References NoRawData L5KData DecoratedData Context Dependencies ForceProtectedEncoding AllProjDocTrans">
+<Controller Use="Context" Name="P800_TEVC_T6C">
+<DataTypes Use="Context">
+<DataType Use="Target" Name="Demo3D_MoviMotAdv" Family="NoFamily" Class="User">
+<Members>
+<Member Name="I" DataType="Demo3D_MoviMotAdv_In" Dimension="0" Radix="NullType" Hidden="false" ExternalAccess="Read/Write">
+<Description>
+<![CDATA[Movimot Input Structure]]>
+</Description>
+</Member>
+<Member Name="O" DataType="Demo3D_MoviMotAdv_Out" Dimension="0" Radix="NullType" Hidden="false" ExternalAccess="Read/Write">
+<Description>
+<![CDATA[Movimot Output Structure]]>
+</Description>
+</Member>
+</Members>
+<Dependencies>
+<Dependency Type="DataType" Name="Demo3D_MoviMotAdv_In"/>
+<Dependency Type="DataType" Name="Demo3D_MoviMotAdv_Out"/>
+</Dependencies>
+</DataType>
+<DataType Name="Demo3D_MoviMotAdv_In" Family="NoFamily" Class="User">
+<Members>
+<Member Name="Word1" DataType="INT" Dimension="0" Radix="Decimal" Hidden="false" ExternalAccess="Read/Write">
+<Description>
+<![CDATA[Drive Status]]>
+</Description>
+</Member>
+<Member Name="Word2" DataType="INT" Dimension="0" Radix="Decimal" Hidden="false" ExternalAccess="Read/Write">
+<Description>
+<![CDATA[Actual Speed]]>
+</Description>
+</Member>
+<Member Name="Word3" DataType="SINT" Dimension="0" Radix="Decimal" Hidden="false" ExternalAccess="Read/Write">
+<Description>
+<![CDATA[Sub Fault Code]]>
+</Description>
+</Member>
+<Member Name="Word4" DataType="SINT" Dimension="0" Radix="Decimal" Hidden="false" ExternalAccess="Read/Write">
+<Description>
+<![CDATA[Fault Code]]>
+</Description>
+</Member>
+<Member Name="Word5" DataType="INT" Dimension="0" Radix="Decimal" Hidden="false" ExternalAccess="Read/Write">
+<Description>
+<![CDATA[Drive Amps]]>
+</Description>
+</Member>
+<Member Name="Word6" DataType="INT" Dimension="0" Radix="Decimal" Hidden="false" ExternalAccess="Read/Write">
+<Description>
+<![CDATA[Digital Inputs]]>
+</Description>
+</Member>
+<Member Name="Word7" DataType="INT" Dimension="0" Radix="Decimal" Hidden="false" ExternalAccess="Read/Write">
+<Description>
+<![CDATA[Actual Application Mode]]>
+</Description>
+</Member>
+<Member Name="Word8" DataType="INT" Dimension="0" Radix="Decimal" Hidden="false" ExternalAccess="Read/Write">
+<Description>
+<![CDATA[Application State]]>
+</Description>
+</Member>
+<Member Name="Word9" DataType="INT" Dimension="0" Radix="Decimal" Hidden="false" ExternalAccess="Read/Write">
+<Description>
+<![CDATA[Free Selection]]>
+</Description>
+</Member>
+</Members>
+</DataType>
+<DataType Name="Demo3D_MoviMotAdv_Out" Family="NoFamily" Class="User">
+<Members>
+<Member Name="Word1" DataType="INT" Dimension="0" Radix="Decimal" Hidden="false" ExternalAccess="Read/Write">
+<Description>
+<![CDATA[Drive Command Word]]>
+</Description>
+</Member>
+<Member Name="Word2" DataType="INT" Dimension="0" Radix="Decimal" Hidden="false" ExternalAccess="Read/Write">
+<Description>
+<![CDATA[Rapid/Jog Speed Mode]]>
+</Description>
+</Member>
+<Member Name="Word3" DataType="INT" Dimension="0" Radix="Decimal" Hidden="false" ExternalAccess="Read/Write">
+<Description>
+<![CDATA[Accel Ramp]]>
+</Description>
+</Member>
+<Member Name="Word4" DataType="INT" Dimension="0" Radix="Decimal" Hidden="false" ExternalAccess="Read/Write">
+<Description>
+<![CDATA[Decel Ramp]]>
+</Description>
+</Member>
+<Member Name="Word5" DataType="INT" Dimension="0" Radix="Decimal" Hidden="false" ExternalAccess="Read/Write">
+<Description>
+<![CDATA[Digital Outputs]]>
+</Description>
+</Member>
+<Member Name="Word6" DataType="INT" Dimension="0" Radix="Decimal" Hidden="false" ExternalAccess="Read/Write">
+<Description>
+<![CDATA[Application Mode]]>
+</Description>
+</Member>
+<Member Name="Word7" DataType="INT" Dimension="0" Radix="Decimal" Hidden="false" ExternalAccess="Read/Write">
+<Description>
+<![CDATA[Creep Speed]]>
+</Description>
+</Member>
+<Member Name="Word8" DataType="INT" Dimension="0" Radix="Decimal" Hidden="false" ExternalAccess="Read/Write">
+<Description>
+<![CDATA[Decel Stop]]>
+</Description>
+</Member>
+</Members>
+</DataType>
+</DataTypes>
+</Controller>
+</RSLogix5000Content>

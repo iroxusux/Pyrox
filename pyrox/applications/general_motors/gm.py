@@ -496,7 +496,7 @@ class GmController(NamedGmPlcObject, Controller):
     """General Motors Plc Controller
     """
 
-    controller_type = 'GmController'
+    generator_type = 'GmEmulationGenerator'
 
     @property
     def kdiags(self) -> list[KDiag]:

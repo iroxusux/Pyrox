@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import copy
-import importlib
 import os
 
 from typing import Any, Optional
@@ -58,7 +57,6 @@ class AppOrganizerContextMenu(models.ContextMenu):
 
     def _on_edit_routine(self,
                          routine: models.plc.Routine):
-        importlib.reload(models)
         ladder_frame = models.LadderEditorTaskFrame(
             master=self._app.workspace,
             controller=self._app.controller,
@@ -365,7 +363,6 @@ class App(models.Application):
         """
 
         try:
-            importlib.reload(models.plc)
             return models.plc.Controller.from_file(file_location)
         except (KeyError, ValueError, TypeError) as e:
             self.logger.error('error parsing controller from file %s: %s', file_location, e)

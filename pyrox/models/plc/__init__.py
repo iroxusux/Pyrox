@@ -1,10 +1,11 @@
 """Plc types module
     """
-from .emu import BaseEmulationGenerator
 
-from .factory import ModuleWarehouse, ModuleWarehouseFactory
-
-from .mod import IntrospectiveModule, ModuleControlsType
+from .mod import (
+    AllenBradleyModule,
+    SewModule,
+    SiemensModule,
+)
 
 from .plc import (
     AddOnInstruction,
@@ -20,9 +21,16 @@ from .plc import (
     Datatype,
     DatatypeMember,
     DataValueMember,
+    EmulationGenerator,
+    EmulationGeneratorFactory,
+    IntrospectiveModule,
     LogixInstruction,
     LogixAssetType,
     Module,
+    ModuleControlsType,
+    ModuleVendorFactory,
+    ModuleWarehouse,
+    ModuleWarehouseFactory,
     NamedPlcObject,
     PlcObject,
     Program,
@@ -34,7 +42,7 @@ from .plc import (
 
 __all__ = (
     'AddOnInstruction',
-    'BaseEmulationGenerator',
+    'AllenBradleyModule',
     'BASE_FILES',
     'ConnectionCommand',
     'ConnectionParameters',
@@ -47,11 +55,14 @@ __all__ = (
     'Datatype',
     'DatatypeMember',
     'DataValueMember',
+    'EmulationGenerator',
+    'EmulationGeneratorFactory',
     'IntrospectiveModule',
     'LogixAssetType',
     'LogixInstruction',
     'Module',
     'ModuleControlsType',
+    'ModuleVendorFactory',
     'ModuleWarehouse',
     'ModuleWarehouseFactory',
     'NamedPlcObject',
@@ -59,6 +70,8 @@ __all__ = (
     'Program',
     'Routine',
     'Rung',
+    'SewModule',
+    'SiemensModule',
     'Tag',
     'TagEndpoint',
 )

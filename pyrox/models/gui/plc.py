@@ -99,6 +99,7 @@ class ControllerGuiObject(PlcGuiObject):
         return [
             ObjectEditField('name', 'Name', tk.Label, True),
             ObjectEditField('description', 'Description', tk.Text, True),
+            ObjectEditField('controller_type', 'Controller Type', None, None),
             ObjectEditField('file_location', 'File Location', tk.Label, False),
             ObjectEditField('comm_path', 'Communication Path', tk.Label, True),
             ObjectEditField('major_revision', 'Major Revision', tk.Label, True),

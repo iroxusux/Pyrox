@@ -939,7 +939,7 @@ class MetaFactory(ABC, LazyLoggable):
     _registered_types: dict = {}
 
     @classmethod
-    def registered_types(cls) -> dict:
+    def get_registered_types(cls) -> dict[str, Type]:
         """Get the registered types for this factory.
 
         Returns:
@@ -974,29 +974,26 @@ class FactoryTypeMeta(ABCMeta, LazyLoggable):
 
         factory = cls.get_factory()
         if factory is None:
-            cls.get_logger().debug(
-                f'FactoryTypeMeta: No factory found for class {name}.'
-            )
+            cls.get_logger().debug(f'FactoryTypeMeta: No factory found for class {name}.')
             return new_cls
 
         factory_class = cls.get_class()
         if factory_class is None:
-            cls.get_logger().debug(
-                f'FactoryTypeMeta: No factory class found for class {name}.'
-            )
+            cls.get_logger().debug(f'FactoryTypeMeta: No factory class found for class {name}.')
             return new_cls
 
         if (name != factory_class.__name__ and
                 issubclass(new_cls, factory_class)):
             factory = cls.get_factory()
             if factory is None:
-                cls.get_logger().debug(
-                    f'FactoryTypeMeta: No factory found for class {name}.'
-                )
+                cls.get_logger().debug(f'FactoryTypeMeta: No factory found for class {name}.')
                 return new_cls
 
-            registered_types = factory.registered_types()
-            registered_types[new_cls.__name__] = new_cls
+            factory.register_type(new_cls)
+        else:
+            cls.get_logger().debug(
+                f'FactoryTypeMeta: Class {name} is the factory class itself or does not subclass it.'
+            )
 
         return new_cls
 

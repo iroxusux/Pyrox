@@ -3,8 +3,7 @@
 from __future__ import annotations
 
 from pyrox.applications.app import App, AppTask
-from pyrox.models.plc import Controller
-from pyrox.models.plc.emu import BaseEmulationGenerator
+from pyrox.models.plc import Controller, EmulationGenerator, EmulationGeneratorFactory
 import json
 from tkinter import Menu
 from typing import Union
@@ -31,9 +30,9 @@ class ControllerGenerateTask(AppTask):
         return controller
 
     @staticmethod
-    def _get_generator(controller: Controller) -> BaseEmulationGenerator:
-        generator: BaseEmulationGenerator = BaseEmulationGenerator.get_generator(controller)
-        if not isinstance(generator, BaseEmulationGenerator):
+    def _get_generator(controller: Controller) -> EmulationGenerator:
+        generator: EmulationGenerator = EmulationGeneratorFactory.get_generator(controller)
+        if not isinstance(generator, EmulationGenerator):
             raise ValueError('No valid generator found for this controller type!')
         return generator
 

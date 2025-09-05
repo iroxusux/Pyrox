@@ -3,7 +3,7 @@
 from typing import Optional
 
 from pyrox.models import HashList
-from pyrox.models.abc.generator import GeneratorFactory
+from pyrox.models.abc.generator import GeneratorFactory, BaseGenerator
 
 from ...models.plc import (
     AddOnInstruction,
@@ -96,7 +96,7 @@ class FordController(NamedFordPlcObject, Controller):
     """Ford Plc Controller
     """
 
-    controller_type = 'FordController'
+    generator_type = 'FordEmulationGenerator'
 
     @property
     def main_program(self) -> Optional[FordProgram]:
@@ -112,21 +112,19 @@ class FordController(NamedFordPlcObject, Controller):
 
     def generate_emulation_logic(self):
         """Generate GM emulation logic for the controller using the factory pattern."""
-        generator = GeneratorFactory.create_generator(self)
+        generator: BaseGenerator = GeneratorFactory.create_generator(self)
         return generator.generate_emulation_logic()
 
     def remove_emulation_logic(self):
         """Remove GM emulation logic from the controller using the factory pattern."""
-        from ...models.plc.emu import EmulationFactory
-
-        generator = EmulationFactory.create_generator(self)
+        generator: BaseGenerator = GeneratorFactory.create_generator(self)
         return generator.remove_emulation_logic()
 
 
 class FordControllerMatcher(ControllerMatcher):
     """Matcher for GM controllers.
     """
-    
+
     @classmethod
     def get_controller_constructor(cls):
         return FordController

@@ -6,15 +6,16 @@ from . import (
     gui
 )
 
-
 from .abc import (
     Application,
     ApplicationConfiguration,
     ApplicationTask,
     ApplicationTkType,
     Buildable,
+    FactoryTypeMeta,
     HashList,
     Loggable,
+    MetaFactory,
     Model,
     SafeList,
     SnowFlake,
@@ -39,6 +40,9 @@ from .plc import (
     ConnectionCommand,
     ConnectionParameters,
     Controller,
+    IntrospectiveModule,
+    Module,
+    ModuleControlsType,
 )
 
 
@@ -53,14 +57,19 @@ __all__ = (
     'ConnectionParameters',
     'ContextMenu',
     'Controller',
+    'FactoryTypeMeta',
     'FrameWithTreeViewAndScrollbar',
     'HashList',
+    'IntrospectiveModule',
     'LadderEditorTaskFrame',
     'LaunchableModel',
     'LogFrame',
     'Loggable',
     'MenuItem',
+    'MetaFactory',
     'Model',
+    'Module',
+    'ModuleControlsType',
     'ObjectEditTaskFrame',
     'OrganizerWindow',
     'plc',

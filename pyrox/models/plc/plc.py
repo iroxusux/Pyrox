@@ -1,6 +1,7 @@
 """PLC type module for Pyrox framework."""
 from __future__ import annotations
 
+from abc import abstractmethod
 from collections import defaultdict
 from dataclasses import dataclass, field
 from enum import Enum
@@ -18,8 +19,6 @@ from typing import (
     TypeVar,
     Union,
 )
-
-from .mod import IntrospectiveModule
 from ..abc.meta import EnforcesNaming, Loggable, PyroxObject, NamedPyroxObject, FactoryTypeMeta, MetaFactory
 from ..abc.list import HashList
 from ...services.dictionary_services import insert_key_at_index
@@ -39,7 +38,14 @@ __all__ = (
     'Datatype',
     'DatatypeMember',
     'DataValueMember',
+    'EmulationGenerator',
+    'EmulationGeneratorFactory',
+    'IntrospectiveModule',
     'Module',
+    'ModuleControlsType',
+    'ModuleVendorFactory',
+    'ModuleWarehouse',
+    'ModuleWarehouseFactory',
     'Program',
     'Routine',
     'Rung',
@@ -1703,6 +1709,234 @@ class Datatype(NamedPlcObject):
         return report
 
 
+class ModuleControlsType(Enum):
+    """Module controls type enumeration
+    """
+    UNKOWN = 'Unknown'
+    PLC = 'PLC'
+    BLOCK = 'Block'
+    SAFETY_BLOCK = 'SafetyBlock'
+    DRIVE = 'Drive'
+
+
+class IntrospectiveModuleFactory(MetaFactory):
+    """Factory for creating Introspective Module instances."""
+
+    _registered_types: dict = {}
+
+
+class IntrospectiveModuleMeta(FactoryTypeMeta):
+    """Metaclass for auto-registering Warehouse subclasses."""
+
+    @classmethod
+    def get_class(cls) -> Type['IntrospectiveModule']:
+        try:
+            return IntrospectiveModule
+        except NameError:
+            return None
+
+    @classmethod
+    def get_factory(cls):
+        return IntrospectiveModuleFactory
+
+
+class IntrospectiveModule:
+    """Introspective Module for a rockwell plc.
+    This is a wrapper around the Module class to provide introspection capabilities.
+    Such as, a Siemens G115Drive, or a Rockwell 1756-L85E controller.
+    It is used to extend capabilities of known modules, or to provide a way to introspect unknown modules.
+    """
+
+    def __init__(
+        self,
+        module: Optional[Module] = None
+    ) -> None:
+        self._module = module
+
+    @classmethod
+    def get_controls_type(cls) -> ModuleControlsType:
+        """Get the controls type of the module."""
+        obj = cls()
+        return obj.controls_type
+        # raise NotImplementedError('This method should be implemented by the subclass.')
+
+    @classmethod
+    def get_required_imports(cls) -> list[tuple[str, str]]:
+        """Get the required datatype imports for the module.
+
+        Returns:
+            list[tuple[str, str]]: List of tuples containing the module and class name to import.
+        """
+        return []
+
+    def get_required_safety_rungs(self) -> list[Rung]:
+        """Get the required safety rungs for the module.
+
+        Returns:
+            list[Rung]: List of rungs.
+        """
+        return []
+
+    def get_required_standard_rungs(self) -> list[Rung]:
+        """Get the required standard rungs for the module.
+
+        Returns:
+            list[Rung]: List of rungs.
+        """
+        return []
+
+    def get_required_standard_to_safety_mapping(self) -> tuple[str, str]:
+        """Get the required standard to safety mapping for the module.
+
+        Returns:
+            dict[str, str]: Dictionary of standard to safety mapping.
+        """
+        return self.get_standard_input_tag_name(), self.get_safety_input_tag_name()
+
+    @classmethod
+    def get_required_tags(cls) -> list[dict]:
+        """Get the required tags for the module.
+
+        Returns:
+            list[dict]: List of tag dictionaries.
+        """
+        return []
+
+    def get_safety_input_tag_name(self) -> str:
+        """Get the safety tag name for the module.
+
+        Returns:
+            str: Safety tag name.
+        """
+        return ''
+
+    def get_standard_input_tag_name(self) -> str:
+        """Get the standard tag name for the module.
+
+        Returns:
+            str: Standard tag name.
+        """
+        return ''
+
+    def get_standard_output_tag_name(self) -> str:
+        """Get the standard output tag name for the module.
+
+        Returns:
+            str: Standard output tag name.
+        """
+        return ''
+
+    @property
+    def catalog_number(self) -> str:
+        """The catalog number of the module."""
+        return ''
+
+    @property
+    def controls_type(cls) -> ModuleControlsType:
+        """The controls type of the module."""
+        return ModuleControlsType.UNKOWN
+
+    @property
+    def input_cxn_point(self) -> str:
+        """The input connection point of the module."""
+        return ''
+
+    @property
+    def output_cxn_point(self) -> str:
+        """The output connection point of the module."""
+        return ''
+
+    @property
+    def input_size(self) -> int:
+        """The input size of the module."""
+        return ''
+
+    @property
+    def module(self) -> Optional[Module]:
+        """The module being wrapped by the IntrospectiveModule."""
+        return self._module
+
+    @module.setter
+    def module(self, value: Module) -> None:
+        if not isinstance(value, Module):
+            raise ValueError('Module must be an instance of Module.')
+        self._module = value
+
+    @property
+    def output_size(self) -> int:
+        """The output size of the module."""
+        raise NotImplementedError('This method should be implemented by the subclass.')
+
+    @property
+    def type_(self) -> str:
+        """Get the type of the module."""
+        return self.__class__.__name__
+
+    @classmethod
+    def from_meta_data(
+        cls,
+        module: Module,
+        lazy_match_catalog: Optional[bool] = False
+    ) -> IntrospectiveModule:
+        """Create an IntrospectiveModule from a Module instance.
+        This method will attempt to match the module to a known IntrospectiveModule subclass
+
+        Args:
+            module (Module): The Module instance to wrap.
+            lazy_match_catalog (bool, optional): If True, will attempt to match the catalog number
+                using a substring match if an exact match is not found. Defaults to False.
+
+        Returns:
+            IntrospectiveModule: An instance of the matched IntrospectiveModule subclass,
+                or a generic IntrospectiveModule if no match is found.
+
+        Raises:
+            ValueError: If the module is None.
+        """
+        if not module:
+            raise ValueError('Module is required to create an IntrospectiveModule.')
+
+        if not module.catalog_number:
+            return cls(module)
+
+        known_modules = ModuleWarehouseFactory.get_all_known_modules()
+        if not known_modules:
+            return cls(module)
+
+        for m in known_modules:
+            mod = m(module)
+            if (mod.catalog_number == module.catalog_number and
+                    mod.input_cxn_point == module.input_connection_point and
+                    mod.output_cxn_point == module.output_connection_point and
+                    mod.input_size == module.input_connection_size and
+                    mod.output_size == module.output_connection_size):
+                return mod
+            if lazy_match_catalog and module.catalog_number != 'ETHERNET-MODULE':
+                if mod.catalog_number in module.catalog_number:
+                    return mod
+        return cls(module)
+
+    def get_safety_emulation_rung_text(self) -> str:
+        """Get the emulation rung text for the safety module.
+        This is used to generate the emulation logic for the safety module.
+        .. ------------------------------------------------------------
+        .. returns::
+            :class:`str`
+                The emulation rung text for the safety module.
+        """
+        raise NotImplementedError('This method should be implemented by the subclass.')
+
+    def get_standard_emulation_rung_text(self) -> str:
+        """Get the emulation rung text for the module.
+        This is used to generate the emulation logic for the module.
+        .. ------------------------------------------------------------
+        .. returns::
+            :class:`str`
+                The emulation rung text for the module.
+        """
+        raise NotImplementedError('This method should be implemented by the subclass.')
+
+
 class Module(NamedPlcObject):
     def __init__(self,
                  l5x_meta_data: dict = None,
@@ -1992,6 +2226,28 @@ class Program(ContainsRoutines):
     def use_as_folder(self) -> str:
         return self['@UseAsFolder']
 
+    def block_routine(
+        self,
+        routine_name: str,
+        blocking_bit: str
+    ) -> None:
+        """block a routine in this program
+
+        Args:
+            routine_name (str): name of the routine to block
+            blocking_bit (str): tag name of the bit to use for blocking
+        """
+        jsrs = self.get_instructions(instruction_filter='JSR')
+        for jsr in jsrs:
+            if jsr.operands[0].meta_data != routine_name:
+                continue
+            rung = jsr.rung
+            if not rung:
+                raise ValueError(f'JSR instruction {jsr.name} has no rung!')
+            if rung.text.startswith(f'XIC({blocking_bit})'):
+                continue
+            rung.text = f'XIC({blocking_bit}){rung.text}'
+
     def get_instructions(
         self,
         instruction_filter: Optional[str],
@@ -2010,6 +2266,28 @@ class Program(ContainsRoutines):
         for routine in self.routines:
             instructions.extend(routine.get_instructions(instruction_filter, operand_filter))
         return instructions
+
+    def unblock_routine(
+        self,
+        routine_name: str,
+        blocking_bit: str
+    ) -> None:
+        """unblock a routine in this program
+
+        Args:
+            routine_name (str): name of the routine to unblock
+            blocking_bit (str): tag name of the bit to use for blocking
+        """
+        jsrs = self.get_instructions(instruction_filter='JSR')
+        for jsr in jsrs:
+            if jsr.operand_value != routine_name:
+                continue
+            rung = jsr.rung
+            if not rung:
+                raise ValueError(f'JSR instruction {jsr.name} has no rung!')
+            if not rung.text.startswith(f'XIC({blocking_bit})'):
+                continue
+            rung.text = rung.text.replace(f'XIC({blocking_bit})', '', 1)
 
     def validate(self) -> ControllerReportItem:
         report = super().validate()
@@ -4122,7 +4400,7 @@ class ControllerFactory(MetaFactory):
 
         scored_matches: List[Tuple[float, Type]] = []
 
-        for _, matcher in ControllerMatcherFactory.registered_types().items():
+        for _, matcher in ControllerMatcherFactory.get_registered_types().items():
             score = matcher.calculate_score(controller_data)
             ctrl_class = matcher.get_controller_constructor()
             if score >= min_score:
@@ -4168,7 +4446,7 @@ class Controller(NamedPlcObject, Loggable, metaclass=ControllerMeta):
     .. ------------------------------------------------------------
     """
 
-    controller_type = 'Controller'
+    generator_type = 'EmulationGenerator'
 
     def __setitem__(self, key, value):
         super().__setitem__(key, value)
@@ -6012,3 +6290,963 @@ class ControllerMatcher(metaclass=ControllerMatcherMeta):
         if isinstance(data_list, dict):
             data_list = [data_list]
         return data_list
+
+
+class ModuleWarehouseFactory(MetaFactory):
+    """Factory for creating ModuleWarehouse instances."""
+
+    _registered_types: dict = {}
+
+    @classmethod
+    def get_all_known_modules(cls) -> List[IntrospectiveModule]:
+        """Get all known modules from all registered warehouses.
+
+        Returns:
+            List[IntrospectiveModule]: List of all known modules.
+        """
+        modules = []
+        warehouses = cls.get_registered_types()
+
+        for warehouse_name, warehouse_cls in warehouses.items():
+            if warehouse_cls:
+                modules.extend(warehouse_cls.get_known_modules())
+            else:
+                cls.get_logger().warning(f'Warehouse class for {warehouse_name} is None')
+
+        return modules
+
+    @classmethod
+    def get_modules_by_type(
+        cls,
+        module_type: ModuleControlsType
+    ) -> List[IntrospectiveModule]:
+        """Get all modules of a specific type from all registered warehouses.
+
+        Args:
+            module_type (ModuleControlsType): The type of module to filter by.
+
+        Returns:
+            List[IntrospectiveModule]: List of modules matching the specified type.
+        """
+        modules = []
+        warehouses = cls.get_registered_types()
+
+        for warehouse_name, warehouse_cls in warehouses.items():
+            if warehouse_cls:
+                modules.extend(warehouse_cls.get_modules_by_type(module_type))
+            else:
+                cls.get_logger().warning(f'Warehouse class for {warehouse_name} is None')
+
+        return modules
+
+    @classmethod
+    def filter_modules_by_type(
+        cls,
+        modules: List[Module],
+        module_type: ModuleControlsType
+    ) -> List[IntrospectiveModule]:
+        """Filter a list of modules by a specific type.
+
+        Args:
+            modules (List[IntrospectiveModule]): The list of modules to filter.
+            module_type (ModuleControlsType): The type of module to filter by.
+
+        Returns:
+            List[IntrospectiveModule]: List of modules matching the specified type.
+        """
+        filtered = []
+        for module in modules:
+            if not module.introspective_module:
+                cls.get_logger().warning(f'Module {module} has no introspective_module, skipping...')
+                continue
+            if module.introspective_module.controls_type != module_type:
+                continue
+            filtered.append(module.introspective_module)
+        return filtered
+
+
+class ModuleWarehouseMeta(FactoryTypeMeta):
+    """Metaclass for auto-registering Warehouse subclasses."""
+
+    @classmethod
+    def get_class(cls) -> Type['ModuleWarehouse']:
+        try:
+            return ModuleWarehouse
+        except NameError:
+            return None
+
+    @classmethod
+    def get_factory(cls):
+        return ModuleWarehouseFactory
+
+
+class ModuleWarehouse(metaclass=ModuleWarehouseMeta):
+    """Class used to manage a collection of IntrospectiveModules.
+
+    Can filter types, catalog numbers, etc.
+    """
+
+    @classmethod
+    def get_known_modules(cls) -> list[IntrospectiveModule]:
+        factory = cls.get_factory()
+        if not factory:
+            raise ValueError('No factory found for ModuleWarehouse.')
+        if factory.__name__ == 'ModuleWarehouseFactory':
+            raise ValueError('ModuleWarehouseFactory is abstract and cannot be used directly.')
+
+        registered_types = factory.get_registered_types()
+        if not registered_types:
+            raise ValueError('No registered module warehouses found.')
+
+        return list(registered_types.values())
+
+    @classmethod
+    def get_modules_by_type(
+        cls,
+        module_type: ModuleControlsType
+    ) -> List[IntrospectiveModule]:
+        """Get all modules of a specific type from this warehouse.
+
+        Args:
+            module_type (ModuleControlsType): The type of module to filter by.
+
+        Returns:
+            List[IntrospectiveModule]: List of modules matching the specified type.
+        """
+        modules = cls.get_known_modules()
+
+        return [
+            module for module in modules
+            if module.module_type == module_type
+        ]
+
+
+class ModuleVendorFactory(MetaFactory):
+    """Factory for creating ModuleVendor instances."""
+    _registered_types: dict = {}
+
+    @classmethod
+    def get_known_modules(cls) -> List[IntrospectiveModule]:
+        """Get all known modules from all registered vendors.
+
+        Returns:
+            List[IntrospectiveModule]: List of all known modules.
+        """
+        modules = []
+        for module in cls.get_registered_types().values():
+            if not module:
+                cls.get_logger().warning('IntrospectiveModule class is None, skipping...')
+                continue
+            if not issubclass(module, IntrospectiveModule):
+                cls.get_logger().warning(f'IntrospectiveModule subclass {module} is not a IntrospectiveModule, skipping...')
+                continue
+            modules.append(module)
+        return modules
+
+    @classmethod
+    def get_modules_by_type(
+        cls,
+        module_type: ModuleControlsType
+    ) -> List[IntrospectiveModule]:
+        """Get all modules of a specific type from all registered vendors.
+
+        Args:
+            module_type (ModuleControlsType): The type of module to filter by.
+
+        Returns:
+            List[IntrospectiveModule]: List of modules matching the specified type.
+        """
+        modules = []
+        for module in cls.get_registered_types().values():
+            if not module:
+                cls.get_logger().warning('IntrospectiveModule class is None, skipping...')
+                continue
+            if not issubclass(module, IntrospectiveModule):
+                cls.get_logger().warning(f'IntrospectiveModule subclass {module} is not a IntrospectiveModule, skipping...')
+                continue
+            if not hasattr(module, 'controls_type'):
+                cls.get_logger().warning(f'IntrospectiveModule subclass {module} has no controls_type attribute, skipping...')
+                continue
+            if module.get_controls_type() != module_type:
+                continue
+            modules.append(module)
+
+        return modules
+
+
+class EmulationGeneratorFactory(MetaFactory):
+    """Factory for creating EmulationGenerator instances."""
+    _registered_types: dict = {}
+
+    @staticmethod
+    def get_generator(controller: Controller) -> EmulationGenerator:
+        """Get an appropriate EmulationGenerator for the given controller.
+
+        Args:
+            controller (Controller): The controller to get a generator for.
+
+        Returns:
+            EmulationGenerator: An instance of the appropriate EmulationGenerator subclass.
+
+        Raises:
+            ValueError: If no suitable generator is found for the controller type.
+        """
+
+        for generator_cls in EmulationGeneratorFactory.get_registered_types().values():
+            if not generator_cls:
+                continue
+            if not issubclass(generator_cls, EmulationGenerator):
+                continue
+            if controller.__class__.__name__ == generator_cls.generator_type:
+                return generator_cls(controller)
+
+        raise ValueError(f'No suitable emulation generator found for controller type {controller.__class__.__name__}')
+
+
+class EmulationGeneratorMeta(FactoryTypeMeta):
+    """Metaclass for auto-registering EmulationGenerator subclasses."""
+
+    @classmethod
+    def get_class(cls) -> Type['EmulationGenerator']:
+        try:
+            return EmulationGenerator
+        except NameError:
+            return None
+
+    @classmethod
+    def get_factory(cls):
+        return EmulationGeneratorFactory
+
+
+class EmulationGenerator(metaclass=EmulationGeneratorMeta):
+    """Base class for emulation logic generators."""
+    generator_type = 'Controller'
+
+    def __init__(
+        self,
+        controller: Controller
+    ) -> None:
+        super().__init__()
+        self.generator_object: Controller = controller
+        self.logger = Loggable.get_or_create_logger(f'{self.__class__.__name__}')
+        self.schema = ControllerModificationSchema(
+            source=None,
+            destination=self.generator_object
+        )
+        self.emu_routine: Optional[Routine] = None
+        self.safety_emu_routine: Optional[Routine] = None
+
+    @property
+    def base_tags(self) -> list[str]:
+        """List of base tags common to all controllers.
+
+        Returns:
+            list[str]: List of tuples (tag_name, datatype, description)
+        """
+        return [
+            ('zz_Demo3D_Uninhibit', 'INT', 'Uninhibit mode for the controller.'),
+            ('zz_Demo3D_Inhibit', 'INT', 'Inhibit mode for the controller.'),
+            ('zz_Demo3D_ToggleInhibit', 'BOOL', 'Toggle inhibit mode for the controller.'),
+            ('zz_Demo3D_LocalMode', 'INT', 'Local mode for the controller.'),
+            ('zz_Demo3D_TestMode', 'BOOL', 'Demo 3D\nEmulation Test Mode\n-----\nREMOVE IF FOUND IN PRODUCTION'),
+        ]
+
+    @property
+    def custom_tags(self) -> list[tuple[str, str, str, Optional[str]]]:
+        """List of custom tags specific to the controller type.
+
+        Returns:
+            list[str]: List of tuples (tag_name, datatype, description, dimensions).
+        """
+        raise NotImplementedError("Subclasses must implement custom_tags")
+
+    @property
+    def emulation_safety_routine_description(self) -> str:
+        """Description for the safety routine to add emulation logic to.
+
+        Returns:
+            str: Description of the safety routine
+        """
+        return self.emulation_standard_routine_description
+
+    @property
+    def emulation_safety_routine_name(self) -> str:
+        """Name of the safety routine to add emulation logic to.
+
+        Returns:
+            str: Name of the safety routine
+        """
+        return 'zzz_s_Emulation'
+
+    @property
+    def emulation_standard_routine_description(self) -> str:
+        """Description for the standard routine to add emulation logic to.
+
+        Returns:
+            str: Description of the standard routine
+        """
+        return ''.join([
+            'Emulation routine for automation controller.\n',
+            'This routine is auto-generated by Indicon LLC.\n',
+            'Do not modify.'
+        ])
+
+    @property
+    def emulation_standard_routine_name(self) -> str:
+        """Name of the standard routine to add emulation logic to.
+
+        Returns:
+            str: Name of the standard routine
+        """
+        return 'zzz_Emulation'
+
+    @property
+    def generator_object(self) -> Controller:
+        return self._generator_object
+
+    @generator_object.setter
+    def generator_object(self, value: Controller):
+        if value.__class__.__name__ != self.generator_type:
+            raise TypeError(f'Controller must be of type {self.generator_type}, got {value.__class__.__name__} instead.')
+        self._generator_object = value
+
+    @property
+    def target_safety_program_name(self) -> str:
+        """Name of the safety program to add emulation logic to.
+
+        Returns:
+            str: Name of the safety program
+        """
+        raise NotImplementedError("Subclasses must implement target_safety_program_name")
+
+    @property
+    def target_standard_program_name(self) -> str:
+        """Name of the standard program to add emulation logic to.
+
+        Returns:
+            str: Name of the standard program
+        """
+        raise NotImplementedError("Subclasses must implement target_standard_program_name")
+
+    @property
+    def test_mode_tag(self) -> str:
+        """Name of the test mode tag.
+
+        Returns:
+            str: Name of the test mode tag
+        """
+        return self.base_tags[4][0]
+
+    def _add_to_safety_routine(self, rung: Rung) -> None:
+        """Helper to add a rung to the safety emulation routine."""
+        if not self.safety_emu_routine:
+            raise ValueError("Safety emulation routine has not been created yet.")
+
+        self.schema.add_rung(
+            program_name=self.target_safety_program_name,
+            routine_name=self.emulation_safety_routine_name,
+            new_rung=rung
+        )
+
+    def _add_rung_to_standard_routine(self, rung: Rung) -> None:
+        """Helper to add a rung to the standard emulation routine."""
+        if not self.emu_routine:
+            raise ValueError("Emulation routine has not been created yet.")
+
+        self.schema.add_rung(
+            program_name=self.target_standard_program_name,
+            routine_name=self.emulation_standard_routine_name,
+            new_rung=rung
+        )
+
+    def _generate_base_emulation(self) -> None:
+        """Generate the base emulation logic common to all controllers."""
+        self._generate_base_tags()
+        self._generate_custom_tags()
+
+        self._generate_base_standard_routine()
+        self._generate_base_standard_rungs()
+
+        self._generate_base_safety_routine()
+        self._generate_base_safety_rungs()
+
+        self._generate_base_module_emulation()
+
+        self._generate_custom_standard_routines()
+        self._generate_custom_standard_rungs()
+        self._generate_custom_safety_routines()
+        self._generate_custom_safety_rungs()
+
+    def _generate_base_module_emulation(self) -> None:
+        """Generate base module emulation logic common to all controllers."""
+        self._generate_builtin_common(ModuleControlsType.BLOCK)
+        self._generate_builtin_common(ModuleControlsType.SAFETY_BLOCK)
+        self._generate_builtin_common(ModuleControlsType.DRIVE)
+
+    def _generate_base_safety_routine(self) -> None:
+        """Generate a safety routine common to all controllers."""
+        self.logger.debug("Generating base safety routine")
+        self.safety_emu_routine = self.add_emulation_routine(
+            program_name=self.target_safety_program_name,
+            routine_name=self.emulation_safety_routine_name,
+            routine_description=self.emulation_safety_routine_description,
+            call_from_main=True,
+            rung_position=0
+        )
+
+    def _generate_base_safety_rungs(self) -> None:
+        """Generate base rungs in the safety emulation routine."""
+        if not self.safety_emu_routine:
+            raise ValueError("Safety emulation routine has not been created yet.")
+
+        self.safety_emu_routine.clear_rungs()
+        self.logger.debug("Generating base safety rungs")
+
+        # Header rung
+        header_rung = Rung(
+            controller=self.controller,
+            text='NOP();',
+            comment='// Emulation Safety Logic Routine\n// Auto-generated by Indicon LLC\n// Do not modify.'
+        )
+        self._add_to_safety_routine(header_rung)
+
+    def _generate_base_standard_routine(self) -> None:
+        """Generate a standard base routine common to all controllers."""
+        self.logger.info("Generating base standard routine")
+        self.emu_routine = self.add_emulation_routine(
+            program_name=self.target_standard_program_name,
+            routine_name=self.emulation_standard_routine_name,
+            routine_description=self.emulation_standard_routine_description,
+            call_from_main=True,
+            rung_position=0
+        )
+
+    def _generate_base_standard_rungs(self) -> None:
+        """Generate base rungs in the standard emulation routine."""
+        if not self.emu_routine:
+            raise ValueError("Emulation routine has not been created yet.")
+
+        self.emu_routine.clear_rungs()
+        self.logger.debug("Generating base standard rungs")
+
+        uninhibit = self.base_tags[0][0]  # Uninhibit tag name
+        inhibit = self.base_tags[1][0]  # Inhibit tag name
+        toggle_inhibit = self.base_tags[2][0]  # ToggleInhibit tag name
+        local_mode = self.base_tags[3][0]  # LocalMode tag name
+        test_mode = self.base_tags[4][0]  # zz_Demo3D_TestMode tag name
+
+        # Header rung
+        header_rung = Rung(
+            controller=self.controller,
+            text='NOP();',
+            comment='// Emulation Logic Routine\n// Auto-generated by Indicon LLC\n// Do not modify.'
+        )
+        self._add_rung_to_standard_routine(header_rung)
+
+        # Setup Rung
+        setup_rung = Rung(
+            controller=self.controller,
+            text=f'[XIC(S:FS)OTU({toggle_inhibit})OTU({test_mode}),MOV(0,{uninhibit})MOV(4,{inhibit})];',
+            comment='// This routine is auto-generated by Indicon LLC.\n// Do not modify.'
+        )
+        self._add_rung_to_standard_routine(setup_rung)
+
+        # Inhibit Logic Rung
+        inhibit_logic_rung = Rung(
+            controller=self.controller,
+            text=f'[XIO({toggle_inhibit})MOV({uninhibit},{local_mode}),XIC({toggle_inhibit})MOV({inhibit},{local_mode})];',
+            comment='// Handle toggle inhibit.'
+        )
+        self._add_rung_to_standard_routine(inhibit_logic_rung)
+
+        self._generate_module_inhibit_rungs()
+
+    def _generate_base_tags(self) -> None:
+        """Generate base tags common to all controllers."""
+        if not self.base_tags:
+            self.logger.debug("No base tags defined, skipping base tag generation.")
+        self.logger.info("Generating base tags")
+        for tag_name, datatype, description in self.base_tags:
+            self.add_controller_tag(tag_name, datatype, description=description)
+
+    def _generate_builtin_common(
+        self,
+        generation_type: ModuleControlsType
+    ) -> None:
+        modules: list[IntrospectiveModule] = ModuleWarehouseFactory.filter_modules_by_type(
+            self.generator_object.modules,
+            generation_type
+        )
+        if not modules:
+            self.logger.debug("No modules found, skipping builtin emulation for type %s.", generation_type.value)
+            return
+
+        for mod in modules:
+            self._schedule_imports(mod.get_required_imports())
+            self.add_controller_tags(mod.get_required_tags())
+            self.add_safety_tag_mapping(*mod.get_required_standard_to_safety_mapping())
+            self.add_rungs(
+                self.target_standard_program_name,
+                self.emulation_standard_routine_name,
+                mod.get_required_standard_rungs()
+            )
+            self.add_rungs(
+                self.target_safety_program_name,
+                self.emulation_safety_routine_name,
+                mod.get_required_safety_rungs()
+            )
+
+    def _generate_custom_safety_routines(self) -> None:
+        """Generate custom safety routines. Override in subclasses if needed."""
+        pass
+
+    def _generate_custom_safety_rungs(self) -> None:
+        """Generate custom safety rungs. Override in subclasses if needed."""
+        pass
+
+    def _generate_custom_standard_routines(self) -> None:
+        """Generate custom standard routines. Override in subclasses if needed."""
+        pass
+
+    def _generate_custom_standard_rungs(self) -> None:
+        """Generate custom standard rungs. Override in subclasses if needed."""
+        pass
+
+    def _generate_custom_tags(self) -> None:
+        """Generate custom tags. Override in subclasses if needed."""
+        if not self.custom_tags:
+            self.logger.debug("No custom tags defined, skipping custom tag generation.")
+        self.logger.info("Generating custom tags")
+        for tag_name, datatype, description, dimensions in self.custom_tags:
+            self.add_controller_tag(tag_name, datatype, description=description, dimensions=dimensions)
+
+    def _generate_module_inhibit_rungs(self) -> None:
+        """Generate inhibit logic for modules."""
+        if not self.emu_routine:
+            raise ValueError("Emulation routine has not been created yet.")
+
+        self.logger.debug("Generating module inhibit rungs")
+        local_mode = self.base_tags[3][0]  # LocalMode tag name
+
+        for module in self.generator_object.modules:
+            if module.name == 'Local':
+                continue
+            inhibit_rung = self.generator_object.config.rung_type(
+                controller=self.controller,
+                text=f'SSV(Module,{module.name},Mode,{local_mode});',
+                comment=f'// Inhibit logic for module {module.name}'
+            )
+            self._add_rung_to_standard_routine(inhibit_rung)
+
+    def _import_safety_block_udts(self) -> None:
+        """Import UDTs required for safety block emulation."""
+        self.schema.add_import_from_file(
+            file_location=r'docs\controls\emu\Demo3D_WDint_DataType.L5X',
+            asset_types=['DataTypes']
+        )
+        self.schema.add_import_from_file(
+            file_location=r'docs\controls\emu\Demo3D_CommOK_SBK_DataType.L5X',
+            asset_types=['DataTypes']
+        )
+
+    def _schedule_imports(
+        self,
+        imports: List[tuple[str, List[str]]]
+    ) -> None:
+        """Helper to schedule imports in the modification schema.
+
+        Args:
+            imports: List of tuples (file_location, [asset_types])
+        """
+        for file_location, asset_types in imports:
+            self.logger.debug(f"Scheduling import of {asset_types} from {file_location}")
+            self.schema.add_import_from_file(
+                file_location=file_location,
+                asset_types=asset_types
+            )
+
+    def add_emulation_routine(
+        self,
+        program_name: str,
+        routine_name: str,
+        routine_description: str,
+        call_from_main: bool = True,
+        rung_position: int = -1
+    ) -> Routine:
+        """Helper method to add an emulation routine to a program.
+
+        Args:
+            program_name: Name of the program to add routine to
+            routine_name: Name of the new routine
+            routine_description: Description for the routine
+            call_from_main: Whether to add JSR call from main routine
+            rung_position: Position to insert JSR call (-1 for end)
+
+        Returns:
+            Routine: The created routine
+        """
+        self.logger.debug(f"Adding emulation routine '{routine_name}' to program '{program_name}' to schema.")
+
+        # Create the routine
+        routine: Routine = self.controller.config.routine_type(controller=self.controller)
+        routine.name = routine_name
+        routine.description = routine_description
+        routine.clear_rungs()
+
+        # Add routine to program
+        self.schema.add_routine(
+            program_name=program_name,
+            routine=routine
+        )
+
+        # Add JSR call if requested
+        if call_from_main:
+            program: Program = self.controller.programs.get(program_name)
+            if program and program.main_routine:
+                if program.main_routine.check_for_jsr(routine_name):
+                    self.logger.debug(f"JSR to '{routine_name}' already exists in main routine of program '{program_name}'")
+                else:
+                    self.logger.debug(f"Adding JSR call to '{routine_name}' in main routine of program '{program_name}'")
+                    jsr_rung = Rung(
+                        controller=self.controller,
+                        text=f'JSR({routine_name},0);',
+                        comment=f'Call the {routine_name} routine.'
+                    )
+                    self.schema.add_rung(
+                        program_name=program_name,
+                        routine_name=program.main_routine_name,
+                        rung_number=rung_position,
+                        new_rung=jsr_rung
+                    )
+
+        return routine
+
+    def add_program_tag(
+        self,
+        program_name: str,
+        tag_name: str,
+        datatype: str,
+        **kwargs
+    ) -> Tag:
+        """Helper method to add a tag to a program.
+
+        Args:
+            program_name: Name of the program
+            tag_name: Name of the tag
+            datatype: Datatype of the tag
+            **kwargs: Additional tag properties
+
+        Returns:
+            Tag: The created tag
+        """
+        self.logger.debug(f"Adding program tag: {tag_name} with datatype {datatype} to program {program_name}")
+
+        tag = Tag(
+            controller=self.controller,
+            name=tag_name,
+            datatype=datatype,
+            **kwargs
+        )
+
+        self.schema.add_program_tag(
+            program_name=program_name,
+            tag=tag
+        )
+
+        return tag
+
+    def add_controller_tag(
+        self,
+        tag_name: str,
+        datatype: str,
+        description: str = "",
+        constant: bool = False,
+        external_access: str = "Read/Write",
+        tag_type: str = 'Base',
+        **kwargs
+    ) -> Tag:
+        """Helper method to add a controller-scoped tag.
+
+        Args:
+            tag_name: Name of the tag
+            datatype: Datatype of the tag
+            **kwargs: Additional tag properties
+
+        Returns:
+            Tag: The created tag
+        """
+        self.logger.debug(f"Adding controller tag: {tag_name} with datatype {datatype} to schema.")
+
+        tag = self.controller.config.tag_type(
+            controller=self.controller,
+            name=tag_name,
+            datatype=datatype,
+            description=description,
+            constant=constant,
+            external_access=external_access,
+            tag_type=tag_type,
+            **kwargs
+        )
+
+        self.schema.add_controller_tag(tag)
+        return tag
+
+    def add_controller_tags(
+        self,
+        tags: List[dict]
+    ) -> None:
+        """Helper method to add multiple controller-scoped tags.
+
+        Args:
+            tags: List of tag dictionaries with keys matching Tag properties
+        """
+        for tag_info in tags:
+            self.add_controller_tag(**tag_info)
+
+    def add_rung(
+        self,
+        program_name: str,
+        routine_name: str,
+        new_rung: Rung,
+        rung_number: Optional[int] = None
+    ) -> None:
+        """Helper method to add a rung to a routine.
+
+        Args:
+            program_name: Name of the program
+            routine_name: Name of the routine
+            new_rung: The rung to add
+            rung_number: Position to insert the rung (-1 for end)
+        """
+
+        self.schema.add_rung(
+            program_name=program_name,
+            routine_name=routine_name,
+            rung_number=rung_number,
+            new_rung=new_rung
+        )
+
+    def add_rungs(
+        self,
+        program_name: str,
+        routine_name: str,
+        new_rungs: List[Rung],
+        rung_number: Optional[int] = None
+    ) -> None:
+        """Helper method to add multiple rungs to a routine.
+
+        Args:
+            program_name: Name of the program
+            routine_name: Name of the routine
+            new_rungs: List of rungs to add
+            rung_number: Position to insert the first rung (-1 for end)
+        """
+        for i, rung in enumerate(new_rungs):
+            position = rung_number + i if rung_number is not None and rung_number >= 0 else -1
+            self.add_rung(
+                program_name=program_name,
+                routine_name=routine_name,
+                new_rung=rung,
+                rung_number=position
+            )
+
+    def add_safety_tag_mapping(
+        self,
+        standard_tag: str,
+        safety_tag: str,
+    ) -> None:
+        """Helper method to add a safety tag mapping.
+
+        Args:
+            standard_tag: Name of the standard tag
+            safety_tag: Name of the safety tag
+        """
+        if not standard_tag or not safety_tag:
+            return
+        self.schema.add_safety_tag_mapping(
+            std_tag=standard_tag,
+            sfty_tag=safety_tag
+        )
+
+    def block_routine_jsr(
+        self,
+        program_name: str,
+        routine_name: str
+    ) -> None:
+        """Helper method to block a JSR call to a routine.
+
+        Args:
+            program_name: Name of the program
+            routine_name: Name of the routine
+        """
+        self.logger.debug(f"Blocking JSR call to routine '{routine_name}' in program '{program_name}'")
+        ...
+
+    @abstractmethod
+    def generate_custom_module_emulation(self) -> None:
+        """Generate module-specific emulation logic."""
+        pass
+
+    @abstractmethod
+    def remove_base_emulation(self) -> None:
+        """Remove the base emulation logic common to all controllers."""
+        pass
+
+    @abstractmethod
+    def remove_module_emulation(self) -> None:
+        """Remove module-specific emulation logic."""
+        pass
+
+    @abstractmethod
+    def validate_controller(self) -> bool:
+        """Validate that the controller is compatible with this generator.
+
+        Returns:
+            bool: True if controller is valid for this generator type.
+
+        Raises:
+            ValueError: If controller validation fails.
+        """
+        pass
+
+    def generate_custom_logic(self) -> None:
+        """Generate custom emulation logic. Override in subclasses if needed."""
+        pass
+
+    def generate_emulation_logic(self) -> ControllerModificationSchema:
+        """Main entry point to generate emulation logic.
+
+        Returns:
+            ControllerModificationSchema: The modification schema with all changes.
+        """
+        self.logger.info(f"Starting emulation generation for {self.controller.name}")
+
+        # Validate controller
+        if not self.validate_controller():
+            raise ValueError(f"Controller {self.controller.name} is not valid for {self.controller_type} emulation")
+
+        # Generate emulation logic
+        self._generate_base_emulation()
+        self.generate_custom_module_emulation()
+        self.generate_custom_logic()
+
+        # Execute the schema
+        self.schema.execute()
+
+        self.logger.info(f"Emulation generation completed for {self.controller.name}")
+        return self.schema
+
+    def remove_emulation_logic(self) -> ControllerModificationSchema:
+        """Remove previously added emulation logic.
+
+        Returns:
+            ControllerModificationSchema: The modification schema with all removals.
+        """
+        self.logger.info(f"Starting emulation removal for {self.controller.name}")
+
+        # Remove emulation logic
+        self.remove_base_emulation()
+        self.remove_module_emulation()
+        self.remove_custom_logic()
+
+        # Execute the schema to remove added elements
+        self.schema.execute()
+
+        self.logger.info(f"Emulation removal completed for {self.controller.name}")
+        return self.schema
+
+    def get_modules_by_type(self, module_type: str) -> List[Module]:
+        """Get all modules of a specific type.
+
+        Args:
+            module_type: The module type to filter by
+
+        Returns:
+            List[Module]: List of matching modules
+        """
+        mods = [module for module in self.controller.modules if module.type_ == module_type]
+        self.logger.info('Found %d modules of type %s...', len(mods), module_type)
+        return mods
+
+    def get_modules_by_description_pattern(self, pattern: str) -> List[Module]:
+        """Get modules matching a description pattern.
+
+        Args:
+            pattern: Pattern to match in module description
+
+        Returns:
+            List[Module]: List of matching modules
+        """
+        mods = [m for m in self.controller.modules if m.description and pattern in m.description]
+        self.logger.info('Found %d modules matching description pattern "%s"...', len(mods), pattern)
+        return mods
+
+    def remove_custom_logic(self) -> None:
+        """Remove custom emulation logic."""
+        pass
+
+    def remove_controller_tag(
+        self,
+        tag_name: str
+    ) -> None:
+        """Helper method to remove a controller-scoped tag.
+
+        Args:
+            tag_name: Name of the tag to remove
+        """
+        self.logger.debug(f"Removing controller tag '{tag_name}'")
+
+        self.schema.remove_controller_tag(
+            tag_name=tag_name
+        )
+
+    def remove_datatype(
+        self,
+        datatype_name: str
+    ) -> None:
+        """Helper method to remove a datatype from the controller.
+
+        Args:
+            datatype_name: Name of the datatype to remove
+        """
+        self.logger.debug(f"Removing datatype '{datatype_name}' from controller")
+
+        self.schema.remove_datatype(
+            datatype_name=datatype_name
+        )
+
+    def remove_program_tag(
+        self,
+        program_name: str,
+        tag_name: str
+    ) -> None:
+        """Helper method to remove a tag from a program.
+
+        Args:
+            program_name: Name of the program
+            tag_name: Name of the tag to remove
+        """
+        self.logger.debug(f"Removing tag '{tag_name}' from program '{program_name}'")
+
+        self.schema.remove_program_tag(
+            program_name=program_name,
+            tag_name=tag_name
+        )
+
+    def remove_routine(
+            self,
+            program_name: str,
+            routine_name: str
+    ) -> None:
+        """Helper method to remove a routine from the controller.
+
+        Args:
+            program_name: Name of the program containing the routine
+            routine_name: Name of the routine to remove
+        """
+        self.logger.debug(f"Removing routine '{routine_name}' from controller")
+
+        self.schema.remove_routine(
+            program_name,
+            routine_name
+        )
