@@ -40,4 +40,4 @@ class SewSafeMoviDrive(SewModule):
         return tags
 
     def get_standard_input_tag_name(self):
-        return f'zz_Demo3D_{self.module.name}_I'
+        return f'zz_Demo3D_{self.module.name}'

@@ -27,29 +27,7 @@ if TYPE_CHECKING:
     from ..connection import ConnectionModel
 
 
-CIPTypes = {0x00: (1, "UNKNOWN", '<B'),
-            0xa0: (88, "STRUCT", '<B'),
-            0xc0: (8, "DT", '<Q'),
-            0xc1: (1, "BOOL", '<?'),
-            0xc2: (1, "SINT", '<b'),
-            0xc3: (2, "INT", '<h'),
-            0xc4: (4, "DINT", '<i'),
-            0xc5: (8, "LINT", '<q'),
-            0xc6: (1, "USINT", '<B'),
-            0xc7: (2, "UINT", '<H'),
-            0xc8: (4, "UDINT", '<I'),
-            0xc9: (8, "LWORD", '<Q'),
-            0xca: (4, "REAL", '<f'),
-            0xcc: (8, "LDT", '<Q'),
-            0xcb: (8, "LREAL", '<d'),
-            0xd0: (1, "O_STRING", '<B'),
-            0xd1: (1, "BYTE", "<B"),
-            0xd2: (2, "WORD", "<I"),
-            0xd3: (4, "DWORD", '<i'),
-            0xd6: (4, "TIME32", '<I'),
-            0xd7: (8, "TIME", '<Q'),
-            0xda: (1, "STRING", '<B'),
-            0xdf: (8, "LTIME", '<Q')}
+
 
 
 class _HmiSlotInputAttr(Enum):

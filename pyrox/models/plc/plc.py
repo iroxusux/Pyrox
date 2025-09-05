@@ -11,6 +11,7 @@ import re
 from typing import (
     Callable,
     Dict,
+    Generic,
     List,
     Optional,
     Self,
@@ -53,24 +54,9 @@ __all__ = (
     'TagEndpoint',
 )
 
-ATOMIC_DATATYPES = [
-    'BIT',
-    'BOOL',
-    'SINT',
-    'INT',
-    'DINT',
-    'LINT',
-    'REAL',
-    'LREAL',
-    'USINT',
-    'UINT',
-    'UDINT',
-    'ULINT',
-    'STRING',
-    'TIMER',
-]
 
 T = TypeVar('T')
+CTRL = TypeVar('CTRL', bound='Controller')
 
 INST_RE_PATTERN: str = r'[A-Za-z0-9_]+\(\S*?\)'
 INST_TYPE_RE_PATTERN: str = r'([A-Za-z0-9_]+)(?:\(.*?)(?:\))'
@@ -99,30 +85,24 @@ BASE_FILES = [
 RE_PATTERN_META_PRE = r"(?:"
 RE_PATTERN_META_POST = r"\()(.*?)(?:\))"
 
-OTE_OPERAND_RE_PATTERN = r"(?:OTE\()(.*?)(?:\))"
-OTL_OPERAND_RE_PATTERN = r"(?:OTL\()(.*?)(?:\))"
-OTU_OPERAND_RE_PATTERN = r"(?:OTU\()(.*?)(?:\))"
-MOV_OPERAND_RE_PATTERN = r"(?:MOV\()(.*?)(?:\))"
-MOVE_OPERAND_RE_PATTERN = r"(?:MOVE\()(.*?)(?:\))"
-COP_OPERAND_RE_PATTERN = r"(?:COP\()(.*?)(?:\))"
-CPS_OPERAND_RE_PATTERN = r"(?:CPS\()(.*?)(?:\))"
 
-OUTPUT_INSTRUCTIONS_RE_PATTERN = [
-    OTE_OPERAND_RE_PATTERN,
-    OTL_OPERAND_RE_PATTERN,
-    OTU_OPERAND_RE_PATTERN,
-    MOV_OPERAND_RE_PATTERN,
-    MOVE_OPERAND_RE_PATTERN,
-    COP_OPERAND_RE_PATTERN,
-    CPS_OPERAND_RE_PATTERN
-]
-
-XIC_OPERAND_RE_PATTERN = r"(?:XIC\()(.*)(?:\))"
-XIO_OPERAND_RE_PATTERN = r"(?:XIO\()(.*)(?:\))"
-
-INPUT_INSTRUCTIONS_RE_PATTER = [
-    XIC_OPERAND_RE_PATTERN,
-    XIO_OPERAND_RE_PATTERN
+# ------------------ Atomic Datatypes ------------------------- #
+# Atomic datatypes in Logix that are not explicitly defined by the xml formatting file.
+ATOMIC_DATATYPES = [
+    'BIT',
+    'BOOL',
+    'SINT',
+    'INT',
+    'DINT',
+    'LINT',
+    'REAL',
+    'LREAL',
+    'USINT',
+    'UINT',
+    'UDINT',
+    'ULINT',
+    'STRING',
+    'TIMER',
 ]
 
 # ------------------ Input Instructions ----------------------- #
@@ -143,6 +123,14 @@ INSTR_ISNAN = 'IsNAN'
 INPUT_INSTRUCTIONS = [
     INSTR_XIC,
     INSTR_XIO
+]
+
+XIC_OPERAND_RE_PATTERN = r"(?:XIC\()(.*)(?:\))"
+XIO_OPERAND_RE_PATTERN = r"(?:XIO\()(.*)(?:\))"
+
+INPUT_INSTRUCTIONS_RE_PATTER = [
+    XIC_OPERAND_RE_PATTERN,
+    XIO_OPERAND_RE_PATTERN
 ]
 
 # ------------------ Output Instructions ----------------------- #
@@ -231,11 +219,30 @@ OUTPUT_INSTRUCTIONS = [
     ISNTR_CPS
 ]
 
+OTE_OPERAND_RE_PATTERN = r"(?:OTE\()(.*?)(?:\))"
+OTL_OPERAND_RE_PATTERN = r"(?:OTL\()(.*?)(?:\))"
+OTU_OPERAND_RE_PATTERN = r"(?:OTU\()(.*?)(?:\))"
+MOV_OPERAND_RE_PATTERN = r"(?:MOV\()(.*?)(?:\))"
+MOVE_OPERAND_RE_PATTERN = r"(?:MOVE\()(.*?)(?:\))"
+COP_OPERAND_RE_PATTERN = r"(?:COP\()(.*?)(?:\))"
+CPS_OPERAND_RE_PATTERN = r"(?:CPS\()(.*?)(?:\))"
+
+OUTPUT_INSTRUCTIONS_RE_PATTERN = [
+    OTE_OPERAND_RE_PATTERN,
+    OTL_OPERAND_RE_PATTERN,
+    OTU_OPERAND_RE_PATTERN,
+    MOV_OPERAND_RE_PATTERN,
+    MOVE_OPERAND_RE_PATTERN,
+    COP_OPERAND_RE_PATTERN,
+    CPS_OPERAND_RE_PATTERN
+]
+
 # ------------------ Special Instructions ----------------------- #
 # Special instructions not known to be input or output instructions
 INSTR_JSR = 'JSR'
 
-
+# ------------------- Logix Assets ------------------------------ #
+# Hardcoded asset types for L5X files
 L5X_ASSET_DATATYPES = 'DataTypes'
 L5X_ASSET_TAGS = 'Tags'
 L5X_ASSET_PROGRAMS = 'Programs'
@@ -249,6 +256,37 @@ L5X_ASSETS = [
     L5X_ASSET_ADDONINSTRUCTIONDEFINITIONS,
     L5X_ASSET_MODULES
 ]
+
+# ------------------- L5X Common Properties --------------------- #
+# Common properties found in L5X files
+L5X_PROP_NAME = '@Name'
+L5X_PROP_DESCRIPTION = 'Description'
+
+# ------------------- CIP Types --------------------------------- #
+# CIP Type format: Type ID: (Size in bytes, Type Name, Struct Format)
+CIPTypes = {0x00: (1, "UNKNOWN", '<B'),
+            0xa0: (88, "STRUCT", '<B'),
+            0xc0: (8, "DT", '<Q'),
+            0xc1: (1, "BOOL", '<?'),
+            0xc2: (1, "SINT", '<b'),
+            0xc3: (2, "INT", '<h'),
+            0xc4: (4, "DINT", '<i'),
+            0xc5: (8, "LINT", '<q'),
+            0xc6: (1, "USINT", '<B'),
+            0xc7: (2, "UINT", '<H'),
+            0xc8: (4, "UDINT", '<I'),
+            0xc9: (8, "LWORD", '<Q'),
+            0xca: (4, "REAL", '<f'),
+            0xcc: (8, "LDT", '<Q'),
+            0xcb: (8, "LREAL", '<d'),
+            0xd0: (1, "O_STRING", '<B'),
+            0xd1: (1, "BYTE", "<B"),
+            0xd2: (2, "WORD", "<I"),
+            0xd3: (4, "DWORD", '<i'),
+            0xd6: (4, "TIME32", '<I'),
+            0xd7: (8, "TIME", '<Q'),
+            0xda: (1, "STRING", '<B'),
+            0xdf: (8, "LTIME", '<Q')}
 
 
 class LogixTagScope(Enum):
@@ -283,7 +321,7 @@ class LogixAssetType(Enum):
     ALL = 9
 
 
-class PlcObject(EnforcesNaming, PyroxObject):
+class PlcObject(EnforcesNaming, PyroxObject, Generic[CTRL]):
     """Base class for a L5X PLC object.
 
     Args:
@@ -298,14 +336,17 @@ class PlcObject(EnforcesNaming, PyroxObject):
         on_compiling: List of functions to call when object is compiling.
     """
 
-    def __getitem__(self, key):
+    def __getitem__(
+        self,
+        key
+    ) -> Union[str, dict, None]:
         """Get item from metadata.
 
         Args:
             key: The key to retrieve.
 
         Returns:
-            The value associated with the key.
+            Union[str, dict, None]: The value associated with the key, or None if not found.
 
         Raises:
             TypeError: If metadata is not a dictionary.
@@ -317,24 +358,26 @@ class PlcObject(EnforcesNaming, PyroxObject):
 
     def __init__(
         self,
-        controller: 'Controller' = None,
+        controller: Optional[CTRL] = None,
         default_loader: Callable = lambda: defaultdict(None),
         meta_data: Union[dict, str] = defaultdict(None)
     ) -> None:
-        if controller is not None and not isinstance(controller, (Controller)):
-            raise TypeError("Controller must be of type Controller or None!")
+        self.meta_data = meta_data or default_loader()
+        self.controller = controller
 
-        self._meta_data = meta_data or default_loader()
-        self._controller = controller
         self._on_compiling: list[Callable] = []
         self._on_compiled: list[Callable] = []
         self._init_dict_order()
         super().__init__()
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return str(self)
 
-    def __setitem__(self, key, value):
+    def __setitem__(
+        self,
+        key,
+        value
+    ) -> None:
         """Set item in metadata.
 
         Args:
@@ -349,7 +392,7 @@ class PlcObject(EnforcesNaming, PyroxObject):
         else:
             raise TypeError("Cannot set item on a non-dict meta data object!")
 
-    def __str__(self):
+    def __str__(self) -> str:
         return str(self.meta_data)
 
     @property
@@ -373,13 +416,28 @@ class PlcObject(EnforcesNaming, PyroxObject):
         return ControllerConfiguration() if not self._controller else self._controller._config
 
     @property
-    def controller(self) -> Optional['Controller']:
+    def controller(self) -> Optional[CTRL]:
         """Get this object's controller.
 
         Returns:
             Controller: The controller this object belongs to.
         """
         return self._controller
+
+    @controller.setter
+    def controller(self, value: Optional[CTRL]):
+        """Set this object's controller.
+
+        Args:
+            value: The controller to set.
+
+        Raises:
+            TypeError: If controller is not of type Controller or None.
+        """
+        if value is None or isinstance(value, Controller):
+            self._controller = value
+        else:
+            raise TypeError(f"Controller must be of type {CTRL} or None!")
 
     @property
     def meta_data(self) -> Union[dict, str]:
@@ -494,7 +552,7 @@ class PlcObject(EnforcesNaming, PyroxObject):
         return report
 
 
-class NamedPlcObject(PlcObject, Loggable):
+class NamedPlcObject(PlcObject, Loggable, Generic[CTRL]):
     """Supports a name and description for a PLC object.
 
     Args:
@@ -509,31 +567,32 @@ class NamedPlcObject(PlcObject, Loggable):
         description: Description of this object.
     """
 
-    def __init__(self,
-                 meta_data=defaultdict(None),
-                 default_loader: Callable = lambda: defaultdict(None),
-                 name: Optional[str] = None,
-                 description: Optional[str] = None,
-                 controller=None):
+    def __init__(
+        self,
+        meta_data=defaultdict(None),
+        default_loader: Callable = lambda: defaultdict(None),
+        name: Optional[str] = None,
+        description: Optional[str] = None,
+        controller: Optional[CTRL] = None
+    ) -> None:
         PlcObject.__init__(self,
                            controller=controller,
                            default_loader=default_loader,
                            meta_data=meta_data)
         if name:
-            meta_data['@Name'] = name
+            meta_data[L5X_PROP_NAME] = name
 
-        if meta_data.get('@Name', None) is None:
+        if meta_data.get(L5X_PROP_NAME, None) is None:
             raise ValueError("A name must be provided via argument or meta_data!")
 
         if description is not None:
-            meta_data['Description'] = description
+            meta_data[L5X_PROP_DESCRIPTION] = description
 
-        NamedPyroxObject.__init__(self,
-                                  name=meta_data['@Name'],
-                                  description=meta_data.get('Description', None))
-
-    def __repr__(self):
-        return self.name
+        NamedPyroxObject.__init__(
+            self,
+            name=meta_data[L5X_PROP_NAME],
+            description=meta_data.get(L5X_PROP_DESCRIPTION, None)
+        )
 
     def __str__(self):
         return str(self.name)
@@ -545,7 +604,7 @@ class NamedPlcObject(PlcObject, Loggable):
         Returns:
             str: The name of this object.
         """
-        return self['@Name']
+        return self[L5X_PROP_NAME]
 
     @name.setter
     def name(self, value: str):
@@ -560,7 +619,7 @@ class NamedPlcObject(PlcObject, Loggable):
         if not self.is_valid_string(value):
             raise self.InvalidNamingException
 
-        self['@Name'] = value
+        self[L5X_PROP_NAME] = value
 
     @property
     def description(self) -> str:
@@ -569,7 +628,7 @@ class NamedPlcObject(PlcObject, Loggable):
         Returns:
             str: The description of this object.
         """
-        return self['Description']
+        return self[L5X_PROP_DESCRIPTION]
 
     @description.setter
     def description(self, value: str):
@@ -578,7 +637,7 @@ class NamedPlcObject(PlcObject, Loggable):
         Args:
             value: The description to set.
         """
-        self['Description'] = value
+        self[L5X_PROP_DESCRIPTION] = value
 
     @property
     def process_name(self) -> str:
@@ -618,7 +677,7 @@ class NamedPlcObject(PlcObject, Loggable):
         if asset_name not in asset_list:
             raise ValueError(f"Asset with name {asset_name} does not exist in this container!")
 
-        raw_asset_list.remove(next((x for x in raw_asset_list if x['@Name'] == asset_name), None))
+        raw_asset_list.remove(next((x for x in raw_asset_list if x[L5X_PROP_NAME] == asset_name), None))
         self._invalidate()
 
     def validate(self, report: Optional['ControllerReportItem'] = None) -> 'ControllerReportItem':
@@ -647,15 +706,20 @@ class LogixOperand(PlcObject):
     """Logix Operand
     """
 
-    def __init__(self,
-                 meta_data: str,
-                 instruction: 'LogixInstruction',
-                 arg_position: int,
-                 controller: 'Controller'):
-        super().__init__(meta_data=meta_data,
-                         controller=controller)
-        if isinstance(self._meta_data, defaultdict):
-            raise TypeError("Meta data must be a a string!")
+    def __init__(
+        self,
+        meta_data: str,
+        instruction: 'LogixInstruction',
+        arg_position: int,
+        controller: Optional[CTRL] = None
+    ) -> None:
+        super().__init__(
+            meta_data=meta_data,
+            controller=controller
+        )
+        if not isinstance(meta_data, str):
+            raise TypeError("Meta data must be a string!")
+
         self._aliased_parents: list[str] = None
         self._arg_position = arg_position
         self._as_aliased: str = None

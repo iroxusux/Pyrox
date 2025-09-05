@@ -3,7 +3,15 @@
 from __future__ import annotations
 
 
-from typing import Any, Callable, Generic, Optional, TypeVar, Union
+from typing import (
+    Any,
+    Callable,
+    Generic,
+    Iterator,
+    Optional,
+    TypeVar,
+    Union
+)
 
 
 T = TypeVar('T')
@@ -138,7 +146,7 @@ class HashList(Subscribable, Generic[T]):
             return self.by_index(key)
         return self.hashes[key]
 
-    def __iter__(self) -> T:
+    def __iter__(self) -> Iterator[T]:
         for item in self.hashes:
             yield self.hashes[item]
 
