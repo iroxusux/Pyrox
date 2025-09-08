@@ -8,7 +8,10 @@ from .application import (
     BaseMenu,
 )
 
-from .generator import GeneratorMeta
+from .factory import (
+    FactoryTypeMeta,
+    MetaFactory
+)
 
 from .list import (
     HashList,
@@ -18,9 +21,8 @@ from .list import (
 from .meta import (
     Buildable,
     EnforcesNaming,
-    FactoryTypeMeta,
     Loggable,
-    MetaFactory,
+    NamedPyroxObject,
     PyroxObject,
     Runnable,
     SnowFlake,
@@ -45,6 +47,7 @@ __all__ = (
     'Loggable',
     'MetaFactory',
     'Model',
+    'NamedPyroxObject',
     'PyroxObject',
     'Runnable',
     'SafeList',

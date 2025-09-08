@@ -1,30 +1,24 @@
 """Meta module for Pyrox framework base classes and utilities."""
 from __future__ import annotations
 
-from abc import ABC, ABCMeta
 from enum import Enum
-import logging
 import json
 from pathlib import Path
 import re
 import sys
-from typing import Any, Callable, Optional, Self, Type
+from typing import Any, Callable, Optional
+from .logging import Loggable
 
 __all__ = (
     'Buildable',
     'DEF_APP_NAME',
     'DEF_AUTHOR_NAME',
-    'DEF_DATE_FMT',
-    'DEF_FORMATTER',
     'DEF_ICON',
     'DEF_THEME',
     'DEF_VIEW_TYPE',
     'DEF_WIN_TITLE',
     'DEF_WIN_SIZE',
     'EnforcesNaming',
-    'FactoryTypeMeta',
-    'Loggable',
-    'MetaFactory',
     'PyroxObject',
     'Runnable',
     'SnowFlake',
@@ -45,8 +39,6 @@ DEF_THEME = 'black'
 DEF_WIN_TITLE = 'Pyrox Default Frame'
 DEF_WIN_SIZE = '1024x768'
 DEF_ICON = Path(__file__).resolve().parents[2] / "ui" / "icons" / "_def.ico"
-DEF_FORMATTER = '%(asctime)s | %(name)s | %(levelname)s | %(message)s'
-DEF_DATE_FMT = "%m/%d/%Y, %H:%M:%S"
 
 
 class TK_CURSORS(Enum):
@@ -486,22 +478,7 @@ class RuntimeDict:
         self._callback()
 
 
-class LazyLoggable:
-    """An easier mixin class that doesn't require a name property for logging.
-    \n Rather, it uses the inheriting class's builtin name.
-    """
-
-    @classmethod
-    def get_logger(self) -> logging.Logger:
-        """Logger for this object.
-
-        Returns:
-            logging.Logger: The logger instance.
-        """
-        return Loggable.get_or_create_logger(name=self.__class__.__name__)
-
-
-class PyroxObject(SnowFlake):
+class PyroxObject(SnowFlake, Loggable):
     """A base class for all Pyrox objects."""
     __slots__ = ()
 
@@ -731,145 +708,7 @@ class SupportsJsonLoading(SupportsLoading):
             raise IOError(f"Failed to load JSON from {path}: {e}")
 
 
-class Loggable(NamedPyroxObject):
-    """A loggable entity, using the logging.Logger class.
-
-    Args:
-        name: Name to assign to this handler. Otherwise, defaults to class name.
-
-    Attributes:
-        logger: Logger for this loggable object.
-    """
-    curr_logging_level = logging.INFO
-    _curr_loggers = {}
-
-    __slots__ = ('_logger')
-
-    def __init__(
-        self,
-        name: Optional[str] = None
-    ) -> None:
-        super().__init__(name=name)
-        self._logger: logging.Logger = self._get_or_create_logger(
-            name=name or self.__class__.__name__,
-        )
-
-    @property
-    def logger(self) -> logging.Logger:
-        """Logger for this loggable object.
-
-        Returns:
-            logging.Logger: The logger instance.
-        """
-        return self._logger
-
-    @staticmethod
-    def _create_logger(name: str = __name__) -> logging.Logger:
-        """Create a logger that outputs to stderr (which gets captured)."""
-        logger = Loggable._setup_standard_logger(name=name)
-        Loggable._curr_loggers[name] = logger
-        return logger
-
-    @staticmethod
-    def _get_or_create_logger(
-        name: str = __name__,
-    ) -> logging.Logger:
-        """Get or create a logger with the specified name.
-
-        Args:
-            name: The name for the logger.
-
-        Returns:
-            logging.Logger: The logger instance.
-        """
-        return Loggable._curr_loggers.get(name, Loggable._create_logger(name=name))
-
-    @staticmethod
-    def _get_standard_handler(stream) -> logging.StreamHandler:
-        """Get a standard logging handler that outputs to the specified stream.
-
-        Args:
-            stream: The stream to output logs to (default is sys.stderr).
-
-        Returns:
-            logging.StreamHandler: A configured StreamHandler instance.
-        """
-        handler = logging.StreamHandler(stream)
-        formatter = logging.Formatter(fmt=DEF_FORMATTER, datefmt=DEF_DATE_FMT)
-        handler.setFormatter(formatter)
-        handler.setLevel(Loggable.curr_logging_level)
-        return handler
-
-    @staticmethod
-    def _setup_standard_logger(name: str = None) -> logging.Logger:
-        """Get a standard logger with the specified name.
-
-        Args:
-            name: The name for the logger.
-
-        Returns:
-            logging.Logger: A configured Logger instance.
-        """
-        logger = logging.getLogger(name)
-        Loggable._remove_all_handlers(logger)
-        handler = Loggable._get_standard_handler(sys.stderr)
-        logger.addHandler(handler)
-        logger.setLevel(Loggable.curr_logging_level)
-        logger.propagate = False
-        return logger
-
-    @staticmethod
-    def _remove_all_handlers(logger: logging.Logger) -> None:
-        """Remove all handlers from the specified logger.
-
-        Args:
-            logger: The logger from which to remove handlers.
-        """
-        for handler in logger.handlers[:]:
-            logger.removeHandler(handler)
-
-    @staticmethod
-    def get_or_create_logger(name: str = __name__) -> logging.Logger:
-        """Get or create a logger with the specified name.
-
-        Args:
-            name: The name for the logger.
-
-        Returns:
-            logging.Logger: The logger instance.
-        """
-        return Loggable._get_or_create_logger(name=name)
-
-    @staticmethod
-    def force_all_loggers_to_stderr():
-        """Force all existing loggers to use sys.stderr."""
-
-        # Update root logger
-        Loggable._setup_standard_logger()
-
-        # Update all existing loggers in the manager
-        for name in list(logging.Logger.manager.loggerDict.keys()):
-            Loggable._setup_standard_logger(name)
-
-        # Update the Loggable class loggers too
-        for name, _ in Loggable._curr_loggers.items():
-            Loggable._setup_standard_logger(name)
-
-    @staticmethod
-    def set_logging_level(log_level: int = logging.INFO):
-        """Set the logging level for all current loggers.
-
-        Args:
-            log_level: The logging level to set for all current loggers.
-        """
-        Loggable.curr_logging_level = log_level
-        for logger in Loggable._curr_loggers.values():
-            logger.setLevel(log_level)
-            for handler in logger.handlers:
-                handler.setLevel(log_level)
-
-
-class Buildable(Loggable):
+class Buildable(NamedPyroxObject):
     """Denotes object is 'buildable' and supports build and refresh methods.
 
     Attributes:
@@ -928,89 +767,3 @@ class Runnable(Buildable):
     def stop(self) -> None:
         """Stop this object."""
         self._running = False
-
-
-class MetaFactory(ABC, LazyLoggable):
-    """Meta class for factory patterns.
-
-    This meta class is used to create factories that can register and retrieve types.
-    """
-
-    _registered_types: dict = {}
-
-    @classmethod
-    def get_registered_types(cls) -> dict[str, Type]:
-        """Get the registered types for this factory.
-
-        Returns:
-            dict: A dictionary of registered types.
-        """
-        return cls._registered_types
-
-    @classmethod
-    def register_type(
-        cls,
-        type_class: Type
-    ) -> None:
-        """Register a type with the factory.
-
-        Args:
-            type_class: The class type to register.
-        """
-        cls._registered_types[type_class.__name__] = type_class
-
-
-class FactoryTypeMeta(ABCMeta, LazyLoggable):
-    """Meta class for types that are used in factory patterns."""
-
-    def __new__(
-        cls,
-        name,
-        bases,
-        attrs,
-        **_
-    ) -> Type[Self]:
-        new_cls = super().__new__(cls, name, bases, attrs)
-
-        factory = cls.get_factory()
-        if factory is None:
-            cls.get_logger().debug(f'FactoryTypeMeta: No factory found for class {name}.')
-            return new_cls
-
-        factory_class = cls.get_class()
-        if factory_class is None:
-            cls.get_logger().debug(f'FactoryTypeMeta: No factory class found for class {name}.')
-            return new_cls
-
-        if (name != factory_class.__name__ and
-                issubclass(new_cls, factory_class)):
-            factory = cls.get_factory()
-            if factory is None:
-                cls.get_logger().debug(f'FactoryTypeMeta: No factory found for class {name}.')
-                return new_cls
-
-            factory.register_type(new_cls)
-        else:
-            cls.get_logger().debug(
-                f'FactoryTypeMeta: Class {name} is the factory class itself or does not subclass it.'
-            )
-
-        return new_cls
-
-    @classmethod
-    def get_class(cls) -> Optional[Type]:
-        """Get the type that this meta class was created for, if any.
-
-        Returns:
-            Optional[Type]: The type, or None if not set.
-        """
-        return cls
-
-    @classmethod
-    def get_factory(cls) -> Optional[MetaFactory]:
-        """Get the factory associated with this meta class, if any.
-
-        Returns:
-            Optional[MetaFactory]: The factory instance, or None if not set.
-        """
-        return None

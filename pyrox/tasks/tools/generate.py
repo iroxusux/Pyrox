@@ -29,12 +29,14 @@ class ControllerGenerateTask(AppTask):
 
         return controller
 
-    @staticmethod
-    def _get_generator(controller: Controller) -> EmulationGenerator:
-        generator: EmulationGenerator = EmulationGeneratorFactory.get_generator(controller)
-        if not isinstance(generator, EmulationGenerator):
+    def _get_generator(
+        self,
+        controller: Controller
+    ) -> EmulationGenerator:
+        generator: EmulationGenerator = EmulationGeneratorFactory.get_registered_type(controller)
+        if not isinstance(generator, type(EmulationGenerator)):
             raise ValueError('No valid generator found for this controller type!')
-        return generator
+        return generator(self.application.controller)
 
     def generate_gm(self):
         self.logger.info('Generating GM controller...')

@@ -5,7 +5,6 @@ from dataclasses import dataclass, field
 import datetime
 from enum import Enum
 import gc
-import logging
 import os
 from pathlib import Path
 import platformdirs
@@ -23,6 +22,7 @@ from pyrox.services import file, class_services
 
 from . import meta
 from .list import HashList
+from .logging import LoggingManager
 
 __all__ = (
     'BaseMenu',
@@ -790,7 +790,7 @@ class Application(meta.Runnable):
                 meta.SimpleStream(self.log))
             sys.stdout = self._multi_stream
             sys.stderr = self._multi_stream
-            meta.Loggable.force_all_loggers_to_stderr()
+            LoggingManager.force_all_loggers_to_stderr()
             self.logger.info(f'Logging to file: {self._directory_service.user_log_file}')
         except Exception as e:
             print(f'Failed to set up multi-stream logging: {e}', file=sys.__stderr__)
@@ -1015,8 +1015,7 @@ class Application(meta.Runnable):
         """
         if not isinstance(level, int):
             raise TypeError('Logging level must be an integer.')
-        super().set_logging_level(level)
-        self.logger.info(f'Logging level set to {logging.getLevelName(level)}')
+        LoggingManager.set_logging_level(level)
         self.runtime_info.set('logging_level', level)
 
     def start(self) -> None:

@@ -20,8 +20,15 @@ from typing import (
     TypeVar,
     Union,
 )
-from ..abc.meta import EnforcesNaming, Loggable, PyroxObject, NamedPyroxObject, FactoryTypeMeta, MetaFactory
-from ..abc.list import HashList
+from ..abc import (
+    EnforcesNaming,
+    HashList,
+    Loggable,
+    PyroxObject,
+    NamedPyroxObject,
+    FactoryTypeMeta,
+    MetaFactory
+)
 from ...services.dictionary_services import insert_key_at_index
 from ...services.plc_services import l5x_dict_from_file
 from ...utils import replace_strings_in_dict
@@ -552,7 +559,7 @@ class PlcObject(EnforcesNaming, PyroxObject, Generic[CTRL]):
         return report
 
 
-class NamedPlcObject(PlcObject, Loggable, Generic[CTRL]):
+class NamedPlcObject(PlcObject, NamedPyroxObject, Generic[CTRL]):
     """Supports a name and description for a PLC object.
 
     Args:
@@ -4434,17 +4441,6 @@ class ControllerConfiguration:
 class ControllerMeta(FactoryTypeMeta):
     """Metaclass for auto-registering Controller subclasses."""
 
-    @classmethod
-    def get_class(cls) -> Type['Controller']:
-        try:
-            return Controller
-        except Exception:
-            return None
-
-    @classmethod
-    def get_factory(cls):
-        return ControllerFactory
-
 
 class ControllerFactory(MetaFactory):
     """Controller factory with scoring-based matching."""
@@ -4469,23 +4465,23 @@ class ControllerFactory(MetaFactory):
             ctrl_class = matcher.get_controller_constructor()
             if score >= min_score:
                 scored_matches.append((score, matcher.get_controller_constructor()))
-                cls.get_logger().info(
+                cls.logger.info(
                     f"Matched {ctrl_class.__name__} with score {score:.2f}"
                 )
             else:
-                cls.get_logger().info(
+                cls.logger.info(
                     f"{ctrl_class.__name__} score {score:.2f} below min score {min_score}"
                 )
 
         if not scored_matches:
-            cls.get_logger().info(f"No matches found above min score {min_score}")
+            cls.logger.info(f"No matches found above min score {min_score}")
             return None
 
         # Sort by score (highest first) and return the best match
         scored_matches.sort(key=lambda x: x[0], reverse=True)
         best_score, best_class = scored_matches[0]
 
-        cls.get_logger().info(f"Best match: {best_class} with score {best_score:.2f}")
+        cls.logger.info(f"Best match: {best_class} with score {best_score:.2f}")
         return best_class
 
     @classmethod
@@ -4816,6 +4812,14 @@ class Controller(NamedPlcObject, Loggable, metaclass=ControllerMeta):
         controller = cls(meta_data=meta_data,
                          config=config)
         return controller
+
+    @classmethod
+    def get_class(cls) -> Type[Self]:
+        return cls
+
+    @classmethod
+    def get_factory(cls):
+        return ControllerFactory
 
     def _compile_aois(self) -> None:
         """Compile Add-On Instructions from the controller's AOIs.
@@ -6152,44 +6156,32 @@ def check_wildcard_patterns(
 class ControllerMatcherFactory(MetaFactory):
     """Controller matcher factory."""
 
-    _registered_types: dict = {}
 
-
-class ControllerMatcherMeta(FactoryTypeMeta):
-    """Metaclass for controller matchers."""
-
-    @classmethod
-    def get_class(cls) -> Type['ControllerMatcher']:
-        try:
-            return ControllerMatcher
-        except NameError:
-            return None
-
-    @classmethod
-    def get_factory(cls):
-        return ControllerMatcherFactory
-
-
-class ControllerMatcher(metaclass=ControllerMatcherMeta):
+class ControllerMatcher(metaclass=FactoryTypeMeta[Self, ControllerMatcherFactory]):
     """Abstract base class for controller matching strategies."""
 
-    def get_datatype_patterns(self) -> List[str]:
+    @staticmethod
+    def get_datatype_patterns() -> List[str]:
         """List of patterns to identify the controller by datatype."""
         raise NotImplementedError("Subclasses must implement this method")
 
-    def get_module_patterns(self) -> List[str]:
+    @staticmethod
+    def get_module_patterns() -> List[str]:
         """List of patterns to identify the controller by module."""
         raise NotImplementedError("Subclasses must implement this method")
 
-    def get_program_patterns(self) -> List[str]:
+    @staticmethod
+    def get_program_patterns() -> List[str]:
         """List of patterns to identify the controller by program."""
         raise NotImplementedError("Subclasses must implement this method")
 
-    def get_safety_program_patterns(self) -> List[str]:
+    @staticmethod
+    def get_safety_program_patterns() -> List[str]:
         """List of patterns to identify the controller by safety program."""
         raise NotImplementedError("Subclasses must implement this method")
 
-    def get_tag_patterns(self) -> List[str]:
+    @staticmethod
+    def get_tag_patterns() -> List[str]:
         """List of patterns to identify the controller by tag."""
         raise NotImplementedError("Subclasses must implement this method")
 
@@ -6215,6 +6207,22 @@ class ControllerMatcher(metaclass=ControllerMatcherMeta):
         if cls.check_controller_tags(controller_data):
             score += 0.2
         return score
+
+    @classmethod
+    def can_match(
+        cls,
+    ) -> bool:
+        """
+        """
+        return False
+
+    @classmethod
+    def get_class(cls) -> Self:
+        return cls
+
+    @classmethod
+    def get_factory(cls):
+        return ControllerMatcherFactory
 
     @classmethod
     def get_controller_constructor(
@@ -6312,12 +6320,12 @@ class ControllerMatcher(metaclass=ControllerMatcherMeta):
         """
         if not patterns:
             return False
-        cls.get_logger().debug(f"Checking patterns {patterns} in key '{key}' of dict list")
+        cls.logger.debug(f"Checking patterns {patterns} in key '{key}' of dict list")
         result = check_wildcard_patterns(
             [item.get(key, '') for item in dict_list],
             patterns
         )
-        cls.get_logger().debug(f"Pattern match result: {result}")
+        cls.logger.debug(f"Pattern match result: {result}")
         return result
 
     @classmethod
@@ -6358,8 +6366,6 @@ class ControllerMatcher(metaclass=ControllerMatcherMeta):
 
 class ModuleWarehouseFactory(MetaFactory):
     """Factory for creating ModuleWarehouse instances."""
-
-    _registered_types: dict = {}
 
     @classmethod
     def get_all_known_modules(cls) -> List[IntrospectiveModule]:
@@ -6429,22 +6435,7 @@ class ModuleWarehouseFactory(MetaFactory):
         return filtered
 
 
-class ModuleWarehouseMeta(FactoryTypeMeta):
-    """Metaclass for auto-registering Warehouse subclasses."""
-
-    @classmethod
-    def get_class(cls) -> Type['ModuleWarehouse']:
-        try:
-            return ModuleWarehouse
-        except NameError:
-            return None
-
-    @classmethod
-    def get_factory(cls):
-        return ModuleWarehouseFactory
-
-
-class ModuleWarehouse(metaclass=ModuleWarehouseMeta):
+class ModuleWarehouse(metaclass=FactoryTypeMeta[Self, ModuleWarehouseFactory]):
     """Class used to manage a collection of IntrospectiveModules.
 
     Can filter types, catalog numbers, etc.
@@ -6487,7 +6478,6 @@ class ModuleWarehouse(metaclass=ModuleWarehouseMeta):
 
 class ModuleVendorFactory(MetaFactory):
     """Factory for creating ModuleVendor instances."""
-    _registered_types: dict = {}
 
     @classmethod
     def get_known_modules(cls) -> List[IntrospectiveModule]:
@@ -6540,49 +6530,9 @@ class ModuleVendorFactory(MetaFactory):
 
 class EmulationGeneratorFactory(MetaFactory):
     """Factory for creating EmulationGenerator instances."""
-    _registered_types: dict = {}
-
-    @staticmethod
-    def get_generator(controller: Controller) -> EmulationGenerator:
-        """Get an appropriate EmulationGenerator for the given controller.
-
-        Args:
-            controller (Controller): The controller to get a generator for.
-
-        Returns:
-            EmulationGenerator: An instance of the appropriate EmulationGenerator subclass.
-
-        Raises:
-            ValueError: If no suitable generator is found for the controller type.
-        """
-
-        for generator_cls in EmulationGeneratorFactory.get_registered_types().values():
-            if not generator_cls:
-                continue
-            if not issubclass(generator_cls, EmulationGenerator):
-                continue
-            if controller.__class__.__name__ == generator_cls.generator_type:
-                return generator_cls(controller)
-
-        raise ValueError(f'No suitable emulation generator found for controller type {controller.__class__.__name__}')
 
 
-class EmulationGeneratorMeta(FactoryTypeMeta):
-    """Metaclass for auto-registering EmulationGenerator subclasses."""
-
-    @classmethod
-    def get_class(cls) -> Type['EmulationGenerator']:
-        try:
-            return EmulationGenerator
-        except NameError:
-            return None
-
-    @classmethod
-    def get_factory(cls):
-        return EmulationGeneratorFactory
-
-
-class EmulationGenerator(metaclass=EmulationGeneratorMeta):
+class EmulationGenerator(metaclass=FactoryTypeMeta[Self, EmulationGeneratorFactory]):
     """Base class for emulation logic generators."""
     generator_type = 'Controller'
 
@@ -6592,7 +6542,6 @@ class EmulationGenerator(metaclass=EmulationGeneratorMeta):
     ) -> None:
         super().__init__()
         self.generator_object: Controller = controller
-        self.logger = Loggable.get_or_create_logger(f'{self.__class__.__name__}')
         self.schema = ControllerModificationSchema(
             source=None,
             destination=self.generator_object
@@ -6700,6 +6649,14 @@ class EmulationGenerator(metaclass=EmulationGeneratorMeta):
             str: Name of the test mode tag
         """
         return self.base_tags[4][0]
+
+    @classmethod
+    def get_class(cls) -> Self:
+        return cls
+
+    @classmethod
+    def get_factory(cls):
+        return EmulationGeneratorFactory
 
     def _add_to_safety_routine(self, rung: Rung) -> None:
         """Helper to add a rung to the safety emulation routine."""
