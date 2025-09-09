@@ -59,8 +59,12 @@ class MetaFactory(ABC, Loggable):
             Optional[Type]: The class type if found, else None.
         """
         if isinstance(type_name, object):
-            type_name = type_name.__class__.__name__
-        return cls.get_registered_types().get(type_name, None)
+            type_search = type_name.__class__.__name__
+        elif isinstance(type_name, str):
+            type_search = type_name
+        else:
+            raise ValueError('type_name must be a string or an object instance.')
+        return cls.get_registered_types().get(type_search, None)
 
     @classmethod
     def get_registered_types(cls) -> dict[str, Type[T]]:
@@ -95,6 +99,7 @@ class MetaFactory(ABC, Loggable):
 class FactoryTypeMeta(ABCMeta, Loggable, Generic[T, F]):
     """Meta class for types that are used in factory patterns.
     """
+    supports_registering: bool = True
 
     def __new__(
         cls,
@@ -104,20 +109,20 @@ class FactoryTypeMeta(ABCMeta, Loggable, Generic[T, F]):
         **_
     ) -> Type[Self]:
         new_cls = super().__new__(cls, name, bases, attrs)
-        if not new_cls.get_supports_registering():
-            cls.logger.debug(f'FactoryTypeMeta: Class {name} does not support registering with a factory.')
+        if new_cls.supports_registering is False:
+            print(f'FactoryTypeMeta: Class {name} does not support registering with a factory.')
             return new_cls
 
         factory = new_cls.get_factory()
         if factory is None:
-            cls.logger.debug(f'FactoryTypeMeta: No factory found for class {name}.')
+            print(f'FactoryTypeMeta: No factory found for class {name}.')
             return new_cls
 
         if (new_cls.__name__ != 'FactoryTypeMeta'):
-            cls.logger.debug(f'FactoryTypeMeta: Registering class {name} with factory {factory.__name__}.')
+            print(f'FactoryTypeMeta: Registering class {name} with factory {factory.__name__}.')
             factory.register_type(new_cls)
         else:
-            cls.logger.debug(
+            print(
                 f'FactoryTypeMeta: Class {name} is the factory class itself or does not subclass it.'
             )
 
@@ -130,7 +135,7 @@ class FactoryTypeMeta(ABCMeta, Loggable, Generic[T, F]):
         Returns:
             Optional[Type]: The type, or None if not set.
         """
-        return None
+        return cls
 
     @classmethod
     def get_factory(cls) -> Optional[Type[F]]:
@@ -140,14 +145,3 @@ class FactoryTypeMeta(ABCMeta, Loggable, Generic[T, F]):
             Optional[MetaFactory]: The factory, or None if not set.
         """
         return None
-
-    @classmethod
-    def get_supports_registering(cls) -> bool:
-        """Check if this class supports registering with a factory.
-        \n Override in a subclass for any meta classes that do not support registering.
-
-        Returns:
-            bool: True if the class supports registering, False otherwise.
-        """
-        factory = cls.get_factory()
-        return factory is not None and issubclass(factory, MetaFactory)

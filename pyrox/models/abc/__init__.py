@@ -18,10 +18,13 @@ from .list import (
     SafeList
 )
 
+from .logging import (
+    Loggable,
+)
+
 from .meta import (
     Buildable,
     EnforcesNaming,
-    Loggable,
     NamedPyroxObject,
     PyroxObject,
     Runnable,

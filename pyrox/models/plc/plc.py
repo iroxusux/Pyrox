@@ -4445,8 +4445,6 @@ class ControllerMeta(FactoryTypeMeta):
 class ControllerFactory(MetaFactory):
     """Controller factory with scoring-based matching."""
 
-    _registered_types: dict = {}
-
     @classmethod
     def get_best_match(
         cls,
@@ -4497,7 +4495,7 @@ class ControllerFactory(MetaFactory):
         return controller_class(meta_data=controller_data, **kwargs)
 
 
-class Controller(NamedPlcObject, Loggable, metaclass=ControllerMeta):
+class Controller(NamedPlcObject, metaclass=ControllerMeta):
     """Controller container for Allen Bradley L5X Files.
     .. ------------------------------------------------------------
 
@@ -6157,8 +6155,14 @@ class ControllerMatcherFactory(MetaFactory):
     """Controller matcher factory."""
 
 
-class ControllerMatcher(metaclass=FactoryTypeMeta[Self, ControllerMatcherFactory]):
+class ControllerMatcher(PyroxObject, metaclass=FactoryTypeMeta[Self, ControllerMatcherFactory]):
     """Abstract base class for controller matching strategies."""
+
+    supports_registering = False  # This class can't be used to match anything
+
+    def __init_subclass__(cls, **kwargs):
+        super().__init_subclass__(**kwargs)
+        cls.supports_registering = True  # Subclasses can be used to match
 
     @staticmethod
     def get_datatype_patterns() -> List[str]:
@@ -6435,7 +6439,7 @@ class ModuleWarehouseFactory(MetaFactory):
         return filtered
 
 
-class ModuleWarehouse(metaclass=FactoryTypeMeta[Self, ModuleWarehouseFactory]):
+class ModuleWarehouse(PyroxObject, metaclass=FactoryTypeMeta[Self, ModuleWarehouseFactory]):
     """Class used to manage a collection of IntrospectiveModules.
 
     Can filter types, catalog numbers, etc.
@@ -6532,7 +6536,7 @@ class EmulationGeneratorFactory(MetaFactory):
     """Factory for creating EmulationGenerator instances."""
 
 
-class EmulationGenerator(metaclass=FactoryTypeMeta[Self, EmulationGeneratorFactory]):
+class EmulationGenerator(PyroxObject, metaclass=FactoryTypeMeta[Self, EmulationGeneratorFactory]):
     """Base class for emulation logic generators."""
     generator_type = 'Controller'
 

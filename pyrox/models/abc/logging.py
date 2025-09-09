@@ -12,17 +12,29 @@ DEF_DATE_FMT = "%m/%d/%Y, %H:%M:%S"
 class LoggingManager:
     """A Logging manager for the pyrox application environment.
     """
-    curr_logging_level = logging.INFO
+    curr_logging_level = logging.DEBUG
     _curr_loggers = {}
+
+    @classmethod
+    def debug_loggers(cls):
+        """Debug current logger state."""
+        print("=== Current Loggers ===")
+        for name, logger in cls._curr_loggers.items():
+            print(f"Logger: {name}")
+            print(f"  Level: {logger.level}")
+            print(f"  Propagate: {logger.propagate}")
+            print(f"  Handlers: {len(logger.handlers)}")
+            for i, handler in enumerate(logger.handlers):
+                print(f"    Handler {i}: {type(handler).__name__} -> {getattr(handler, 'stream', 'N/A')}")
+            print()
 
     @classmethod
     def _create_logger(cls,
                        name: str = __name__
                        ) -> logging.Logger:
         """Create a logger that outputs to stderr (which gets captured)."""
-        logger = cls._setup_standard_logger(name=name)
-        cls._curr_loggers[name] = logger
-        return logger
+        cls._curr_loggers[name] = cls._setup_standard_logger(name=name)
+        return cls._curr_loggers[name]
 
     @classmethod
     def _get_or_create_logger(
@@ -70,8 +82,7 @@ class LoggingManager:
         """
         logger = logging.getLogger(name)
         cls._remove_all_handlers(logger)
-        handler = cls._get_standard_handler(sys.stderr)
-        logger.addHandler(handler)
+        logger.addHandler(cls._get_standard_handler(sys.stderr))
         logger.setLevel(cls.curr_logging_level)
         logger.propagate = False
         return logger
@@ -83,8 +94,9 @@ class LoggingManager:
         Args:
             logger: The logger from which to remove handlers.
         """
-        for handler in logger.handlers[:]:
-            logger.removeHandler(handler)
+        hdlrs = logger.handlers[:]
+        for hdlr in hdlrs:
+            logger.removeHandler(hdlr)
 
     @classmethod
     def get_or_create_logger(
@@ -113,7 +125,7 @@ class LoggingManager:
             cls._setup_standard_logger(name)
 
         # Update the Loggable class loggers too
-        for name, _ in Loggable._curr_loggers.items():
+        for name, _ in LoggingManager._curr_loggers.items():
             cls._setup_standard_logger(name)
 
     @classmethod
@@ -138,10 +150,9 @@ class Loggable:
     \n Rather, it uses the inheriting class's builtin name.
     """
 
-    logger: logging.Logger = None
+    logger: logging.Logger = LoggingManager.get_or_create_logger(name='Loggable')
 
     def __init_subclass__(cls, **kwargs):
         super().__init_subclass__(**kwargs)
         # Create logger for each subclass
-        if not hasattr(cls, 'logger') or cls.logger is None:
-            cls.logger = LoggingManager.get_or_create_logger(name=cls.__name__)
+        cls.logger = LoggingManager.get_or_create_logger(name=cls.__name__)

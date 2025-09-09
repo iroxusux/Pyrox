@@ -4,4 +4,5 @@
 def debug() -> None:
     """public debug method for development use.
     """
-    pass
+    from pyrox.models.abc.logging import LoggingManager
+    LoggingManager.debug_loggers()

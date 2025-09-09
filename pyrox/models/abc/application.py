@@ -784,7 +784,6 @@ class Application(meta.Runnable):
             return
         try:
             self._multi_stream = meta.MultiStream(
-                sys.__stdout__,
                 sys.__stderr__,
                 self._directory_service.get_log_file_stream(),
                 meta.SimpleStream(self.log))
