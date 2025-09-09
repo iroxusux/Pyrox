@@ -46,8 +46,8 @@ class BaseMenu(meta.Buildable):
 
     def __init__(self, root: Union[Tk, Toplevel]):
         super().__init__()
-        self._root = root
-        self._menu = Menu(self._root)
+        self._root: Union[Tk, Toplevel] = root
+        self._menu: Menu = Menu(self._root)
 
     @property
     def menu(self) -> Menu:

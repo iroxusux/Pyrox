@@ -1,5 +1,7 @@
 """Pyrox utilities module
     """
+import fnmatch
+from typing import List
 
 
 class SliceableInt(object):
@@ -99,6 +101,18 @@ class SliceableInt(object):
             Value to set in this object.
         """
         self._value = value
+
+
+def check_wildcard_patterns(
+    items: List[str],
+    patterns: List[str]
+) -> bool:
+    """Check if any item matches any wildcard pattern."""
+    for item in items:
+        for pattern in patterns:
+            if fnmatch.fnmatch(item, pattern):
+                return True
+    return False
 
 
 def clear_bit(word: int,

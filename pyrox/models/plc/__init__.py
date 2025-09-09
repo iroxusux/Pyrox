@@ -1,6 +1,16 @@
 """Plc types module
     """
 
+from .ctrl_matcher import (
+    ControllerMatcher,
+    ControllerMatcherFactory,
+)
+
+from .emu_gen import (
+    EmulationGenerator,
+    EmulationGeneratorFactory,
+)
+
 from .mod import (
     AllenBradleyModule,
     SewModule,
@@ -15,14 +25,11 @@ from .plc import (
     Controller,
     ControllerConfiguration,
     ControllerFactory,
-    ControllerMatcher,
     ControllerModificationSchema,
     ControllerSafetyInfo,
     Datatype,
     DatatypeMember,
     DataValueMember,
-    EmulationGenerator,
-    EmulationGeneratorFactory,
     IntrospectiveModule,
     LogixInstruction,
     LogixAssetType,
@@ -50,6 +57,7 @@ __all__ = (
     'ControllerConfiguration',
     'ControllerFactory',
     'ControllerMatcher',
+    'ControllerMatcherFactory',
     'ControllerModificationSchema',
     'ControllerSafetyInfo',
     'Datatype',
