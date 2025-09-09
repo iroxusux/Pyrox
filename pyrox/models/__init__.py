@@ -9,7 +9,6 @@ from . import (
 from .abc import (
     Application,
     ApplicationConfiguration,
-    ApplicationTask,
     ApplicationTkType,
     Buildable,
     FactoryTypeMeta,
@@ -45,12 +44,15 @@ from .plc import (
     ModuleControlsType,
 )
 
+from .task import ApplicationTask, ApplicationTaskFactory
+
 
 __all__ = (
     'abc',
     'Application',
     'ApplicationConfiguration',
     'ApplicationTask',
+    'ApplicationTaskFactory',
     'ApplicationTkType',
     'Buildable',
     'ConnectionCommand',

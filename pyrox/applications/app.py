@@ -331,6 +331,9 @@ class App(models.Application):
         frame = self._organizer.build(master=self._main_paned_window)
         self._main_paned_window.add(frame)
 
+    def _build_tasks(self) -> None:
+        models.ApplicationTaskFactory.build_tasks(self)
+
     def _build_workspace(self) -> None:
         self._workspace = models.PyroxFrame(
             self._sub_paned_window,
@@ -457,6 +460,7 @@ class App(models.Application):
         self._build_log_window()
         self._build_and_pack_sub_paned_window()
         self._build_and_pack_main_paned_window()
+        self._build_tasks()
         self._setup_keybinds()
         self._load_last_opened_controller()
 
@@ -689,6 +693,7 @@ class App(models.Application):
 
 
 class AppTask(models.ApplicationTask):
+
     def __init__(self, application):
         super().__init__(application)
 
@@ -715,3 +720,6 @@ class AppTask(models.ApplicationTask):
             controller: Optional[:class:`Controller]
         """
         return self.application.controller if self.application else None
+
+    def inject(self) -> None:
+        return None

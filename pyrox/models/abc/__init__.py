@@ -3,7 +3,6 @@
 from .application import (
     Application,
     ApplicationConfiguration,
-    ApplicationTask,
     ApplicationTkType,
     BaseMenu,
 )
@@ -36,10 +35,10 @@ from .model import (
     Model
 )
 
+
 __all__ = (
     'Application',
     'ApplicationConfiguration',
-    'ApplicationTask',
     'ApplicationTkType',
     'BaseMenu',
     'Buildable',

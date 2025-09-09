@@ -1,7 +1,7 @@
 """Application ABC types for the Pyrox framework."""
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 import datetime
 from enum import Enum
 import gc
@@ -18,15 +18,13 @@ from tkinter import (
 )
 from typing import Any, Callable, Optional, Self, Union
 
-from pyrox.services import file, class_services
+from pyrox.services import file
 
 from . import meta
-from .list import HashList
 from .logging import LoggingManager
 
 __all__ = (
     'BaseMenu',
-    'ApplicationTask',
     'ApplicationConfiguration',
     'ApplicationDirectoryService',
     'ApplicationRuntimeInfo',
@@ -170,55 +168,6 @@ class MainApplicationMenu(BaseMenu):
         return self._view
 
 
-class ApplicationTask(meta.Runnable):
-    """Application task to add additional functionality to the application.
-
-    Normally, these tasks are injected into the application's main menu toolbar.
-
-    Args:
-        application: The parent application of this task.
-
-    Attributes:
-        application: The parent application of this task.
-    """
-    __slots__ = ('_application',)
-
-    def __init__(self, application: 'Application'):
-        super().__init__()
-        self._application: 'Application' = application
-
-    @property
-    def application(self) -> 'Application':
-        """The parent application of this task.
-
-        Returns:
-            Application: The parent application instance.
-        """
-        return self._application
-
-    @application.setter
-    def application(self, value: 'Application'):
-        """Set the parent application for this task.
-
-        Args:
-            value: The application instance to set.
-
-        Raises:
-            TypeError: If value is not an Application instance.
-        """
-        if not isinstance(value, Application):
-            raise TypeError('application must be of type Application')
-        self._application = value
-
-    def inject(self) -> None:
-        """Inject this task into the hosting application.
-
-        Raises:
-            NotImplementedError: This method should be overridden in a subclass.
-        """
-        raise NotImplementedError('This method should be overridden in a subclass.')
-
-
 class ApplicationTkType(Enum):
     """Application Tkinter Type enumeration.
 
@@ -257,7 +206,6 @@ class ApplicationConfiguration:
     type_: ApplicationTkType = ApplicationTkType.ROOT
     icon: Optional[str] = meta.DEF_ICON
     size_: Optional[str] = meta.DEF_WIN_SIZE
-    tasks: list[ApplicationTask] = field(default_factory=list)
 
     @classmethod
     def _common_assembly(cls,
@@ -268,8 +216,7 @@ class ApplicationConfiguration:
                          theme: str,
                          type_: ApplicationTkType,
                          icon: str,
-                         size_: str,
-                         tasks: list[ApplicationTask]) -> Self:
+                         size_: str) -> Self:
         """Common assembly method for creating ApplicationConfiguration instances.
 
         Args:
@@ -281,7 +228,6 @@ class ApplicationConfiguration:
             type_: Type of the application.
             icon: Icon path.
             size_: Window size.
-            tasks: List of tasks.
 
         Returns:
             Self: A new ApplicationConfiguration instance.
@@ -294,8 +240,7 @@ class ApplicationConfiguration:
             theme=theme,
             type_=type_,
             icon=icon,
-            size_=size_,
-            tasks=tasks
+            size_=size_
         )
 
     @classmethod
@@ -313,8 +258,7 @@ class ApplicationConfiguration:
             theme=meta.DEF_THEME,
             type_=ApplicationTkType.TOPLEVEL,
             icon=meta.DEF_ICON,
-            size_=meta.DEF_WIN_SIZE,
-            tasks=[]
+            size_=meta.DEF_WIN_SIZE
         )
 
     @classmethod
@@ -332,8 +276,7 @@ class ApplicationConfiguration:
             theme=meta.DEF_THEME,
             type_=ApplicationTkType.ROOT,
             icon=meta.DEF_ICON,
-            size_=meta.DEF_WIN_SIZE,
-            tasks=[]
+            size_=meta.DEF_WIN_SIZE
         )
 
 
@@ -677,7 +620,6 @@ class Application(meta.Runnable):
         '_menu',
         '_multi_stream',
         '_runtime_info',
-        '_tasks',
         '_tk_app'
     )
 
@@ -692,7 +634,6 @@ class Application(meta.Runnable):
         self._frame: Frame = None
         self._menu: MainApplicationMenu = None
         self._runtime_info: ApplicationRuntimeInfo = None
-        self._tasks: HashList[ApplicationTask] = None
         self._tk_app: Union[Tk, Toplevel] = None
         self._multi_stream: Optional[meta.MultiStream] = None
 
@@ -754,15 +695,6 @@ class Application(meta.Runnable):
         """
         return self._runtime_info
 
-    @property
-    def tasks(self) -> HashList[ApplicationTask]:
-        """Hashed list of tasks for this Application.
-
-        Returns:
-            HashList[ApplicationTask]: The list of application tasks.
-        """
-        return self._tasks
-
     def _build_app_icon(self) -> None:
         icon_path = Path(self.config.icon)
         if icon_path.exists():
@@ -798,47 +730,6 @@ class Application(meta.Runnable):
         self._runtime_info = ApplicationRuntimeInfo(self)
         if self.runtime_info.get('logging_level') is not None:
             self.set_logging_level(self.runtime_info.get('logging_level'))
-
-    def _build_tasks(self) -> None:
-        self._tasks: HashList[ApplicationTask] = HashList('name')
-
-        try:
-            # Handle PyInstaller bundled executable
-            if getattr(sys, 'frozen', False) and hasattr(sys, '_MEIPASS'):
-                # Running as PyInstaller bundle
-                tasks_path = Path(sys._MEIPASS) / 'pyrox' / 'tasks'
-                self.logger.info(f"Running in PyInstaller bundle, tasks path: {tasks_path}")
-            else:
-                # Running in development environment
-                tasks_path = Path(__file__).parents[2] / 'tasks'
-                self.logger.info(f"Running in development, tasks path: {tasks_path}")
-
-            self.logger.info(f"Looking for tasks in: {tasks_path}")
-            self.logger.info(f"Tasks directory exists: {tasks_path.exists()}")
-
-            if tasks_path.exists():
-                # List what's actually in the directory
-                try:
-                    task_files = list(tasks_path.glob('*.py'))
-                    self.logger.info(f"Found task files: {[f.name for f in task_files]}")
-                except Exception as e:
-                    raise RuntimeError(f"Failed to list task files in {tasks_path}") from e
-
-                tasks = class_services.find_and_instantiate_class(
-                    directory_path=str(tasks_path),
-                    class_name=ApplicationTask.__name__,
-                    as_subclass=True,
-                    ignoring_classes=['ApplicationTask', 'AppTask'],
-                    parent_class=ApplicationTask,
-                    application=self
-                )
-                self.add_tasks(tasks=tasks)
-                self.logger.info(f"Successfully loaded {len(tasks)} tasks")
-            else:
-                self.logger.warning(f'Tasks directory not found: {tasks_path}')
-
-        except Exception as e:
-            self.logger.error(f'Failed to load tasks: {e}', exc_info=True)
 
     def _build_tk_app_instance(self) -> None:
         if self.config.type_ == ApplicationTkType.ROOT:
@@ -898,34 +789,6 @@ class Application(meta.Runnable):
             self._tk_app.geometry(self.config.size_)
             self._tk_app.state('normal')
 
-    def add_task(self, task: Union[ApplicationTask, type[ApplicationTask]]) -> None:
-        """Add a task to this Application.
-
-        This method can accept either an instance of ApplicationTask or a class type.
-
-        Args:
-            task: ApplicationTask to add. If a class type is provided, an instance will be created.
-        """
-        if isinstance(task, ApplicationTask):
-            task.inject()
-            self.tasks.append(task)
-        elif isinstance(task, type):
-            tsk = task(self)
-            tsk.inject()
-            self.tasks.append(tsk)
-
-    def add_tasks(self, tasks: Union[list[ApplicationTask], list[type[ApplicationTask]]]) -> None:
-        """Add a list of ApplicationTasks to this Application.
-
-        This method calls each task's inject method.
-
-        Args:
-            tasks: List of ApplicationTask instances or types to add.
-        """
-        self.logger.info(f'Adding {len(tasks)} tasks to the application.')
-        for task in tasks:
-            self.add_task(task)
-
     def build(self) -> None:
         self._build_multi_stream()
         self._build_runtime_info()
@@ -934,7 +797,6 @@ class Application(meta.Runnable):
         self._build_app_icon()
         self._build_frame()
         self._build_menu()
-        self._build_tasks()
         self._directory_service.build_directory()
         self._restore_geometry_from_runtime_info()
         super().build()

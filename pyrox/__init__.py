@@ -29,6 +29,8 @@ from .models.gui import (
     ContextMenu
 )
 
+from . import tasks
+
 
 __all__ = (
     'services',
@@ -47,6 +49,7 @@ __all__ = (
     'ProgressBar',
     'SafeList',
     'SnowFlake',
+    'tasks',
     'UserListbox',
     'utils',
 )
