@@ -6,7 +6,7 @@ from __future__ import annotations
 from typing import Self
 from pyrox.models.abc import FactoryTypeMeta
 
-from .warehouse import IntrospectiveModule, ModuleWarehouse
+from .mod import IntrospectiveModule, ModuleWarehouse
 
 
 __all__ = (

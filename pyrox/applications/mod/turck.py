@@ -130,6 +130,16 @@ class TurckTBENL16InBlock(TurckModule):
         return 'ETHERNET-MODULE'
 
     @property
+    def config_cxn_point(self) -> str:
+        """The config connection point of the module."""
+        return ''
+
+    @property
+    def config_size(self) -> str:
+        """The config connection size of the module."""
+        return '16'
+
+    @property
     def controls_type(self) -> ModuleControlsType:
         """The controls type of the module."""
         return ModuleControlsType.BLOCK
@@ -142,7 +152,7 @@ class TurckTBENL16InBlock(TurckModule):
     @property
     def input_size(self) -> str:
         """The input size of the module."""
-        return '4'
+        return '8'
 
     @property
     def output_cxn_point(self) -> str:
@@ -152,7 +162,7 @@ class TurckTBENL16InBlock(TurckModule):
     @property
     def output_size(self) -> str:
         """The output size of the module."""
-        return '1'
+        return '2'
 
     @classmethod
     def get_required_imports(cls) -> list[tuple[str, list[str]]]:

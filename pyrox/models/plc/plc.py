@@ -1820,14 +1820,75 @@ class ModuleConnectionTag(PlcObject):
         )
 
     @property
+    def config_size(self) -> str:
+        return self['@ConfigSize']
+
+    @property
     def data(self) -> list[dict]:
         if not self['Data']:
             return [{}]
-        if not isinstance(self['Data'], dict):
-            self['Data'] = {'Data': []}
-        if not isinstance(self['Data']['Data'], list):
-            self['Data']['Data'] = [self['Data']['Data']]
         return self['Data']
+
+    @property
+    def data_decorated(self) -> dict:
+        if not isinstance(self.data, list):
+            datas = [self.data]
+        else:
+            datas = self.data
+        return next((x for x in datas if x.get('@Format', '') == 'Decorated'), {})
+
+    @property
+    def data_decorated_structure(self) -> dict:
+        return self.data_decorated.get('Structure', {})
+
+    @property
+    def data_decorated_structure_array_member(self) -> dict:
+        return self.data_decorated_structure.get('ArrayMember', {})
+
+    @property
+    def data_decorated_stucture_datatype(self) -> str:
+        return self.data_decorated_structure.get('@DataType', '')
+
+    @property
+    def data_decorated_stucture_size(self) -> str:
+        return self.data_decorated_structure_array_member.get('@Dimensions', '')
+
+    @property
+    def data_l5x(self) -> dict:
+        return next((x for x in self.data if x.get('@Format', '') == 'L5X'), {})
+
+    def get_data_multiplier(self) -> int:
+        """get the data multiplier for this tag
+
+        Returns:
+            :class:`int`: data multiplier
+        """
+        if not self.data_decorated_stucture_datatype:
+            return 0
+
+        match self.data_decorated_stucture_datatype:
+            case 'SINT':
+                return 1
+            case 'INT':
+                return 2
+            case 'DINT' | 'REAL' | 'DWORD':
+                return 4
+            case 'LINT' | 'LREAL' | 'LWORD':
+                return 8
+            case _:
+                raise ValueError(f"Unsupported datatype: {self.data_decorated_stucture_datatype}")
+
+    def get_resolved_size(self) -> int:
+        """get the resolved size for this tag
+
+        Returns:
+            :class:`int`: resolved size
+        """
+        if not self.data_decorated_stucture_size:
+            return 0
+
+        native_size = int(self.data_decorated_stucture_size)
+        return native_size * self.get_data_multiplier()
 
 
 class Module(NamedPlcObject):
@@ -1980,7 +2041,7 @@ class Module(NamedPlcObject):
         """
         if not self.config_tag:
             return ''
-        return self.config_tag.get('@ConfigSize', '')
+        return self.config_tag.config_size
 
     @property
     def input_connection_size(self) -> str:
@@ -1989,10 +2050,9 @@ class Module(NamedPlcObject):
         Returns:
             :class:`str`: input connection size
         """
-        if not self.input_tag:
+        if not self.connection:
             return ''
-
-        return self.communications.get('@PrimCxnInputSize', '')
+        return self.connection.get('@InputSize', '')
 
     @property
     def output_connection_size(self) -> str:
@@ -2001,7 +2061,9 @@ class Module(NamedPlcObject):
         Returns:
             :class:`str`: output connection size
         """
-        return self.communications.get('@PrimCxnOutputSize', '')
+        if not self.connection:
+            return ''
+        return self.connection.get('@OutputSize', '')
 
     @property
     def vendor(self) -> str:
@@ -2127,19 +2189,28 @@ class Module(NamedPlcObject):
         return self.introspective_module.type_ if self.introspective_module else 'Unknown'
 
     def _compile_from_meta_data(self):
+
+        self._compile_tag_meta_data()
         self._introspective_module = IntrospectiveModule.from_meta_data(self, lazy_match_catalog=True)
-        if not self.connections or len(self.connections) < 1:
+
+    def _compile_tag_meta_data(self):
+        if not self.communications:
             return
+
+        config_tag_data = self.communications.get('ConfigTag', None)
+        if config_tag_data:
+            self._config_tag = ModuleConnectionTag(meta_data=config_tag_data, controller=self.controller)
+
+        if not self.connections:
+            return
+
         input_tag_data = self.connection.get('InputTag', None)
         output_tag_data = self.connection.get('OutputTag', None)
-        config_tag_data = self.connection.get('ConfigTag', None)
 
         if input_tag_data:
             self._input_tag = ModuleConnectionTag(meta_data=input_tag_data, controller=self.controller)
         if output_tag_data:
             self._output_tag = ModuleConnectionTag(meta_data=output_tag_data, controller=self.controller)
-        if config_tag_data:
-            self._config_tag = ModuleConnectionTag(meta_data=config_tag_data, controller=self.controller)
 
     def validate(self) -> ControllerReportItem:
 
