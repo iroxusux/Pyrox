@@ -1,43 +1,33 @@
-"""Allen Bradley Module Meta Defintions for controls integrations.
+"""SEW Module Meta Defintions for controls integrations.
 """
 
 from __future__ import annotations
 
-from typing import Type
+from typing import Self
 from pyrox.models.abc import FactoryTypeMeta
 
-from ..plc import IntrospectiveModule, ModuleWarehouseFactory, ModuleVendorFactory
+from .warehouse import IntrospectiveModule, ModuleWarehouse
 
 
 __all__ = (
     'SewModule',
+    'SewModuleFactory',
 )
 
 
-class SewModuleFactory(ModuleVendorFactory):
-    """Factory for creating Allen Bradley module instances."""
-
-    _registered_types: dict = {}
+class SewModuleFactory(ModuleWarehouse):
+    """Factory for creating SEW module instances."""
 
 
-class SewModuleMeta(FactoryTypeMeta):
-    """Metaclass for auto-registering Warehouse subclasses."""
+class SewModule(IntrospectiveModule, metaclass=FactoryTypeMeta[Self, SewModuleFactory]):
+    """SEW Module ABC.
+    """
+    supports_registering = False  # SEW modules do not support registering directly
 
-    @classmethod
-    def get_class(cls) -> Type['SewModule']:
-        try:
-            return SewModule
-        except NameError:
-            return None
+    def __init_subclass__(cls, **kwargs):
+        cls.supports_registering = True  # Subclasses can support registering
+        return super().__init_subclass__(**kwargs)
 
     @classmethod
     def get_factory(cls):
         return SewModuleFactory
-
-
-class SewModule(IntrospectiveModule, metaclass=SewModuleMeta):
-    """Allen Bradley Module ABC.
-    """
-
-
-ModuleWarehouseFactory.register_type(SewModuleFactory)

@@ -1,43 +1,31 @@
 """Allen Bradley Module Meta Defintions for controls integrations.
 """
-
-from __future__ import annotations
-
-from typing import Type
+from typing import Self
 from pyrox.models.abc import FactoryTypeMeta
 
-from ..plc import IntrospectiveModule, ModuleWarehouseFactory, ModuleVendorFactory
+from .warehouse import IntrospectiveModule, ModuleWarehouse
 
 
 __all__ = (
     'AllenBradleyModule',
+    'AllenBradleyModuleFactory',
 )
 
 
-class AllenBradleyModuleFactory(ModuleVendorFactory):
+class AllenBradleyModuleFactory(ModuleWarehouse):
     """Factory for creating Allen Bradley module instances."""
 
-    _registered_types: dict = {}
 
+class AllenBradleyModule(IntrospectiveModule, metaclass=FactoryTypeMeta[Self, AllenBradleyModuleFactory]):
+    """Allen Bradley Module ABC.
+    """
 
-class AllenBradleyModuleMeta(FactoryTypeMeta):
-    """Metaclass for auto-registering Warehouse subclasses."""
+    supports_registering = False  # Allen Bradley modules do not support registering directly
 
-    @classmethod
-    def get_class(cls) -> Type['AllenBradleyModule']:
-        try:
-            return AllenBradleyModule
-        except NameError:
-            return None
+    def __init_subclass__(cls, **kwargs):
+        cls.supports_registering = True  # Subclasses can support registering
+        return super().__init_subclass__(**kwargs)
 
     @classmethod
     def get_factory(cls):
         return AllenBradleyModuleFactory
-
-
-class AllenBradleyModule(IntrospectiveModule, metaclass=AllenBradleyModuleMeta):
-    """Allen Bradley Module ABC.
-    """
-
-
-ModuleWarehouseFactory.register_type(AllenBradleyModuleFactory)

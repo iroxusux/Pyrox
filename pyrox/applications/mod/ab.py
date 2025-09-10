@@ -106,6 +106,39 @@ class AB_1734IB8S(AllenBradleyGenericSafetyBlock):
         return '1734-IB8S'
 
 
+class AB_1756ENT(AllenBradleyModule):
+    """Allen Bradley 1756-EN*T Module.
+
+    This module represents an Allen Bradley 1756-EN*T Ethernet module.
+    It is used to control and monitor the Ethernet communication in a PLC system.
+    """
+    @property
+    def catalog_number(self) -> str:
+        """The catalog number of the 1756-EN*T module."""
+        return '1756-EN'
+
+    @property
+    def controls_type(self) -> ModuleControlsType:
+        """The controls type of the module."""
+        return ModuleControlsType.ETHERNET
+
+
+class AB_1756L8ES(AllenBradleyModule):
+    """Allen Bradley 1756L8*ES Module.
+
+    This module represents an Allen Bradley 1756-L8*ES PLC module.
+    """
+    @property
+    def catalog_number(self) -> str:
+        """The catalog number of the 1756-L8*ES module."""
+        return '1756-L8'
+
+    @property
+    def controls_type(self) -> ModuleControlsType:
+        """The controls type of the module."""
+        return ModuleControlsType.PLC
+
+
 class AB_1791ES(AllenBradleyGenericSafetyBlock):
     """Allen Bradley 1791ES Safety Block Module.
     """

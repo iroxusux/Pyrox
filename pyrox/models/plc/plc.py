@@ -21,6 +21,7 @@ from typing import (
 
 from pyrox.models.abc.factory import FactoryTypeMeta, MetaFactory
 
+from .mod import IntrospectiveModule
 from ..abc import (
     EnforcesNaming,
     HashList,
@@ -48,9 +49,6 @@ __all__ = (
     'IntrospectiveModule',
     'Module',
     'ModuleControlsType',
-    'ModuleVendorFactory',
-    'ModuleWarehouse',
-    'ModuleWarehouseFactory',
     'Program',
     'Routine',
     'Rung',
@@ -1782,6 +1780,8 @@ class ModuleControlsType(Enum):
     """
     UNKOWN = 'Unknown'
     PLC = 'PLC'
+    ETHERNET = 'Ethernet'
+    SERIAL = 'Serial'
     BLOCK = 'Block'
     SAFETY_BLOCK = 'SafetyBlock'
     DRIVE = 'Drive'
@@ -1808,211 +1808,43 @@ class IntrospectiveModuleMeta(FactoryTypeMeta):
         return IntrospectiveModuleFactory
 
 
-class IntrospectiveModule:
-    """Introspective Module for a rockwell plc.
-    This is a wrapper around the Module class to provide introspection capabilities.
-    Such as, a Siemens G115Drive, or a Rockwell 1756-L85E controller.
-    It is used to extend capabilities of known modules, or to provide a way to introspect unknown modules.
-    """
-
+class ModuleConnectionTag(PlcObject):
     def __init__(
         self,
-        module: Optional[Module] = None
+        meta_data: dict = None,
+        controller: Controller = None
     ) -> None:
-        self._module = module
-
-    @classmethod
-    def get_controls_type(cls) -> ModuleControlsType:
-        """Get the controls type of the module."""
-        obj = cls()
-        return obj.controls_type
-        # raise NotImplementedError('This method should be implemented by the subclass.')
-
-    @classmethod
-    def get_required_imports(cls) -> list[tuple[str, str]]:
-        """Get the required datatype imports for the module.
-
-        Returns:
-            list[tuple[str, str]]: List of tuples containing the module and class name to import.
-        """
-        return []
-
-    def get_required_safety_rungs(self) -> list[Rung]:
-        """Get the required safety rungs for the module.
-
-        Returns:
-            list[Rung]: List of rungs.
-        """
-        return []
-
-    def get_required_standard_rungs(self) -> list[Rung]:
-        """Get the required standard rungs for the module.
-
-        Returns:
-            list[Rung]: List of rungs.
-        """
-        return []
-
-    def get_required_standard_to_safety_mapping(self) -> tuple[str, str]:
-        """Get the required standard to safety mapping for the module.
-
-        Returns:
-            dict[str, str]: Dictionary of standard to safety mapping.
-        """
-        return self.get_standard_input_tag_name(), self.get_safety_input_tag_name()
-
-    @classmethod
-    def get_required_tags(cls) -> list[dict]:
-        """Get the required tags for the module.
-
-        Returns:
-            list[dict]: List of tag dictionaries.
-        """
-        return []
-
-    def get_safety_input_tag_name(self) -> str:
-        """Get the safety tag name for the module.
-
-        Returns:
-            str: Safety tag name.
-        """
-        return ''
-
-    def get_standard_input_tag_name(self) -> str:
-        """Get the standard tag name for the module.
-
-        Returns:
-            str: Standard tag name.
-        """
-        return ''
-
-    def get_standard_output_tag_name(self) -> str:
-        """Get the standard output tag name for the module.
-
-        Returns:
-            str: Standard output tag name.
-        """
-        return ''
+        super().__init__(
+            meta_data=meta_data,
+            controller=controller
+        )
 
     @property
-    def catalog_number(self) -> str:
-        """The catalog number of the module."""
-        return ''
-
-    @property
-    def controls_type(cls) -> ModuleControlsType:
-        """The controls type of the module."""
-        return ModuleControlsType.UNKOWN
-
-    @property
-    def input_cxn_point(self) -> str:
-        """The input connection point of the module."""
-        return ''
-
-    @property
-    def output_cxn_point(self) -> str:
-        """The output connection point of the module."""
-        return ''
-
-    @property
-    def input_size(self) -> int:
-        """The input size of the module."""
-        return ''
-
-    @property
-    def module(self) -> Optional[Module]:
-        """The module being wrapped by the IntrospectiveModule."""
-        return self._module
-
-    @module.setter
-    def module(self, value: Module) -> None:
-        if not isinstance(value, Module):
-            raise ValueError('Module must be an instance of Module.')
-        self._module = value
-
-    @property
-    def output_size(self) -> int:
-        """The output size of the module."""
-        raise NotImplementedError('This method should be implemented by the subclass.')
-
-    @property
-    def type_(self) -> str:
-        """Get the type of the module."""
-        return self.__class__.__name__
-
-    @classmethod
-    def from_meta_data(
-        cls,
-        module: Module,
-        lazy_match_catalog: Optional[bool] = False
-    ) -> IntrospectiveModule:
-        """Create an IntrospectiveModule from a Module instance.
-        This method will attempt to match the module to a known IntrospectiveModule subclass
-
-        Args:
-            module (Module): The Module instance to wrap.
-            lazy_match_catalog (bool, optional): If True, will attempt to match the catalog number
-                using a substring match if an exact match is not found. Defaults to False.
-
-        Returns:
-            IntrospectiveModule: An instance of the matched IntrospectiveModule subclass,
-                or a generic IntrospectiveModule if no match is found.
-
-        Raises:
-            ValueError: If the module is None.
-        """
-        if not module:
-            raise ValueError('Module is required to create an IntrospectiveModule.')
-
-        if not module.catalog_number:
-            return cls(module)
-
-        known_modules = ModuleWarehouseFactory.get_all_known_modules()
-        if not known_modules:
-            return cls(module)
-
-        for m in known_modules:
-            mod = m(module)
-            if (mod.catalog_number == module.catalog_number and
-                    mod.input_cxn_point == module.input_connection_point and
-                    mod.output_cxn_point == module.output_connection_point and
-                    mod.input_size == module.input_connection_size and
-                    mod.output_size == module.output_connection_size):
-                return mod
-            if lazy_match_catalog and module.catalog_number != 'ETHERNET-MODULE':
-                if mod.catalog_number in module.catalog_number:
-                    return mod
-        return cls(module)
-
-    def get_safety_emulation_rung_text(self) -> str:
-        """Get the emulation rung text for the safety module.
-        This is used to generate the emulation logic for the safety module.
-        .. ------------------------------------------------------------
-        .. returns::
-            :class:`str`
-                The emulation rung text for the safety module.
-        """
-        raise NotImplementedError('This method should be implemented by the subclass.')
-
-    def get_standard_emulation_rung_text(self) -> str:
-        """Get the emulation rung text for the module.
-        This is used to generate the emulation logic for the module.
-        .. ------------------------------------------------------------
-        .. returns::
-            :class:`str`
-                The emulation rung text for the module.
-        """
-        raise NotImplementedError('This method should be implemented by the subclass.')
+    def data(self) -> list[dict]:
+        if not self['Data']:
+            return [{}]
+        if not isinstance(self['Data'], dict):
+            self['Data'] = {'Data': []}
+        if not isinstance(self['Data']['Data'], list):
+            self['Data']['Data'] = [self['Data']['Data']]
+        return self['Data']
 
 
 class Module(NamedPlcObject):
-    def __init__(self,
-                 l5x_meta_data: dict = None,
-                 controller: Controller = None):
+    def __init__(
+        self,
+        l5x_meta_data: dict = None,
+        controller: Controller = None
+    ) -> None:
 
-        super().__init__(meta_data=l5x_meta_data or l5x_dict_from_file(PLC_MOD_FILE)['Module'],
-                         controller=controller)
+        super().__init__(
+            meta_data=l5x_meta_data or l5x_dict_from_file(PLC_MOD_FILE)['Module'],
+            controller=controller
+        )
         self._introspective_module: IntrospectiveModule = None
+        self._config_tag: ModuleConnectionTag = None
+        self._input_tag: ModuleConnectionTag = None
+        self._output_tag: ModuleConnectionTag = None
         self._compile_from_meta_data()
 
     @property
@@ -2050,8 +1882,19 @@ class Module(NamedPlcObject):
     def communications(self) -> dict:
         return self['Communications']
 
+    @communications.setter
+    def communications(self, value: dict):
+        if not isinstance(value, dict):
+            raise ValueError("Communications must be a dictionary!")
+
+        self['Communications'] = value
+
     @property
-    def connections(self) -> dict:
+    def connection(self) -> dict:
+        return self.connections[0] if self.connections and len(self.connections) > 0 else {}
+
+    @property
+    def connections(self) -> list[dict]:
         """get the connections for this module
 
         Returns:
@@ -2059,11 +1902,34 @@ class Module(NamedPlcObject):
         """
         if not self.communications:
             return {}
-        if not isinstance(self.communications.get('Connections', {}), dict):
+        if not self.communications.get('Connections', None):
+            return {}
+
+        if not isinstance(self.communications['Connections'], dict):
             self.communications['Connections'] = {'Connection': []}
-        if not isinstance(self.communications['Connections']['Connection'], list):
+        if not isinstance(self.communications['Connections'].get('Connection', []), list):
             self.communications['Connections']['Connection'] = [self.communications['Connections']['Connection']]
         return self.communications['Connections']['Connection']
+
+    @property
+    def config_connection_point(self) -> str:
+        """get the config connection point for this module
+
+        Returns:
+            :class:`str`: config connection point
+        """
+        if not self.connections or len(self.connections) < 1:
+            return ''
+        return self.connections[0].get('@ConfigCxnPoint', '')
+
+    @property
+    def config_tag(self) -> ModuleConnectionTag:
+        """get the config tag for this module
+
+        Returns:
+            :class:`str`: config tag
+        """
+        return self._config_tag
 
     @property
     def input_connection_point(self) -> str:
@@ -2072,7 +1938,18 @@ class Module(NamedPlcObject):
         Returns:
             :class:`str`: input connection point
         """
+        if not self.connections or len(self.connections) < 1:
+            return ''
         return self.connections[0].get('@InputCxnPoint', '')
+
+    @property
+    def input_tag(self) -> ModuleConnectionTag:
+        """get the input tag for this module
+
+        Returns:
+            :class:`str`: input tag
+        """
+        return self._input_tag
 
     @property
     def output_connection_point(self) -> str:
@@ -2081,7 +1958,29 @@ class Module(NamedPlcObject):
         Returns:
             :class:`str`: output connection point
         """
+        if not self.connections or len(self.connections) < 1:
+            return ''
         return self.connections[0].get('@OutputCxnPoint', '')
+
+    @property
+    def output_tag(self) -> ModuleConnectionTag:
+        """get the output tag for this module
+
+        Returns:
+            :class:`str`: output tag
+        """
+        return self._output_tag
+
+    @property
+    def config_connection_size(self) -> str:
+        """get the config connection size for this module
+
+        Returns:
+            :class:`str`: config connection size
+        """
+        if not self.config_tag:
+            return ''
+        return self.config_tag.get('@ConfigSize', '')
 
     @property
     def input_connection_size(self) -> str:
@@ -2090,6 +1989,9 @@ class Module(NamedPlcObject):
         Returns:
             :class:`str`: input connection size
         """
+        if not self.input_tag:
+            return ''
+
         return self.communications.get('@PrimCxnInputSize', '')
 
     @property
@@ -2226,6 +2128,18 @@ class Module(NamedPlcObject):
 
     def _compile_from_meta_data(self):
         self._introspective_module = IntrospectiveModule.from_meta_data(self, lazy_match_catalog=True)
+        if not self.connections or len(self.connections) < 1:
+            return
+        input_tag_data = self.connection.get('InputTag', None)
+        output_tag_data = self.connection.get('OutputTag', None)
+        config_tag_data = self.connection.get('ConfigTag', None)
+
+        if input_tag_data:
+            self._input_tag = ModuleConnectionTag(meta_data=input_tag_data, controller=self.controller)
+        if output_tag_data:
+            self._output_tag = ModuleConnectionTag(meta_data=output_tag_data, controller=self.controller)
+        if config_tag_data:
+            self._config_tag = ModuleConnectionTag(meta_data=config_tag_data, controller=self.controller)
 
     def validate(self) -> ControllerReportItem:
 
@@ -6131,167 +6045,3 @@ class ControllerModificationSchema(Loggable):
 
         # Compile after all imports
         self.destination.compile()
-
-
-class ModuleWarehouseFactory(MetaFactory):
-    """Factory for creating ModuleWarehouse instances."""
-
-    @classmethod
-    def get_all_known_modules(cls) -> List[IntrospectiveModule]:
-        """Get all known modules from all registered warehouses.
-
-        Returns:
-            List[IntrospectiveModule]: List of all known modules.
-        """
-        modules = []
-        warehouses = cls.get_registered_types()
-
-        for warehouse_name, warehouse_cls in warehouses.items():
-            if warehouse_cls:
-                modules.extend(warehouse_cls.get_known_modules())
-            else:
-                cls.get_logger().warning(f'Warehouse class for {warehouse_name} is None')
-
-        return modules
-
-    @classmethod
-    def get_modules_by_type(
-        cls,
-        module_type: ModuleControlsType
-    ) -> List[IntrospectiveModule]:
-        """Get all modules of a specific type from all registered warehouses.
-
-        Args:
-            module_type (ModuleControlsType): The type of module to filter by.
-
-        Returns:
-            List[IntrospectiveModule]: List of modules matching the specified type.
-        """
-        modules = []
-        warehouses = cls.get_registered_types()
-
-        for warehouse_name, warehouse_cls in warehouses.items():
-            if warehouse_cls:
-                modules.extend(warehouse_cls.get_modules_by_type(module_type))
-            else:
-                cls.get_logger().warning(f'Warehouse class for {warehouse_name} is None')
-
-        return modules
-
-    @classmethod
-    def filter_modules_by_type(
-        cls,
-        modules: List[Module],
-        module_type: ModuleControlsType
-    ) -> List[IntrospectiveModule]:
-        """Filter a list of modules by a specific type.
-
-        Args:
-            modules (List[IntrospectiveModule]): The list of modules to filter.
-            module_type (ModuleControlsType): The type of module to filter by.
-
-        Returns:
-            List[IntrospectiveModule]: List of modules matching the specified type.
-        """
-        filtered = []
-        for module in modules:
-            if not module.introspective_module:
-                cls.get_logger().warning(f'Module {module} has no introspective_module, skipping...')
-                continue
-            if module.introspective_module.controls_type != module_type:
-                continue
-            filtered.append(module.introspective_module)
-        return filtered
-
-
-class ModuleWarehouse(PyroxObject, metaclass=FactoryTypeMeta[Self, ModuleWarehouseFactory]):
-    """Class used to manage a collection of IntrospectiveModules.
-
-    Can filter types, catalog numbers, etc.
-    """
-
-    @classmethod
-    def get_known_modules(cls) -> list[IntrospectiveModule]:
-        factory = cls.get_factory()
-        if not factory:
-            raise ValueError('No factory found for ModuleWarehouse.')
-        if factory.__name__ == 'ModuleWarehouseFactory':
-            raise ValueError('ModuleWarehouseFactory is abstract and cannot be used directly.')
-
-        registered_types = factory.get_registered_types()
-        if not registered_types:
-            raise ValueError('No registered module warehouses found.')
-
-        return list(registered_types.values())
-
-    @classmethod
-    def get_modules_by_type(
-        cls,
-        module_type: ModuleControlsType
-    ) -> List[IntrospectiveModule]:
-        """Get all modules of a specific type from this warehouse.
-
-        Args:
-            module_type (ModuleControlsType): The type of module to filter by.
-
-        Returns:
-            List[IntrospectiveModule]: List of modules matching the specified type.
-        """
-        modules = cls.get_known_modules()
-
-        return [
-            module for module in modules
-            if module.module_type == module_type
-        ]
-
-
-class ModuleVendorFactory(MetaFactory):
-    """Factory for creating ModuleVendor instances."""
-
-    @classmethod
-    def get_known_modules(cls) -> List[IntrospectiveModule]:
-        """Get all known modules from all registered vendors.
-
-        Returns:
-            List[IntrospectiveModule]: List of all known modules.
-        """
-        modules = []
-        for module in cls.get_registered_types().values():
-            if not module:
-                cls.get_logger().warning('IntrospectiveModule class is None, skipping...')
-                continue
-            if not issubclass(module, IntrospectiveModule):
-                cls.get_logger().warning(f'IntrospectiveModule subclass {module} is not a IntrospectiveModule, skipping...')
-                continue
-            modules.append(module)
-        return modules
-
-    @classmethod
-    def get_modules_by_type(
-        cls,
-        module_type: ModuleControlsType
-    ) -> List[IntrospectiveModule]:
-        """Get all modules of a specific type from all registered vendors.
-
-        Args:
-            module_type (ModuleControlsType): The type of module to filter by.
-
-        Returns:
-            List[IntrospectiveModule]: List of modules matching the specified type.
-        """
-        modules = []
-        for module in cls.get_registered_types().values():
-            if not module:
-                cls.get_logger().warning('IntrospectiveModule class is None, skipping...')
-                continue
-            if not issubclass(module, IntrospectiveModule):
-                cls.get_logger().warning(f'IntrospectiveModule subclass {module} is not a IntrospectiveModule, skipping...')
-                continue
-            if not hasattr(module, 'controls_type'):
-                cls.get_logger().warning(f'IntrospectiveModule subclass {module} has no controls_type attribute, skipping...')
-                continue
-            if module.get_controls_type() != module_type:
-                continue
-            modules.append(module)
-
-        return modules

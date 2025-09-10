@@ -15,6 +15,7 @@ from .mod import (
     AllenBradleyModule,
     SewModule,
     SiemensModule,
+    TurckModule,
 )
 
 from .plc import (
@@ -35,9 +36,6 @@ from .plc import (
     LogixAssetType,
     Module,
     ModuleControlsType,
-    ModuleVendorFactory,
-    ModuleWarehouse,
-    ModuleWarehouseFactory,
     NamedPlcObject,
     PlcObject,
     Program,
@@ -68,11 +66,9 @@ __all__ = (
     'IntrospectiveModule',
     'LogixAssetType',
     'LogixInstruction',
+    'mod',
     'Module',
     'ModuleControlsType',
-    'ModuleVendorFactory',
-    'ModuleWarehouse',
-    'ModuleWarehouseFactory',
     'NamedPlcObject',
     'PlcObject',
     'Program',
@@ -82,4 +78,5 @@ __all__ = (
     'SiemensModule',
     'Tag',
     'TagEndpoint',
+    'TurckModule',
 )

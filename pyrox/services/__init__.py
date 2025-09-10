@@ -7,12 +7,9 @@ from . import (
     file,
     notify_services,
     plc_services,
-    reg,
     test_services,
     utkinter,
 )
-
-from .reg import register_generator
 
 
 __all__ = (
@@ -21,8 +18,6 @@ __all__ = (
     'file',
     'notify_services',
     'plc_services',
-    'reg',
-    'register_generator',
     'test_services',
     'utkinter',
 )

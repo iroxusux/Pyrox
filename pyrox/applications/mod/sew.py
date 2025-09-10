@@ -15,6 +15,26 @@ class SewSafeMoviDrive(SewModule):
         """The controls type of the module."""
         return ModuleControlsType.DRIVE
 
+    @property
+    def input_cxn_point(self) -> str:
+        """The input connection point of the module."""
+        return '130'
+
+    @property
+    def input_size(self) -> str:
+        """The input size of the module."""
+        return '16'
+
+    @property
+    def output_cxn_point(self) -> str:
+        """The output connection point of the module."""
+        return '120'
+
+    @property
+    def output_size(self) -> str:
+        """The output size of the module."""
+        return '16'
+
     @classmethod
     def get_required_imports(cls) -> list[tuple[str, list[str]]]:
         """Get the required datatype imports for the module.

@@ -3,7 +3,7 @@
 from abc import abstractmethod
 from typing import Optional, Self, List
 
-from . import plc
+from . import plc, mod
 from .. import abc
 
 
@@ -273,27 +273,29 @@ class EmulationGenerator(abc.PyroxObject, metaclass=abc.FactoryTypeMeta[Self, Em
         self,
         generation_type: plc.ModuleControlsType
     ) -> None:
-        modules: list[plc.IntrospectiveModule] = plc.ModuleWarehouseFactory.filter_modules_by_type(
+        modules: list[plc.IntrospectiveModule] = mod.ModuleWarehouseFactory.filter_modules_by_type(
             self.generator_object.modules,
             generation_type
         )
         if not modules:
-            self.logger.debug("No modules found, skipping builtin emulation for type %s.", generation_type.value)
+            self.logger.warning("No modules found, skipping builtin emulation for type %s.", generation_type.value)
             return
 
-        for mod in modules:
-            self._schedule_imports(mod.get_required_imports())
-            self.add_controller_tags(mod.get_required_tags())
-            self.add_safety_tag_mapping(*mod.get_required_standard_to_safety_mapping())
+        self.logger.info("Generating built-in common emulation for %d modules of type %s", len(modules), generation_type.value)
+
+        for module in modules:
+            self._schedule_imports(module.get_required_imports())
+            self.add_controller_tags(module.get_required_tags())
+            self.add_safety_tag_mapping(*module.get_required_standard_to_safety_mapping())
             self.add_rungs(
                 self.target_standard_program_name,
                 self.emulation_standard_routine_name,
-                mod.get_required_standard_rungs()
+                module.get_required_standard_rungs()
             )
             self.add_rungs(
                 self.target_safety_program_name,
                 self.emulation_safety_routine_name,
-                mod.get_required_safety_rungs()
+                module.get_required_safety_rungs()
             )
 
     def _generate_custom_safety_routines(self) -> None:

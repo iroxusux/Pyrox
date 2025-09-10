@@ -1,6 +1,6 @@
 """Factory metas for Pyrox framework base classes and utilities.
 """
-from abc import ABC, ABCMeta
+from abc import ABCMeta
 from typing import Dict, Generic, List, Optional, Self, Type, TypeVar, Union
 
 from .logging import Loggable
@@ -16,7 +16,7 @@ T = TypeVar('T')
 F = TypeVar('F', bound='MetaFactory')
 
 
-class MetaFactory(ABC, Loggable):
+class MetaFactory(ABCMeta, Loggable):
     """Meta class for factory patterns.
 
     This meta class is used to create factories that can register and retrieve types.
@@ -110,19 +110,19 @@ class FactoryTypeMeta(ABCMeta, Loggable, Generic[T, F]):
     ) -> Type[Self]:
         new_cls = super().__new__(cls, name, bases, attrs)
         if new_cls.supports_registering is False:
-            print(f'FactoryTypeMeta: Class {name} does not support registering with a factory.')
+            cls.logger.warning(f'FactoryTypeMeta: Class {name} does not support registering with a factory.')
             return new_cls
 
         factory = new_cls.get_factory()
         if factory is None:
-            print(f'FactoryTypeMeta: No factory found for class {name}.')
+            cls.logger.warning(f'FactoryTypeMeta: No factory found for class {name}.')
             return new_cls
 
         if (new_cls.__name__ != 'FactoryTypeMeta'):
-            print(f'FactoryTypeMeta: Registering class {name} with factory {factory.__name__}.')
+            cls.logger.debug(f'FactoryTypeMeta: Registering class {name} with factory {factory.__name__}.')
             factory.register_type(new_cls)
         else:
-            print(
+            cls.logger.warning(
                 f'FactoryTypeMeta: Class {name} is the factory class itself or does not subclass it.'
             )
 

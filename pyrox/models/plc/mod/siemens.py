@@ -3,41 +3,31 @@
 
 from __future__ import annotations
 
-from typing import Type
+from typing import Self
 from pyrox.models.abc import FactoryTypeMeta
 
-from ..plc import IntrospectiveModule, ModuleWarehouseFactory, ModuleVendorFactory
+from .warehouse import IntrospectiveModule, ModuleWarehouse
 
 
 __all__ = (
     'SiemensModule',
+    'SiemensModuleFactory',
 )
 
 
-class SiemensModuleFactory(ModuleVendorFactory):
+class SiemensModuleFactory(ModuleWarehouse):
     """Factory for creating Siemens module instances."""
 
-    _registered_types: dict = {}
 
+class SiemensModule(IntrospectiveModule, metaclass=FactoryTypeMeta[Self, SiemensModuleFactory]):
+    """Siemens Module ABC.
+    """
+    supports_registering = False  # Siemens modules do not support registering directly
 
-class SiemensModuleMeta(FactoryTypeMeta):
-    """Metaclass for auto-registering Warehouse subclasses."""
-
-    @classmethod
-    def get_class(cls) -> Type['SiemensModule']:
-        try:
-            return SiemensModule
-        except NameError:
-            return None
+    def __init_subclass__(cls, **kwargs):
+        cls.supports_registering = True  # Subclasses can support registering
+        return super().__init_subclass__(**kwargs)
 
     @classmethod
     def get_factory(cls):
         return SiemensModuleFactory
-
-
-class SiemensModule(IntrospectiveModule, metaclass=SiemensModuleMeta):
-    """Siemens Module ABC.
-    """
-
-
-ModuleWarehouseFactory.register_type(SiemensModuleFactory)

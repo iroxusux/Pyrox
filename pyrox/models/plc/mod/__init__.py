@@ -1,18 +1,19 @@
-from . import (
-    ab,
-    sew,
-    siemens,
-)
-
-from .ab import AllenBradleyModule
-from .sew import SewModule
-from .siemens import SiemensModule
+from .ab import AllenBradleyModule, AllenBradleyModuleFactory
+from .sew import SewModule, SewModuleFactory
+from .siemens import SiemensModule, SiemensModuleFactory
+from .turck import TurckModule, TurckModuleFactory
+from .warehouse import IntrospectiveModule, ModuleWarehouse, ModuleWarehouseFactory
 
 __all__ = (
-    'ab',
     'AllenBradleyModule',
-    'sew',
+    'AllenBradleyModuleFactory',
+    'IntrospectiveModule',
+    'ModuleWarehouse',
+    'ModuleWarehouseFactory',
     'SewModule',
-    'siemens',
+    'SewModuleFactory',
     'SiemensModule',
+    'SiemensModuleFactory',
+    'TurckModule',
+    'TurckModuleFactory',
 )
