@@ -1,7 +1,7 @@
 """Siemens specific PLC Modules.
 """
 from __future__ import annotations
-from pyrox.models.plc import SiemensModule, ModuleControlsType
+from pyrox.models.plc import Rung, SiemensModule, ModuleControlsType
 
 
 class G115Drive(SiemensModule):
@@ -14,6 +14,11 @@ class G115Drive(SiemensModule):
     def catalog_number(self) -> str:
         """The catalog number of the G115 drive module."""
         return 'ETHERNET-MODULE'
+
+    @property
+    def config_size(self) -> str:
+        """The configuration size of the G115 drive module."""
+        return '0'
 
     @property
     def controls_type(self) -> ModuleControlsType:
@@ -40,10 +45,25 @@ class G115Drive(SiemensModule):
         """The output size of the G115 drive module."""
         return '4'
 
-    def get_standard_emulation_rung_text(
+    @classmethod
+    def get_required_imports(cls) -> list[tuple[str, list[str]]]:
+        """Get the required datatype imports for the module.
+
+        Returns:
+            list[tuple[str, str]]: List of tuples containing the module and class name to import.
+        """
+        return [
+            (r'docs\controls\emu\Demo3D_G115D_Drive_DataType.L5X', ['DataTypes']),
+        ]
+
+    def get_required_standard_rungs(
         self,
-        index: int = 0
-    ) -> str:
+        **kwargs,
+    ) -> list[Rung]:
+        index = kwargs.get('index', None)
+        if index is None:
+            raise ValueError("Index is required for generating standard rungs.")
+
         cname = self.module.controller.process_name
         pname = self.module.process_name
 
@@ -62,4 +82,24 @@ class G115Drive(SiemensModule):
         i13 = f'CPS({pname}:O.Data[0],zz_Demo3D_{cname}_Siemens_Drives[{index}].Outputs.ControlWord1,1)'
         i14 = f'CPS({pname}:O.Data[1],zz_Demo3D_{cname}_Siemens_Drives[{index}].Outputs.Setpoint,1)'
 
-        return f'[{i1}{i2}{i3},{i4}{i5},{i6}{i7}{i8},{i9}{i10}{i11},{i12},{i13}{i14}];'
+        return [Rung(
+            controller=self.module.controller,
+            text=f'[{i1}{i2}{i3},{i4}{i5},{i6}{i7}{i8},{i9}{i10}{i11},{i12},{i13}{i14}];',
+            comment=f'Standard Emulation Logic for Siemens G115 Drive Module {self.module.name}'
+        )]
+
+    def get_required_tags(
+        self,
+        **__,
+    ) -> list[dict]:
+        tags = []
+        cname = self.module.controller.process_name
+
+        tags.append({
+            'tag_name': f'zz_Demo3D_{cname}_Siemens_Drives',
+            'datatype': 'Demo3D_G115D_Drive',
+            'dimensions': '150',
+            'description': 'Standard input tag for the G115 drive module.'
+        })
+
+        return tags

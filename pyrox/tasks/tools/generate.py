@@ -33,7 +33,7 @@ class ControllerGenerateTask(AppTask):
         self,
         controller: Controller
     ) -> EmulationGenerator:
-        generator: EmulationGenerator = EmulationGeneratorFactory.get_registered_type(controller)
+        generator: EmulationGenerator = EmulationGeneratorFactory.get_registered_type_by_supporting_class(controller.__class__.__name__)
         if not isinstance(generator, type(EmulationGenerator)):
             raise ValueError('No valid generator found for this controller type!')
         return generator(self.application.controller)

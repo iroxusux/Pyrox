@@ -3,6 +3,7 @@
 from typing import Optional, TypeVar
 
 from pyrox.models import HashList, plc
+from ..indicon.indicon import BaseEmulationGenerator, BaseControllerValidator
 
 
 FORD_CTRL = TypeVar('FORD_CTRL', bound='FordController')
@@ -23,19 +24,19 @@ class FordPlcObject(plc.PlcObject[FORD_CTRL]):
         )
 
 
-class NamedFordPlcObject(plc.NamedPlcObject[FORD_CTRL], FordPlcObject):
+class NamedFordPlcObject(plc.NamedPlcObject, FordPlcObject):
     """Ford Named Plc Object"""
 
 
-class FordAddOnInstruction(NamedFordPlcObject[FORD_CTRL], plc.AddOnInstruction):
+class FordAddOnInstruction(NamedFordPlcObject, plc.AddOnInstruction):
     """General Motors AddOn Instruction Definition"""
 
 
-class FordDatatype(NamedFordPlcObject[FORD_CTRL], plc.Datatype):
+class FordDatatype(NamedFordPlcObject, plc.Datatype):
     """General Motors Datatype"""
 
 
-class FordModule(NamedFordPlcObject[FORD_CTRL], plc.Module):
+class FordModule(NamedFordPlcObject, plc.Module):
     """General Motors Module
     """
 
@@ -45,7 +46,7 @@ class FordRung(FordPlcObject[FORD_CTRL], plc.Rung):
     """
 
 
-class FordRoutine(NamedFordPlcObject[FORD_CTRL], plc.Routine):
+class FordRoutine(NamedFordPlcObject, plc.Routine):
     """Ford Routine
     """
 
@@ -58,12 +59,12 @@ class FordRoutine(NamedFordPlcObject[FORD_CTRL], plc.Routine):
         return super().rungs
 
 
-class FordTag(NamedFordPlcObject[FORD_CTRL], plc.Tag):
+class FordTag(NamedFordPlcObject, plc.Tag):
     """Ford Tag
     """
 
 
-class FordProgram(NamedFordPlcObject[FORD_CTRL], plc.Program):
+class FordProgram(NamedFordPlcObject, plc.Program):
     """Ford Program
     """
 
@@ -76,7 +77,7 @@ class FordProgram(NamedFordPlcObject[FORD_CTRL], plc.Program):
         return self.routines.get('A_Comm_Edit', None)
 
 
-class FordController(NamedFordPlcObject[FORD_CTRL], plc.Controller):
+class FordController(NamedFordPlcObject, plc.Controller):
     """Ford Plc Controller
     """
 
@@ -148,9 +149,9 @@ class FordControllerMatcher(plc.ControllerMatcher):
         ]
 
 
-class FordEmulationGenerator(plc.EmulationGenerator):
+class FordEmulationGenerator(BaseEmulationGenerator):
     """Ford specific emulation logic generator."""
-    generator_type = 'FordController'
+    supporting_class = 'FordController'
 
     @property
     def controller(self) -> FordController:
@@ -158,8 +159,8 @@ class FordEmulationGenerator(plc.EmulationGenerator):
 
     @controller.setter
     def controller(self, value: FordController):
-        if value.__class__.__name__ != self.generator_type:
-            raise TypeError(f'Controller must be of type {self.generator_type}, got {value.__class__.__name__} instead.')
+        if value.__class__.__name__ != self.supporting_class:
+            raise TypeError(f'Controller must be of type {self.supporting_class}, got {value.__class__.__name__} instead.')
         self._generator_object = value
 
     @property
@@ -177,7 +178,7 @@ class FordEmulationGenerator(plc.EmulationGenerator):
     def target_standard_program_name(self) -> str:
         return "MainProgram"
 
-    def _disable_all_comm_edit_routines(self):
+    def disable_all_comm_edit_routines(self):
         """Disable all Comm Edit routines in all programs."""
         for program in self.controller.programs:
             if not program.comm_edit_routine:
@@ -200,7 +201,7 @@ class FordEmulationGenerator(plc.EmulationGenerator):
                     comm_ok_bits.append(instruction)
         return comm_ok_bits
 
-    def generate_custom_logic(self):
+    def _generate_custom_logic(self):
         comm_ok_bits = self._scrape_all_comm_ok_bits()
         if not comm_ok_bits:
             self.logger.warning("No Comm OK bits found in Comm Edit routines.")
@@ -231,20 +232,12 @@ class FordEmulationGenerator(plc.EmulationGenerator):
                 text=f"[{top_branch_text}),{btm_branch_text}];",
                 comment='// Emulate comm ok status.\nComm and Power Managed by Emulation Model.'
             )
-            self._add_rung_to_standard_routine(rung)
+            self.add_rung_to_standard_routine(rung)
 
-        self._disable_all_comm_edit_routines()
+        self.disable_all_comm_edit_routines()
 
-    def generate_custom_module_emulation(self) -> None:
-        """Generate module-specific emulation logic."""
 
-    def remove_base_emulation(self):
-        pass
-
-    def remove_module_emulation(self):
-        pass
-
-    def validate_controller(self) -> bool:
-        """Validate that this is a valid GM controller."""
-
-        return True
+class FordControllerValidator(BaseControllerValidator):
+    """Validator for Ford controllers.
+    """
+    supporting_class = 'FordController'

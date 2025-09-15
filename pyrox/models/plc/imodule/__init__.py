@@ -2,7 +2,7 @@ from .ab import AllenBradleyModule, AllenBradleyModuleFactory
 from .sew import SewModule, SewModuleFactory
 from .siemens import SiemensModule, SiemensModuleFactory
 from .turck import TurckModule, TurckModuleFactory
-from .mod import IntrospectiveModule, ModuleWarehouse, ModuleWarehouseFactory
+from .imodule import IntrospectiveModule, ModuleWarehouse, ModuleWarehouseFactory
 
 __all__ = (
     'AllenBradleyModule',

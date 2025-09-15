@@ -1,7 +1,7 @@
 """SEW Euro specific PLC Modules.
 """
 from __future__ import annotations
-from pyrox.models.plc import SewModule, ModuleControlsType
+from pyrox.models.plc import Rung, SewModule, ModuleControlsType
 
 
 class SewSafeMoviDrive(SewModule):
@@ -46,12 +46,23 @@ class SewSafeMoviDrive(SewModule):
             (r'docs\controls\emu\Demo3D_MoviMotAdv_DataType.L5X', ['DataTypes']),
         ]
 
-    def get_required_standard_rungs(self):
+    def get_required_standard_rungs(
+        self,
+        **__,
+    ) -> list[Rung]:
         rungs = []
+        rungs.append(Rung(
+            controller=self.module.controller,
+            text=f'COP(zz_Demo3D_{self.module.name}.I,{self.module.name}:I,1)COP({self.module.name}:O,zz_Demo3D_{self.module.name}.O,1);',
+            comment='Standard Emulation Logic for SEW Safe MoviDrive'
+        ))
 
         return rungs
 
-    def get_required_tags(self) -> list[dict]:
+    def get_required_tags(
+        self,
+        **__,
+    ) -> list[dict]:
         tags = []
         tags.append({
             'tag_name': self.get_standard_input_tag_name(),

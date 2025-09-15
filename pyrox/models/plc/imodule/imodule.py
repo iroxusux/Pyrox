@@ -289,7 +289,10 @@ class IntrospectiveModule(Loggable):
         """
         return []
 
-    def get_required_safety_rungs(self) -> list[Rung]:
+    def get_required_safety_rungs(
+        self,
+        **__,
+    ) -> list[Rung]:
         """Get the required safety rungs for the module.
 
         Returns:
@@ -297,7 +300,10 @@ class IntrospectiveModule(Loggable):
         """
         return []
 
-    def get_required_standard_rungs(self) -> list[Rung]:
+    def get_required_standard_rungs(
+        self,
+        **__,
+    ) -> list[Rung]:
         """Get the required standard rungs for the module.
 
         Returns:
@@ -305,7 +311,10 @@ class IntrospectiveModule(Loggable):
         """
         return []
 
-    def get_required_standard_to_safety_mapping(self) -> tuple[str, str]:
+    def get_required_standard_to_safety_mapping(
+        self,
+        **__,
+    ) -> tuple[str, str]:
         """Get the required standard to safety mapping for the module.
 
         Returns:
@@ -314,23 +323,16 @@ class IntrospectiveModule(Loggable):
         return self.get_standard_input_tag_name(), self.get_safety_input_tag_name()
 
     @classmethod
-    def get_required_tags(cls) -> list[dict]:
+    def get_required_tags(
+        cls,
+        **__,
+    ) -> list[dict]:
         """Get the required tags for the module.
 
         Returns:
             list[dict]: List of tag dictionaries.
         """
         return []
-
-    def get_safety_emulation_rung_text(self) -> str:
-        """Get the emulation rung text for the safety module.
-        This is used to generate the emulation logic for the safety module.
-        .. ------------------------------------------------------------
-        .. returns::
-            :class:`str`
-                The emulation rung text for the safety module.
-        """
-        raise NotImplementedError('This method should be implemented by the subclass.')
 
     def get_safety_input_tag_name(self) -> str:
         """Get the safety tag name for the module.
@@ -340,15 +342,13 @@ class IntrospectiveModule(Loggable):
         """
         return ''
 
-    def get_standard_emulation_rung_text(self) -> str:
-        """Get the emulation rung text for the module.
-        This is used to generate the emulation logic for the module.
-        .. ------------------------------------------------------------
-        .. returns::
-            :class:`str`
-                The emulation rung text for the module.
+    def get_safety_output_tag_name(self) -> str:
+        """Get the safety output tag name for the module.
+
+        Returns:
+            str: Safety output tag name.
         """
-        raise NotImplementedError('This method should be implemented by the subclass.')
+        return ''
 
     def get_standard_input_tag_name(self) -> str:
         """Get the standard tag name for the module.

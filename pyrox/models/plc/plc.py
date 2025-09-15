@@ -21,7 +21,7 @@ from typing import (
 
 from pyrox.models.abc.factory import FactoryTypeMeta, MetaFactory
 
-from .mod import IntrospectiveModule
+from .imodule import IntrospectiveModule
 from ..abc import (
     EnforcesNaming,
     HashList,
@@ -527,34 +527,8 @@ class PlcObject(EnforcesNaming, PyroxObject, Generic[CTRL]):
         [call() for call in self._on_compiled]
         return self
 
-    def validate(self, report: Optional['ControllerReportItem'] = None) -> 'ControllerReportItem':
-        """Validate this object.
 
-        Args:
-            report: Existing report to add to, creates new one if None.
-
-        Returns:
-            ControllerReportItem: Validation report for this object.
-        """
-        if not report:
-            report = ControllerReportItem(self, f'Validating {self.__class__.__name__} object: {str(self)}')
-
-        if self.config is None:
-            report.test_notes.append('No controller configuration found!')
-            report.pass_fail = False
-
-        if self.controller is None:
-            report.test_notes.append('No controller found!')
-            report.pass_fail = False
-
-        if self.meta_data is None:
-            report.test_notes.append('No meta data found!')
-            report.pass_fail = False
-
-        return report
-
-
-class NamedPlcObject(PlcObject, NamedPyroxObject, Generic[CTRL]):
+class NamedPlcObject(PlcObject, NamedPyroxObject):
     """Supports a name and description for a PLC object.
 
     Args:
@@ -583,9 +557,6 @@ class NamedPlcObject(PlcObject, NamedPyroxObject, Generic[CTRL]):
                            meta_data=meta_data)
         if name:
             meta_data[L5X_PROP_NAME] = name
-
-        if meta_data.get(L5X_PROP_NAME, None) is None:
-            raise ValueError("A name must be provided via argument or meta_data!")
 
         if description is not None:
             meta_data[L5X_PROP_DESCRIPTION] = description
@@ -681,27 +652,6 @@ class NamedPlcObject(PlcObject, NamedPyroxObject, Generic[CTRL]):
 
         raw_asset_list.remove(next((x for x in raw_asset_list if x[L5X_PROP_NAME] == asset_name), None))
         self._invalidate()
-
-    def validate(self, report: Optional['ControllerReportItem'] = None) -> 'ControllerReportItem':
-        """Validate this named PLC object.
-
-        Args:
-            report: Existing report to add to.
-
-        Returns:
-            ControllerReportItem: Validation report.
-        """
-        report = super().validate(report=report)
-
-        if self.name is None:
-            report.test_notes.append('No name found!')
-            report.pass_fail = False
-
-        if self.description is None:
-            report.test_notes.append('No description found!')
-            report.pass_fail = False
-
-        return report
 
 
 class LogixOperand(PlcObject):
@@ -941,54 +891,6 @@ class LogixOperand(PlcObject):
             'rung': self.instruction.rung.number if self.instruction.rung else '???',
         }
 
-    def validate(self) -> ControllerReportItem:
-        report = ControllerReportItem(self,
-                                      f'Validating {self.__class__.__name__} object: {self.meta_data}',
-                                      True,
-                                      [])
-
-        if self.arg_position < 0:
-            report.test_notes.append(f'Invalid argument position for operand {self.meta_data}!')
-            report.pass_fail = False
-
-        try:
-            if not self.as_aliased:
-                report.test_notes.append(f'No qualified name found for operand {self.meta_data}!')
-                report.pass_fail = False
-        except ValueError as e:
-            report.test_notes.append(f'Error getting aliased name for operand {self.meta_data}: {str(e)}')
-            report.pass_fail = False
-
-        if not self.base_name:
-            report.test_notes.append(f'No base name found for operand {self.meta_data}!')
-            report.pass_fail = False
-
-        if not self.container:
-            report.test_notes.append(f'No container found for operand {self.meta_data}!')
-            report.pass_fail = False
-
-        if not self.instruction:
-            report.test_notes.append(f'No instruction found for operand {self.meta_data}!')
-            report.pass_fail = False
-
-        if not self.instruction_type or self.instruction_type == LogixInstructionType.UNKOWN:
-            report.test_notes.append(f'No instruction type found for operand {self.meta_data}!')
-            report.pass_fail = False
-
-        if not self.parents:
-            report.test_notes.append(f'No parents found for operand {self.meta_data}!')
-            report.pass_fail = False
-
-        try:
-            if not self.aliased_parents:
-                report.test_notes.append(f'No aliased parents found for operand {self.meta_data}!')
-                report.pass_fail = False
-        except ValueError as e:
-            report.test_notes.append(f'Error getting aliased parents for operand {self.meta_data}: {str(e)}')
-            report.pass_fail = False
-
-        return report
-
 
 class LogixInstruction(PlcObject):
     """Logix instruction.
@@ -1166,15 +1068,6 @@ class LogixInstruction(PlcObject):
             'routine': self.routine.name if self.routine else '???',
             'rung': self.rung.number if self.rung else '???',
         }
-
-    def validate(self) -> ControllerReportItem:
-        report = ControllerReportItem(self,
-                                      f'Validating {self.__class__.__name__} object: {self.meta_data}')
-        if not self.type or self.type == LogixInstructionType.UNKOWN:
-            report.test_notes.append('No instruction type found for instruction!')
-            report.pass_fail = False
-
-        return report
 
 
 class ContainsTags(NamedPlcObject):
@@ -1547,12 +1440,6 @@ class AddOnInstruction(ContainsRoutines):
             self['LocalTags']['LocalTag'] = [self['LocalTags']['LocalTag']]
         return self['LocalTags']['LocalTag']
 
-    def validate(self):
-        report = ControllerReportItem(self,
-                                      f'Validating {self.__class__.__name__} object: {self.name}')
-
-        return report
-
 
 class ConnectionParameters:
     """connection parameters for connecting to a plc
@@ -1768,12 +1655,6 @@ class Datatype(NamedPlcObject):
             self['Members']['Member'] = [self['Members']['Member']]
         return self['Members']['Member']
 
-    def validate(self):
-        report = ControllerReportItem(self,
-                                      f'Validating {self.__class__.__name__} object: {self.name}')
-
-        return report
-
 
 class ModuleControlsType(Enum):
     """Module controls type enumeration
@@ -1785,27 +1666,7 @@ class ModuleControlsType(Enum):
     BLOCK = 'Block'
     SAFETY_BLOCK = 'SafetyBlock'
     DRIVE = 'Drive'
-
-
-class IntrospectiveModuleFactory(MetaFactory):
-    """Factory for creating Introspective Module instances."""
-
-    _registered_types: dict = {}
-
-
-class IntrospectiveModuleMeta(FactoryTypeMeta):
-    """Metaclass for auto-registering Warehouse subclasses."""
-
-    @classmethod
-    def get_class(cls) -> Type['IntrospectiveModule']:
-        try:
-            return IntrospectiveModule
-        except NameError:
-            return None
-
-    @classmethod
-    def get_factory(cls):
-        return IntrospectiveModuleFactory
+    POINT_IO = 'PointIO'
 
 
 class ModuleConnectionTag(PlcObject):
@@ -1970,7 +1831,7 @@ class Module(NamedPlcObject):
             self.communications['Connections'] = {'Connection': []}
         if not isinstance(self.communications['Connections'].get('Connection', []), list):
             self.communications['Connections']['Connection'] = [self.communications['Connections']['Connection']]
-        return self.communications['Connections']['Connection']
+        return self.communications['Connections'].get('Connection', [])
 
     @property
     def config_connection_point(self) -> str:
@@ -2212,13 +2073,6 @@ class Module(NamedPlcObject):
         if output_tag_data:
             self._output_tag = ModuleConnectionTag(meta_data=output_tag_data, controller=self.controller)
 
-    def validate(self) -> ControllerReportItem:
-
-        report = ControllerReportItem(self,
-                                      f'Validating {self.__class__.__name__} object: {self.name}')
-
-        return report
-
 
 class Program(ContainsRoutines):
     def __init__(
@@ -2341,15 +2195,6 @@ class Program(ContainsRoutines):
             if not rung.text.startswith(f'XIC({blocking_bit})'):
                 continue
             rung.text = rung.text.replace(f'XIC({blocking_bit})', '', 1)
-
-    def validate(self) -> ControllerReportItem:
-        report = super().validate()
-
-        if not self.main_routine_name:
-            report.test_notes.append('No main routine name found in program!')
-            report.pass_fail = False
-
-        return report
 
 
 class Routine(NamedPlcObject):
@@ -2572,20 +2417,6 @@ class Routine(NamedPlcObject):
 
         self.raw_rungs.remove(rung.meta_data)
         self._invalidate()
-
-    def validate(self) -> ControllerReportItem:
-        report = ControllerReportItem(self,
-                                      f'Validating {self.__class__.__name__} object: {self.meta_data}')
-        if not self.rungs:
-            report.test_notes.append('No rungs found in routine!')
-            report.pass_fail = False
-
-        for rung in self.rungs:
-            rung_report = rung.validate()
-            report.pass_fail = report.pass_fail and rung_report.pass_fail
-            report.child_reports.append(rung_report)
-
-        return report
 
 
 class RungElementType(Enum):
@@ -3814,26 +3645,6 @@ class Rung(PlcObject):
             }
         }
 
-    def validate(self) -> ControllerReportItem:
-        report = ControllerReportItem(self,
-                                      f'Validating {self.__class__.__name__} object: {self.number}')
-
-        if not self.instructions:
-            report.test_notes.append('No instructions found in rung!')
-            report.pass_fail = False
-
-        # Validate branch structure
-        for branch_id, branch in self._branches.items():
-            if branch.end_position <= branch.start_position:
-                report.test_notes.append(f'Invalid branch structure for {branch_id}: end position not after start position!')
-                report.pass_fail = False
-
-            if not branch.instructions:
-                report.test_notes.append(f'Branch {branch_id} contains no instructions!')
-                report.pass_fail = False
-
-        return report
-
     def validate_branch_structure(self) -> bool:
         """Validate that branch markers are properly paired.
 
@@ -4208,11 +4019,6 @@ class Tag(NamedPlcObject):
 
         return alias
 
-    def validate(self):
-        report = ControllerReportItem(self,
-                                      f'Validating {self.__class__.__name__} object: {self.name}')
-        return report
-
 
 class DataValueMember(NamedPlcObject):
     """type class for plc Tag DataValueMember
@@ -4435,7 +4241,7 @@ class ControllerFactory(MetaFactory):
             return None
 
         scored_matches: List[Tuple[float, Type]] = []
-        from .ctrl_matcher import ControllerMatcherFactory
+        from .matcher import ControllerMatcherFactory
 
         for _, matcher in ControllerMatcherFactory.get_registered_types().items():
             score = matcher.calculate_score(controller_data)
@@ -5259,184 +5065,6 @@ class Controller(NamedPlcObject, metaclass=FactoryTypeMeta[Self, ControllerFacto
             case _:
                 return
 
-    def verify(self) -> dict:
-        return {
-            'ControllerReport': ControllerReport(self).run().as_dictionary(),
-            'UnpairedControllerInputs': self.find_unpaired_controller_inputs(),
-            'RedundantOutputs': self.find_redundant_otes(),
-        }
-
-
-class ControllerReportItem:
-    def __init__(self,
-                 plc_object: PlcObject,
-                 test_description: str,
-                 pass_fail: bool = True,
-                 test_notes: list[str] = None):
-        if plc_object is None or test_description is None:
-            raise ValueError('Cannot leave any fields empty/None!')
-        self._plc_object: PlcObject = plc_object
-        self._test_description: str = test_description
-        self._pass_fail: bool = pass_fail
-        self._test_notes: list[str] = test_notes if test_notes is not None else []
-        self._child_reports: list['ControllerReportItem'] = []
-
-    @property
-    def child_reports(self) -> list['ControllerReportItem']:
-        return self._child_reports
-
-    @child_reports.setter
-    def child_reports(self, value: list['ControllerReportItem']):
-        if not isinstance(value, list):
-            raise ValueError('Child reports must be a list!')
-        self._child_reports = value
-
-    @property
-    def plc_object(self) -> PlcObject:
-        return self._plc_object
-
-    @property
-    def test_description(self) -> str:
-        return self._test_description
-
-    @test_description.setter
-    def test_description(self, value: str):
-        if not isinstance(value, str):
-            raise ValueError('Test description must be a string!')
-        self._test_description = value
-
-    @property
-    def pass_fail(self) -> bool:
-        return self._pass_fail
-
-    @pass_fail.setter
-    def pass_fail(self, value: bool):
-        if not isinstance(value, bool):
-            raise ValueError('Pass/Fail must be a boolean value!')
-        self._pass_fail = value
-
-    @property
-    def test_notes(self) -> list[str]:
-        return self._test_notes
-
-    @test_notes.setter
-    def test_notes(self, value: list[str]):
-        if not isinstance(value, list):
-            raise ValueError('Test notes must be a list!')
-        self._test_notes = value
-
-    def as_dictionary(self) -> dict:
-        """Get the report item as a dictionary.
-
-        Returns
-        -------
-            :class:`dict`
-        """
-        name = str(self.plc_object.name) if hasattr(self.plc_object, 'name') else str(self.plc_object.meta_data)
-        name += ' [%s]' % self.plc_object.__class__.__name__
-
-        return {
-            'Name': name,
-            'PLC Object': self.plc_object.meta_data,
-            'Test Description': self.test_description,
-            'Pass?': self.pass_fail,
-            'Test Notes': self.test_notes,
-            'Child Reports': [x.as_dictionary() for x in self.child_reports]
-        }
-
-
-class ControllerReport(Loggable):
-    """Controller status report
-
-    Get detailed information about a controller, showing problem areas, etc.
-    """
-
-    def __init__(self,
-                 controller: Controller):
-        super().__init__()
-        self._controller: Controller = controller
-        self._report_items: list[ControllerReportItem] = []
-
-    @property
-    def report_items(self) -> list[ControllerReportItem]:
-        return self._report_items
-
-    @property
-    def categorized_items(self) -> dict[list[ControllerReportItem]]:
-        return self._as_categorized()
-
-    def _check_controller(self):
-        self.logger.info('Checking controller...')
-
-        # comm path
-        self.logger.info('Comms path...')
-        good = True if self._controller.comm_path != '' else False
-        if good:
-            self.logger.info('ok... -> %s' % str(self._controller.comm_path))
-        else:
-            self.logger.error('error!')
-
-        # slot
-        self.logger.info('Slot...')
-        good = True if self._controller.slot is not None else False
-        if good:
-            self.logger.info('ok... -> %s' % str(self._controller.slot))
-        else:
-            self.logger.error('error!')
-
-        # plc module
-        self.logger.info('PLC Module...')
-        good = True if self._controller.plc_module else False
-        if good:
-            self.logger.info('ok... -> %s' % str(self._controller.plc_module['@Name']))
-        else:
-            self.logger.error('error!')
-
-    def _check_common(self, plc_objects: list[PlcObject]):
-
-        if not isinstance(plc_objects, list) and not isinstance(plc_objects, HashList):
-            raise ValueError
-
-        [self.report_items.append(plc_object.validate()) for plc_object in plc_objects]
-
-    def _as_categorized(self) -> dict[list[ControllerReportItem]]:
-        categories = {}
-        for report in self._report_items:
-            if report.plc_object.__class__.__name__ not in categories:
-                categories[report.plc_object.__class__.__name__] = []
-            categories[report.plc_object.__class__.__name__].append(report.as_dictionary())
-        return categories
-
-    def as_dictionary(self) -> dict:
-        """Get the report as a dictionary.
-
-        Returns
-        -------
-            :class:`dict`
-        """
-        self.logger.info('Converting report to dictionary...')
-        report = {
-            'controller': self._controller.l5x_meta_data,
-            'report_items': [x.as_dictionary() for x in self._report_items],
-            'categorized_items': self.categorized_items
-        }
-        return report
-
-    def run(self) -> Self:
-        self.logger.info('Starting report...')
-        self.logger.info('Checking modules...')
-        self._check_common(self._controller.modules)
-        self.logger.info('Checking datatypes...')
-        self._check_common(self._controller.datatypes)
-        self.logger.info('Checking add on instructions...')
-        self._check_common(self._controller.aois)
-        self.logger.info('Checking tags...')
-        self._check_common(self._controller.tags)
-        self.logger.info('Checking programs...')
-        self._check_common(self._controller.programs)
-        self.logger.info('Finalizing report...')
-        return self
-
 
 class ControllerModificationSchema(Loggable):
     """
@@ -5803,7 +5431,7 @@ class ControllerModificationSchema(Loggable):
     def add_controller_tag(
         self,
         tag: Tag
-    ) -> None:
+    ) -> Tag:
         """Add an individual tag to import directly to the destination controller.
 
         Args:
@@ -5814,11 +5442,14 @@ class ControllerModificationSchema(Loggable):
         """
         if not isinstance(tag, Tag):
             raise ValueError('Tag must be an instance of Tag class.')
+
         self._safe_register_action({
             'type': 'add_controller_tag',
             'asset': tag.meta_data,
             'method': self._execute_add_controller_tag
         })
+
+        return tag
 
     def add_controller_tag_migration(
         self,
@@ -5854,7 +5485,7 @@ class ControllerModificationSchema(Loggable):
         self,
         program_name: str,
         tag: Tag
-    ) -> None:
+    ) -> Tag:
         """Add a tag to import directly to the destination controller within a specific program.
 
         Args:
@@ -5866,6 +5497,7 @@ class ControllerModificationSchema(Loggable):
         """
         if not isinstance(tag, Tag):
             raise ValueError('Tag must be an instance of Tag class.')
+
         self._safe_register_action({
             'type': 'add_program_tag',
             'program': program_name,
@@ -5873,11 +5505,13 @@ class ControllerModificationSchema(Loggable):
             'method': self._execute_add_program_tag
         })
 
+        return tag
+
     def add_routine(
         self,
         program_name: str,
         routine: Routine
-    ) -> None:
+    ) -> Routine:
         """Add a routine to import directly to the destination controller.
 
         Args:
@@ -5889,12 +5523,15 @@ class ControllerModificationSchema(Loggable):
         """
         if not isinstance(routine, Routine):
             raise ValueError('Routine must be an instance of Routine class.')
+
         self._safe_register_action({
             'type': 'add_routine',
             'program': program_name,
             'routine': routine.meta_data,
             'method': self._execute_add_routine
         })
+
+        return routine
 
     def add_routine_migration(
         self,
@@ -5925,9 +5562,9 @@ class ControllerModificationSchema(Loggable):
         self,
         program_name: str,
         routine_name: str,
-        new_rung: Rung,
+        rung: Rung,
         rung_number: Optional[int] = None
-    ) -> None:
+    ) -> Rung:
         """Add a rung to import directly to the destination controller.
 
         Args:
@@ -5939,16 +5576,19 @@ class ControllerModificationSchema(Loggable):
         Raises:
             ValueError: If the provided rung is not an instance of the Rung class.
         """
-        if not isinstance(new_rung, Rung):
+        if not isinstance(rung, Rung):
             raise ValueError('Rung must be an instance of Rung class.')
+
         self._safe_register_action({
             'type': 'add_rung',
             'program': program_name,
             'routine': routine_name,
             'rung_number': rung_number,
-            'new_rung': new_rung.meta_data,
+            'new_rung': rung.meta_data,
             'method': self._execute_add_rung
         })
+
+        return rung
 
     def add_import_from_l5x_dict(
         self,

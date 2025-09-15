@@ -1,7 +1,7 @@
 """Plc types module
     """
 
-from .ctrl_matcher import (
+from .matcher import (
     ControllerMatcher,
     ControllerMatcherFactory,
 )
@@ -11,8 +11,11 @@ from .emu_gen import (
     EmulationGeneratorFactory,
 )
 
-from .mod import (
+from .imodule import (
     AllenBradleyModule,
+    IntrospectiveModule,
+    ModuleWarehouse,
+    ModuleWarehouseFactory,
     SewModule,
     SiemensModule,
     TurckModule,
@@ -31,7 +34,6 @@ from .plc import (
     Datatype,
     DatatypeMember,
     DataValueMember,
-    IntrospectiveModule,
     LogixInstruction,
     LogixAssetType,
     Module,
@@ -43,6 +45,11 @@ from .plc import (
     Rung,
     Tag,
     TagEndpoint,
+)
+
+from .validator import (
+    ControllerValidator,
+    ControllerValidatorFactory,
 )
 
 __all__ = (
@@ -58,6 +65,8 @@ __all__ = (
     'ControllerMatcherFactory',
     'ControllerModificationSchema',
     'ControllerSafetyInfo',
+    'ControllerValidator',
+    'ControllerValidatorFactory',
     'Datatype',
     'DatatypeMember',
     'DataValueMember',
@@ -66,9 +75,11 @@ __all__ = (
     'IntrospectiveModule',
     'LogixAssetType',
     'LogixInstruction',
-    'mod',
+    'imodule',
     'Module',
     'ModuleControlsType',
+    'ModuleWarehouse',
+    'ModuleWarehouseFactory',
     'NamedPlcObject',
     'PlcObject',
     'Program',

@@ -3,7 +3,7 @@
 from typing import Self
 from pyrox.models.abc import FactoryTypeMeta
 
-from .mod import IntrospectiveModule, ModuleWarehouse
+from .imodule import IntrospectiveModule, ModuleWarehouse
 
 
 __all__ = (
