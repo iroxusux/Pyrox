@@ -2,7 +2,7 @@
 This package contains the default controller, validator, and emulation generator
 for Indicon PLCs.
 """
-from pyrox.models import plc
+from pyrox.models import design, plc
 from typing import Optional, Self
 
 
@@ -138,3 +138,15 @@ class BaseEmulationGenerator(plc.EmulationGenerator):
             str: Name of the toggle inhibit tag
         """
         return self.base_tags[2][0]
+
+
+class BaseEplanProject(design.eplan.EplanProject):
+    """Base class for Eplan project generation logic."""
+    supporting_class = 'Controller'
+
+    def __init__(
+        self,
+        controller: plc.Controller
+    ) -> None:
+        super().__init__()
+        self.controller = controller

@@ -7,6 +7,7 @@ from .meta import (
     PyroxObject,
     Runnable,
     SnowFlake,
+    SupportsFileLocation,
     SupportsMetaData,
     TK_CURSORS,
 )
@@ -55,6 +56,7 @@ __all__ = (
     'Runnable',
     'SafeList',
     'SnowFlake',
+    'SupportsFileLocation',
     'SupportsMetaData',
     'TK_CURSORS',
 )

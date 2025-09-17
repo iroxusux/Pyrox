@@ -162,10 +162,14 @@ class FactoryTypeMeta(ABCMeta, Loggable, Generic[T, F]):
     supporting_class: Optional[Type] = None  # The class that this type supports, if any. i.e., 'Controller'
     supports_registering: bool = True  # Whether this class should be registered with a factory.
 
-    def __init_subclass__(cls, **kwargs):
-        super().__init_subclass__(**kwargs)
-        cls.supporting_class: Optional[Type] = None
-        cls.supports_registering: bool = True
+    def __init__(
+        cls,
+        name,
+        bases,
+        attrs,
+        **_
+    ) -> None:
+        super().__init__(name, bases, attrs)
 
     def __new__(
         cls,

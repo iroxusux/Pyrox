@@ -22,6 +22,7 @@ __all__ = (
     'PyroxObject',
     'Runnable',
     'SnowFlake',
+    'SupportsFileLocation',
     'SupportsJsonLoading',
     'SupportsJsonSaving',
     'SupportsLoading',
@@ -490,13 +491,38 @@ class PyroxObject(SnowFlake, Loggable):
         return self.__class__.__name__
 
 
-class SupportsMetaData(PyroxObject):
+class SupportsItemAccess:
+    """A meta class for all classes to derive from to obtain item access capabilities.
+
+    This class allows for accessing items using the indexing syntax (e.g., obj[key]).
+    """
+    @property
+    def indexed_attribute(self) -> dict:
+        """A specified indexed attribute for this object.
+
+        Returns:
+            dict: The data dictionary.
+        """
+        return getattr(self, 'meta_data', None)
 
     def __getitem__(self, key) -> Any:
-        if isinstance(self.meta_data, dict):
-            return self.meta_data.get(key, None)
+        return self.indexed_attribute.get(key, None)
+
+    def __setitem__(self, key, value) -> None:
+        if isinstance(self.indexed_attribute, dict):
+            self.indexed_attribute[key] = value
         else:
-            raise TypeError("Meta data must be a dict!")
+            raise TypeError("Cannot set item on a non-dict indexed attribute!")
+
+
+class SupportsMetaData(PyroxObject, SupportsItemAccess):
+    """Meta class for all classes to derive from to obtain meta data capabilities.
+    This class allows for storing arbitrary meta data as a dictionary or string.
+    """
+
+    @property
+    def indexed_attribute(self) -> Optional[Union[str, dict]]:
+        return self.meta_data
 
     def __init__(
         self,
@@ -504,12 +530,6 @@ class SupportsMetaData(PyroxObject):
     ) -> None:
         super().__init__()
         self.meta_data: Optional[Union[str, dict]] = meta_data
-
-    def __setitem__(self, key, value) -> None:
-        if isinstance(self.meta_data, dict):
-            self.meta_data[key] = value
-        else:
-            raise TypeError("Cannot set item on a non-dict meta data object!")
 
     @property
     def meta_data(self) -> Optional[Union[str, dict]]:
@@ -606,28 +626,52 @@ class NamedPyroxObject(PyroxObject):
         self._description = value
 
 
-class SupportsLoading(PyroxObject):
+class SupportsFileLocation(PyroxObject):
+    """A meta class for all classes to derive from to obtain file location capabilities.
+
+    Attributes:
+        file_location: The file location of the object.
+    """
+    __slots__ = ('_file_location',)
+
+    def __init__(
+        self,
+        file_location: Optional[str] = None
+    ) -> None:
+        super().__init__()
+        self.file_location: Optional[str] = file_location
+
+    @property
+    def file_location(self) -> Optional[str]:
+        """The file location of the object.
+
+        Returns:
+            Optional[str]: The file location if set, None otherwise.
+        """
+        return self._file_location
+
+    @file_location.setter
+    def file_location(self, value: Optional[str]):
+        """Set the file location of the object.
+
+        Args:
+            value: The file location to set.
+
+        Raises:
+            TypeError: If the value is not a string or None.
+        """
+        if value is not None and not isinstance(value, str):
+            raise TypeError('File location must be a string or None.')
+        self._file_location = value
+
+
+class SupportsLoading(SupportsFileLocation):
     """A meta class for all classes to derive from to obtain loading capabilities.
 
     Attributes:
         load_path: Path to load the object from.
     """
     __slots__ = ()
-
-    def __init__(self):
-        super().__init__()
-
-    @property
-    def load_path(self) -> Optional[Path]:
-        """Path to load the object from.
-
-        Returns:
-            Optional[Path]: The path to load from.
-
-        Raises:
-            NotImplementedError: This property should be implemented in subclasses.
-        """
-        raise NotImplementedError("This property should be implemented in subclasses.")
 
     def load(self, path: Optional[Path] = None) -> Any:
         """Load the object from a file.
@@ -654,7 +698,7 @@ class SupportsLoading(PyroxObject):
         ...
 
 
-class SupportSaving(PyroxObject):
+class SupportSaving(SupportsFileLocation):
     """A meta class for all classes to derive from to obtain saving capabilities.
 
     Attributes:
@@ -662,21 +706,6 @@ class SupportSaving(PyroxObject):
         save_data_callback: Callback to call when saving data.
     """
     __slots__ = ()
-
-    def __init__(self):
-        super().__init__()
-
-    @property
-    def save_path(self) -> Optional[Path]:
-        """Path to save the object to.
-
-        Returns:
-            Optional[Path]: The path to save to.
-
-        Raises:
-            NotImplementedError: This property should be implemented in subclasses.
-        """
-        raise NotImplementedError("This property should be implemented in subclasses.")
 
     @property
     def save_data_callback(self) -> Optional[Callable]:
@@ -723,7 +752,7 @@ class SupportsJsonSaving(SupportSaving):
             ValueError: If no path is provided for saving JSON data.
             IOError: If the file cannot be written.
         """
-        path = path or self.save_path
+        path = path or self.file_location
         data = data or self.save_data_callback()
         if not path:
             raise ValueError("No path provided for saving JSON data.")
@@ -748,7 +777,7 @@ class SupportsJsonLoading(SupportsLoading):
         Returns:
             Any: Loaded data from the JSON file, or None if file doesn't exist.
         """
-        path = Path(path) if path else Path(self.load_path)
+        path = Path(path) if path else Path(self.file_location)
         if not path or not path.exists():
             return None
         try:

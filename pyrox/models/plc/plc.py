@@ -4208,7 +4208,10 @@ class ControllerFactory(MetaFactory):
         return controller_class(meta_data=meta_data, **kwargs)
 
 
-class Controller(NamedPlcObject, metaclass=FactoryTypeMeta[Self, ControllerFactory]):
+class Controller(
+    NamedPlcObject,
+    metaclass=FactoryTypeMeta[Self, ControllerFactory]
+):
     """Controller container for Allen Bradley L5X Files.
     .. ------------------------------------------------------------
 
@@ -4232,11 +4235,12 @@ class Controller(NamedPlcObject, metaclass=FactoryTypeMeta[Self, ControllerFacto
 
     def __init__(
         self,
-        meta_data: str = None
+        meta_data: str = None,
+        file_location: str = None
     ) -> None:
         super().__init__(meta_data=meta_data)
 
-        self._file_location, self._ip_address, self._slot = None, None, None
+        self._file_location, self._ip_address, self._slot = file_location, None, None
         self._config = ControllerConfiguration()
 
         self._aois: Optional[HashList[AddOnInstruction]] = None

@@ -453,7 +453,13 @@ class ApplicationRuntimeInfo(meta.SupportsJsonSaving, meta.SupportsJsonLoading):
     """
     __slots__ = ('_application', '_data')
 
-    def __init__(self, application: 'Application'):
+    def __init__(
+        self,
+        application: 'Application'
+    ) -> None:
+        super().__init__(
+            file_location=application.directory_service.app_runtime_info_file,
+        )
         self._application: 'Application' = application
         self._data = meta.RuntimeDict(self.save_to_json)
         self.load_from_json()
@@ -505,24 +511,6 @@ class ApplicationRuntimeInfo(meta.SupportsJsonSaving, meta.SupportsJsonLoading):
             raise TypeError('Runtime information data must be a dictionary.')
         self._data.clear()
         self._data.update(value)
-
-    @property
-    def load_path(self) -> str:
-        """The path to the runtime info file for loading.
-
-        Returns:
-            str: The path to the runtime info file.
-        """
-        return self.application_runtime_info_file
-
-    @property
-    def save_path(self) -> str:
-        """The path to the runtime info file for saving.
-
-        Returns:
-            str: The path to the runtime info file.
-        """
-        return self.application_runtime_info_file
 
     @property
     def save_data_callback(self) -> Callable[[], dict]:
