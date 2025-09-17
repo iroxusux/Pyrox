@@ -7,6 +7,22 @@ from tkinter import filedialog
 from typing import Optional
 
 
+def get_all_files_in_directory(directory: str) -> list[str]:
+    """get all files in a directory
+
+    Args:
+        directory (str): directory to search
+
+    Returns:
+        list[str]: list of file paths
+    """
+    file_list = []
+    for root, _, files in os.walk(directory):
+        for file in files:
+            file_list.append(os.path.join(root, file))
+    return file_list
+
+
 def get_open_file(
         filetypes: list[tuple],
         title: Optional[str] = None

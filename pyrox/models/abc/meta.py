@@ -6,7 +6,7 @@ import json
 from pathlib import Path
 import re
 import sys
-from typing import Any, Callable, Optional
+from typing import Any, Callable, Optional, Union
 from .logging import Loggable
 
 __all__ = (
@@ -25,6 +25,7 @@ __all__ = (
     'SupportsJsonLoading',
     'SupportsJsonSaving',
     'SupportsLoading',
+    'SupportsMetaData',
     'SupportSaving',
     'TK_CURSORS',
 )
@@ -489,6 +490,50 @@ class PyroxObject(SnowFlake, Loggable):
         return self.__class__.__name__
 
 
+class SupportsMetaData(PyroxObject):
+
+    def __getitem__(self, key) -> Any:
+        if isinstance(self.meta_data, dict):
+            return self.meta_data.get(key, None)
+        else:
+            raise TypeError("Meta data must be a dict!")
+
+    def __init__(
+        self,
+        meta_data: Optional[Union[str, dict]] = None,
+    ) -> None:
+        super().__init__()
+        self.meta_data: Optional[Union[str, dict]] = meta_data
+
+    def __setitem__(self, key, value) -> None:
+        if isinstance(self.meta_data, dict):
+            self.meta_data[key] = value
+        else:
+            raise TypeError("Cannot set item on a non-dict meta data object!")
+
+    @property
+    def meta_data(self) -> Optional[Union[str, dict]]:
+        """Meta data for this object.
+
+        Returns:
+            Optional[Union[str, dict]]: The meta data dictionary or string if set, None otherwise.
+        """
+        return self._meta_data
+
+    @meta_data.setter
+    def meta_data(self, value: Optional[Union[str, dict]]):
+        """Set the meta data for this object.
+
+        Args:
+            value: The data to set as meta data.
+        Raises:
+            TypeError: If the provided value is not a dictionary or string.
+        """
+        if value is not None and not isinstance(value, (dict, str)):
+            raise TypeError('Meta data must be a dictionary, string, or None.')
+        self._meta_data = value
+
+
 class NamedPyroxObject(PyroxObject):
     """A base class for all Pyrox objects that have a name.
 
@@ -501,11 +546,18 @@ class NamedPyroxObject(PyroxObject):
     def __init__(
         self,
         name: Optional[str] = None,
-        description: Optional[str] = None
+        description: Optional[str] = None,
+        **__,
     ) -> None:
         super().__init__()
-        self._name = name if name else self.__class__.__name__
-        self._description = description if description else ''
+        self.name = name if name else self.__class__.__name__
+        self.description = description if description else ''
+
+    def __repr__(self):
+        return str(self)
+
+    def __str__(self):
+        return self.name
 
     @property
     def name(self) -> str:

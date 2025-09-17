@@ -19,16 +19,17 @@ from typing import (
     Union,
 )
 
-from pyrox.models.abc.factory import FactoryTypeMeta, MetaFactory
-
-from .imodule import IntrospectiveModule
-from ..abc import (
+from pyrox.models.abc import (
     EnforcesNaming,
+    FactoryTypeMeta,
     HashList,
     Loggable,
-    PyroxObject,
+    MetaFactory,
     NamedPyroxObject,
+    SupportsMetaData
 )
+
+from .imodule import IntrospectiveModule
 from ...services.dictionary_services import insert_key_at_index
 from ...services.plc_services import l5x_dict_from_file
 from ...utils import replace_strings_in_dict
@@ -323,7 +324,7 @@ class LogixAssetType(Enum):
     ALL = 9
 
 
-class PlcObject(EnforcesNaming, PyroxObject, Generic[CTRL]):
+class PlcObject(EnforcesNaming, SupportsMetaData, Generic[CTRL]):
     """Base class for a L5X PLC object.
 
     Args:
@@ -338,61 +339,20 @@ class PlcObject(EnforcesNaming, PyroxObject, Generic[CTRL]):
         on_compiling: List of functions to call when object is compiling.
     """
 
-    def __getitem__(
-        self,
-        key
-    ) -> Union[str, dict, None]:
-        """Get item from metadata.
-
-        Args:
-            key: The key to retrieve.
-
-        Returns:
-            Union[str, dict, None]: The value associated with the key, or None if not found.
-
-        Raises:
-            TypeError: If metadata is not a dictionary.
-        """
-        if isinstance(self.meta_data, dict):
-            return self._meta_data.get(key, None)
-        else:
-            raise TypeError("Meta data must be a dict!")
-
     def __init__(
         self,
         controller: Optional[CTRL] = None,
-        default_loader: Callable = lambda: defaultdict(None),
         meta_data: Union[dict, str] = defaultdict(None)
     ) -> None:
-        self.meta_data = meta_data or default_loader()
+        super().__init__(meta_data=meta_data)
         self.controller = controller
 
         self._on_compiling: list[Callable] = []
         self._on_compiled: list[Callable] = []
         self._init_dict_order()
-        super().__init__()
 
     def __repr__(self) -> str:
         return str(self)
-
-    def __setitem__(
-        self,
-        key,
-        value
-    ) -> None:
-        """Set item in metadata.
-
-        Args:
-            key: The key to set.
-            value: The value to set.
-
-        Raises:
-            TypeError: If metadata is not a dictionary.
-        """
-        if isinstance(self.meta_data, dict):
-            self._meta_data[key] = value
-        else:
-            raise TypeError("Cannot set item on a non-dict meta data object!")
 
     def __str__(self) -> str:
         return str(self.meta_data)
@@ -440,30 +400,6 @@ class PlcObject(EnforcesNaming, PyroxObject, Generic[CTRL]):
             self._controller = value
         else:
             raise TypeError(f"Controller must be of type {CTRL} or None!")
-
-    @property
-    def meta_data(self) -> Union[dict, str]:
-        """Get the metadata for this object.
-
-        Returns:
-            Union[dict, str]: The metadata.
-        """
-        return self._meta_data
-
-    @meta_data.setter
-    def meta_data(self, value: Union[dict, str]):
-        """Set the metadata for this object.
-
-        Args:
-            value: The metadata to set.
-
-        Raises:
-            TypeError: If metadata is not a dict or string.
-        """
-        if isinstance(value, (dict, str)):
-            self._meta_data = value
-        else:
-            raise TypeError("Meta data must be a dict or a string!")
 
     @property
     def on_compiled(self) -> list[Callable]:
@@ -528,7 +464,7 @@ class PlcObject(EnforcesNaming, PyroxObject, Generic[CTRL]):
         return self
 
 
-class NamedPlcObject(PlcObject, NamedPyroxObject):
+class NamedPlcObject(NamedPyroxObject, PlcObject):
     """Supports a name and description for a PLC object.
 
     Args:
@@ -545,30 +481,22 @@ class NamedPlcObject(PlcObject, NamedPyroxObject):
 
     def __init__(
         self,
-        meta_data=defaultdict(None),
-        default_loader: Callable = lambda: defaultdict(None),
+        meta_data=None,
+        controller: Optional[CTRL] = None,
         name: Optional[str] = None,
-        description: Optional[str] = None,
-        controller: Optional[CTRL] = None
+        description: Optional[str] = None
     ) -> None:
-        PlcObject.__init__(self,
-                           controller=controller,
-                           default_loader=default_loader,
-                           meta_data=meta_data)
-        if name:
-            meta_data[L5X_PROP_NAME] = name
-
-        if description is not None:
-            meta_data[L5X_PROP_DESCRIPTION] = description
-
-        NamedPyroxObject.__init__(
+        PlcObject.__init__(
             self,
-            name=meta_data[L5X_PROP_NAME],
-            description=meta_data.get(L5X_PROP_DESCRIPTION, None)
+            meta_data=meta_data,
+            controller=controller
         )
 
-    def __str__(self):
-        return str(self.name)
+        if name is not None:
+            self.name = name
+
+        if description is not None:
+            self.description = description
 
     @property
     def name(self) -> str:
@@ -1575,11 +1503,11 @@ class Datatype(NamedPlcObject):
             list of endpoint operands for this datatype
         """
 
-    def __init__(self,
-                 **kwargs):
-
-        super().__init__(default_loader=lambda: l5x_dict_from_file(PLC_DT_FILE)['DataType'],
-                         **kwargs)
+    def __init__(
+        self,
+        **kwargs
+    ) -> None:
+        super().__init__(**kwargs)
         self._endpoint_operands: list[str] = []
         self._members: list[DatatypeMember] = []
         [self._members.append(DatatypeMember(l5x_meta_data=x, controller=self.controller, parent_datatype=self))
@@ -4270,14 +4198,14 @@ class ControllerFactory(MetaFactory):
     @classmethod
     def create_controller(
         cls,
-        controller_data: dict,
+        meta_data: dict,
         **kwargs
     ) -> object:
         """Create the best matching controller instance."""
-        controller_class = cls.get_best_match(controller_data)
+        controller_class = cls.get_best_match(meta_data)
         if not controller_class:
             return None
-        return controller_class(meta_data=controller_data, **kwargs)
+        return controller_class(meta_data=meta_data, **kwargs)
 
 
 class Controller(NamedPlcObject, metaclass=FactoryTypeMeta[Self, ControllerFactory]):
@@ -4291,43 +4219,32 @@ class Controller(NamedPlcObject, metaclass=FactoryTypeMeta[Self, ControllerFacto
 
     generator_type = 'EmulationGenerator'
 
+    def __getitem__(self, key):
+        return self.controller_meta_data.get(key, None)
+
     def __setitem__(self, key, value):
-        super().__setitem__(key, value)
+        self.controller_meta_data[key] = value
         if key == '@MajorRev' or key == '@MinorRev':
             self.logger.info('Changing revisions of processor...')
             self.content_meta_data['@SoftwareRevision'] = f'{self.controller.major_revision}.{self.controller.minor_revision}'
             self.plc_module['@Major'] = self.major_revision
             self.plc_module['@Minor'] = self.minor_revision
 
-    def __init__(self,
-                 meta_data: str = None,
-                 name: Optional[str] = None,
-                 description: Optional[str] = None,
-                 config: Optional[ControllerConfiguration] = None,
-                 file_location: Optional[str] = None,
-                 ip_address: Optional[str] = None,
-                 slot: Optional[int] = 0,
-                 compile_immediately: bool = False):
+    def __init__(
+        self,
+        meta_data: str = None
+    ) -> None:
+        super().__init__(meta_data=meta_data)
 
-        self._root_meta_data: dict = meta_data or l5x_dict_from_file(PLC_ROOT_FILE)
-        self._file_location, self._ip_address, self._slot = file_location, ip_address, slot
-        self._config = config or ControllerConfiguration()
+        self._file_location, self._ip_address, self._slot = None, None, None
+        self._config = ControllerConfiguration()
 
-        NamedPlcObject.__init__(self,
-                                meta_data=self.l5x_meta_data,
-                                name=name,
-                                description=description,
-                                controller=self)
-        Loggable.__init__(self)
         self._aois: Optional[HashList[AddOnInstruction]] = None
         self._datatypes: Optional[HashList[Datatype]] = None
         self._modules: Optional[HashList[Module]] = None
         self._programs: Optional[HashList[Program]] = None
         self._tags: Optional[HashList[Tag]] = None
         self._safety_info: Optional[ControllerSafetyInfo] = None
-
-        if compile_immediately:
-            self._compile_from_meta_data()
 
     @property
     def aois(self) -> HashList[AddOnInstruction]:
@@ -4356,7 +4273,11 @@ class Controller(NamedPlcObject, metaclass=FactoryTypeMeta[Self, ControllerFacto
 
     @property
     def content_meta_data(self) -> dict:
-        return self.root_meta_data['RSLogix5000Content']
+        return self.meta_data['RSLogix5000Content']
+
+    @property
+    def controller_meta_data(self) -> dict:
+        return self.content_meta_data['Controller']
 
     @property
     def datatypes(self) -> HashList[Datatype]:
@@ -4547,15 +4468,15 @@ class Controller(NamedPlcObject, metaclass=FactoryTypeMeta[Self, ControllerFacto
         Returns:
             Optional[Controller]: The created Controller instance, or None if the file could not be read.
         """
-        root_data = l5x_dict_from_file(file_location)
-        if not root_data:
+        meta_data = l5x_dict_from_file(file_location)
+        if not meta_data:
             return None
 
-        ctrl = ControllerFactory.create_controller(root_data)
+        ctrl = ControllerFactory.create_controller(meta_data)
         if not ctrl:
             print('Could not determine controller type from file! Creating generic controller')
             ctrl = cls(
-                meta_data=root_data,
+                meta_data=meta_data,
                 file_location=file_location
             )
         return ctrl

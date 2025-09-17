@@ -3,6 +3,7 @@
 from . import (
     abc,
     plc,
+    design,
     gui
 )
 
@@ -66,6 +67,7 @@ __all__ = (
     'Controller',
     'ControllerMatcher',
     'ControllerMatcherFactory',
+    'design',
     'FactoryTypeMeta',
     'FrameWithTreeViewAndScrollbar',
     'HashList',

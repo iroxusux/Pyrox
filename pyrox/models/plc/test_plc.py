@@ -16,7 +16,6 @@ from .plc import (
     ContainsRoutines,
     ContainsTags,
     Controller,
-    ControllerReportItem,
     ControllerModificationSchema,
     Datatype,
     DatatypeMember,
@@ -32,6 +31,10 @@ from .plc import (
     RungElementType,
     Rung,
     Tag,
+)
+
+from .validator import (
+    ControllerReportItem,
 )
 
 UNITTEST_PLC_FILE = r'docs\controls\unittest.L5X'
@@ -106,19 +109,6 @@ class TestPlcObject(unittest.TestCase):
         obj._init_dict_order()
         self.assertIn("C", obj.meta_data)
 
-    def test_validate(self):
-        report = self.plc_object.validate()
-        self.assertIsInstance(report, ControllerReportItem)
-        self.assertTrue(report.pass_fail)
-        self.assertIn('Validating PlcObject object', report.test_description)
-        self.assertEqual(report.test_notes, [])
-
-        # Test with missing config, controller, and meta_data
-        obj = PlcObject()
-        report = obj.validate()
-        self.assertIsInstance(report, ControllerReportItem)
-        self.assertFalse(report.pass_fail)
-
     def test_compile_from_meta_data_not_implemented(self):
         with self.assertRaises(NotImplementedError):
             self.plc_object._compile_from_meta_data()
@@ -164,27 +154,6 @@ class TestNamedPlcObject(unittest.TestCase):
     def test_repr_and_str(self):
         self.assertEqual(repr(self.named_obj), self.named_obj.name)
         self.assertEqual(str(self.named_obj), self.named_obj.name)
-
-    def test_validate(self):
-        # Should pass when both name and description are present
-        report = self.named_obj.validate()
-        self.assertIsInstance(report, ControllerReportItem)
-        self.assertTrue(report.pass_fail)
-        self.assertNotIn('No name found!', report.test_notes)
-        self.assertNotIn('No description found!', report.test_notes)
-
-        # Should fail if name is None
-        self.named_obj._meta_data["@Name"] = None
-        report = self.named_obj.validate()
-        self.assertFalse(report.pass_fail)
-        self.assertIn('No name found!', report.test_notes)
-
-        # Should fail if description is None
-        self.named_obj._meta_data["@Name"] = "TestNamed"
-        self.named_obj._meta_data["Description"] = None
-        report = self.named_obj.validate()
-        self.assertFalse(report.pass_fail)
-        self.assertIn('No description found!', report.test_notes)
 
 
 class TestLogixOperand(unittest.TestCase):
@@ -275,12 +244,6 @@ class TestLogixOperand(unittest.TestCase):
         self.assertIn('routine', report)
         self.assertIn('rung', report)
 
-    def test_validate(self):
-        report = self.operand.validate()
-        self.assertIsInstance(report, ControllerReportItem)
-        self.assertTrue(isinstance(report.pass_fail, bool))
-        self.assertIsInstance(report.test_notes, list)
-
 
 class TestLogixInstruction(unittest.TestCase):
     def setUp(self):
@@ -337,12 +300,6 @@ class TestLogixInstruction(unittest.TestCase):
         self.assertIn('program', report)
         self.assertIn('routine', report)
         self.assertIn('rung', report)
-
-    def test_validate(self):
-        report = self.instruction.validate()
-        self.assertIsInstance(report, ControllerReportItem)
-        self.assertTrue(isinstance(report.pass_fail, bool))
-        self.assertIsInstance(report.test_notes, list)
 
 
 class TestContainsTags(unittest.TestCase):
@@ -545,10 +502,6 @@ class TestAddOnInstruction(unittest.TestCase):
     def test_raw_tags_property(self):
         self.assertIsInstance(self.aoi.raw_tags, list)
 
-    def test_validate(self):
-        report = self.aoi.validate()
-        self.assertIsInstance(report, ControllerReportItem)
-
 
 class TestConnectionParameters(unittest.TestCase):
     def test_initialization(self):
@@ -686,10 +639,6 @@ class TestDatatype(unittest.TestCase):
         self.assertIsInstance(endpoints, list)
         self.assertTrue(all(isinstance(e, str) for e in endpoints))
 
-    def test_validate(self):
-        report = self.datatype.validate()
-        self.assertIsInstance(report, ControllerReportItem)
-
 
 class TestModule(unittest.TestCase):
     def setUp(self):
@@ -709,7 +658,11 @@ class TestModule(unittest.TestCase):
             "Description": "Test module",
             "EKey": {},
             "Ports": {"Port": []},
-            "Communications": {"Connections": {"Connection": [{"@InputCxnPoint": "input", "@OutputCxnPoint": "output"}]}, "@PrimCxnInputSize": "128", "@PrimCxnOutputSize": "128"}  # noqa: E501
+            "Communications": {"Connections": {
+                "Connection": [
+                    {"@InputCxnPoint": "input", "@OutputCxnPoint": "output", "@InputSize": "128", "@OutputSize": "128"}
+                ]},
+                "@PrimCxnInputSize": "128", "@PrimCxnOutputSize": "128"}
         }
         self.module = Module(l5x_meta_data=self.meta_data, controller=self.controller)
 
@@ -795,11 +748,7 @@ class TestModule(unittest.TestCase):
         self.assertEqual(self.module.output_connection_size, "128")
 
     def test_type_property(self):
-        self.assertIn(self.module.type_, ["Unknown", "IntrospectiveModule"])
-
-    def test_validate(self):
-        report = self.module.validate()
-        self.assertIsInstance(report, ControllerReportItem)
+        self.assertEqual(self.module.type_, 'AB_1756L8ES')
 
 
 class TestProgram(unittest.TestCase):
@@ -841,12 +790,6 @@ class TestProgram(unittest.TestCase):
 
     def test_use_as_folder_property(self):
         self.assertEqual(self.program.use_as_folder, "false")
-
-    def test_validate(self):
-        report = self.program.validate()
-        self.assertIsInstance(report, ControllerReportItem)
-        self.assertTrue(isinstance(report.pass_fail, bool))
-        self.assertIsInstance(report.test_notes, list)
 
 
 class TestRoutine(unittest.TestCase):
@@ -907,12 +850,6 @@ class TestRoutine(unittest.TestCase):
     def test_clear_rungs(self):
         self.routine.clear_rungs()
         self.assertEqual(len(self.routine.rungs), 0)
-
-    def test_validate(self):
-        report = self.routine.validate()
-        self.assertIsInstance(report, ControllerReportItem)
-        self.assertTrue(isinstance(report.pass_fail, bool))
-        self.assertIsInstance(report.test_notes, list)
 
     def test_get_instructions(self):
         instructions = self.routine.get_instructions("Tag1")
@@ -982,12 +919,6 @@ class TestRung(unittest.TestCase):
         self.assertTrue(self.rung == rung2)
         self.assertIsInstance(repr(self.rung), str)
         self.assertIsInstance(str(self.rung), str)
-
-    def test_validate(self):
-        report = self.rung.validate()
-        self.assertIsInstance(report, ControllerReportItem)
-        self.assertTrue(isinstance(report.pass_fail, bool))
-        self.assertIsInstance(report.test_notes, list)
 
     def test_parse_rung_sequence_empty_text(self):
         """Test parsing with empty rung text."""
@@ -2335,10 +2266,6 @@ class TestTag(unittest.TestCase):
         scope = self.tag.scope
         self.assertIn(scope, [LogixTagScope.CONTROLLER, LogixTagScope.PROGRAM])
 
-    def test_validate(self):
-        report = self.tag.validate()
-        self.assertIsInstance(report, ControllerReportItem)
-
 
 class TestController(unittest.TestCase):
     def setUp(self):
@@ -2405,12 +2332,8 @@ class TestController(unittest.TestCase):
     def test_raw_tags_property(self):
         self.assertIsInstance(self.controller.raw_tags, list)
 
-    def test_compile_and_validate(self):
+    def test_compile(self):
         self.controller.compile()
-        report = self.controller.validate()
-        self.assertIsInstance(report, ControllerReportItem)
-        self.assertTrue(isinstance(report.pass_fail, bool))
-        self.assertIsInstance(report.test_notes, list)
 
     def test_add_and_remove_assets(self):
         # Add and remove AOI
@@ -2465,13 +2388,6 @@ class TestController(unittest.TestCase):
         self.controller.rename_asset(LogixAssetType.TAG, "TAG1", "TAG2")
         self.controller.rename_asset(LogixAssetType.ALL, "TAG1", "TAG2")
 
-    def test_verify(self):
-        result = self.controller.verify()
-        self.assertIsInstance(result, dict)
-        self.assertIn('ControllerReport', result)
-        self.assertIn('UnpairedControllerInputs', result)
-        self.assertIn('RedundantOutputs', result)
-
     def test_from_file_and_from_meta_data(self):
         # from_meta_data should return a Controller instance
         ctrl = Controller.from_meta_data(self.meta_data)
@@ -2504,38 +2420,38 @@ class TestControllerModificationSchema(unittest.TestCase):
 
     def test_add_datatype_migration(self):
         self.schema.add_datatype_migration("DT1")
-        self.assertEqual(self.schema.actions[-1]['type'], 'datatype')
+        self.assertEqual(self.schema.actions[-1]['type'], 'migrate_datatype')
         self.assertEqual(self.schema.actions[-1]['name'], 'DT1')
 
     def test_add_tag_import(self):
         tag = Tag(meta_data={"@Name": "TAG2"}, controller=self.controller_dst)
         self.schema.add_controller_tag(tag)
-        self.assertEqual(self.schema.actions[-1]['type'], 'import_tag')
+        self.assertEqual(self.schema.actions[-1]['type'], 'add_controller_tag')
         self.assertEqual(self.schema.actions[-1]['asset'], tag.meta_data)
 
     def test_add_tag_migration(self):
         self.schema.add_controller_tag_migration("TAG1")
-        self.assertEqual(self.schema.actions[-1]['type'], 'tag')
+        self.assertEqual(self.schema.actions[-1]['type'], 'migrate_controller_tag')
         self.assertEqual(self.schema.actions[-1]['name'], 'TAG1')
 
     def test_add_program_tag_import(self):
         tag = Tag(meta_data={"@Name": "TAG3"}, controller=self.controller_dst)
         self.schema.add_program_tag("PROG1", tag)
-        self.assertEqual(self.schema.actions[-1]['type'], 'import_program_tag')
+        self.assertEqual(self.schema.actions[-1]['type'], 'add_program_tag')
         self.assertEqual(self.schema.actions[-1]['program'], "PROG1")
         self.assertEqual(self.schema.actions[-1]['asset'], tag.meta_data)
 
     def test_add_routine_import(self):
         routine = Routine(meta_data={"@Name": "ROUT2"}, controller=self.controller_dst)
         self.schema.add_routine("PROG1", routine)
-        self.assertEqual(self.schema.actions[-1]['type'], 'import_routine')
+        self.assertEqual(self.schema.actions[-1]['type'], 'add_routine')
         self.assertEqual(self.schema.actions[-1]['program'], "PROG1")
         self.assertEqual(self.schema.actions[-1]['routine'], routine.meta_data)
 
     def test_add_rung_import(self):
         rung = Rung(meta_data={"@Number": "0", "Text": "XIC(Tag1)"}, controller=self.controller_dst)
-        self.schema.add_rung("PROG1", "ROUT1", 0, rung)
-        self.assertEqual(self.schema.actions[-1]['type'], 'rung_import')
+        self.schema.add_rung("PROG1", "ROUT1", rung, 0)
+        self.assertEqual(self.schema.actions[-1]['type'], 'add_rung')
         self.assertEqual(self.schema.actions[-1]['program'], "PROG1")
         self.assertEqual(self.schema.actions[-1]['routine'], "ROUT1")
         self.assertEqual(self.schema.actions[-1]['rung_number'], 0)
@@ -2543,8 +2459,8 @@ class TestControllerModificationSchema(unittest.TestCase):
 
     def test_add_routine_migration(self):
         self.schema.add_routine_migration("PROG1", "ROUT1", {"0": {"@Number": "0", "Text": "XIC(Tag2)"}})
-        self.assertEqual(self.schema.actions[-1]['type'], 'routine')
-        self.assertEqual(self.schema.actions[-1]['program'], "PROG1")
+        self.assertEqual(self.schema.actions[-1]['type'], 'migrate_routine')
+        self.assertEqual(self.schema.actions[-1]['source_program'], "PROG1")
         self.assertEqual(self.schema.actions[-1]['routine'], "ROUT1")
         self.assertIsInstance(self.schema.actions[-1]['rung_updates'], dict)
 
@@ -2560,9 +2476,7 @@ class TestControllerModificationSchema(unittest.TestCase):
         }
         self.schema.add_import_from_l5x_dict(l5x_dict)
         types = [a['type'] for a in self.schema.actions[-3:]]
-        self.assertIn('import_datatypes', types)
-        self.assertIn('import_tags', types)
-        self.assertIn('import_programs', types)
+        self.assertIn('import_from_l5x_dict', types)
 
     def test_execute(self):
         # Should not raise

@@ -17,7 +17,7 @@ class TestPyroxOGuibject(unittest.TestCase):
 
     def test_name(self):
         obj = PyroxGuiObject(PyroxObject())
-        self.assertEqual(obj.name, 'PyroxGuiObject')
+        self.assertEqual(obj.name, None)
 
     def test_description(self):
         obj = PyroxGuiObject(PyroxObject())

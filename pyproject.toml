@@ -38,8 +38,10 @@ dependencies = [
   "pylogix",
   "PyPDF2",
   "pdfplumber",
+  "py7zr",
   "PyMuPDF",
   "pytest",
+  "pywin32",
   "xmltodict",
 ]
 

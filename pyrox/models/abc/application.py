@@ -192,31 +192,29 @@ class ApplicationConfiguration:
         application_name: The name of the application, used for directory naming and logging.
         author_name: The name of the author, used for directory naming and logging.
         title: The title of the application window.
-        theme: The theme to use for the application window.
         type_: The type of the application view.
         icon: The icon to use for the application window.
         size_: The size of the application window, specified as a string (e.g., "800x600").
-        tasks: A list of tasks to be executed by the application.
     """
     headless: bool = False
     application_name: Optional[str] = meta.DEF_APP_NAME
     author_name: Optional[str] = meta.DEF_AUTHOR_NAME
     title: Optional[str] = meta.DEF_WIN_TITLE
-    theme: Optional[str] = meta.DEF_THEME
     type_: ApplicationTkType = ApplicationTkType.ROOT
     icon: Optional[str] = meta.DEF_ICON
     size_: Optional[str] = meta.DEF_WIN_SIZE
 
     @classmethod
-    def _common_assembly(cls,
-                         headless: bool,
-                         application_name: str,
-                         author_name: str,
-                         title: str,
-                         theme: str,
-                         type_: ApplicationTkType,
-                         icon: str,
-                         size_: str) -> Self:
+    def _common_assembly(
+        cls,
+        headless: bool = False,
+        application_name: str = meta.DEF_APP_NAME,
+        author_name: str = meta.DEF_AUTHOR_NAME,
+        title: str = meta.DEF_WIN_TITLE,
+        type_: ApplicationTkType = ApplicationTkType.ROOT,
+        icon: str = meta.DEF_ICON,
+        size_: str = meta.DEF_WIN_SIZE
+    ) -> Self:
         """Common assembly method for creating ApplicationConfiguration instances.
 
         Args:
@@ -237,7 +235,6 @@ class ApplicationConfiguration:
             application_name=application_name,
             author_name=author_name,
             title=title,
-            theme=theme,
             type_=type_,
             icon=icon,
             size_=size_
@@ -251,14 +248,7 @@ class ApplicationConfiguration:
             Self: A toplevel ApplicationConfiguration instance.
         """
         return ApplicationConfiguration._common_assembly(
-            headless=False,
-            application_name=meta.DEF_APP_NAME,
-            author_name=meta.DEF_AUTHOR_NAME,
-            title=meta.DEF_WIN_TITLE,
-            theme=meta.DEF_THEME,
             type_=ApplicationTkType.TOPLEVEL,
-            icon=meta.DEF_ICON,
-            size_=meta.DEF_WIN_SIZE
         )
 
     @classmethod
@@ -268,16 +258,7 @@ class ApplicationConfiguration:
         Returns:
             Self: A root ApplicationConfiguration instance.
         """
-        return ApplicationConfiguration._common_assembly(
-            headless=False,
-            title=meta.DEF_WIN_TITLE,
-            application_name=meta.DEF_APP_NAME,
-            author_name=meta.DEF_AUTHOR_NAME,
-            theme=meta.DEF_THEME,
-            type_=ApplicationTkType.ROOT,
-            icon=meta.DEF_ICON,
-            size_=meta.DEF_WIN_SIZE
-        )
+        return ApplicationConfiguration._common_assembly()
 
 
 class ApplicationDirectoryService:

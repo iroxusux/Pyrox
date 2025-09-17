@@ -1,5 +1,16 @@
 """abc meta types
     """
+from .meta import (
+    Buildable,
+    EnforcesNaming,
+    NamedPyroxObject,
+    PyroxObject,
+    Runnable,
+    SnowFlake,
+    SupportsMetaData,
+    TK_CURSORS,
+)
+
 from .application import (
     Application,
     ApplicationConfiguration,
@@ -19,16 +30,6 @@ from .list import (
 
 from .logging import (
     Loggable,
-)
-
-from .meta import (
-    Buildable,
-    EnforcesNaming,
-    NamedPyroxObject,
-    PyroxObject,
-    Runnable,
-    SnowFlake,
-    TK_CURSORS,
 )
 
 from .model import (
@@ -54,5 +55,6 @@ __all__ = (
     'Runnable',
     'SafeList',
     'SnowFlake',
+    'SupportsMetaData',
     'TK_CURSORS',
 )

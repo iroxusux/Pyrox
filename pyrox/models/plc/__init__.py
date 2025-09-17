@@ -1,26 +1,6 @@
 """Plc types module
     """
 
-from .matcher import (
-    ControllerMatcher,
-    ControllerMatcherFactory,
-)
-
-from .emu_gen import (
-    EmulationGenerator,
-    EmulationGeneratorFactory,
-)
-
-from .imodule import (
-    AllenBradleyModule,
-    IntrospectiveModule,
-    ModuleWarehouse,
-    ModuleWarehouseFactory,
-    SewModule,
-    SiemensModule,
-    TurckModule,
-)
-
 from .plc import (
     AddOnInstruction,
     BASE_FILES,
@@ -45,6 +25,26 @@ from .plc import (
     Rung,
     Tag,
     TagEndpoint,
+)
+
+from .matcher import (
+    ControllerMatcher,
+    ControllerMatcherFactory,
+)
+
+from .emu_gen import (
+    EmulationGenerator,
+    EmulationGeneratorFactory,
+)
+
+from .imodule import (
+    AllenBradleyModule,
+    IntrospectiveModule,
+    ModuleWarehouse,
+    ModuleWarehouseFactory,
+    SewModule,
+    SiemensModule,
+    TurckModule,
 )
 
 from .validator import (

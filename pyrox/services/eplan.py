@@ -6,26 +6,20 @@ power structures, network configurations, and I/O mappings.
 """
 
 from __future__ import annotations
-import importlib
-import os
-import re
 from dataclasses import dataclass, field
-from pathlib import Path
-from typing import Dict, List, Optional, Tuple, Union
+from typing import Any, Dict, List, Optional, Union
+import zipfile
+import tempfile
+import os
 
-try:
-    import PyPDF2
-    import pdfplumber
-    import fitz  # PyMuPDF
-except ImportError as e:
-    raise ImportError(
-        "Required PDF libraries not installed. "
-        "Install with: pip install PyPDF2 pdfplumber PyMuPDF"
-    ) from e
+import sqlite3
+import xml.etree.ElementTree as ET
+import json
 
-from pyrox.models.abc.meta import Loggable
-from pyrox.services import fuzzy
+from pyrox.models.abc import SupportsMetaData
 
+from .byte import debug_bytes
+from .xml import dict_from_xml_file
 
 PACKAGE_NAME_RE: str = r"(?:PACKAGE )(.*)(?:DESCRIPTION: )(.*)"
 SECTION_LETTER_RE: str = r"(?:SECTION\nLETTER:\n)(.*)"
@@ -33,927 +27,662 @@ SHEET_NUMBER_RE: str = r"(?:SHEET\nNUMBER:\n)(.*) (.*)(?:\nOF)"
 
 
 @dataclass
-class DeviceContact:
-    """Represents a contact point on a device."""
-    terminal: str
-    signal_name: str = ""
-    wire_number: str = ""
-    device_reference: str = ""
-    page_reference: str = ""
-    contact_type: str = ""  # NO, NC, COM, etc.
+class ELKProject:
+    """Represents an EPLAN Electric P8 project."""
+    project_name: str
+    project_path: str
+    devices: Dict[str, Any] = field(default_factory=dict)
+    connections: List[Dict] = field(default_factory=list)
+    properties: Dict[str, str] = field(default_factory=dict)
+    sheet_details: List[Dict] = field(default_factory=list)
+    bom_details: List[Dict] = field(default_factory=list)
 
-
-@dataclass
-class IODevice:
-    """Represents an I/O device in the system."""
-    tag: str
-    device_type: str = ""
-    manufacturer: str = ""
-    part_number: str = ""
-    description: str = ""
-    location: str = ""
-    cabinet: str = ""
-    rack: str = ""
-    slot: str = ""
-    channel: str = ""
-    ip_address: str = ""
-    contacts: List[DeviceContact] = field(default_factory=list)
-    power_supply: str = ""
-    communication_module: str = ""
-
-
-@dataclass
-class PowerStructure:
-    """Represents power distribution structure."""
-    voltage_level: str
-    phase: str = ""  # L1, L2, L3, N, PE
-    current_rating: str = ""
-    protection_device: str = ""
-    distribution_panel: str = ""
-    circuit_breaker: str = ""
-    connected_devices: List[str] = field(default_factory=list)
-
-
-@dataclass
-class NetworkDevice:
-    """Represents a network device."""
-    tag: str
-    device_type: str = ""
-    ip_address: str = ""
-    subnet_mask: str = ""
-    gateway: str = ""
-    mac_address: str = ""
-    vlan: str = ""
-    switch_port: str = ""
-    cable_number: str = ""
-
-
-@dataclass
-class EplanDrawingSet:
-    """Contains all parsed information from EPlan drawing set."""
-    project_name: str = ""
-    drawing_sections: Dict[List[dict]] = field(default_factory=dict)
-    drawing_numbers: List[str] = field(default_factory=list)
-    devices: Dict[str, IODevice] = field(default_factory=dict)
-    power_structure: Dict[str, PowerStructure] = field(default_factory=dict)
-    network_devices: Dict[str, NetworkDevice] = field(default_factory=dict)
-    ethernet_topology: Dict[str, List[str]] = field(default_factory=dict)
-    io_mapping: Dict[str, str] = field(default_factory=dict)
-    cable_schedule: Dict[str, Dict] = field(default_factory=dict)
-    panel_layout: Dict[str, List[str]] = field(default_factory=dict)
-
-
-class EplanPDFParser(Loggable):
-    """Parser for EPlan-generated PDF electrical schematics."""
-
-    def __init__(self):
-        super().__init__()
-        self.drawing_set = EplanDrawingSet()
-        self._device_patterns = self._compile_device_patterns()
-        self._ip_patterns = self._compile_ip_patterns()
-        self._power_patterns = self._compile_power_patterns()
-
-    def _compile_device_patterns(self) -> Dict[str, re.Pattern]:
-        """Compile regex patterns for device identification."""
-        patterns = {
-            # Common device tag patterns
-            'device_tag': re.compile(r'([A-Z]{1,4}\d{1,4}[A-Z]?)', re.IGNORECASE),
-            'plc_tag': re.compile(r'(CPU|PLC|PAC)[-_]?(\d+)', re.IGNORECASE),
-            'hmi_tag': re.compile(r'(HMI|PV|VT)[-_]?(\d+)', re.IGNORECASE),
-            'io_module': re.compile(r'(AI|AO|DI|DO|RTD|TC)[-_]?(\d+)', re.IGNORECASE),
-            'motor_starter': re.compile(r'(MS|MCC)[-_]?(\d+)', re.IGNORECASE),
-            'valve': re.compile(r'(XV|PV|TV|FV|LV)[-_]?(\d+)', re.IGNORECASE),
-            'sensor': re.compile(r'(PT|TT|FT|LT|XT)[-_]?(\d+)', re.IGNORECASE),
-            'switch': re.compile(r'(SW|LS|PS|TS|FS)[-_]?(\d+)', re.IGNORECASE),
-            # Device specifications
-            'allen_bradley': re.compile(r'(1756|1769|1734|1794|5069)[-\s](\w+)', re.IGNORECASE),
-            'siemens': re.compile(r'(6ES7|6GK7|6AV7)[-\w]*', re.IGNORECASE),
-            'schneider': re.compile(r'(TM\d+|LMC\d+|BMX\w+)', re.IGNORECASE),
+    def to_dict(self) -> Dict[str, Any]:
+        """Convert ELKProject to dictionary format."""
+        return {
+            'project_name': self.project_name,
+            'project_path': self.project_path,
+            'devices': self.devices,
+            'connections': self.connections,
+            'properties': self.properties,
+            'bom_details': self.bom_details,
+            'sheet_details': self.sheet_details,
+            'summary': {
+                'total_devices': len(self.devices),
+                'total_connections': len(self.connections),
+                'total_pages': len(self.sheet_details),
+                'total_properties': len(self.properties)
+            }
         }
-        return patterns
 
-    def _compile_ip_patterns(self) -> Dict[str, re.Pattern]:
-        """Compile regex patterns for IP address and network information."""
-        patterns = {
-            'ip_address': re.compile(
-                r'\b(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}'
-                r'(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\b'
-            ),
-            'subnet_mask': re.compile(
-                r'\b(?:(?:255|254|252|248|240|224|192|128|0)\.){3}'
-                r'(?:255|254|252|248|240|224|192|128|0)\b'
-            ),
-            'mac_address': re.compile(r'([0-9A-Fa-f]{2}[:-]){5}([0-9A-Fa-f]{2})'),
-            'ethernet_port': re.compile(r'(?:ETH|EN)[-_]?(\d+)', re.IGNORECASE),
-            'vlan': re.compile(r'VLAN[-_\s]*:?\s*(\d+)', re.IGNORECASE),
-        }
-        return patterns
 
-    def _compile_power_patterns(self) -> Dict[str, re.Pattern]:
-        """Compile regex patterns for power distribution information."""
-        patterns = {
-            'voltage': re.compile(r'(\d+(?:\.\d+)?)\s*(?:V|VAC|VDC)', re.IGNORECASE),
-            'current': re.compile(r'(\d+(?:\.\d+)?)\s*(?:A|AMP)', re.IGNORECASE),
-            'power': re.compile(r'(\d+(?:\.\d+)?)\s*(?:W|KW|HP)', re.IGNORECASE),
-            'phase': re.compile(r'\b(L[123]|N|PE|GND)\b', re.IGNORECASE),
-            'circuit_breaker': re.compile(r'(CB|MCB|MCCB)[-_]?(\d+)', re.IGNORECASE),
-            'fuse': re.compile(r'(F|FU)[-_]?(\d+)', re.IGNORECASE),
-            'contactor': re.compile(r'(K|KM)[-_]?(\d+)', re.IGNORECASE),
-        }
-        return patterns
+class EPJParser(SupportsMetaData):
+    """Parser for EPLAN Electric P8 .elk files."""
 
-    def _parse_single_pdf(self, pdf_file: str) -> None:
-        """Parse a single PDF file for electrical schematic information."""
-        self.logger.info(f"Parsing PDF: {pdf_file}")
+    def __getitem__(self, key):
+        return self.pxf_root.get(key, None)
 
-        # Extract text using multiple methods for better accuracy
-        text_data = self._extract_text_multiple_methods(
-            pdf_file,
-            use_pdf_plumber=True  # Default method
-        )
-
-        self._extract_project_info(text_data)
-        self._extract_devices(text_data)
-        self._extract_network_info(text_data)
-        self._extract_power_info(text_data)
-        self._extract_io_mapping(text_data)
-        self._extract_cable_schedule(text_data)
-
-    def _extract_text_pdf_plumber(
+    def __init__(
         self,
-        pdf_file: str,
-    ) -> list[dict]:
-        """Extraction method #1: pdfplumber (best for tables and structured data).
-        """
-        data = []
-        try:
-            with pdfplumber.open(pdf_file) as pdf:
-                self.logger.info(f"Extracting text from {pdf_file} using pdfplumber...")
-                for page_num, page in enumerate(pdf.pages):
-                    self.logger.debug(f"Processing page {page_num + 1}...")
-                    text = page.extract_text()
-                    if text:
-                        data.append({
-                            'page': page_num + 1,
-                            'text': text,
-                            'tables': page.extract_tables()
-                        })
-        except Exception as e:
-            self.logger.warning(f"pdfplumber extraction failed: {e}")
-        return data
-
-    def _extract_text_pdf_mupdf(
-        self,
-        pdf_file: str,
-    ) -> list[dict]:
-        """Extraction method #2: PyMuPDF (fitz) - good for complex layouts."""
-        data = []
-        try:
-            self.logger.info(f"Extracting text from {pdf_file} using PyMuPDF...")
-            doc = fitz.open(pdf_file)
-            for page_num in range(doc.page_count):
-                page = doc[page_num]
-                text = page.get_text()
-                if text:
-                    data.append({
-                        'page': page_num + 1,
-                        'text': text,
-                        'blocks': page.get_text("dict")
-                    })
-            doc.close()
-        except Exception as e:
-            self.logger.warning(f"PyMuPDF extraction failed: {e}")
-        return data
-
-    def _extract_text_pdf_pypdf2(
-        self,
-        pdf_file: str,
-    ) -> list[dict]:
-        """Extraction method #3: PyPDF2 (fallback for basic text extraction)."""
-        data = []
-        try:
-            with open(pdf_file, 'rb') as file:
-                self.logger.info(f"Extracting text from {pdf_file} using PyPDF2...")
-                pdf_reader = PyPDF2.PdfReader(file)
-                for page_num, page in enumerate(pdf_reader.pages):
-                    text = page.extract_text()
-                    if text:
-                        data.append({
-                            'page': page_num + 1,
-                            'text': text
-                        })
-        except Exception as e:
-            self.logger.warning(f"PyPDF2 extraction failed: {e}")
-        return data
-
-    def _extract_text_multiple_methods(
-        self,
-        pdf_file: str,
-        use_pdf_plumber: bool = True,
-        use_pdf_mupdf: bool = False,
-        use_pdf_pypdf2: bool = False,
-    ) -> Dict[str, List[str]]:
-        """Extract text using multiple PDF parsing methods for better accuracy."""
-        text_data = {}
-        if use_pdf_plumber:
-            text_data['pdfplumber'] = self._extract_text_pdf_plumber(pdf_file)
-        if use_pdf_mupdf:
-            text_data['pymupdf'] = self._extract_text_pdf_mupdf(pdf_file)
-        if use_pdf_pypdf2:
-            text_data['pypdf2'] = self._extract_text_pdf_pypdf2(pdf_file)
-
-        return text_data
-
-    def _extract_page_section_letter(
-        self,
-        page_data: dict,
-    ) -> Optional[str]:
-        """Extract section letter from page data."""
-        data = self._extract_pattern_from_page(
-            page_data=page_data,
-            pattern=SECTION_LETTER_RE
-        )
-        if data is not None and len(data) > 0 and data[0] is not None:
-            return data[0][0]
-
-    def _extract_page_section_number(
-        self,
-        page_data: dict,
-    ) -> Optional[str]:
-        """Extract section number from page data."""
-        data = self._extract_pattern_from_page(
-            page_data=page_data,
-            pattern=SHEET_NUMBER_RE
-        )
-        if data is not None and len(data) > 0 and data[0] is not None:
-            return data[0][0]
-
-    def _extract_page_sections(
-        self,
-        text_data: List[dict],
+        meta_data: Optional[Union[str, dict]] = None
     ) -> None:
-        """Extract each page section out of the supplied text data.
+        super().__init__(meta_data)
+
+    def __setitem__(self, key, value):
+        self.pxf_root[key] = value
+
+    @property
+    def main_interest_attributes(self) -> dict:
+        """Return the key from eplan root that looks like the most promising for project data.
         """
-        if not text_data:
-            raise ValueError("No text data provided for page extraction.")
+        return self['O14']
 
-        self.logger.debug("Extracting page sections from text data...")
+    @property
+    def project_bom_list(self) -> list[dict]:
+        """Get the project BOM dictionary."""
+        return self.main_interest_attributes.get('O117', {})
 
-        # Iterate through each page's text data
-        for page_data in text_data:
-            if not isinstance(page_data, dict):
-                continue
+    @property
+    def project_design_source(self) -> Optional[str]:
+        """Get the project design source if available."""
+        return self.project_property_dict.get('@P10015', 'N/A')
 
-            section_letter = self._extract_page_section_letter(page_data)
-            section_number = self._extract_page_section_number(page_data)
+    @property
+    def project_design_source_address(self) -> Optional[str]:
+        """Get the project design source address if available."""
+        addr_line1 = self.project_property_dict.get('@P10016', 'N/A')
+        addr_line2 = self.project_property_dict.get('@P10017', 'N/A')
+        return f"{addr_line1}, {addr_line2}" if addr_line1 != 'N/A' or addr_line2 != 'N/A' else 'N/A'
 
-            if not section_letter or not section_number:
-                raise ValueError(
-                    f"Missing section letter or number in page data: {page_data}"
-                )
+    @property
+    def project_device_list(self) -> dict:
+        """Get the project devices dictionary."""
+        return self.main_interest_attributes.get('O6', {})
 
-            if section_letter not in self.drawing_set.drawing_sections:
-                self.drawing_set.drawing_sections[section_letter] = []
+    @property
+    def project_factory_name(self) -> Optional[str]:
+        """Get the project factory name if available."""
+        return self.project_property_dict.get('@P10035', 'N/A')
 
-            if section_number in self.drawing_set.drawing_sections[section_letter]:
-                self.logger.warning(
-                    f"Duplicate section number '{section_number}' in section '{section_letter}'. "
-                    "Skipping this page."
-                )
-                continue
+    @property
+    def project_factory_type(self) -> Optional[str]:
+        """Get the project factory type if available."""
+        return self.project_property_dict.get('@P10032', 'N/A')
 
-            self.drawing_set.drawing_sections[section_letter].append({
-                section_number: page_data
-            })
+    @property
+    def project_job_number(self) -> Optional[str]:
+        """Get the project job number if available."""
+        return self.project_property_dict.get('@P10180', 'N/A')
 
-    def _extract_pattern_from_page(
-        self,
-        page_data: dict,
-        pattern: str
-    ) -> Optional[List[Tuple[str, ...]]]:
-        """Extract a pattern from the page data."""
-        if not isinstance(page_data, dict):
-            raise ValueError("Invalid page data format provided.")
+    @property
+    def project_property_dict(self) -> dict:
+        """Get the project properties dictionary."""
+        return self.main_interest_attributes.get('P11', {})
 
-        tables = page_data.get('tables', [])
-        if not tables:
-            self.logger.warning("No tables found in page data for pattern extraction.")
-            return None
+    @property
+    def project_sheet_list(self) -> list[dict]:
+        """Get the project sheets dictionary."""
+        return self.main_interest_attributes.get('O4', {})
 
-        text = self._flatten_table_to_text(tables)
-        matches = re.findall(pattern, text, re.DOTALL)
+    @property
+    def pxf_root(self) -> dict:
+        """Get the root metadata dictionary for EPLAN PXF files."""
+        return self.meta_data.get('EplanPxfRoot', {})
 
-        if matches:
-            return matches
+    @property
+    def template_source(self) -> Optional[str]:
+        """Get the template source file if available."""
+        return self.project_property_dict.get('@P10011', 'N/A')
 
-        importlib.reload(fuzzy)
-        # Attempt fuzzy matching if no exact matches found
-        fuzzy_match = fuzzy.fuzzy_pattern_match(text, pattern)
-        if fuzzy_match is not None:
-            return [fuzzy_match]
+    def _gather_project_device_names(self) -> List[dict]:
+        """Gather all device names from the project."""
+        device_dicts: list[dict] = []
+        devices = self.project_device_list
+        if isinstance(devices, dict):
+            devices = [devices]
 
-        # Attempt fuzzy regex search
-        fuzzy_matches = fuzzy.fuzzy_regex_search(text, pattern)
-        if fuzzy_matches is not None and len(fuzzy_matches) > 0:
-            return fuzzy_matches
+        for device in devices:
+            name = device.get('@A82', '')
+            if name == '':
+                continue  # Don't process nothing devices
 
-        self.logger.warning(f"No matches found for pattern: {pattern}")
-        return None
+            device_descriptor_dict = device.get('P11', {})
+            device_descriptor_meta_string = device_descriptor_dict.get('@P1002', '')
+            if device_descriptor_meta_string == '':
+                continue  # Don't process devices without descriptor
 
-    def _extract_project_info_pdf_plumber(
-        self,
-        text_data: List[dict]
-    ) -> None:
-        """Extract project information from the PDF using pdfplumber."""
-        if not text_data:
-            raise ValueError("No text data provided for project extraction.")
+            device_descriptor_string = device_descriptor_meta_string.split('@')[-1].strip()
 
-        self.logger.debug("Extracting project information from pdfplumber text data...")
-        self._extract_page_sections(text_data)
-
-        # Iterate through each page's text data
-        for page_data in text_data:
-            if not isinstance(page_data, dict):
-                continue
-
-            page_num = page_data.get('page', 'Unknown')
-            self.logger.debug(f"Processing page {page_num} for project info...")
-
-            # First, try to extract from the full page text
-            page_text = page_data.get('text', '')
-            if page_text is None:
-                self.logger.warning(f"No text found on page {page_num}, skipping...")
-                continue
-
-            # search package for package name
-            package_info = self._search_page_tables(
-                page_data.get('tables', []),
-                PACKAGE_NAME_RE
+            device_dicts.append(
+                {
+                    'name': name,
+                    'data': device,
+                    'descriptor': device_descriptor_string
+                }
             )
 
-            if not package_info:
-                raise ValueError(f"No package information found on page {page_num}")
-            self.drawing_set.project_name = ''.join([' '.join(x) for x in package_info]).replace('\n', '')
-            break
+        return device_dicts
 
-        # Log summary
-        self.logger.info("Project extraction summary:")
-        self.logger.info(f"  - Total sections found: {len(self.drawing_set.drawing_sections)}")
-        for section in self.drawing_set.drawing_sections:
-            self.logger.info(f"    - Section '{section}' with {len(self.drawing_set.drawing_sections[section])} pages")
-        self.logger.info(f"  - Final project name: '{self.drawing_set.project_name}'")
-
-    def _extract_project_info(
+    def _gather_project_bom_details(
         self,
-        text_data: Dict
+        skip_zero_counts: bool = True,
+    ) -> List[dict]:
+        """Gather all BOM details from the project."""
+        bom_dicts: list[dict] = []
+        bom_items = self.project_bom_list
+        if isinstance(bom_items, dict):
+            bom_items = [bom_items]
+
+        for item in bom_items:
+            item_bom_meta: dict = item.get('P11', {})
+            if not item_bom_meta:
+                continue  # Don't process items without metadata
+
+            part_number = item_bom_meta.get('@P22003', '')
+            if part_number == '':
+                continue  # Don't process items without part number
+
+            description = item_bom_meta.get('@P22004', '').split('@')[-1].strip()
+            quantity = item_bom_meta.get('@P2200', 0)
+            manufacturer = item_bom_meta.get('@P22007', '')
+            bom_dicts.append(
+                {
+                    'part_number': part_number,
+                    'description': description,
+                    'quantity': quantity,
+                    'manufacturer': manufacturer,
+                    'data': item
+                }
+            )
+
+        return bom_dicts
+
+    def _gather_project_sheet_details(self) -> List[dict]:
+        """Gather all sheet details from the project."""
+        sheet_dicts: list[dict] = []
+        sheets = self.project_sheet_list
+        if isinstance(sheets, dict):
+            sheets = [sheets]
+
+        for sheet in sheets:
+            sheet_props = sheet.get('P11', {})
+            sheet_number_dict = sheet.get('P49', {})
+
+            sheet_name = sheet_props.get('@P11011', '').split('@')[-1].strip()
+            sheet_number_major = sheet_number_dict.get('@P11012', '')
+            sheet_number_minor = sheet_number_dict.get('@P11013', '')
+            if sheet_number_major and sheet_number_minor:
+                sheet_number = f"{sheet_number_major}.{sheet_number_minor}"
+            else:
+                sheet_number = sheet_number_major or sheet_number_minor or 'N/A'
+
+            sheet_dicts.append(
+                {
+                    'name': sheet_name,
+                    'number': sheet_number,
+                    'data': sheet,
+                }
+            )
+
+        return sheet_dicts
+
+    def _gather_project_ip_addresses(self) -> List[str]:
+        """Gather all IP addresses from the project."""
+        ip_addresses: List[str] = []
+        for device in self.project_device_list:
+            ip_address = device.get('P11', {}).get('@P1009', '')
+            if ip_address and ip_address not in ip_addresses:
+                ip_addresses.append(ip_address)
+        return ip_addresses
+
+    def _parse_elk_project_file(
+        self,
+        file_path: str,
+        project: Optional[ELKProject] = None
     ) -> None:
-        """Extract project information from the PDF.
-        """
-        plumber = text_data.get('pdfplumber', [])
-        mupdf = text_data.get('pymupdf', [])
-        pypdf2 = text_data.get('pypdf2', [])
+        """Parse the main project file to extract high-level project information."""
+        file_name = os.path.basename(file_path)
+        self.logger.info(f"Parsing project file: {file_name}")
 
-        if plumber:
-            return self._extract_project_info_pdf_plumber(plumber)
-        elif mupdf:
-            raise NotImplementedError("MuPDF extraction not implemented yet.")
-        elif pypdf2:
-            raise NotImplementedError("PyPDF2 extraction not implemented yet.")
-        else:
-            raise ValueError("No valid text extraction methods provided.")
+        if file_name.lower().endswith(('.xml', 'eox')):
+            self._process_xml_file(file_path, project, file_name)
 
-    def _extract_devices(self, text_data: Dict) -> None:
-        """Extract device information from the PDF text."""
+    def parse_epj_file(
+        self,
+    ) -> Dict[str, Any]:
+        """Parse an EPJ file (EPLAN project archive) and return contents as dictionary."""
+        project = ELKProject(
+            project_name=self.project_factory_name,
+            project_path=None
+        )
 
-        all_text = self._combine_text_data(text_data)
+        project.devices = self._gather_project_device_names()
+        project.bom_details = self._gather_project_bom_details()
+        project.sheet_details = self._gather_project_sheet_details()
 
-        # Find all potential device tags
-        device_matches = self._device_patterns['device_tag'].findall(all_text)
+        # Return as dictionary
+        result = project.to_dict()
+        result['meta_data'] = self.meta_data  # Append meta data for debugging
+        self._log_parsing_summary(result)
+        return result
 
-        for device_tag in set(device_matches):
-            if len(device_tag) < 2:  # Skip single characters
-                continue
+    def _log_parsing_summary(self, result: Dict[str, Any]) -> None:
+        """Log summary of parsing results."""
+        summary = result.get('summary', {})
+        self.logger.info("Parsing completed:")
+        self.logger.info(f"  - Devices: {summary.get('total_devices', 0)}")
+        self.logger.info(f"  - Connections: {summary.get('total_connections', 0)}")
+        self.logger.info(f"  - Pages: {summary.get('total_pages', 0)}")
+        self.logger.info(f"  - Properties: {summary.get('total_properties', 0)}")
 
-            device = IODevice(tag=device_tag)
+    def _process_binary_file(self, file_path: str, project: ELKProject, file_name: str) -> None:
+        """Process binary or encoded files."""
+        try:
+            self.logger.info(f"Processing binary/encoded file: {file_name}")
 
-            # Try to find device information near the tag
-            device_context = self._extract_device_context(all_text, device_tag)
+            with open(file_path, 'rb') as f:
+                # Read file info
+                f.seek(0, 2)  # Seek to end
+                file_size = f.tell()
+                f.seek(0)  # Back to beginning
 
-            # Determine device type
-            device.device_type = self._determine_device_type(device_tag, device_context)
+                # Read header for analysis
+                header = f.read(min(1024, file_size))
 
-            # Extract manufacturer and part number
-            device.manufacturer, device.part_number = self._extract_device_specs(device_context)
-
-            # Extract location information
-            device.cabinet, device.rack, device.slot = self._extract_location_info(device_context)
-
-            # Extract IP address if network device
-            device.ip_address = self._extract_device_ip(device_context)
-
-            self.drawing_set.devices[device_tag] = device
-
-    def _extract_device_context(self, text: str, device_tag: str) -> str:
-        """Extract text context around a device tag."""
-        lines = text.split('\n')
-        context_lines = []
-
-        for i, line in enumerate(lines):
-            if device_tag in line:
-                # Get surrounding lines for context
-                start = max(0, i - 3)
-                end = min(len(lines), i + 4)
-                context_lines.extend(lines[start:end])
-
-        return '\n'.join(context_lines)
-
-    def _determine_device_type(self, tag: str, context: str) -> str:
-        """Determine device type based on tag and context."""
-        # Check tag prefix patterns
-        if re.match(r'^(CPU|PLC|PAC)', tag, re.IGNORECASE):
-            return "PLC"
-        elif re.match(r'^(HMI|PV|VT)', tag, re.IGNORECASE):
-            return "HMI"
-        elif re.match(r'^(AI|AO|DI|DO)', tag, re.IGNORECASE):
-            return "I/O Module"
-        elif re.match(r'^(MS|MCC)', tag, re.IGNORECASE):
-            return "Motor Starter"
-        elif re.match(r'^(XV|PV|TV)', tag, re.IGNORECASE):
-            return "Valve"
-        elif re.match(r'^(PT|TT|FT)', tag, re.IGNORECASE):
-            return "Transmitter"
-        elif re.match(r'^(SW|LS|PS)', tag, re.IGNORECASE):
-            return "Switch"
-
-        # Check context for device type keywords
-        context_lower = context.lower()
-        if any(word in context_lower for word in ['cpu', 'processor', 'controller']):
-            return "PLC"
-        elif any(word in context_lower for word in ['hmi', 'display', 'operator']):
-            return "HMI"
-        elif any(word in context_lower for word in ['input', 'output', 'module']):
-            return "I/O Module"
-        elif any(word in context_lower for word in ['motor', 'starter']):
-            return "Motor Starter"
-        elif any(word in context_lower for word in ['valve', 'actuator']):
-            return "Valve"
-        elif any(word in context_lower for word in ['switch', 'ethernet']):
-            return "Network Switch"
-
-        return "Unknown"
-
-    def _extract_device_specs(self, context: str) -> Tuple[str, str]:
-        """Extract manufacturer and part number from context."""
-        manufacturer = ""
-        part_number = ""
-
-        # Check for Allen-Bradley
-        ab_match = self._device_patterns['allen_bradley'].search(context)
-        if ab_match:
-            manufacturer = "Allen-Bradley"
-            part_number = f"{ab_match.group(1)}-{ab_match.group(2)}"
-
-        # Check for Siemens
-        siemens_match = self._device_patterns['siemens'].search(context)
-        if siemens_match:
-            manufacturer = "Siemens"
-            part_number = siemens_match.group(0)  # Get the full match
-
-        # Check for Schneider
-        schneider_match = self._device_patterns['schneider'].search(context)
-        if schneider_match:
-            manufacturer = "Schneider Electric"
-            part_number = schneider_match.group(0)
-
-        return manufacturer, part_number
-
-    def _extract_location_info(self, context: str) -> Tuple[str, str, str]:
-        """Extract cabinet, rack, and slot information."""
-        cabinet = ""
-        rack = ""
-        slot = ""
-
-        # Look for cabinet/panel information
-        cabinet_pattern = re.compile(r'(?:CABINET|PANEL|ENCLOSURE)\s*[:]\s*([A-Z0-9-]+)', re.IGNORECASE)
-        cabinet_match = cabinet_pattern.search(context)
-        if cabinet_match:
-            cabinet = cabinet_match.group(1)
-
-        # Look for rack information
-        rack_pattern = re.compile(r'RACK\s*[:]\s*(\d+)', re.IGNORECASE)
-        rack_match = rack_pattern.search(context)
-        if rack_match:
-            rack = rack_match.group(1)
-
-        # Look for slot information
-        slot_pattern = re.compile(r'SLOT\s*[:]\s*(\d+)', re.IGNORECASE)
-        slot_match = slot_pattern.search(context)
-        if slot_match:
-            slot = slot_match.group(1)
-
-        return cabinet, rack, slot
-
-    def _extract_device_ip(self, context: str) -> str:
-        """Extract IP address for network devices."""
-        ip_match = self._ip_patterns['ip_address'].search(context)
-        return ip_match.group(0) if ip_match else ""
-
-    def _extract_network_info(self, text_data: Dict) -> None:
-        """Extract network topology and device information."""
-        all_text = self._combine_text_data(text_data)
-
-        # Find all IP addresses
-        ip_addresses = self._ip_patterns['ip_address'].findall(all_text)
-
-        for ip in set(ip_addresses):
-            # Find context around IP address
-            ip_context = self._extract_ip_context(all_text, ip)
-
-            # Try to find associated device tag
-            device_tag = self._find_device_for_ip(ip_context)
-
-            if device_tag:
-                network_device = NetworkDevice(
-                    tag=device_tag,
-                    ip_address=ip
-                )
-
-                # Extract additional network information
-                network_device.subnet_mask = self._extract_subnet_mask(ip_context)
-                network_device.mac_address = self._extract_mac_address(ip_context)
-                network_device.vlan = self._extract_vlan(ip_context)
-
-                self.drawing_set.network_devices[device_tag] = network_device
-
-    def _extract_ip_context(self, text: str, ip: str) -> str:
-        """Extract context around an IP address."""
-        lines = text.split('\n')
-        context_lines = []
-
-        for i, line in enumerate(lines):
-            if ip in line:
-                start = max(0, i - 2)
-                end = min(len(lines), i + 3)
-                context_lines.extend(lines[start:end])
-
-        return '\n'.join(context_lines)
-
-    def _extract_cable_schedule(self, text_data: Dict) -> None:
-        """Extract cable schedule information."""
-        all_text = self._combine_text_data(text_data)
-
-        # Look for cable patterns
-        cable_pattern = re.compile(r'CABLE\s*([A-Z0-9-]+)', re.IGNORECASE)
-        cable_matches = cable_pattern.findall(all_text)
-
-        for cable_num in set(cable_matches):
-            cable_context = self._extract_cable_context(all_text, cable_num)
-
-            cable_info = {
-                'number': cable_num,
-                'from': self._extract_cable_from(cable_context),
-                'to': self._extract_cable_to(cable_context),
-                'type': self._extract_cable_type(cable_context),
-                'length': self._extract_cable_length(cable_context)
+            # Analyze file structure
+            file_info = {
+                'file_name': file_name,
+                'file_size': file_size,
+                'file_type': 'binary_or_encoded',
+                'header_hex': header[:100].hex(),  # First 100 bytes as hex
             }
 
-            self.drawing_set.cable_schedule[cable_num] = cable_info
+            # Try to detect file type from header
+            if header.startswith(b'PK'):
+                file_info['detected_type'] = 'ZIP/Archive'
+            elif header.startswith(b'SQLite'):
+                file_info['detected_type'] = 'SQLite Database'
+            elif b'EPLAN' in header:
+                file_info['detected_type'] = 'EPLAN Binary'
+            else:
+                file_info['detected_type'] = 'Unknown Binary'
 
-    def _extract_cable_context(self, text: str, cable_num: str) -> str:
-        """Extract context around cable number."""
-        pattern = re.compile(rf'CABLE\s*{re.escape(cable_num)}', re.IGNORECASE)
-        lines = text.split('\n')
-        context_lines = []
-
-        for i, line in enumerate(lines):
-            if pattern.search(line):
-                start = max(0, i - 1)
-                end = min(len(lines), i + 2)
-                context_lines.extend(lines[start:end])
-
-        return '\n'.join(context_lines)
-
-    def _extract_cable_from(self, context: str) -> str:
-        """Extract cable 'from' location."""
-        from_pattern = re.compile(r'FROM\s*[:]\s*([A-Z0-9-]+)', re.IGNORECASE)
-        match = from_pattern.search(context)
-        return match.group(1) if match else ""
-
-    def _extract_cable_to(self, context: str) -> str:
-        """Extract cable 'to' location."""
-        to_pattern = re.compile(r'TO\s*[:]\s*([A-Z0-9-]+)', re.IGNORECASE)
-        match = to_pattern.search(context)
-        return match.group(1) if match else ""
-
-    def _extract_cable_type(self, context: str) -> str:
-        """Extract cable type."""
-        type_pattern = re.compile(r'TYPE\s*[:]\s*([A-Z0-9/\-\s]+)', re.IGNORECASE)
-        match = type_pattern.search(context)
-        return match.group(1).strip() if match else ""
-
-    def _extract_cable_length(self, context: str) -> str:
-        """Extract cable length."""
-        length_pattern = re.compile(r'(\d+(?:\.\d+)?)\s*(?:FT|FEET|M|METER)', re.IGNORECASE)
-        match = length_pattern.search(context)
-        return match.group(0) if match else ""
-
-    def _extract_subnet_mask(self, context: str) -> str:
-        """Extract subnet mask from context."""
-        mask_match = self._ip_patterns['subnet_mask'].search(context)
-        return mask_match.group(0) if mask_match else ""
-
-    def _extract_mac_address(self, context: str) -> str:
-        """Extract MAC address from context."""
-        mac_match = self._ip_patterns['mac_address'].search(context)
-        return mac_match.group(0) if mac_match else ""
-
-    def _extract_vlan(self, context: str) -> str:
-        """Extract VLAN information from context."""
-        vlan_match = self._ip_patterns['vlan'].search(context)
-        return vlan_match.group(1) if vlan_match else ""
-
-    def _extract_power_info(self, text_data: Dict) -> None:
-        """Extract power distribution information."""
-        all_text = self._combine_text_data(text_data)
-
-        # Find voltage levels
-        voltage_matches = self._power_patterns['voltage'].findall(all_text)
-
-        for voltage in set(voltage_matches):
-            power_struct = PowerStructure(voltage_level=f"{voltage}V")
-
-            # Find context around voltage
-            voltage_context = self._extract_voltage_context(all_text, voltage)
-
-            # Extract phase information
-            phase_matches = self._power_patterns['phase'].findall(voltage_context)
-            if phase_matches:
-                power_struct.phase = ', '.join(set(phase_matches))
-
-            # Extract protection devices
-            cb_match = self._power_patterns['circuit_breaker'].search(voltage_context)
-            if cb_match:
-                power_struct.protection_device = f"{cb_match.group(1)}-{cb_match.group(2)}"
-
-            self.drawing_set.power_structure[f"{voltage}V"] = power_struct
-
-    def _extract_voltage_context(self, text: str, voltage: str) -> str:
-        """Extract context around voltage specification."""
-        pattern = re.compile(rf'\b{re.escape(voltage)}\s*(?:V|VAC|VDC)', re.IGNORECASE)
-        lines = text.split('\n')
-        context_lines = []
-
-        for i, line in enumerate(lines):
-            if pattern.search(line):
-                start = max(0, i - 2)
-                end = min(len(lines), i + 3)
-                context_lines.extend(lines[start:end])
-
-        return '\n'.join(context_lines)
-
-    def _extract_io_mapping(self, text_data: Dict) -> None:
-        """Extract I/O mapping information."""
-        # Look for I/O tables in extracted tables
-        for method_data in text_data.values():
-            for page_data in method_data:
-                if isinstance(page_data, dict) and 'tables' in page_data:
-                    for table in page_data.get('tables', []):
-                        if table and self._is_io_table(table):
-                            self._parse_io_table(table)
-
-    def _find_device_for_ip(self, context: str) -> str:
-        """Find device tag associated with an IP address."""
-        device_match = self._device_patterns['device_tag'].search(context)
-        return device_match.group(0) if device_match else ""
-
-    def _flatten_table_to_text(
-        self,
-        table: List[List[str]],
-    ) -> str:
-        """Flatten a table into a single text string."""
-        if not table:
-            return ""
-
-        flattened = []
-        for row in table:
-            if not row:
-                continue
-            for cell in row:
-                if not cell:
-                    continue
-                for sub_cell in cell:
-                    if not sub_cell:
-                        continue
-                    sub_cell = sub_cell.strip()
-                    if sub_cell:
-                        flattened.append(sub_cell)
-
-        return ' '.join(flattened)
-
-    def _is_io_table(self, table: List[List[str]]) -> bool:
-        """Determine if a table contains I/O mapping information."""
-        if not table or len(table) < 2:
-            return False
-
-        header_row = [cell.lower() if cell else "" for cell in table[0]]
-        io_keywords = ['tag', 'address', 'description', 'type', 'module', 'channel']
-
-        return any(keyword in ' '.join(header_row) for keyword in io_keywords)
-
-    def _parse_io_table(self, table: List[List[str]]) -> None:
-        """Parse I/O mapping table."""
-        if not table:
-            return
-
-        headers = [cell.lower().strip() if cell else "" for cell in table[0]]
-
-        for row in table[1:]:
-            if not row or not any(row):
-                continue
-
-            # Map row data to headers
-            row_data = {}
-            for i, cell in enumerate(row):
-                if i < len(headers) and headers[i]:
-                    row_data[headers[i]] = cell.strip() if cell else ""
-
-            # Extract tag and address mapping
-            tag = row_data.get('tag', '') or row_data.get('device', '')
-            address = row_data.get('address', '') or row_data.get('location', '')
-
-            if tag and address:
-                self.drawing_set.io_mapping[tag] = address
-
-    def _search_page_tables(
-        self,
-        page_tables: List[List[str]],
-        search_pattern: re.Pattern
-    ) -> List[str]:
-        """Search for a pattern in the page tables and return matches."""
-        if not page_tables:
-            self.logger.warning("Empty page tables provided for search.")
-            return []
-        if not search_pattern:
-            self.logger.warning("No search pattern provided.")
-            return []
-        matches = []
-        for table in page_tables:
-            for row in table:
-                for cell in row:
-                    if not cell:
-                        continue
-                    val = re.findall(search_pattern, cell, re.DOTALL | re.IGNORECASE)
-                    if not val:
-                        continue
-                    matches.extend(val)
-        return matches
-
-    def _search_page_text(
-        self,
-        page_text: str,
-        search_pattern: re.Pattern
-    ) -> List[str]:
-        """Search for a pattern in the page text and return matches."""
-        if not page_text:
-            self.logger.warning("Empty page text provided for search.")
-            return []
-        if not search_pattern:
-            self.logger.warning("No search pattern provided.")
-            return []
-        matches = re.findall(search_pattern, page_text, re.DOTALL | re.IGNORECASE)
-        return matches
-
-    def _combine_text_data(self, text_data: Dict) -> str:
-        """Combine text from all extraction methods."""
-        combined_text = []
-
-        for method_name, method_data in text_data.items():
-            for page_data in method_data:
-                if isinstance(page_data, dict):
-                    combined_text.append(page_data.get('text', ''))
-                else:
-                    combined_text.append(str(page_data))
-
-        return '\n'.join(combined_text)
-
-    def _post_process_data(self) -> None:
-        """Post-process extracted data for consistency and relationships."""
-        # Link network devices to main devices
-        for net_device in self.drawing_set.network_devices.values():
-            if net_device.tag in self.drawing_set.devices:
-                self.drawing_set.devices[net_device.tag].ip_address = net_device.ip_address
-
-        # Remove duplicate drawing numbers
-        self.drawing_set.drawing_numbers = list(set(self.drawing_set.drawing_numbers))
-
-    def export_to_dict(self) -> Dict:
-        """Export parsed data to dictionary format."""
-        return {
-            'project_name': self.drawing_set.project_name,
-            'drawing_numbers': self.drawing_set.drawing_numbers,
-            'devices': {tag: device.__dict__ for tag, device in self.drawing_set.devices.items()},
-            'power_structure': {key: ps.__dict__ for key, ps in self.drawing_set.power_structure.items()},
-            'network_devices': {tag: net.__dict__ for tag, net in self.drawing_set.network_devices.items()},
-            'ethernet_topology': self.drawing_set.ethernet_topology,
-            'io_mapping': self.drawing_set.io_mapping,
-            'cable_schedule': self.drawing_set.cable_schedule,
-            'panel_layout': self.drawing_set.panel_layout
-        }
-
-    def export_to_file(self, output_file: str, format_type: str = 'json') -> None:
-        """Export parsed data to file.
-
-        Args:
-            output_file: Output file path
-            format_type: Output format ('json', 'yaml', 'csv')
-        """
-        data = self.export_to_dict()
-
-        if format_type.lower() == 'json':
-            import json
-            with open(output_file, 'w') as f:
-                json.dump(data, f, indent=2)
-        elif format_type.lower() == 'yaml':
+            # Look for text patterns in the binary data
             try:
-                import yaml
-                with open(output_file, 'w') as f:
-                    yaml.dump(data, f, default_flow_style=False)
-            except ImportError:
-                raise ImportError("PyYAML required for YAML export: pip install PyYAML")
-        elif format_type.lower() == 'csv':
-            # Export devices to CSV
-            import csv
-            with open(output_file, 'w', newline='') as f:
-                writer = csv.writer(f)
-                writer.writerow(['Tag', 'Type', 'Manufacturer', 'Part Number', 'IP Address', 'Location'])
-                for device in data['devices'].values():
-                    writer.writerow([
-                        device.get('tag', ''),
-                        device.get('device_type', ''),
-                        device.get('manufacturer', ''),
-                        device.get('part_number', ''),
-                        device.get('ip_address', ''),
-                        f"{device.get('cabinet', '')}-{device.get('rack', '')}-{device.get('slot', '')}"
-                    ])
+                # Try to find readable strings
+                readable_parts = []
+                text_part = header.decode('utf-8', errors='ignore')
+                if text_part and len(text_part.strip()) > 10:
+                    readable_parts.append(text_part[:200])
 
-    def parse_pdf_set(self, pdf_files: Union[str, List[str]]) -> EplanDrawingSet:
-        """Parse a set of EPlan PDF files.
+                if readable_parts:
+                    file_info['readable_content'] = readable_parts
 
-        Args:
-            pdf_files: Single PDF file path or list of PDF file paths
+            except Exception as e:
+                self.logger.debug(f"Could not extract readable content: {e}")
 
-        Returns:
-            EplanDrawingSet: Parsed drawing set information
-        """
-        if isinstance(pdf_files, str):
-            pdf_files = [pdf_files]
+            # Try to add debug string info if possible
+            file_info['debug_header_str'] = debug_bytes(header)
 
-        for pdf_file in pdf_files:
-            if not os.path.exists(pdf_file):
-                self.logger.warning(f"PDF file not found: {pdf_file}")
-                continue
-            self._parse_single_pdf(pdf_file)
+            if project:
+                project.properties[f'binary_{file_name}'] = file_info
 
-        self._post_process_data()
-        return self.drawing_set
+            # If it might be compressed or encoded, try to process it
+            if file_info['detected_type'] == 'ZIP/Archive':
+                try:
+                    self._try_parse_as_archive(file_path, project)
+                except Exception as e:
+                    self.logger.debug(f"Could not parse {file_name} as archive: {e}")
+
+        except Exception as e:
+            self.logger.error(f"Failed to process binary file {file_name}: {e}")
+
+    def _process_xml_file(self, file_path: str, project: ELKProject, file_name: str) -> None:
+        """Process XML file from archive."""
+        try:
+            tree = ET.parse(file_path)
+            root = tree.getroot()
+
+            self.logger.info(f"Processing XML file: {file_name}")
+
+            # Store raw XML structure info
+            xml_info = {
+                'root_tag': root.tag,
+                'attributes': root.attrib,
+                'child_count': len(list(root)),
+                'file_name': file_name
+            }
+
+            project.properties[f'xml_{file_name}'] = xml_info
+
+            # Extract devices/functions
+            devices = root.findall('.//device') + root.findall('.//function') + root.findall('.//*[@type="device"]')
+            for i, device_elem in enumerate(devices):
+                device_data = self._parse_xml_device(device_elem)
+                if device_data:
+                    device_key = f"{file_name}_{device_data.get('id', i)}"
+                    project.devices[device_key] = device_data
+
+            # Extract connections
+            connections = root.findall('.//connection') + root.findall('.//wire')
+            for conn_elem in connections:
+                conn_data = self._parse_xml_connection(conn_elem)
+                if conn_data:
+                    conn_data['source_file'] = file_name
+                    project.connections.append(conn_data)
+
+            # Extract pages/sheets
+            pages = root.findall('.//page') + root.findall('.//sheet')
+            for page_elem in pages:
+                page_data = self._parse_xml_page(page_elem)
+                if page_data:
+                    page_data['source_file'] = file_name
+                    project.pages.append(page_data)
+
+        except Exception as e:
+            self.logger.error(f"Failed to process XML file {file_name}: {e}")
+            self.logger.debug(f"File {file_name} is not valid XML.")
+            self.logger.debug("Trying to read as binary file instead.")
+            self._process_binary_file(file_path, project, file_name)
+
+    def _process_database_file(self, file_path: str, project: ELKProject, file_name: str) -> None:
+        """Process database file from archive."""
+        try:
+            conn = sqlite3.connect(file_path)
+            cursor = conn.cursor()
+
+            # Get table structure
+            cursor.execute("SELECT name FROM sqlite_master WHERE type='table';")
+            tables = [t[0] for t in cursor.fetchall()]
+
+            project.properties[f'db_{file_name}_tables'] = tables
+            self.logger.info(f"Database {file_name} contains tables: {tables}")
+
+            # Process each table
+            for table in tables:
+                try:
+                    cursor.execute(f"PRAGMA table_info({table})")
+                    columns = [col[1] for col in cursor.fetchall()]
+
+                    cursor.execute(f"SELECT * FROM {table} LIMIT 100")  # Limit for safety
+                    rows = cursor.fetchall()
+
+                    table_data = []
+                    for row in rows:
+                        table_data.append(dict(zip(columns, row)))
+
+                    # Categorize data based on table name
+                    if any(keyword in table.lower() for keyword in ['device', 'function', 'component']):
+                        for i, row_data in enumerate(table_data):
+                            device_key = f"{file_name}_{table}_{row_data.get('id', i)}"
+                            project.devices[device_key] = row_data
+                    elif any(keyword in table.lower() for keyword in ['connection', 'wire', 'cable']):
+                        for row_data in table_data:
+                            row_data['source_file'] = file_name
+                            row_data['source_table'] = table
+                            project.connections.append(row_data)
+                    else:
+                        # Store as properties for observation
+                        project.properties[f'table_{file_name}_{table}'] = {
+                            'columns': columns,
+                            'row_count': len(table_data),
+                            'sample_data': table_data[:5] if table_data else []
+                        }
+
+                except sqlite3.OperationalError as e:
+                    self.logger.debug(f"Could not read table {table}: {e}")
+
+            conn.close()
+
+        except Exception as e:
+            self.logger.debug(f"Failed to process database file {file_name}: {e}")
+
+    def _process_json_file(self, file_path: str, project: ELKProject, file_name: str) -> None:
+        """Process JSON file from archive."""
+        try:
+            with open(file_path, 'r', encoding='utf-8') as f:
+                json_data = json.load(f)
+
+            project.properties[f'json_{file_name}'] = {
+                'keys': list(json_data.keys()) if isinstance(json_data, dict) else 'non_dict_data',
+                'type': type(json_data).__name__
+            }
+
+            # If it's a dictionary, try to extract relevant data
+            if isinstance(json_data, dict):
+                if 'devices' in json_data:
+                    for device_id, device_data in json_data['devices'].items():
+                        project.devices[f"{file_name}_{device_id}"] = device_data
+
+                if 'connections' in json_data:
+                    for conn_data in json_data['connections']:
+                        conn_data['source_file'] = file_name
+                        project.connections.append(conn_data)
+
+        except Exception as e:
+            self.logger.debug(f"Failed to process JSON file {file_name}: {e}")
+
+    def _parse_xml_device(self, device_elem: ET.Element) -> Optional[Dict[str, Any]]:
+        """Parse device/function element from XML."""
+        try:
+            device_data = {
+                'tag': device_elem.tag,
+                'attributes': device_elem.attrib.copy(),
+                'text': device_elem.text,
+                'properties': {}
+            }
+
+            # Extract child elements as properties
+            for child in device_elem:
+                if child.text:
+                    device_data['properties'][child.tag] = child.text
+                if child.attrib:
+                    device_data['properties'][f"{child.tag}_attributes"] = child.attrib
+
+            return device_data
+
+        except Exception as e:
+            self.logger.debug(f"Failed to parse XML device: {e}")
+            return None
+
+    def _parse_xml_connection(self, conn_elem: ET.Element) -> Optional[Dict[str, Any]]:
+        """Parse connection/wire element from XML."""
+        try:
+            conn_data = {
+                'tag': conn_elem.tag,
+                'attributes': conn_elem.attrib.copy(),
+                'text': conn_elem.text,
+                'properties': {}
+            }
+
+            # Extract child elements
+            for child in conn_elem:
+                if child.text:
+                    conn_data['properties'][child.tag] = child.text
+                if child.attrib:
+                    conn_data['properties'][f"{child.tag}_attributes"] = child.attrib
+
+            return conn_data
+
+        except Exception as e:
+            self.logger.debug(f"Failed to parse XML connection: {e}")
+            return None
+
+    def _parse_xml_page(self, page_elem: ET.Element) -> Optional[Dict[str, Any]]:
+        """Parse page/sheet element from XML."""
+        try:
+            page_data = {
+                'tag': page_elem.tag,
+                'attributes': page_elem.attrib.copy(),
+                'text': page_elem.text,
+                'properties': {}
+            }
+
+            # Extract child elements
+            for child in page_elem:
+                if child.text:
+                    page_data['properties'][child.tag] = child.text
+                if child.attrib:
+                    page_data['properties'][f"{child.tag}_attributes"] = child.attrib
+
+            return page_data
+
+        except Exception as e:
+            self.logger.debug(f"Failed to parse XML page: {e}")
+            return None
+
+    def _extract_xml_properties(self, root: ET.Element) -> Dict[str, str]:
+        """Extract properties from XML root."""
+        properties = {}
+        properties['root_tag'] = root.tag
+        properties.update(root.attrib)
+
+        # Look for project-level properties
+        for child in root:
+            if child.text and child.text.strip():
+                properties[child.tag] = child.text.strip()
+
+        return properties
+
+    def _try_parse_as_archive(self, elk_path: str, project: ELKProject) -> bool:
+        """Try to parse ELK file as ZIP archive (most common format)."""
+        try:
+            with zipfile.ZipFile(elk_path, 'r') as zip_file:
+                file_list = zip_file.namelist()
+                self.logger.info(f"Archive contains {len(file_list)} files")
+
+                # Log archive contents for observation
+                project.properties['archive_contents'] = file_list
+
+                # Extract and process relevant files
+                with tempfile.TemporaryDirectory() as temp_dir:
+                    zip_file.extractall(temp_dir)
+
+                    # Look for project files
+                    for file_name in file_list:
+                        file_path = os.path.join(temp_dir, file_name)
+
+                        if file_name.lower().endswith('.xml'):
+                            self._process_xml_file(file_path, project, file_name)
+                        elif file_name.lower().endswith(('.db', '.sqlite')):
+                            self._process_database_file(file_path, project, file_name)
+                        elif file_name.lower().endswith('.json'):
+                            self._process_json_file(file_path, project, file_name)
+
+                return True
+
+        except zipfile.BadZipFile:
+            self.logger.debug("File is not a valid ZIP archive")
+        except Exception as e:
+            self.logger.debug(f"Archive parsing failed: {e}")
+
+        return False
+
+    def _try_parse_as_database(self, elk_path: str, project: ELKProject) -> bool:
+        """Try to parse ELK file as SQLite database."""
+        try:
+            conn = sqlite3.connect(elk_path)
+            cursor = conn.cursor()
+
+            # Get table list
+            cursor.execute("SELECT name FROM sqlite_master WHERE type='table';")
+            tables = [t[0] for t in cursor.fetchall()]
+
+            if tables:
+                self.logger.info(f"Detected database-based ELK file with tables: {tables}")
+
+                # Look for common EPLAN table names
+                device_tables = [t for t in tables if 'device' in t.lower() or 'function' in t.lower()]
+                connection_tables = [t for t in tables if 'connection' in t.lower() or 'wire' in t.lower()]
+
+                # Extract devices
+                for table in device_tables:
+                    try:
+                        cursor.execute(f"SELECT * FROM {table}")
+                        rows = cursor.fetchall()
+
+                        cursor.execute(f"PRAGMA table_info({table})")
+                        columns = [col[1] for col in cursor.fetchall()]
+
+                        for row in rows:
+                            device_data = dict(zip(columns, row))
+                            project.devices[device_data.get('id', len(project.devices))] = device_data
+
+                    except sqlite3.OperationalError as e:
+                        self.logger.debug(f"Could not read table {table}: {e}")
+
+                # Extract connections
+                for table in connection_tables:
+                    try:
+                        cursor.execute(f"SELECT * FROM {table}")
+                        rows = cursor.fetchall()
+
+                        cursor.execute(f"PRAGMA table_info({table})")
+                        columns = [col[1] for col in cursor.fetchall()]
+
+                        for row in rows:
+                            conn_data = dict(zip(columns, row))
+                            project.connections.append(conn_data)
+
+                    except sqlite3.OperationalError as e:
+                        self.logger.debug(f"Could not read table {table}: {e}")
+
+                conn.close()
+                return len(project.devices) > 0 or len(project.connections) > 0
+
+        except sqlite3.DatabaseError:
+            self.logger.debug("File is not a SQLite database")
+        except Exception as e:
+            self.logger.debug(f"Database parsing failed: {e}")
+
+        return False
+
+    def _try_parse_as_binary(self, elk_path: str, project: ELKProject) -> bool:
+        """Try to parse ELK file as binary format."""
+        # This would be similar to your ZW1 binary parsing
+        # but adapted for ELK format specifics
+        self.logger.debug("Binary ELK parsing not implemented yet")
+        return False
+
+    def _try_parse_as_xml(self, elk_path: str, project: ELKProject) -> bool:
+        """Try to parse ELK file as XML."""
+        try:
+            tree = ET.parse(elk_path)
+            root = tree.getroot()
+
+            # Look for EPLAN-specific XML structure
+            if 'eplan' in root.tag.lower() or 'project' in root.tag.lower():
+                self.logger.info("Detected XML-based ELK file")
+
+                # Extract project information
+                project.properties = self._extract_xml_properties(root)
+
+                # Extract devices
+                devices = root.findall('.//device') or root.findall('.//function')
+                for device_elem in devices:
+                    device_data = self._parse_xml_device(device_elem)
+                    if device_data:
+                        project.devices[device_data.get('id', len(project.devices))] = device_data
+
+                # Extract connections
+                connections = root.findall('.//connection') or root.findall('.//wire')
+                for conn_elem in connections:
+                    conn_data = self._parse_xml_connection(conn_elem)
+                    if conn_data:
+                        project.connections.append(conn_data)
+
+                return len(project.devices) > 0 or len(project.connections) > 0
+
+        except ET.ParseError:
+            self.logger.debug("File is not valid XML")
+        except Exception as e:
+            self.logger.debug(f"XML parsing failed: {e}")
+
+        return False
 
 
-def parse_eplan_pdfs(pdf_files: Union[str, List[str]],
-                     output_file: Optional[str] = None) -> EplanDrawingSet:
-    """Convenience function to parse EPlan PDF files.
-
-    Args:
-        pdf_files: Single PDF file path or list of PDF file paths
-        output_file: Optional output file to save parsed data
-
-    Returns:
-        EplanDrawingSet: Parsed drawing set information
-
-    Example:
-        >>> # Parse single PDF
-        >>> drawing_set = parse_eplan_pdfs('electrical_schematic.pdf')
-        >>> 
-        >>> # Parse multiple PDFs
-        >>> pdfs = ['sheet1.pdf', 'sheet2.pdf', 'sheet3.pdf']
-        >>> drawing_set = parse_eplan_pdfs(pdfs, 'parsed_data.json')
-        >>> 
-        >>> # Access parsed data
-        >>> print(f"Found {len(drawing_set.devices)} devices")
-        >>> for tag, device in drawing_set.devices.items():
-        >>>     print(f"{tag}: {device.device_type} - {device.ip_address}")
-    """
-    parser = EplanPDFParser()
-    drawing_set = parser.parse_pdf_set(pdf_files)
-
-    if output_file:
-        file_ext = Path(output_file).suffix.lower()
-        if file_ext == '.json':
-            parser.export_to_file(output_file, 'json')
-        elif file_ext in ['.yaml', '.yml']:
-            parser.export_to_file(output_file, 'yaml')
-        elif file_ext == '.csv':
-            parser.export_to_file(output_file, 'csv')
-        else:
-            parser.export_to_file(output_file, 'json')
-
-    return drawing_set
+# Utility function for easy usage
+def parse_epj_to_dict(epj_path: str) -> Dict[str, Any]:
+    """Convenience function to parse an EPJ file and return dictionary."""
+    parser = EPJParser(dict_from_xml_file(epj_path))
+    return parser.parse_epj_file()

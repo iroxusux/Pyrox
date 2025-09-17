@@ -5,16 +5,14 @@ import winreg
 
 
 import os
-from pathlib import Path
 import re
 from typing import Optional
 import xmltodict
 import lxml.etree
 from xml.sax.saxutils import unescape
-import xml.etree.ElementTree as ET
-
 
 from .file import save_file
+from .xml import dict_from_xml_file
 
 
 KEEP_CDATA_SECTION = [
@@ -48,40 +46,16 @@ def l5x_dict_from_file(file_location: str) -> Optional[dict]:
     Returns:
         dict: controller
     """
-    if isinstance(file_location, Path):
-        file_location = str(file_location)
+    if not isinstance(file_location, str):
+        try:
+            file_location = str(file_location)
+        except Exception as e:
+            raise ValueError('file_location must be a string!') from e
 
     if not file_location.endswith('.L5X'):
         raise ValueError('can only parse .L5X files!')
 
-    if not os.path.exists(file_location):
-        raise FileNotFoundError(f"File {file_location} does not exist.")
-
-    # use lxml and parse the .l5x xml into a dictionary
-    try:
-        parser = lxml.etree.XMLParser(strip_cdata=False)
-        tree = lxml.etree.parse(file_location, parser)
-        root = tree.getroot()
-        xml_str = lxml.etree.tostring(root, encoding='utf-8').decode("utf-8")
-    except FileNotFoundError:
-        print(f"Error: File not found: {file_location}")
-        return None
-    except ET.ParseError:
-        print(f"Error: Invalid XML format in {file_location}")
-        return None
-    except Exception as e:
-        print(f"An unexpected error occurred: {e}")
-        return None
-
-    if not xml_str:
-        return None
-
-    # update c_data sections to create comments from all comment data
-    try:
-        xml_str = xml_str.replace("<![CDATA[]]>", "<![CDATA[//]]>")
-        return xmltodict.parse(xml_str)
-    except KeyError:
-        return None
+    return dict_from_xml_file(file_location)
 
 
 def dict_to_xml_file(controller: dict,

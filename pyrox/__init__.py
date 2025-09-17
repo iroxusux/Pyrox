@@ -3,7 +3,12 @@ This package provides a framework for building applications that interact with P
 and services for file and directory operations.
 It also includes utility classes for managing user interfaces, such as list boxes and context menus.
 """
-from . import models, applications, services, utils
+from . import (
+    models,
+    applications,
+    services,
+    utils
+)
 
 from .applications import App
 

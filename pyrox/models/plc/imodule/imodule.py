@@ -239,7 +239,7 @@ class IntrospectiveModule(Loggable):
 
         for m in ModuleWarehouseFactory.get_all_known_modules():
             mod = m(module)
-            if lazy_match_catalog and module.catalog_number != 'ETHERNET-MODULE':
+            if lazy_match_catalog and module.catalog_number and module.catalog_number != 'ETHERNET-MODULE':
                 if mod.catalog_number in module.catalog_number:
                     return mod
             if mod.catalog_number != module.catalog_number:

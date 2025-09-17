@@ -1,7 +1,7 @@
 """Allen Bradley Module Meta Defintions for controls integrations.
 """
 from typing import Self
-from pyrox.models.abc import FactoryTypeMeta
+from pyrox.models.abc.factory import FactoryTypeMeta
 
 from .imodule import IntrospectiveModule, ModuleWarehouse
 

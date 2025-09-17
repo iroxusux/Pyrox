@@ -1,14 +1,5 @@
 """testing module for services
     """
-from pyrox.services.eplan import (
-    EplanPDFParser,
-    EplanDrawingSet,
-    IODevice,
-    DeviceContact,
-    PowerStructure,
-    NetworkDevice,
-    parse_eplan_pdfs
-)
 import json
 from unittest.mock import Mock, patch
 import tempfile
