@@ -636,7 +636,7 @@ class SupportsFileLocation(PyroxObject):
 
     def __init__(
         self,
-        file_location: Optional[str] = None
+        file_location: Optional[str] = None,
     ) -> None:
         super().__init__()
         self.file_location: Optional[str] = file_location

@@ -49,6 +49,8 @@ def l5x_dict_from_file(file_location: str) -> Optional[dict]:
     if not isinstance(file_location, str):
         try:
             file_location = str(file_location)
+            if not os.path.isfile(file_location):
+                raise ValueError('file_location must be a valid file path!')
         except Exception as e:
             raise ValueError('file_location must be a string!') from e
 
@@ -135,10 +137,10 @@ def get_xml_string_from_file(file_path):
         return lxml.etree.tostring(root, encoding='utf-8').decode("utf-8")
     except (lxml.etree.ParseError, TypeError) as e:
         print(f"Error parsing XML file: {e}")
-        return None
+        raise e
     except Exception as e:
         print(f"Unexpected error: {e}")
-        return None
+        raise e
 
 
 def preprocessor(key, value):

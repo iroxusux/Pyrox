@@ -32,10 +32,7 @@ class MetaFactory(ABCMeta, Loggable):
         """Get a class from a module by name, handling various naming patterns."""
         # Direct lookup
         if hasattr(module, class_name):
-            cls.logger.debug(f'Found class {class_name} directly in module {module.__name__}.')
             return getattr(module, class_name)
-
-        cls.logger.debug(f'Class {class_name} not found directly in module {module.__name__}. Trying variations.')
         return None
 
     @classmethod
@@ -108,7 +105,7 @@ class MetaFactory(ABCMeta, Loggable):
     @classmethod
     def get_registered_type_by_supporting_class(
         cls,
-        supporting_class: Type
+        supporting_class: Union[object, str, Type]
     ) -> Optional[Type[T]]:
         """Get the registered type class that supports the given class.
 
@@ -118,8 +115,15 @@ class MetaFactory(ABCMeta, Loggable):
         Returns:
             Optional[Type]: The class type if found, else None.
         """
+        if isinstance(supporting_class, object) and not isinstance(supporting_class, str):
+            supporting_class = supporting_class.__class__.__name__
+        elif isinstance(supporting_class, type):
+            supporting_class = supporting_class.__name__
+        elif not isinstance(supporting_class, str):
+            raise ValueError('supporting_class must be a string, type, or an object instance.')
+
         for type_class in cls.get_registered_types().values():
-            if hasattr(type_class, 'supporting_class') and type_class.supporting_class == supporting_class:
+            if hasattr(type_class, 'supporting_class') and str(type_class.supporting_class) == supporting_class:
                 return cls._reload_class_module(type_class)
 
         return None

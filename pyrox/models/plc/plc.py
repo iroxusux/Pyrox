@@ -30,8 +30,8 @@ from pyrox.models.abc import (
 )
 
 from .imodule import IntrospectiveModule
-from ...services.dictionary_services import insert_key_at_index
-from ...services.plc_services import l5x_dict_from_file
+from ...services.dict import insert_key_at_index
+from ...services.plc import l5x_dict_from_file
 from ...utils import replace_strings_in_dict
 
 __all__ = (
@@ -4284,6 +4284,10 @@ class Controller(
         return self.content_meta_data['Controller']
 
     @property
+    def controller_type(self) -> str:
+        return self.__class__.__name__
+
+    @property
     def datatypes(self) -> HashList[Datatype]:
         if not self._datatypes:
             self._compile_datatypes()
@@ -4398,10 +4402,6 @@ class Controller(
         if not isinstance(self['Programs']['Program'], list):
             self['Programs']['Program'] = [self['Programs']['Program']]
         return self['Programs']['Program']
-
-    @property
-    def root_meta_data(self) -> dict:
-        return self._root_meta_data
 
     @property
     def safety_info(self) -> Optional[ControllerSafetyInfo]:

@@ -2,8 +2,14 @@
 """
 from typing import Optional, TypeVar
 
-from pyrox.models import HashList, plc
-from ..indicon.indicon import BaseEmulationGenerator, BaseControllerValidator
+from pyrox.models import HashList, plc, SupportsMetaData
+from pyrox.models.eplan import (
+    EPLAN_SHEET_OBJECTS_KEY,
+    EPLAN_SHEET_META_DATA_KEY,
+    EPLAN_UNKNOWN_ATTRIBUTE_DEFAULT,
+    EplanNetworkDevice
+)
+from .indicon import BaseEmulationGenerator, BaseControllerValidator, BaseEplanProject
 
 
 FORD_CTRL = TypeVar('FORD_CTRL', bound='FordController')
@@ -241,3 +247,85 @@ class FordControllerValidator(BaseControllerValidator):
     """Validator for Ford controllers.
     """
     supporting_class = 'FordController'
+
+
+class FordEplanProject(BaseEplanProject):
+    supporting_class = 'FordController'
+
+    class IpAddressSheet(SupportsMetaData):
+        def __init__(self, sheet: dict):
+            super().__init__(sheet)
+            self._devices: list[EplanNetworkDevice] = []
+
+        @property
+        def indexed_attribute(self) -> dict:
+            return self.meta_data.get('data', {})
+
+        @property
+        def sheet_objects(self) -> list[dict]:
+            return self[EPLAN_SHEET_OBJECTS_KEY]
+
+        def _parse_sheet_object(self, obj: dict) -> Optional[EplanNetworkDevice]:
+            meta_data: list[dict] = obj.get(EPLAN_SHEET_META_DATA_KEY, [])
+
+            if not isinstance(meta_data, list):
+                return None
+
+            if len(meta_data) != 3:
+                self.logger.warning(f"Unexpected metadata format in sheet object: {meta_data}")
+                return None
+
+            interest_key = '@A511'
+            device_index = 0
+            description_index = 1
+            ip_index = 2
+
+            device_name = BaseEplanProject.strip_eplan_naming_conventions(
+                meta_data[device_index].get(interest_key, EPLAN_UNKNOWN_ATTRIBUTE_DEFAULT)
+            )
+            description = BaseEplanProject.strip_eplan_naming_conventions(
+                meta_data[description_index].get(interest_key, EPLAN_UNKNOWN_ATTRIBUTE_DEFAULT)
+            )
+            ip_address = BaseEplanProject.strip_eplan_naming_conventions(
+                meta_data[ip_index].get(interest_key, EPLAN_UNKNOWN_ATTRIBUTE_DEFAULT)
+            )
+
+            return EplanNetworkDevice(
+                name=device_name,
+                description=description,
+                ip_address=ip_address,
+                data=meta_data
+            )
+
+        def get_project_devices(self) -> list[EplanNetworkDevice]:
+            if self._devices:
+                return self._devices
+
+            for obj in self.sheet_objects:
+                device = self._parse_sheet_object(obj)
+                if device is None:
+                    self.logger.debug(f"Skipping invalid or incomplete sheet object: {obj}")
+                    continue
+                self._devices.append(device)
+
+            if len(self._devices) == 0:
+                self.logger.warning("No valid devices found in the IP Address sheet.")
+
+            return self._devices
+
+    @property
+    def ip_address_sheet(self) -> Optional[IpAddressSheet]:
+        sheet = next((
+            sheet for sheet in self.sheet_details if 'Device IP / Network Address List' in sheet.get('name', '')
+        ), None)
+        if not sheet:
+            return None
+        return self.IpAddressSheet(sheet)
+
+    def _gather_project_ethernet_devices(self):
+        ip_sheet = self.ip_address_sheet
+        if not ip_sheet:
+            self.logger.warning("No 'Device IP / Network Address List' sheet found in the project.")
+
+        devices = ip_sheet.get_project_devices()
+        self.devices.extend(devices)

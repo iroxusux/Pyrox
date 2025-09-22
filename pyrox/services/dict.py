@@ -35,3 +35,23 @@ def remove_none_values_inplace(d):
             for item in v:
                 if isinstance(item, dict):
                     remove_none_values_inplace(item)
+
+
+def rename_keys(d, key_map):
+    """
+    Rename keys in a dictionary based on a provided mapping.
+    :param d: The original dictionary.
+    :param key_map: A dictionary mapping old keys to new keys.
+    """
+    if not isinstance(d, dict):
+        return
+    for old_key, new_key in key_map.items():
+        if old_key in d:
+            d[new_key] = d.pop(old_key)
+    for v in d.values():
+        if isinstance(v, dict):
+            rename_keys(v, key_map)
+        elif isinstance(v, list):
+            for item in v:
+                if isinstance(item, dict):
+                    rename_keys(item, key_map)

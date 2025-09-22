@@ -32,7 +32,7 @@ from .matcher import (
     ControllerMatcherFactory,
 )
 
-from .emu_gen import (
+from ..emu import (
     EmulationGenerator,
     EmulationGeneratorFactory,
 )

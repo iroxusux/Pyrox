@@ -3,7 +3,7 @@
 from __future__ import annotations
 from unittest.mock import MagicMock
 
-from .general_motors.gm import (
+from .gm import (
     GmAddOnInstruction,
     GmDatatype,
     GmModule,

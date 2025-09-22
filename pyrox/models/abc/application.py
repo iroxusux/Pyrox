@@ -18,10 +18,9 @@ from tkinter import (
 )
 from typing import Any, Callable, Optional, Self, Union
 
-from pyrox.services import file
-
 from . import meta
 from .logging import LoggingManager
+from ...services.file import remove_all_files
 
 __all__ = (
     'BaseMenu',
@@ -422,7 +421,7 @@ class ApplicationDirectoryService:
             else:
                 if as_refresh:
                     try:
-                        file.remove_all_files(dir_path)
+                        remove_all_files(dir_path)
                     except OSError as e:
                         raise OSError(f'Failed to refresh directory {dir_path}: {e}') from e
 

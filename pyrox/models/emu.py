@@ -2,8 +2,8 @@
 """
 from typing import Optional, Self, List
 
-from . import plc, imodule
-from .. import abc
+from .plc import plc, imodule
+from . import abc
 
 
 class EmulationGeneratorFactory(abc.MetaFactory):
@@ -287,20 +287,20 @@ class EmulationGenerator(abc.PyroxObject, metaclass=abc.FactoryTypeMeta[Self, Em
 
         self.logger.info("Generating built-in common emulation for %d modules of type %s...", len(modules), generation_type.value)
 
-        for index, value in enumerate(modules):
+        for _, value in enumerate(modules):
             self.logger.info("Generating emulation for %s %s of class %s", generation_type.value, value.module.name, value.__class__.__name__)
             self.add_l5x_imports(value.get_required_imports())
-            self.add_controller_tags(value.get_required_tags(index=index))
-            self.add_safety_tag_mapping(*value.get_required_standard_to_safety_mapping(index=index))
+            self.add_controller_tags(value.get_required_tags())
+            self.add_safety_tag_mapping(*value.get_required_standard_to_safety_mapping())
             self.add_rungs(
                 self.target_standard_program_name,
                 self.emulation_standard_routine_name,
-                value.get_required_standard_rungs(index=index)
+                value.get_required_standard_rungs()
             )
             self.add_rungs(
                 self.target_safety_program_name,
                 self.emulation_safety_routine_name,
-                value.get_required_safety_rungs(index=index)
+                value.get_required_safety_rungs()
             )
 
     def _generate_custom_logic(self) -> None:
@@ -613,6 +613,10 @@ class EmulationGenerator(abc.PyroxObject, metaclass=abc.FactoryTypeMeta[Self, Em
 
             self.schema.execute()
             self.logger.info(f"Emulation generation completed for {self.controller.name}")
+
+        except Exception as e:
+            self.logger.error(f"Error during emulation generation: {e}")
+            raise
         finally:
             return self.schema
 

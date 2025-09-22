@@ -2,8 +2,8 @@
 
 from . import (
     abc,
+    eplan,
     plc,
-    design,
     gui
 )
 
@@ -20,6 +20,8 @@ from .abc import (
     PyroxObject,
     SafeList,
     SnowFlake,
+    SupportsMetaData,
+    SupportsFileLocation,
     TK_CURSORS,
 )
 from .gui import (
@@ -67,7 +69,7 @@ __all__ = (
     'Controller',
     'ControllerMatcher',
     'ControllerMatcherFactory',
-    'design',
+    'eplan',
     'FactoryTypeMeta',
     'FrameWithTreeViewAndScrollbar',
     'HashList',
@@ -93,6 +95,8 @@ __all__ = (
     'PyroxObject',
     'SafeList',
     'SnowFlake',
+    'SupportsFileLocation',
+    'SupportsMetaData',
     'TaskFrame',
     'test_models',
     'TK_CURSORS',

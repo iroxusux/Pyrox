@@ -268,6 +268,23 @@ class HashList(Subscribable, Generic[T]):
                        models={'hash_key': self._hash_key, 'hash_list': self._hashes},
                        **kwargs,)
 
+    def extend(
+        self,
+        values: list[T]
+    ) -> None:
+        """Extend this hash with a list of values.
+
+        """
+        for value in values:
+            self.append(value)
+
+    def find_first(self,
+                   func: Callable[[T], bool]) -> Optional[T]:
+        """Find the first item in this hash that matches the given function."""
+        for item in self._hashes.values():
+            if func(item):
+                return item
+
     def get(self, key, default=None):
         return self.hashes.get(key, default)
 

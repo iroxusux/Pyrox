@@ -7,7 +7,8 @@ from . import (
     eplan,
     file,
     notify_services,
-    plc_services,
+    plc,
+    test,
     utkinter,
 )
 
@@ -21,7 +22,8 @@ __all__ = (
     'file',
     'get_open_file',
     'notify_services',
-    'plc_services',
+    'plc',
+    'test',
     'test_services',
     'utkinter',
 )

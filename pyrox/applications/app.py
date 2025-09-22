@@ -7,10 +7,10 @@ from typing import Any, Optional
 import tkinter as tk
 from tkinter import ttk
 
-from .general_motors.gm import GmController
+from .gm import GmController
 from .. import models
-from ..services.dictionary_services import remove_none_values_inplace
-from ..services.plc_services import dict_to_xml_file, l5x_dict_from_file
+from ..services.dict import remove_none_values_inplace
+from ..services.plc import dict_to_xml_file, l5x_dict_from_file
 
 
 __all__ = [
@@ -435,9 +435,9 @@ class App(models.Application):
                 return controller
             if not isinstance(controller, models.plc.Controller):
                 raise TypeError(f'Controller must be a Controller instance, got {type(controller)}')
-            if not controller.root_meta_data:
+            if not controller.meta_data:
                 raise ValueError('Controller must have root_meta_data to transform.')
-            transformed_ctrl = sub_class.from_meta_data(controller.root_meta_data)
+            transformed_ctrl = sub_class.from_meta_data(controller.meta_data)
             transformed_ctrl.file_location = controller.file_location
             return transformed_ctrl
         finally:
@@ -616,7 +616,7 @@ class App(models.Application):
             self.logger.info('Saving controller to file: %s', file_location)
             # create a copy of the controller's metadata
             # because we don't want to modify the original controller's metadata
-            write_dict = copy.deepcopy(self.controller.root_meta_data)
+            write_dict = copy.deepcopy(self.controller.meta_data)
             remove_none_values_inplace(write_dict)
             dict_to_xml_file(write_dict,
                              file_location)
