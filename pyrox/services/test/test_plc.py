@@ -322,7 +322,7 @@ class TestGetXmlStringFromFile(unittest.TestCase):
             f.write(invalid_xml)
 
         with self.assertRaises(lxml.etree.ParseError):
-            result = get_xml_string_from_file(xml_file)
+            _ = get_xml_string_from_file(xml_file)
 
     def test_get_xml_string_with_cdata(self):
         """Test getting XML string preserving CDATA sections."""

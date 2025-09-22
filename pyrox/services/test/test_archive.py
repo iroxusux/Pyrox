@@ -5,7 +5,6 @@ import tempfile
 import unittest
 from unittest.mock import patch, MagicMock, mock_open
 import shutil
-import io
 
 try:
     import py7zr
@@ -19,7 +18,6 @@ from pyrox.services.archive import (
     compress_dict_to_7zip,
     extract_7zip_files,
     list_7zip_contents,
-    compress_directory_to_7zip,
     is_7zip_file,
     extract_7zip_file_to_memory,
     get_7zip_file_list
