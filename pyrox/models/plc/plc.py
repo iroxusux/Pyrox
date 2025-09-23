@@ -4229,7 +4229,7 @@ class Controller(
         self.controller_meta_data[key] = value
         if key == '@MajorRev' or key == '@MinorRev':
             self.logger.info('Changing revisions of processor...')
-            self.content_meta_data['@SoftwareRevision'] = f'{self.controller.major_revision}.{self.controller.minor_revision}'
+            self.content_meta_data['@SoftwareRevision'] = f'{self.major_revision}.{self.minor_revision}'
             self.plc_module['@Major'] = self.major_revision
             self.plc_module['@Minor'] = self.minor_revision
 
@@ -4488,8 +4488,7 @@ class Controller(
     @classmethod
     def from_meta_data(
         cls: Self,
-        meta_data: dict,
-        config: Optional[ControllerConfiguration] = None
+        meta_data: dict
     ) -> Self:
         """Create a Controller instance from meta data.
 
@@ -4513,12 +4512,7 @@ class Controller(
             raise ValueError('Meta data must contain RSLogix5000Content!')
         if 'Controller' not in meta_data['RSLogix5000Content']:
             raise ValueError('Meta data must contain Controller!')
-        if not config:
-            config = ControllerConfiguration()
-        if not isinstance(config, ControllerConfiguration):
-            raise ValueError('Config must be an instance of ControllerConfiguration!')
-        controller = cls(meta_data=meta_data,
-                         config=config)
+        controller = cls(meta_data=meta_data)
         return controller
 
     @classmethod

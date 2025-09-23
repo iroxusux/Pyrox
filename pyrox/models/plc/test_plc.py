@@ -1,13 +1,10 @@
 from __future__ import annotations
 
-
 import unittest
 from unittest.mock import MagicMock, patch
 
 
 from ..abc.list import HashList
-
-
 from .plc import (
     AddOnInstruction,
     ConnectionCommand,
@@ -31,10 +28,6 @@ from .plc import (
     RungElementType,
     Rung,
     Tag,
-)
-
-from .validator import (
-    ControllerReportItem,
 )
 
 UNITTEST_PLC_FILE = r'docs\controls\unittest.L5X'

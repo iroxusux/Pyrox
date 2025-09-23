@@ -15,7 +15,6 @@ from .application import (
     ApplicationConfiguration,
     ApplicationDirectoryService,
     ApplicationRuntimeInfo,
-    ApplicationTask,
     ApplicationTkType,
 )
 
@@ -54,7 +53,6 @@ from .meta import (
     DEF_APP_NAME,
     DEF_AUTHOR_NAME,
     DEF_ICON,
-    DEF_THEME,
     DEF_WIN_SIZE,
     DEF_WIN_TITLE
 )
@@ -276,8 +274,7 @@ class TestSupportsLoading(unittest.TestCase):
 
     def test_not_implemented_load_path(self):
         obj = SupportsLoading()
-        with self.assertRaises(NotImplementedError):
-            _ = obj.load_path
+        self.assertIsNone(obj.file_location)
 
     def test_not_implemented_load_method(self):
         obj = SupportsLoading()
@@ -314,8 +311,7 @@ class TestSupportsSaving(unittest.TestCase):
 
     def test_not_implemented_save_path(self):
         obj = SupportSaving()
-        with self.assertRaises(NotImplementedError):
-            _ = obj.save_path
+        self.assertIsNone(obj.file_location)
 
     def test_not_implemented_save_data_callback(self):
         obj = SupportSaving()
@@ -353,8 +349,12 @@ class TestSupportsJsonSaving(unittest.TestCase):
     def test_save_to_json_success(self):
         class DummyJsonSaver(SupportsJsonSaving):
             @property
-            def save_path(self):
+            def file_location(self):
                 return self._path
+
+            @file_location.setter
+            def file_location(self, value):
+                self._path = value
 
             @property
             def save_data_callback(self):
@@ -398,8 +398,12 @@ class TestSupportsJsonLoading(unittest.TestCase):
     def test_load_from_json_success(self):
         class DummyJsonLoader(SupportsJsonLoading):
             @property
-            def load_path(self):
+            def file_location(self):
                 return self._path
+
+            @file_location.setter
+            def file_location(self, value):
+                self._path = value
 
             def on_loaded(self, data):
                 self.loaded_data = data
@@ -416,8 +420,12 @@ class TestSupportsJsonLoading(unittest.TestCase):
     def test_load_from_json_file_not_found(self):
         class DummyJsonLoader(SupportsJsonLoading):
             @property
-            def load_path(self):
+            def file_location(self):
                 return "non_existent_file.json"
+
+            @file_location.setter
+            def file_location(self, value):
+                self._path = value
 
             def on_loaded(self, data):
                 self.loaded_data = data
@@ -488,38 +496,25 @@ class TestBaseMenu(unittest.TestCase):
         root.quit()
 
 
-class TestApplicationTask(unittest.TestCase):
-    def test_initialization(self):
-        application = Application(ApplicationConfiguration())
-        task = ApplicationTask(application=application)
-        self.assertEqual(task.application, application)
-
-
 class TestApplicationConfiguration(unittest.TestCase):
     def test_default_values(self):
         config = ApplicationConfiguration()
         self.assertFalse(config.headless)
         self.assertIsInstance(config.title, str)
-        self.assertIsInstance(config.theme, str)
         self.assertIsInstance(config.type_, ApplicationTkType)
         self.assertEqual(config.icon, DEF_ICON)
         self.assertIsInstance(config.size_, str)
-        self.assertEqual(config.tasks, [])
 
     def test_common_assembly(self):
         config = ApplicationConfiguration._common_assembly(application_name=DEF_APP_NAME,
                                                            author_name=DEF_AUTHOR_NAME,
                                                            headless=False,
-                                                           tasks=[],
                                                            title=DEF_WIN_TITLE,
-                                                           theme=DEF_THEME,
                                                            type_=ApplicationTkType.ROOT,
                                                            icon=DEF_ICON,
                                                            size_=DEF_WIN_SIZE)
         self.assertFalse(config.headless)
-        self.assertEqual(config.tasks, [])
         self.assertEqual(config.title, DEF_WIN_TITLE)
-        self.assertEqual(config.theme, DEF_THEME)
         self.assertEqual(config.type_, ApplicationTkType.ROOT)
         self.assertEqual(config.icon, DEF_ICON)
         self.assertEqual(config.size_, DEF_WIN_SIZE)
@@ -527,9 +522,7 @@ class TestApplicationConfiguration(unittest.TestCase):
     def test_toplevel_method(self):
         config = ApplicationConfiguration.toplevel()
         self.assertFalse(config.headless)
-        self.assertEqual(config.tasks, [])
         self.assertEqual(config.title, DEF_WIN_TITLE)
-        self.assertEqual(config.theme, DEF_THEME)
         self.assertEqual(config.type_, ApplicationTkType.TOPLEVEL)
         self.assertEqual(config.icon, DEF_ICON)
         self.assertEqual(config.size_, DEF_WIN_SIZE)
@@ -537,9 +530,7 @@ class TestApplicationConfiguration(unittest.TestCase):
     def test_root_method(self):
         config = ApplicationConfiguration.root()
         self.assertFalse(config.headless)
-        self.assertEqual(config.tasks, [])
         self.assertEqual(config.title, DEF_WIN_TITLE)
-        self.assertEqual(config.theme, DEF_THEME)
         self.assertEqual(config.type_, ApplicationTkType.ROOT)
         self.assertEqual(config.icon, DEF_ICON)
         self.assertEqual(config.size_, DEF_WIN_SIZE)
@@ -622,8 +613,8 @@ class TestApplicationRuntimeInfo(unittest.TestCase):
         self.assertEqual(self.ari.data['foo'], 'bar')
 
     def test_load_path_and_save_path(self):
-        self.assertEqual(self.ari.load_path, self.ari.application_runtime_info_file)
-        self.assertEqual(self.ari.save_path, self.ari.application_runtime_info_file)
+        self.assertEqual(self.ari.file_location, self.ari.application_runtime_info_file)
+        self.assertEqual(self.ari.file_location, self.ari.application_runtime_info_file)
 
     def test_save_data_callback(self):
         cb = self.ari.save_data_callback
@@ -656,11 +647,9 @@ class TestApplication(unittest.TestCase):
             application_name="TestApp",
             author_name="TestAuthor",
             title="Test Title",
-            theme="default",
             type_=ApplicationTkType.ROOT,
             icon="",
             size_="800x600",
-            tasks=[]
         )
         self.app = Application(config=self.config)
 
@@ -676,24 +665,9 @@ class TestApplication(unittest.TestCase):
         self.app._runtime_info = ApplicationRuntimeInfo(application=self.app)
         self.assertIsInstance(self.app.runtime_info, ApplicationRuntimeInfo)
 
-    def test_tasks_property(self):
-        self.app._tasks = HashList('name')
-        self.assertIsInstance(self.app.tasks, HashList)
-
     def test_log_and_clear_log_file(self):
         self.app.log("Test log entry")
         self.app.clear_log_file()
-        # Should not raise
-
-    def test_add_task_and_add_tasks(self):
-        class DummyTask(ApplicationTask):
-            def inject(self): return self
-        self.app._tasks = HashList('name')
-        task = DummyTask(application=self.app)
-        self.app.add_task(task)
-        self.assertIn(task, self.app.tasks)
-        self.app.add_tasks([DummyTask(application=self.app)])
-        self.assertTrue(any(isinstance(t, DummyTask) for t in self.app.tasks))
 
     def test_toggle_fullscreen(self):
         # Should not raise, even if tk_app is None

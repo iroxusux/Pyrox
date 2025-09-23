@@ -1,5 +1,7 @@
 """abc meta types
     """
+from . import test
+
 from .meta import (
     Buildable,
     EnforcesNaming,
@@ -58,5 +60,6 @@ __all__ = (
     'SnowFlake',
     'SupportsFileLocation',
     'SupportsMetaData',
+    'test',
     'TK_CURSORS',
 )

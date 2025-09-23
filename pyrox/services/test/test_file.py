@@ -474,7 +474,7 @@ class TestIsFileReadable(unittest.TestCase):
     def test_is_file_readable_empty_file(self):
         """Test is_file_readable with empty file."""
         empty_file = os.path.join(self.test_dir, 'empty.txt')
-        with open(empty_file, 'w', encoding='utf-8') as f:
+        with open(empty_file, 'w', encoding='utf-8') as _:
             pass  # Create empty file
 
         result = is_file_readable(empty_file)

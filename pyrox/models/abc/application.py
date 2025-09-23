@@ -591,13 +591,16 @@ class Application(meta.Runnable):
         '_tk_app'
     )
 
-    def __init__(self, config: ApplicationConfiguration) -> None:
+    def __init__(
+        self,
+        config: ApplicationConfiguration
+    ) -> None:
         super().__init__()
         sys.excepthook = self._excepthook
         self._config: ApplicationConfiguration = config or ApplicationConfiguration.root()
         self._directory_service: ApplicationDirectoryService = ApplicationDirectoryService(
-            author_name=self._config.author_name,
-            app_name=self._config.application_name
+            author_name=self.config.author_name,
+            app_name=self.config.application_name
         )
         self._frame: Frame = None
         self._menu: MainApplicationMenu = None
@@ -854,10 +857,6 @@ class Application(meta.Runnable):
         self.tk_app.after(100, lambda: self.logger.info('Ready...'))
         self.tk_app.focus()
         self.tk_app.mainloop()
-
-    def stop(self) -> None:
-        """Stop the application."""
-        super().stop()
 
     def toggle_fullscreen(self, fullscreen: Optional[bool] = None) -> None:
         """Toggle fullscreen mode for this Application.
