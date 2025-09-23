@@ -1,7 +1,33 @@
 """Allen Bradley specific PLC Modules.
 """
 from __future__ import annotations
-from pyrox.models.plc import AllenBradleyModule, ModuleControlsType, Rung
+from pyrox.models.abc.factory import FactoryTypeMeta
+from typing import Self
+from pyrox.models.plc import (
+    IntrospectiveModule,
+    ModuleControlsType,
+    ModuleWarehouse,
+    Rung
+)
+
+
+class AllenBradleyModuleFactory(ModuleWarehouse):
+    """Factory for creating Allen Bradley module instances."""
+
+
+class AllenBradleyModule(IntrospectiveModule, metaclass=FactoryTypeMeta[Self, AllenBradleyModuleFactory]):
+    """Allen Bradley Module ABC.
+    """
+
+    supports_registering = False  # Allen Bradley modules do not support registering directly
+
+    def __init_subclass__(cls, **kwargs):
+        cls.supports_registering = True  # Subclasses can support registering
+        return super().__init_subclass__(**kwargs)
+
+    @classmethod
+    def get_factory(cls):
+        return AllenBradleyModuleFactory
 
 
 class AllenBradleyGenericSafetyBlock(AllenBradleyModule):

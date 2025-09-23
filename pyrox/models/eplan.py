@@ -3,9 +3,10 @@
 
 from __future__ import annotations
 from typing import Any, Dict, List, Optional, Self, TYPE_CHECKING
-from pyrox.models.abc import NamedPyroxObject, PyroxObject, SupportsMetaData, SupportsFileLocation
+from pyrox.models.abc.meta import NamedPyroxObject, PyroxObject, SupportsMetaData
+from pyrox.models.abc.factory import FactoryTypeMeta, MetaFactory
 from pyrox.models.abc.list import HashList
-from pyrox.models.abc.factory import MetaFactory, FactoryTypeMeta
+from pyrox.models.abc.save import SupportsFileLocation
 from pyrox.services.dict import rename_keys
 from pyrox.services.xml import dict_from_xml_file
 

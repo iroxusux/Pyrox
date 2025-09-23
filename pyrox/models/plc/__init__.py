@@ -1,11 +1,15 @@
 """Plc types module
     """
+from . import test
 
 from .plc import (
     AddOnInstruction,
     BASE_FILES,
     ConnectionCommand,
+    ConnectionCommandType,
     ConnectionParameters,
+    ContainsRoutines,
+    ContainsTags,
     Controller,
     ControllerConfiguration,
     ControllerFactory,
@@ -15,6 +19,9 @@ from .plc import (
     DatatypeMember,
     DataValueMember,
     LogixInstruction,
+    LogixInstructionType,
+    LogixOperand,
+    LogixTagScope,
     LogixAssetType,
     Module,
     ModuleControlsType,
@@ -23,6 +30,7 @@ from .plc import (
     Program,
     Routine,
     Rung,
+    RungElementType,
     Tag,
     TagEndpoint,
 )
@@ -32,19 +40,10 @@ from .matcher import (
     ControllerMatcherFactory,
 )
 
-from ..emu import (
-    EmulationGenerator,
-    EmulationGeneratorFactory,
-)
-
 from .imodule import (
-    AllenBradleyModule,
     IntrospectiveModule,
     ModuleWarehouse,
     ModuleWarehouseFactory,
-    SewModule,
-    SiemensModule,
-    TurckModule,
 )
 
 from .validator import (
@@ -54,10 +53,12 @@ from .validator import (
 
 __all__ = (
     'AddOnInstruction',
-    'AllenBradleyModule',
     'BASE_FILES',
     'ConnectionCommand',
+    'ConnectionCommandType',
     'ConnectionParameters',
+    'ContainsRoutines',
+    'ContainsTags',
     'Controller',
     'ControllerConfiguration',
     'ControllerFactory',
@@ -70,12 +71,12 @@ __all__ = (
     'Datatype',
     'DatatypeMember',
     'DataValueMember',
-    'EmulationGenerator',
-    'EmulationGeneratorFactory',
     'IntrospectiveModule',
     'LogixAssetType',
     'LogixInstruction',
-    'imodule',
+    'LogixInstructionType',
+    'LogixOperand',
+    'LogixTagScope',
     'Module',
     'ModuleControlsType',
     'ModuleWarehouse',
@@ -84,10 +85,9 @@ __all__ = (
     'PlcObject',
     'Program',
     'Routine',
+    'RungElementType',
     'Rung',
-    'SewModule',
-    'SiemensModule',
     'Tag',
     'TagEndpoint',
-    'TurckModule',
+    'test',
 )

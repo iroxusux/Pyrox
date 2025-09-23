@@ -18,16 +18,14 @@ from typing import (
     TypeVar,
     Union,
 )
-
-from pyrox.models.abc import (
+from pyrox.models.abc.meta import (
     EnforcesNaming,
-    FactoryTypeMeta,
-    HashList,
-    Loggable,
-    MetaFactory,
     NamedPyroxObject,
     SupportsMetaData
 )
+from pyrox.models.abc.factory import MetaFactory, FactoryTypeMeta
+from pyrox.models.abc.logging import Loggable
+from pyrox.models.abc.list import HashList
 
 from .imodule import IntrospectiveModule
 from ...services.dict import insert_key_at_index
@@ -39,7 +37,10 @@ __all__ = (
     'PlcObject',
     'AddOnInstruction',
     'ConnectionCommand',
+    'ConnectionCommandType',
     'ConnectionParameters',
+    'ContainsRoutines',
+    'ContainsTags',
     'Controller',
     'ControllerFactory',
     'ControllerModificationSchema',
@@ -48,10 +49,14 @@ __all__ = (
     'DatatypeMember',
     'DataValueMember',
     'IntrospectiveModule',
+    'LogixInstructionType',
+    'LogixOperand',
+    'LogixTagScope',
     'Module',
     'ModuleControlsType',
     'Program',
     'Routine',
+    'RungElementType',
     'Rung',
     'Tag',
     'TagEndpoint',

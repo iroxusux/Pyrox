@@ -2,15 +2,12 @@
 from __future__ import annotations
 
 from enum import Enum
-import json
 from pathlib import Path
 import re
-import sys
-from typing import Any, Callable, Optional, Union
+from typing import Any, Optional, Union
 from .logging import Loggable
 
 __all__ = (
-    'Buildable',
     'DEF_APP_NAME',
     'DEF_AUTHOR_NAME',
     'DEF_ICON',
@@ -19,14 +16,10 @@ __all__ = (
     'DEF_WIN_SIZE',
     'EnforcesNaming',
     'PyroxObject',
-    'Runnable',
+    'SliceableInt',
     'SnowFlake',
     'SupportsFileLocation',
-    'SupportsJsonLoading',
-    'SupportsJsonSaving',
-    'SupportsLoading',
     'SupportsMetaData',
-    'SupportSaving',
     'TK_CURSORS',
 )
 
@@ -119,6 +112,105 @@ class _IdGenerator:
         return _IdGenerator._ctr
 
 
+class SliceableInt(int):
+    """Extension of integer class that supports bit-wise operations
+    """
+
+    def __add__(self, other):
+        return self._value + other
+
+    def __eq__(self, other):
+        return self._value == other
+
+    def __index__(self):
+        return self._value
+
+    def __init__(self, value=0):
+        self._value = value
+
+    def __int__(self):
+        return self._value
+
+    def __radd__(self, other):  # handles cases like 5 + SliceableInt(3)
+        return self.__add__(other)
+
+    def __repr__(self):
+        return str(self._value)
+
+    def __sub__(self, other):
+        return self._value - other
+
+    def clear(self):
+        """Clear this `SliceableInt's` value.
+        """
+        self._value = 0
+
+    def clear_bit(self,
+                  bit_position: int) -> int:
+        """Binary slicing operation to clear a bit of an integer.
+
+        .. -------------------------------------------------------
+
+        Arguments
+        ----------
+        bit_position: :class:`int`
+            Bit position of the word to clear to bit of.
+
+        Returns
+        ----------
+            :class:`int`
+        """
+        self._value = self._value & ~(1 << bit_position)
+        return self._value
+
+    def read_bit(self,
+                 bit_position: int) -> bool:
+        """Binary slicing operation to read a bit of an integer.
+
+        .. -------------------------------------------------------
+
+        Arguments
+        ----------
+        bit_position: :class:`int`
+            Bit position of the word to read the bit from.
+
+        Returns
+        ----------
+            :class:`bool`
+        """
+        return (self._value & (1 << bit_position)) >> bit_position
+
+    def set_bit(self,
+                bit_position: int) -> int:
+        """Binary slicing operation to set a bit of an integer.
+
+        .. -------------------------------------------------------
+
+        Arguments
+        ----------
+        bit_position: :class:`int`
+            Bit position of the word to set to bit of.
+
+        Returns
+        ----------
+            :class:`int`
+        """
+        self._value = self._value | (1 << bit_position)
+        return self._value
+
+    def set_value(self, value: int) -> None:
+        """Set a value for this sliceable int without changing it's base type (`SliceableInt`).
+
+        .. -------------------------------------------------------
+
+        Arguments
+        ----------
+        value: :class:`int`
+            Value to set in this object.
+        """
+        self._value = value
+
+
 class EnforcesNaming:
     """Helper meta class to enforce naming schemes across objects."""
     __slots__ = ()
@@ -197,91 +289,6 @@ class EnforcesNaming:
         return True
 
 
-class SimpleStream:
-    """A simple stream that writes to a single provided callback.
-
-    Attributes:
-        callback: A callable that will be called with the text to write.
-        closed: Whether the stream is closed.
-    """
-
-    def __init__(self, callback: Callable):
-        if not callable(callback):
-            raise TypeError('Callback must be a callable function.')
-        self.callback = callback
-        self.closed = False
-
-    def write(self, text: str):
-        """Write text to the callback."""
-        if self.closed:
-            return
-        try:
-            self.callback(text)
-        except Exception as e:
-            sys.__stderr__.write(f"SimpleStream error: {e}\n")
-
-    def flush(self):
-        """Flush the stream (no-op for SimpleStream)."""
-        pass
-
-    def close(self):
-        """Close the stream."""
-        self.closed = True
-
-
-class MultiStream:
-    """A stream that writes to multiple destinations simultaneously."""
-
-    def __init__(self, *streams):
-        self.streams = list(streams)
-        self.closed = False
-
-    def _fallback_write(self, text):
-        """Fallback method to write to sys.__stderr__ if write fails."""
-        sys.__stderr__.write(f"MultiStream error: {text}\n")
-
-    def write(self, text):
-        """Write text to all streams."""
-        if self.closed:
-            return
-
-        for stream in self.streams:
-            try:
-                if hasattr(stream, 'write'):
-                    stream.write(text)
-            except Exception as e:
-                self._fallback_write(e)
-
-    def flush(self):
-        """Flush all streams."""
-        for stream in self.streams:
-            try:
-                if hasattr(stream, 'flush'):
-                    stream.flush()
-            except Exception as e:
-                self._fallback_write(e)
-
-    def close(self):
-        """Close all streams."""
-        self.closed = True
-        for stream in self.streams:
-            try:
-                if hasattr(stream, 'close') and stream not in (sys.__stdout__, sys.__stderr__):
-                    stream.close()
-            except Exception as e:
-                self._fallback_write(e)
-
-    def add_stream(self, stream):
-        """Add another stream to write to."""
-        if stream not in self.streams:
-            self.streams.append(stream)
-
-    def remove_stream(self, stream):
-        """Remove a stream from the list."""
-        if stream in self.streams:
-            self.streams.remove(stream)
-
-
 class SnowFlake:
     """A meta class for all classes to derive from to obtain unique IDs.
 
@@ -314,170 +321,6 @@ class SnowFlake:
         return self._id
 
 
-class RuntimeDict:
-    """A dictionary-like class to store data with automatic callbacks.
-
-    This class provides a way to store key-value pairs and automatically save the data
-    whenever an item is added, updated, or deleted.
-
-    Attributes:
-        callback: A callback function that is called whenever the data is modified.
-        data: The dictionary that stores the runtime data.
-        inhibit_callback: Whether to inhibit the callback function from being called.
-    """
-    __slots__ = ('_callback', '_data', '_inhibit_callback')
-
-    def __contains__(self, key) -> bool:
-        """Check if a key exists in the runtime data dictionary.
-
-        Args:
-            key: The key to check for.
-
-        Returns:
-            bool: True if key exists, False otherwise.
-        """
-        return key in self._data
-
-    def __getitem__(self, key) -> Any:
-        return self._data.get(key, None)
-
-    def __init__(self, callback: Callable):
-        if callback is None:
-            raise ValueError('A valid callback function must be provided to RuntimeDict.')
-        if not callable(callback):
-            raise TypeError('Callback must be a callable function.')
-        self._callback: Callable = callback
-        self._data = {}
-        self._inhibit_callback = False
-
-    def __setitem__(self, key, value):
-        self._data[key] = value
-        self._call()
-
-    def __delitem__(self, key):
-        del self._data[key]
-        self._call()
-
-    @property
-    def callback(self) -> Callable:
-        """Get the callback function.
-
-        Returns:
-            Callable: The current callback function.
-        """
-        return self._callback
-
-    @callback.setter
-    def callback(self, value: Callable):
-        """Set the callback function.
-
-        Args:
-            value: The callback function to set.
-
-        Raises:
-            ValueError: If the provided value is not callable.
-        """
-        if not value or not callable(value):
-            raise ValueError('A valid callback function must be provided to RuntimeDict.')
-        self._callback = value
-
-    @property
-    def data(self) -> dict:
-        """Get the runtime data dictionary.
-
-        Returns:
-            dict: The internal data dictionary.
-        """
-        return self._data
-
-    @data.setter
-    def data(self, value: dict):
-        """Set the runtime data dictionary.
-
-        Args:
-            value: The dictionary to set as the new data.
-
-        Raises:
-            TypeError: If the provided value is not a dictionary.
-        """
-        if not isinstance(value, dict):
-            raise TypeError('Runtime data must be a dictionary.')
-        self._data = value
-        self._callback()
-
-    @property
-    def inhibit_callback(self) -> bool:
-        """Get whether the callback is inhibited.
-
-        Returns:
-            bool: True if callback is inhibited, False otherwise.
-        """
-        return self._inhibit_callback
-
-    @inhibit_callback.setter
-    def inhibit_callback(self, value: bool):
-        """Set whether the callback is inhibited.
-
-        Args:
-            value: Boolean indicating whether to inhibit the callback.
-
-        Raises:
-            TypeError: If the provided value is not a boolean.
-        """
-        if not isinstance(value, bool):
-            raise TypeError('Inhibit callback must be a boolean value.')
-        self._inhibit_callback = value
-        self._call()
-
-    def _call(self):
-        """Call the callback function if it is set and not inhibited.
-
-        Raises:
-            TypeError: If the callback is not callable.
-        """
-        if self._inhibit_callback is False:
-            if callable(self._callback):
-                self._callback()
-            else:
-                raise TypeError('Callback must be a callable function.')
-
-    def clear(self):
-        """Clear the runtime data dictionary."""
-        self._data.clear()
-        self._callback()
-
-    def get(self, key, default=None) -> Any:
-        """Get an item from the runtime data dictionary.
-
-        Args:
-            key: The key to retrieve.
-            default: The default value if key is not found.
-
-        Returns:
-            Any: The value associated with the key, or default if not found.
-        """
-        return self._data.get(key, default)
-
-    def inhibit(self):
-        """Inhibit the callback function."""
-        self._inhibit_callback = True
-
-    def update(self, *args, **kwargs):
-        """Update the runtime data dictionary with new items.
-
-        Args:
-            *args: Positional arguments to pass to dict.update().
-            **kwargs: Keyword arguments to pass to dict.update().
-        """
-        self._data.update(*args, **kwargs)
-        self._call()
-
-    def uninhibit(self):
-        """Uninhibit the callback function."""
-        self._inhibit_callback = False
-        self._callback()
-
-
 class PyroxObject(SnowFlake, Loggable):
     """A base class for all Pyrox objects."""
     __slots__ = ()
@@ -491,7 +334,6 @@ class PyroxObject(SnowFlake, Loggable):
 
 class SupportsItemAccess:
     """A meta class for all classes to derive from to obtain item access capabilities.
-
     This class allows for accessing items using the indexing syntax (e.g., obj[key]).
     """
     @property
@@ -527,7 +369,7 @@ class SupportsMetaData(PyroxObject, SupportsItemAccess):
         meta_data: Optional[Union[str, dict]] = None,
     ) -> None:
         super().__init__()
-        self.meta_data: Optional[Union[str, dict]] = meta_data
+        self.meta_data: Optional[Union[str, dict]] = meta_data or {}
 
     @property
     def meta_data(self) -> Optional[Union[str, dict]]:
@@ -661,188 +503,3 @@ class SupportsFileLocation(PyroxObject):
         if value is not None and not isinstance(value, str):
             raise TypeError('File location must be a string or None.')
         self._file_location = value
-
-
-class SupportsLoading(SupportsFileLocation):
-    """A meta class for all classes to derive from to obtain loading capabilities.
-
-    Attributes:
-        load_path: Path to load the object from.
-    """
-    __slots__ = ()
-
-    def load(self, path: Optional[Path] = None) -> Any:
-        """Load the object from a file.
-
-        Args:
-            path: Path to load the object from. If not provided, uses the load_path attribute.
-
-        Returns:
-            Any: The loaded data.
-
-        Raises:
-            NotImplementedError: This method should be implemented in subclasses.
-        """
-        raise NotImplementedError("This method should be implemented in subclasses.")
-
-    def on_loaded(self, data: Any) -> None:
-        """Method to be called after the object has been loaded.
-
-        This method can be overridden in subclasses to perform additional actions after loading.
-
-        Args:
-            data: Data that was loaded from the file.
-        """
-        ...
-
-
-class SupportSaving(SupportsFileLocation):
-    """A meta class for all classes to derive from to obtain saving capabilities.
-
-    Attributes:
-        save_path: Path to save the object to.
-        save_data_callback: Callback to call when saving data.
-    """
-    __slots__ = ()
-
-    @property
-    def save_data_callback(self) -> Optional[Callable]:
-        """Callback to call when saving data.
-
-        Returns:
-            Optional[Callable]: The callback function.
-
-        Raises:
-            NotImplementedError: This property should be implemented in subclasses.
-        """
-        raise NotImplementedError("This property should be implemented in subclasses.")
-
-    def save(self, path: Optional[Path] = None, data: Optional[Any] = None) -> None:
-        """Save the object to a file.
-
-        Args:
-            path: Path to save the object to. If not provided, uses the save_path attribute.
-            data: Data to save. If not provided, uses the save_data_callback attribute.
-
-        Raises:
-            NotImplementedError: This method should be implemented in subclasses.
-        """
-        raise NotImplementedError("This method should be implemented in subclasses.")
-
-
-class SupportsJsonSaving(SupportSaving):
-    """A meta class for all classes to derive from to obtain JSON saving capabilities.
-
-    Attributes:
-        save_path: Path to save the object to.
-        save_data_callback: Callback to call when saving data.
-    """
-    __slots__ = ()
-
-    def save_to_json(self, path: Optional[Path] = None, data: Optional[dict] = None) -> None:
-        """Save the object to a JSON file.
-
-        Args:
-            path: Path to save the object to. If not provided, uses the save_path attribute.
-            data: Data to save. If not provided, uses the save_data_callback attribute.
-
-        Raises:
-            ValueError: If no path is provided for saving JSON data.
-            IOError: If the file cannot be written.
-        """
-        path = path or self.file_location
-        data = data or self.save_data_callback()
-        if not path:
-            raise ValueError("No path provided for saving JSON data.")
-
-        try:
-            with open(path, 'w', encoding='utf-8') as f:
-                json.dump(data, f, indent=4)
-        except (IOError, OSError) as e:
-            raise IOError(f"Failed to save JSON to {path}: {e}")
-
-
-class SupportsJsonLoading(SupportsLoading):
-    """A meta class for all classes to derive from to obtain JSON loading capabilities."""
-    __slots__ = ()
-
-    def load_from_json(self, path: Optional[Path] = None) -> Any:
-        """Load the object from a JSON file.
-
-        Args:
-            path: Path to load the object from. If not provided, uses the load_path attribute.
-
-        Returns:
-            Any: Loaded data from the JSON file, or None if file doesn't exist.
-        """
-        path = Path(path) if path else Path(self.file_location)
-        if not path or not path.exists():
-            return None
-        try:
-            with open(path, 'r', encoding='utf-8') as f:
-                data = json.load(f)
-                self.on_loaded(data)
-                return data
-        except (IOError, OSError, json.JSONDecodeError) as e:
-            raise IOError(f"Failed to load JSON from {path}: {e}")
-
-
-class Buildable(NamedPyroxObject):
-    """Denotes object is 'buildable' and supports build and refresh methods.
-
-    Attributes:
-        built: Whether the object has previously been built.
-    """
-    __slots__ = ('_built',)
-
-    def __init__(self, **kwargs):
-        super().__init__(**kwargs)
-        self._built: bool = False
-
-    @property
-    def built(self) -> bool:
-        """Whether the object has previously been built.
-
-        Returns:
-            bool: True if the object has been built, False otherwise.
-        """
-        return self._built
-
-    def build(self) -> None:
-        """Build this object."""
-        self._built = True
-
-    def refresh(self) -> None:
-        """Refresh this object."""
-
-
-class Runnable(Buildable):
-    """Denotes object is 'runnable' and supports run method.
-
-    Attributes:
-        running: Whether the object is currently in a running state.
-    """
-    __slots__ = ('_running', )
-
-    def __init__(self, **kwargs):
-        super().__init__(**kwargs)
-        self._running: bool = False
-
-    @property
-    def running(self) -> bool:
-        """Whether the object is currently in a running state.
-
-        Returns:
-            bool: True if the object is running, False otherwise.
-        """
-        return self._running
-
-    def start(self) -> None:
-        """Start this object."""
-        if self.built is False:
-            self.build()
-        self._running = True
-
-    def stop(self) -> None:
-        """Stop this object."""
-        self._running = False

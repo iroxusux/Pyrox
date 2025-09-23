@@ -18,9 +18,10 @@ from tkinter import (
 )
 from typing import Any, Callable, Optional, Self, Union
 
-from . import meta
-from .logging import LoggingManager
-from ...services.file import remove_all_files
+from .abc import Buildable, Runnable, SupportsJsonLoading, SupportsJsonSaving
+from .abc import meta
+from .abc.logging import LoggingManager
+from ..services.file import remove_all_files
 
 __all__ = (
     'BaseMenu',
@@ -31,7 +32,7 @@ __all__ = (
 )
 
 
-class BaseMenu(meta.Buildable):
+class BaseMenu(Buildable):
     """Base menu for use in a UI Application.
 
     Args:
@@ -435,7 +436,7 @@ class ApplicationDirectoryService:
         return log_file
 
 
-class ApplicationRuntimeInfo(meta.SupportsJsonSaving, meta.SupportsJsonLoading):
+class ApplicationRuntimeInfo(SupportsJsonSaving, SupportsJsonLoading):
     """Application Runtime Information manager.
 
     This class is used to store and manage runtime information for the application.
@@ -564,7 +565,7 @@ class ApplicationRuntimeInfo(meta.SupportsJsonSaving, meta.SupportsJsonLoading):
         self.data[key] = value
 
 
-class Application(meta.Runnable):
+class Application(Runnable):
     """A main Application class to manage running application data and services.
 
     Args:

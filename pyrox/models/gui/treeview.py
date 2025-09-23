@@ -2,7 +2,8 @@ from tkinter import Event, Widget
 
 from .menu import ContextMenu
 from .meta import PyroxTreeview
-from pyrox.models.abc import HashList, PyroxObject
+from pyrox.models.abc.meta import PyroxObject
+from pyrox.models.abc.list import HashList
 from pyrox.models.gui.pyroxguiobject import PyroxGuiObject
 
 UNITTEST_PLC_FILE = r'docs\controls\unittest.L5X'

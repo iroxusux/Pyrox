@@ -3,14 +3,14 @@
 from typing import Optional, Self, List
 
 from .plc import plc, imodule
-from . import abc
+from .abc import meta, factory
 
 
-class EmulationGeneratorFactory(abc.MetaFactory):
+class EmulationGeneratorFactory(factory.MetaFactory):
     """Factory for creating EmulationGenerator instances."""
 
 
-class EmulationGenerator(abc.PyroxObject, metaclass=abc.FactoryTypeMeta[Self, EmulationGeneratorFactory]):
+class EmulationGenerator(meta.PyroxObject, metaclass=factory.FactoryTypeMeta[Self, EmulationGeneratorFactory]):
     """Base class for emulation logic generators."""
     supporting_class = None
     supports_registering = False

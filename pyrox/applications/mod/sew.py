@@ -1,7 +1,32 @@
 """SEW Euro specific PLC Modules.
 """
 from __future__ import annotations
-from pyrox.models.plc import Rung, SewModule, ModuleControlsType
+from pyrox.models.abc.factory import FactoryTypeMeta
+from typing import Self
+from pyrox.models.plc import (
+    IntrospectiveModule,
+    ModuleControlsType,
+    ModuleWarehouse,
+    Rung
+)
+
+
+class SewModuleFactory(ModuleWarehouse):
+    """Factory for creating SEW module instances."""
+
+
+class SewModule(IntrospectiveModule, metaclass=FactoryTypeMeta[Self, SewModuleFactory]):
+    """SEW Module ABC.
+    """
+    supports_registering = False  # SEW modules do not support registering directly
+
+    def __init_subclass__(cls, **kwargs):
+        cls.supports_registering = True  # Subclasses can support registering
+        return super().__init_subclass__(**kwargs)
+
+    @classmethod
+    def get_factory(cls):
+        return SewModuleFactory
 
 
 class SewSafeMoviDrive(SewModule):

@@ -1,7 +1,32 @@
 """Siemens specific PLC Modules.
 """
 from __future__ import annotations
-from pyrox.models.plc import Rung, SiemensModule, ModuleControlsType
+from pyrox.models.abc.factory import FactoryTypeMeta
+from typing import Self
+from pyrox.models.plc import (
+    IntrospectiveModule,
+    ModuleControlsType,
+    ModuleWarehouse,
+    Rung
+)
+
+
+class SiemensModuleFactory(ModuleWarehouse):
+    """Factory for creating Siemens module instances."""
+
+
+class SiemensModule(IntrospectiveModule, metaclass=FactoryTypeMeta[Self, SiemensModuleFactory]):
+    """Siemens Module ABC.
+    """
+    supports_registering = False  # Siemens modules do not support registering directly
+
+    def __init_subclass__(cls, **kwargs):
+        cls.supports_registering = True  # Subclasses can support registering
+        return super().__init_subclass__(**kwargs)
+
+    @classmethod
+    def get_factory(cls):
+        return SiemensModuleFactory
 
 
 class G115Drive(SiemensModule):

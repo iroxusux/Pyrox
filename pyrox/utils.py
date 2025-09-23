@@ -4,7 +4,7 @@ import fnmatch
 from typing import List
 
 
-class SliceableInt(object):
+class SliceableInt(int):
     """Extension of integer class that supports bit-wise operations
     """
 

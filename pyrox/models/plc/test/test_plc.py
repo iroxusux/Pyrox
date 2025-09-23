@@ -3,9 +3,8 @@ from __future__ import annotations
 import unittest
 from unittest.mock import MagicMock, patch
 
-
-from ..abc.list import HashList
-from .plc import (
+from pyrox.models.abc import HashList
+from pyrox.models.plc import (
     AddOnInstruction,
     ConnectionCommand,
     ConnectionCommandType,
@@ -18,6 +17,7 @@ from .plc import (
     DatatypeMember,
     LogixAssetType,
     LogixInstruction,
+    LogixInstructionType,
     LogixOperand,
     LogixTagScope,
     Module,
@@ -29,9 +29,6 @@ from .plc import (
     Rung,
     Tag,
 )
-
-UNITTEST_PLC_FILE = r'docs\controls\unittest.L5X'
-
 
 UNITTEST_PLC_FILE = r'docs\controls\unittest.L5X'
 
@@ -187,12 +184,10 @@ class TestLogixOperand(unittest.TestCase):
         base_tag = self.operand.base_tag
         # base_tag may be None if not found, but if present, should be a Tag
         if base_tag is not None:
-            from .plc import Tag
             self.assertIsInstance(base_tag, Tag)
 
     def test_container(self):
         container = self.operand.container
-        from .plc import ContainsRoutines
         self.assertIsInstance(container, ContainsRoutines)
 
     def test_instruction(self):
@@ -200,14 +195,12 @@ class TestLogixOperand(unittest.TestCase):
 
     def test_instruction_type(self):
         instr_type = self.operand.instruction_type
-        from .plc import LogixInstructionType
         self.assertIn(instr_type, [LogixInstructionType.INPUT, LogixInstructionType.OUTPUT, LogixInstructionType.UNKOWN])
 
     def test_first_tag(self):
         first_tag = self.operand.first_tag
         # first_tag may be None if not found, but if present, should be a Tag
         if first_tag is not None:
-            from .plc import Tag
             self.assertIsInstance(first_tag, Tag)
 
     def test_parents(self):
@@ -253,7 +246,6 @@ class TestLogixInstruction(unittest.TestCase):
 
     def test_container(self):
         container = self.instruction.container
-        from .plc import Program, AddOnInstruction
         self.assertTrue(isinstance(container, Program) or isinstance(container, AddOnInstruction))
 
     def test_instruction_name(self):
@@ -273,17 +265,14 @@ class TestLogixInstruction(unittest.TestCase):
 
     def test_routine(self):
         routine = self.instruction.routine
-        from .plc import Routine
         self.assertIsInstance(routine, Routine)
 
     def test_rung(self):
         rung = self.instruction.rung
-        from .plc import Rung
         self.assertIsInstance(rung, Rung)
 
     def test_type(self):
         instr_type = self.instruction.type
-        from .plc import LogixInstructionType
         self.assertIn(instr_type, [LogixInstructionType.INPUT, LogixInstructionType.OUTPUT])
 
     def test_as_report_dict(self):
@@ -308,7 +297,6 @@ class TestContainsTags(unittest.TestCase):
 
     def test_tags_property(self):
         tags = self.obj.tags
-        from ..abc.list import HashList
         self.assertIsInstance(tags, HashList)
         self.assertTrue(all(hasattr(tag, 'name') for tag in tags))
 
@@ -358,7 +346,6 @@ class TestContainsRoutines(unittest.TestCase):
 
     def test_routines_property(self):
         routines = self.obj.routines
-        from ..abc.list import HashList
         self.assertIsInstance(routines, HashList)
         self.assertTrue(all(hasattr(routine, 'name') for routine in routines))
 

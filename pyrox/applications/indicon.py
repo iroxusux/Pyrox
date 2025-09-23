@@ -2,7 +2,7 @@
 This package contains the default controller, validator, and emulation generator
 for Indicon PLCs.
 """
-from pyrox.models import eplan, plc
+from pyrox.models import emu, eplan, plc
 from typing import Optional, Self
 
 
@@ -19,7 +19,7 @@ class BaseControllerValidator(plc.ControllerValidator):
         super().validate_all(controller)
 
 
-class BaseEmulationGenerator(plc.EmulationGenerator):
+class BaseEmulationGenerator(emu.EmulationGenerator):
     """Base class for emulation logic generators."""
     supporting_class = 'Controller'
 

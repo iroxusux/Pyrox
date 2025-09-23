@@ -6,7 +6,7 @@ from __future__ import annotations
 from typing import Optional, TYPE_CHECKING, Union
 
 
-from .meta import Runnable
+from .abc import Runnable
 
 
 if TYPE_CHECKING:

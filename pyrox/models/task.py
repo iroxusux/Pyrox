@@ -1,7 +1,8 @@
 """Task module for pyrox applications.
 
 Tasks are used to add additional functionality to the application via the toolbar in the main application frame."""
-from .abc import Application, FactoryTypeMeta, MetaFactory, Runnable
+from .abc import FactoryTypeMeta, MetaFactory, Runnable
+from .application import Application
 from typing import Self
 
 

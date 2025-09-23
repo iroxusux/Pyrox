@@ -7,7 +7,7 @@ import tkinter
 from tkinter import ttk
 
 
-from ..abc import Application, ApplicationConfiguration
+from pyrox.models.application import Application, ApplicationConfiguration
 
 
 __all__ = (
