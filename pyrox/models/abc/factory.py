@@ -47,16 +47,18 @@ class MetaFactory(ABCMeta, Loggable):
         """
 
         module_name = class_type.__module__
+        class_name = class_type.__name__
+
         if module_name in sys.modules:
             try:
                 importlib.reload(sys.modules[module_name])
-                class_type = cls._get_class_from_module(sys.modules[module_name], class_type.__name__)
+                class_type = cls._get_class_from_module(sys.modules[module_name], class_name)
                 if not class_type:
-                    raise ImportError(f'Class {class_type.__name__} not found in module {module_name} after reload.')
+                    raise ImportError(f'Class {class_name} not found in module {module_name} after reload.')
                 cls.register_type(class_type)
-                cls.logger.debug(f'Reloaded module {module_name} for class {class_type.__name__}.')
+                cls.logger.debug(f'Reloaded module {module_name} for class {class_name}.')
             except Exception as e:
-                raise RuntimeError(f'Failed to reload module {module_name}: {e}') from e
+                raise ImportError(f'Failed to reload module {module_name}: {e}') from e
         else:
             cls.logger.warning(f'Module {module_name} not found in sys.modules; cannot reload.')
 
@@ -94,10 +96,10 @@ class MetaFactory(ABCMeta, Loggable):
         Returns:
             Optional[Type]: The class type if found, else None.
         """
-        if isinstance(type_name, object):
-            type_search = type_name.__class__.__name__
-        elif isinstance(type_name, str):
+        if isinstance(type_name, str):
             type_search = type_name
+        elif isinstance(type_name, object):
+            type_search = type_name.__class__.__name__
         else:
             raise ValueError('type_name must be a string or an object instance.')
         return cls.get_registered_types().get(type_search, None)
@@ -114,19 +116,32 @@ class MetaFactory(ABCMeta, Loggable):
 
         Returns:
             Optional[Type]: The class type if found, else None.
+
+        Raises:
+            ValueError: If supporting_class is not a string, type, or object instance.
         """
-        if isinstance(supporting_class, object) and not isinstance(supporting_class, str):
+        if isinstance(supporting_class, (int, float, bool, list, dict, set, tuple)):
+            raise ValueError('supporting_class must be a string, type, or an object instance.')
+        if isinstance(supporting_class, type):
+            supporting_class = supporting_class.__name__
+        elif isinstance(supporting_class, object) and not isinstance(supporting_class, str):
             supporting_class = supporting_class.__class__.__name__
         elif isinstance(supporting_class, type):
             supporting_class = supporting_class.__name__
-        elif not isinstance(supporting_class, str):
+
+        if isinstance(supporting_class, str):
+            for type_class in cls.get_registered_types().values():
+                if not hasattr(type_class, 'supporting_class'):
+                    continue
+                if str(type_class.supporting_class) == supporting_class:
+                    return cls._reload_class_module(type_class)
+                if not isinstance(type_class.supporting_class, type):
+                    continue
+                if type_class.supporting_class.__name__ == supporting_class:
+                    return cls._reload_class_module(type_class)
+            return None
+        else:
             raise ValueError('supporting_class must be a string, type, or an object instance.')
-
-        for type_class in cls.get_registered_types().values():
-            if hasattr(type_class, 'supporting_class') and str(type_class.supporting_class) == supporting_class:
-                return cls._reload_class_module(type_class)
-
-        return None
 
     @classmethod
     def get_registered_types(cls) -> dict[str, Type[T]]:
