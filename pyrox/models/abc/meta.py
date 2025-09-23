@@ -378,7 +378,7 @@ class SupportsMetaData(SupportsItemAccess):
         meta_data: Optional[Union[str, dict]] = None,
         **kwargs
     ) -> None:
-        self.meta_data: Optional[Union[str, dict]] = meta_data or {}
+        self.meta_data: Optional[Union[str, dict]] = meta_data if meta_data is not None else {}
         super().__init__(**kwargs)
 
     @property
