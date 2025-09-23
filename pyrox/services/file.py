@@ -7,7 +7,9 @@ from tkinter import filedialog
 from typing import Optional
 
 
-def get_all_files_in_directory(directory: str) -> list[str]:
+def get_all_files_in_directory(
+    directory: str
+) -> list[str]:
     """get all files in a directory
 
     Args:
@@ -15,7 +17,12 @@ def get_all_files_in_directory(directory: str) -> list[str]:
 
     Returns:
         list[str]: list of file paths
+
+    Raises:
+        FileNotFoundError: if the directory does not exist
     """
+    if not os.path.isdir(directory):
+        raise FileNotFoundError(f'Directory not found: {directory}')
     file_list = []
     for root, _, files in os.walk(directory):
         for file in files:
@@ -87,10 +94,13 @@ def remove_all_files(directory: str):
             shutil.rmtree(file_path)
 
 
-def save_file(file_path: str,
-              file_extension: str,
-              save_mode: str,
-              file_data: str | bytes) -> bool:
+def save_file(
+    file_path: str,
+    file_extension: str,
+    save_mode: str,
+    file_data: str | bytes,
+    encoding: str = None
+) -> bool:
     """save file to location
 
     Args:
@@ -98,6 +108,7 @@ def save_file(file_path: str,
         file_extension (str): file extension to save as
         save_mode (str): save mode 'w' or 'a'
         file_data (str | bytes): data to save
+        encoding (str, optional): encoding to use when saving a string. Defaults to None.
 
     Returns:
         bool: bool of success
@@ -113,7 +124,13 @@ def save_file(file_path: str,
         file_path = f'{file_path}{file_extension}'
 
     try:
-        with open(file_path, save_mode, encoding='utf-8') as f:
+        # This protects against encoding errors when writing bytes to a file
+        if encoding is None and 'b' not in save_mode:
+            encoding = 'utf-8'
+        elif encoding is not None and 'b' in save_mode:
+            encoding = None
+
+        with open(file_path, save_mode, encoding=encoding) as f:
             f.write(file_data)
             f.close()
     except FileNotFoundError:
