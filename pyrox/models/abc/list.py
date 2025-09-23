@@ -372,7 +372,11 @@ class TrackedList(list[T]):
     def emit(self) -> None:
         """Emit to all delegates that an update has occured.
         """
-        _ = [x() for x in self._subscribers]
+        for subscriber in self._subscribers:
+            try:
+                subscriber()
+            except Exception:
+                continue
 
     def append(self,
                value: T) -> None:
