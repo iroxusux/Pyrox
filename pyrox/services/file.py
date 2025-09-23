@@ -83,6 +83,44 @@ def get_save_location() -> str:
     return directory
 
 
+def is_file_readable(
+    file_path: str
+) -> bool:
+    """Check if file exists and is readable.
+
+    Args:
+        file_path: Path to the file to check
+
+    Returns:
+        True if file exists and is readable, False otherwise
+    """
+    try:
+        # Check if file exists
+        if not os.path.exists(file_path):
+            return False
+
+        # Check if it's actually a file (not a directory)
+        if not os.path.isfile(file_path):
+            return False
+
+        # Check read permissions using os.access
+        if not os.access(file_path, os.R_OK):
+            return False
+
+        # Try to actually open and read a small portion to verify readability
+        try:
+            with open(file_path, 'r', encoding='utf-8') as f:
+                f.read(1)  # Try to read just one character
+            return True
+        except (IOError, OSError, PermissionError, UnicodeDecodeError) as e:
+            print(e)
+            return False
+
+    except Exception as e:
+        print(e)
+        return False
+
+
 def remove_all_files(directory: str):
     """Removes all files within a specified directory, including files in subdirectories.
     """

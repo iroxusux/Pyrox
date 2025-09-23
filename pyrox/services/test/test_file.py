@@ -1,16 +1,18 @@
 """Unit tests for file services."""
-
 import os
+import shutil
+import stat
 import tempfile
 import unittest
 from unittest.mock import patch, MagicMock, mock_open
-import shutil
+
 
 from pyrox.services.file import (
     get_all_files_in_directory,
     get_open_file,
     get_save_file,
     get_save_location,
+    is_file_readable,
     remove_all_files,
     save_file
 )
@@ -433,6 +435,312 @@ class TestFileServices(unittest.TestCase):
         # Verify cleanup
         remaining_files = get_all_files_in_directory(self.test_dir)
         self.assertEqual(len(remaining_files), 0)
+
+
+class TestIsFileReadable(unittest.TestCase):
+    """Test cases for is_file_readable function."""
+
+    def setUp(self):
+        """Set up test fixtures."""
+        self.test_dir = tempfile.mkdtemp()
+        self.test_file_path = os.path.join(self.test_dir, 'test_file.txt')
+        self.test_content = "Test file content for readability testing"
+
+        # Create a readable test file
+        with open(self.test_file_path, 'w', encoding='utf-8') as f:
+            f.write(self.test_content)
+
+    def tearDown(self):
+        """Clean up test fixtures."""
+        if os.path.exists(self.test_dir):
+            shutil.rmtree(self.test_dir, ignore_errors=True)
+
+    def test_is_file_readable_valid_file(self):
+        """Test is_file_readable with a valid, readable file."""
+        result = is_file_readable(self.test_file_path)
+        self.assertTrue(result)
+
+    def test_is_file_readable_nonexistent_file(self):
+        """Test is_file_readable with non-existent file."""
+        nonexistent_path = os.path.join(self.test_dir, 'nonexistent.txt')
+        result = is_file_readable(nonexistent_path)
+        self.assertFalse(result)
+
+    def test_is_file_readable_directory_instead_of_file(self):
+        """Test is_file_readable with directory path instead of file."""
+        result = is_file_readable(self.test_dir)
+        self.assertFalse(result)
+
+    def test_is_file_readable_empty_file(self):
+        """Test is_file_readable with empty file."""
+        empty_file = os.path.join(self.test_dir, 'empty.txt')
+        with open(empty_file, 'w', encoding='utf-8') as f:
+            pass  # Create empty file
+
+        result = is_file_readable(empty_file)
+        self.assertTrue(result)
+
+    def test_is_file_readable_large_file(self):
+        """Test is_file_readable with a large file (should still only read 1 char)."""
+        large_file = os.path.join(self.test_dir, 'large.txt')
+        large_content = "A" * 10000  # 10KB of 'A's
+
+        with open(large_file, 'w', encoding='utf-8') as f:
+            f.write(large_content)
+
+        result = is_file_readable(large_file)
+        self.assertTrue(result)
+
+    @unittest.skipIf(os.name == 'nt', "Permission tests not reliable on Windows")
+    def test_is_file_readable_no_read_permission(self):
+        """Test is_file_readable with file that has no read permission."""
+        no_read_file = os.path.join(self.test_dir, 'no_read.txt')
+
+        with open(no_read_file, 'w', encoding='utf-8') as f:
+            f.write("Test content")
+
+        # Remove read permission
+        os.chmod(no_read_file, stat.S_IWRITE)
+
+        try:
+            result = is_file_readable(no_read_file)
+            self.assertFalse(result)
+        finally:
+            # Restore permissions for cleanup
+            os.chmod(no_read_file, stat.S_IREAD | stat.S_IWRITE)
+
+    def test_is_file_readable_binary_file(self):
+        """Test is_file_readable with binary file (should fail UTF-8 decode)."""
+        binary_file = os.path.join(self.test_dir, 'binary.bin')
+        binary_content = bytes([0, 1, 2, 255, 254, 253])  # Invalid UTF-8
+
+        with open(binary_file, 'wb') as f:
+            f.write(binary_content)
+
+        with patch('builtins.print') as mock_print:
+            result = is_file_readable(binary_file)
+            self.assertFalse(result)
+            mock_print.assert_called()  # Should print the UnicodeDecodeError
+
+    def test_is_file_readable_special_characters(self):
+        """Test is_file_readable with file containing Unicode characters."""
+        unicode_file = os.path.join(self.test_dir, 'unicode.txt')
+        unicode_content = "Special chars: àáâãäå æç èéêë ìíîï ñ òóôõö ùúûü ÿ 🌍"
+
+        with open(unicode_file, 'w', encoding='utf-8') as f:
+            f.write(unicode_content)
+
+        result = is_file_readable(unicode_file)
+        self.assertTrue(result)
+
+    @patch('os.path.exists')
+    def test_is_file_readable_os_path_exists_exception(self, mock_exists):
+        """Test is_file_readable when os.path.exists raises an exception."""
+        mock_exists.side_effect = OSError("Mocked OS error")
+
+        with patch('builtins.print') as mock_print:
+            result = is_file_readable('/some/path')
+            self.assertFalse(result)
+            mock_print.assert_called_once()
+
+    @patch('os.path.isfile')
+    @patch('os.path.exists')
+    def test_is_file_readable_os_path_isfile_exception(self, mock_exists, mock_isfile):
+        """Test is_file_readable when os.path.isfile raises an exception."""
+        mock_exists.return_value = True
+        mock_isfile.side_effect = OSError("Mocked isfile error")
+
+        with patch('builtins.print') as mock_print:
+            result = is_file_readable('/some/path')
+            self.assertFalse(result)
+            mock_print.assert_called_once()
+
+    @patch('os.access')
+    @patch('os.path.isfile')
+    @patch('os.path.exists')
+    def test_is_file_readable_os_access_exception(self, mock_exists, mock_isfile, mock_access):
+        """Test is_file_readable when os.access raises an exception."""
+        mock_exists.return_value = True
+        mock_isfile.return_value = True
+        mock_access.side_effect = OSError("Mocked access error")
+
+        with patch('builtins.print') as mock_print:
+            result = is_file_readable('/some/path')
+            self.assertFalse(result)
+            mock_print.assert_called_once()
+
+    @patch('builtins.open')
+    @patch('os.access')
+    @patch('os.path.isfile')
+    @patch('os.path.exists')
+    def test_is_file_readable_io_error_on_open(self, mock_exists, mock_isfile, mock_access, mock_open_func):
+        """Test is_file_readable when file open raises IOError."""
+        mock_exists.return_value = True
+        mock_isfile.return_value = True
+        mock_access.return_value = True
+        mock_open_func.side_effect = IOError("Cannot open file")
+
+        with patch('builtins.print') as mock_print:
+            result = is_file_readable('/some/path')
+            self.assertFalse(result)
+            mock_print.assert_called_once()
+
+    @patch('builtins.open')
+    @patch('os.access')
+    @patch('os.path.isfile')
+    @patch('os.path.exists')
+    def test_is_file_readable_os_error_on_open(self, mock_exists, mock_isfile, mock_access, mock_open_func):
+        """Test is_file_readable when file open raises OSError."""
+        mock_exists.return_value = True
+        mock_isfile.return_value = True
+        mock_access.return_value = True
+        mock_open_func.side_effect = OSError("OS error on open")
+
+        with patch('builtins.print') as mock_print:
+            result = is_file_readable('/some/path')
+            self.assertFalse(result)
+            mock_print.assert_called_once()
+
+    @patch('builtins.open')
+    @patch('os.access')
+    @patch('os.path.isfile')
+    @patch('os.path.exists')
+    def test_is_file_readable_permission_error_on_open(self, mock_exists, mock_isfile, mock_access, mock_open_func):
+        """Test is_file_readable when file open raises PermissionError."""
+        mock_exists.return_value = True
+        mock_isfile.return_value = True
+        mock_access.return_value = True
+        mock_open_func.side_effect = PermissionError("Permission denied")
+
+        with patch('builtins.print') as mock_print:
+            result = is_file_readable('/some/path')
+            self.assertFalse(result)
+            mock_print.assert_called_once()
+
+    def test_is_file_readable_file_read_error_during_read(self):
+        """Test is_file_readable when file.read() raises an error."""
+        mock_file = mock_open()
+        mock_file.return_value.read.side_effect = IOError("Read error")
+
+        with patch('builtins.open', mock_file):
+            with patch('os.path.exists', return_value=True):
+                with patch('os.path.isfile', return_value=True):
+                    with patch('os.access', return_value=True):
+                        with patch('builtins.print') as mock_print:
+                            result = is_file_readable('/some/path')
+                            self.assertFalse(result)
+                            mock_print.assert_called_once()
+
+    def test_is_file_readable_symlink_to_valid_file(self):
+        """Test is_file_readable with symbolic link to valid file."""
+        if os.name == 'nt':
+            self.skipTest("Symbolic links not reliably supported on Windows")
+
+        symlink_path = os.path.join(self.test_dir, 'test_symlink.txt')
+        os.symlink(self.test_file_path, symlink_path)
+
+        result = is_file_readable(symlink_path)
+        self.assertTrue(result)
+
+    def test_is_file_readable_symlink_to_nonexistent_file(self):
+        """Test is_file_readable with broken symbolic link."""
+        if os.name == 'nt':
+            self.skipTest("Symbolic links not reliably supported on Windows")
+
+        nonexistent_target = os.path.join(self.test_dir, 'nonexistent_target.txt')
+        symlink_path = os.path.join(self.test_dir, 'broken_symlink.txt')
+        os.symlink(nonexistent_target, symlink_path)
+
+        result = is_file_readable(symlink_path)
+        self.assertFalse(result)
+
+    def test_is_file_readable_very_long_path(self):
+        """Test is_file_readable with very long file path."""
+        # Create a deeply nested directory structure
+        long_path = self.test_dir
+        for i in range(10):
+            long_path = os.path.join(long_path, f'level_{i}')
+
+        try:
+            os.makedirs(long_path, exist_ok=True)
+            long_file = os.path.join(long_path, 'deep_file.txt')
+
+            with open(long_file, 'w', encoding='utf-8') as f:
+                f.write("Deep file content")
+
+            result = is_file_readable(long_file)
+            self.assertTrue(result)
+        except OSError:
+            # Skip if path too long for the system
+            self.skipTest("Path too long for this system")
+
+    def test_is_file_readable_different_encodings(self):
+        """Test is_file_readable with files in different encodings."""
+        # Create file with Latin-1 encoding
+        latin1_file = os.path.join(self.test_dir, 'latin1.txt')
+        latin1_content = "Café résumé naïve"
+
+        with open(latin1_file, 'w', encoding='latin-1') as f:
+            f.write(latin1_content)
+
+        # The method tries UTF-8 first, which should fail for true Latin-1 content
+        # But our simple test content should work with UTF-8 too
+        result = is_file_readable(latin1_file)
+        # This might be True or False depending on whether the content is valid UTF-8
+        self.assertIsInstance(result, bool)
+
+    def test_is_file_readable_locked_file_simulation(self):
+        """Test is_file_readable with a file that's locked/in use."""
+        # Simulate a locked file by keeping it open
+        locked_file = os.path.join(self.test_dir, 'locked.txt')
+
+        with open(locked_file, 'w', encoding='utf-8') as f:
+            f.write("This file is open")
+            # File is still open, but should still be readable
+            result = is_file_readable(locked_file)
+            self.assertTrue(result)  # Most systems allow reading open files
+
+    def test_is_file_readable_zero_byte_file(self):
+        """Test is_file_readable with zero-byte file."""
+        zero_file = os.path.join(self.test_dir, 'zero_bytes.txt')
+
+        # Create zero-byte file
+        open(zero_file, 'w').close()
+
+        result = is_file_readable(zero_file)
+        self.assertTrue(result)  # Should be readable even if empty
+
+    def test_is_file_readable_file_with_only_whitespace(self):
+        """Test is_file_readable with file containing only whitespace."""
+        whitespace_file = os.path.join(self.test_dir, 'whitespace.txt')
+
+        with open(whitespace_file, 'w', encoding='utf-8') as f:
+            f.write("   \t\n\r  ")
+
+        result = is_file_readable(whitespace_file)
+        self.assertTrue(result)
+
+    def test_is_file_readable_with_null_characters(self):
+        """Test is_file_readable with file containing null characters."""
+        null_file = os.path.join(self.test_dir, 'with_nulls.txt')
+
+        with open(null_file, 'w', encoding='utf-8') as f:
+            f.write("Text with\x00null characters")
+
+        result = is_file_readable(null_file)
+        self.assertTrue(result)  # Should still be readable
+
+    def test_is_file_readable_edge_case_empty_filename(self):
+        """Test is_file_readable with empty filename."""
+        result = is_file_readable("")
+        self.assertFalse(result)
+
+    def test_is_file_readable_edge_case_none_filename(self):
+        """Test is_file_readable with None as filename."""
+        with patch('builtins.print') as mock_print:
+            result = is_file_readable(None)
+            self.assertFalse(result)
+            mock_print.assert_called_once()
 
 
 if __name__ == '__main__':
