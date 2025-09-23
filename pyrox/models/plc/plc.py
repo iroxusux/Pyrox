@@ -4,37 +4,27 @@ from __future__ import annotations
 from collections import defaultdict
 from dataclasses import dataclass, field
 from enum import Enum
-from pathlib import Path
 import re
 from typing import (
     Callable,
     Dict,
-    Generic,
     List,
     Optional,
     Self,
     Tuple,
     Type,
-    TypeVar,
     Union,
-)
-from pyrox.models.abc.meta import (
-    EnforcesNaming,
-    NamedPyroxObject,
-    SupportsMetaData
 )
 from pyrox.models.abc.factory import MetaFactory, FactoryTypeMeta
 from pyrox.models.abc.logging import Loggable
 from pyrox.models.abc.list import HashList
 
+from . import meta as plc_meta
 from .imodule import IntrospectiveModule
-from ...services.dict import insert_key_at_index
 from ...services.plc import l5x_dict_from_file
 from ...utils import replace_strings_in_dict
 
 __all__ = (
-    'BASE_FILES',
-    'PlcObject',
     'AddOnInstruction',
     'ConnectionCommand',
     'ConnectionCommandType',
@@ -49,9 +39,6 @@ __all__ = (
     'DatatypeMember',
     'DataValueMember',
     'IntrospectiveModule',
-    'LogixInstructionType',
-    'LogixOperand',
-    'LogixTagScope',
     'Module',
     'ModuleControlsType',
     'Program',
@@ -63,535 +50,7 @@ __all__ = (
 )
 
 
-T = TypeVar('T')
-CTRL = TypeVar('CTRL', bound='Controller')
-
-INST_RE_PATTERN: str = r'[A-Za-z0-9_]+\(\S*?\)'
-INST_TYPE_RE_PATTERN: str = r'([A-Za-z0-9_]+)(?:\(.*?)(?:\))'
-INST_OPER_RE_PATTERN: str = r'(?:[A-Za-z0-9_]+\()(.*?)(?:\))'
-
-PLC_ROOT_FILE = Path(__file__).resolve().parents[3] / 'docs' / 'controls' / 'root.L5X'
-PLC_PROG_FILE = Path(__file__).resolve().parents[3] / 'docs' / 'controls' / '_program.L5X'
-PLC_ROUT_FILE = Path(__file__).resolve().parents[3] / 'docs' / 'controls' / '_routine.L5X'
-PLC_DT_FILE = Path(__file__).resolve().parents[3] / 'docs' / 'controls' / '_datatype.L5X'
-PLC_AOI_FILE = Path(__file__).resolve().parents[3] / 'docs' / 'controls' / '_aoi.L5X'
-PLC_MOD_FILE = Path(__file__).resolve().parents[3] / 'docs' / 'controls' / '_module.L5X'
-PLC_RUNG_FILE = Path(__file__).resolve().parents[3] / 'docs' / 'controls' / '_rung.L5X'
-PLC_TAG_FILE = Path(__file__).resolve().parents[3] / 'docs' / 'controls' / '_tag.L5X'
-
-BASE_FILES = [
-    PLC_ROOT_FILE,
-    PLC_PROG_FILE,
-    PLC_ROUT_FILE,
-    PLC_DT_FILE,
-    PLC_AOI_FILE,
-    PLC_MOD_FILE,
-    PLC_RUNG_FILE,
-    PLC_TAG_FILE,
-]
-
-RE_PATTERN_META_PRE = r"(?:"
-RE_PATTERN_META_POST = r"\()(.*?)(?:\))"
-
-
-# ------------------ Atomic Datatypes ------------------------- #
-# Atomic datatypes in Logix that are not explicitly defined by the xml formatting file.
-ATOMIC_DATATYPES = [
-    'BIT',
-    'BOOL',
-    'SINT',
-    'INT',
-    'DINT',
-    'LINT',
-    'REAL',
-    'LREAL',
-    'USINT',
-    'UINT',
-    'UDINT',
-    'ULINT',
-    'STRING',
-    'TIMER',
-]
-
-# ------------------ Input Instructions ----------------------- #
-# All input instructions assume every operand is type INPUT
-INSTR_XIC = 'XIC'
-INSTR_XIO = 'XIO'
-INSTR_LIM = 'LIM'
-INSTR_MEQ = 'MEQ'
-INSTR_EQU = 'EQU'
-INSTR_NEQ = 'NEQ'
-INSTR_LES = 'LES'
-INSTR_GRT = 'GRT'
-INSTR_LEQ = 'LEQ'
-INSTR_GEQ = 'GEQ'
-INSTR_ISINF = 'IsINF'
-INSTR_ISNAN = 'IsNAN'
-
-INPUT_INSTRUCTIONS = [
-    INSTR_XIC,
-    INSTR_XIO
-]
-
-XIC_OPERAND_RE_PATTERN = r"(?:XIC\()(.*)(?:\))"
-XIO_OPERAND_RE_PATTERN = r"(?:XIO\()(.*)(?:\))"
-
-INPUT_INSTRUCTIONS_RE_PATTER = [
-    XIC_OPERAND_RE_PATTERN,
-    XIO_OPERAND_RE_PATTERN
-]
-
-# ------------------ Output Instructions ----------------------- #
-# The first index of the tuple is the instruction type
-# the second index is the location of the output operand. -1 indicates the final position of an instructions operands
-# (i.e., the last operand)
-INSTR_OTE = ('OTE', -1)
-INSTR_OTU = ('OTU', -1)
-INSTR_OTL = ('OTL', -1)
-INSTR_TON = ('TON', 0)
-INSTR_TOF = ('TOF', 0)
-INSTR_RTO = ('RTO', 0)
-INSTR_CTU = ('CTU', 0)
-INSTR_CTD = ('CTD', 0)
-INSTR_RES = ('RES', -1)
-INSTR_MSG = ('MSG', -1)
-INSTR_GSV = ('GSV', -1)
-ISNTR_ONS = ('ONS', -1)
-INSTR_OSR = ('OSR', -1)
-INSTR_OSF = ('OSF', -1)
-INSTR_IOT = ('IOT', -1)
-INSTR_CPT = ('CPT', 0)
-INSTR_ADD = ('ADD', -1)
-INSTR_SUB = ('SUB', -1)
-INSTR_MUL = ('MUL', -1)
-INSTR_DIV = ('DIV', -1)
-INSTR_MOD = ('MOD', -1)
-INSTR_SQR = ('SQR', -1)
-INSTR_NEG = ('NEG', -1)
-INSTR_ABS = ('ABS', -1)
-INSTR_MOV = ('MOV', -1)
-INSTR_MVM = ('MVM', -1)
-INSTR_AND = ('AND', -1)
-INSTR_OR = ('OR', -1)
-INSTR_XOR = ('XOR', -1)
-INSTR_NOT = ('NOT', -1)
-INSTR_SWPB = ('SWPB', -1)
-INSTR_CLR = ('CLR', -1)
-INSTR_BTD = ('BTD', 2)
-INSTR_FAL = ('FAL', 4)
-INSTR_COP = ('COP', 1)
-INSTR_FLL = ('FLL', 1)
-INSTR_AVE = ('AVE', 2)
-INSTR_SIZE = ('SIZE', -1)
-ISNTR_CPS = ('CPS', 1)
-
-OUTPUT_INSTRUCTIONS = [
-    INSTR_OTE,
-    INSTR_OTU,
-    INSTR_OTL,
-    INSTR_TON,
-    INSTR_TOF,
-    INSTR_RTO,
-    INSTR_CTU,
-    INSTR_CTD,
-    INSTR_RES,
-    INSTR_MSG,
-    INSTR_GSV,
-    ISNTR_ONS,
-    INSTR_OSR,
-    INSTR_OSF,
-    INSTR_IOT,
-    INSTR_CPT,
-    INSTR_ADD,
-    INSTR_SUB,
-    INSTR_MUL,
-    INSTR_DIV,
-    INSTR_MOD,
-    INSTR_SQR,
-    INSTR_NEG,
-    INSTR_ABS,
-    INSTR_MOV,
-    INSTR_MVM,
-    INSTR_AND,
-    INSTR_OR,
-    INSTR_XOR,
-    INSTR_NOT,
-    INSTR_SWPB,
-    INSTR_CLR,
-    INSTR_BTD,
-    INSTR_FAL,
-    INSTR_COP,
-    INSTR_FLL,
-    INSTR_AVE,
-    INSTR_SIZE,
-    ISNTR_CPS
-]
-
-OTE_OPERAND_RE_PATTERN = r"(?:OTE\()(.*?)(?:\))"
-OTL_OPERAND_RE_PATTERN = r"(?:OTL\()(.*?)(?:\))"
-OTU_OPERAND_RE_PATTERN = r"(?:OTU\()(.*?)(?:\))"
-MOV_OPERAND_RE_PATTERN = r"(?:MOV\()(.*?)(?:\))"
-MOVE_OPERAND_RE_PATTERN = r"(?:MOVE\()(.*?)(?:\))"
-COP_OPERAND_RE_PATTERN = r"(?:COP\()(.*?)(?:\))"
-CPS_OPERAND_RE_PATTERN = r"(?:CPS\()(.*?)(?:\))"
-
-OUTPUT_INSTRUCTIONS_RE_PATTERN = [
-    OTE_OPERAND_RE_PATTERN,
-    OTL_OPERAND_RE_PATTERN,
-    OTU_OPERAND_RE_PATTERN,
-    MOV_OPERAND_RE_PATTERN,
-    MOVE_OPERAND_RE_PATTERN,
-    COP_OPERAND_RE_PATTERN,
-    CPS_OPERAND_RE_PATTERN
-]
-
-# ------------------ Special Instructions ----------------------- #
-# Special instructions not known to be input or output instructions
-INSTR_JSR = 'JSR'
-
-# ------------------- Logix Assets ------------------------------ #
-# Hardcoded asset types for L5X files
-L5X_ASSET_DATATYPES = 'DataTypes'
-L5X_ASSET_TAGS = 'Tags'
-L5X_ASSET_PROGRAMS = 'Programs'
-L5X_ASSET_ADDONINSTRUCTIONDEFINITIONS = 'AddOnInstructionDefinitions'
-L5X_ASSET_MODULES = 'Modules'
-
-L5X_ASSETS = [
-    L5X_ASSET_DATATYPES,
-    L5X_ASSET_TAGS,
-    L5X_ASSET_PROGRAMS,
-    L5X_ASSET_ADDONINSTRUCTIONDEFINITIONS,
-    L5X_ASSET_MODULES
-]
-
-# ------------------- L5X Common Properties --------------------- #
-# Common properties found in L5X files
-L5X_PROP_NAME = '@Name'
-L5X_PROP_DESCRIPTION = 'Description'
-
-# ------------------- CIP Types --------------------------------- #
-# CIP Type format: Type ID: (Size in bytes, Type Name, Struct Format)
-CIPTypes = {0x00: (1, "UNKNOWN", '<B'),
-            0xa0: (88, "STRUCT", '<B'),
-            0xc0: (8, "DT", '<Q'),
-            0xc1: (1, "BOOL", '<?'),
-            0xc2: (1, "SINT", '<b'),
-            0xc3: (2, "INT", '<h'),
-            0xc4: (4, "DINT", '<i'),
-            0xc5: (8, "LINT", '<q'),
-            0xc6: (1, "USINT", '<B'),
-            0xc7: (2, "UINT", '<H'),
-            0xc8: (4, "UDINT", '<I'),
-            0xc9: (8, "LWORD", '<Q'),
-            0xca: (4, "REAL", '<f'),
-            0xcc: (8, "LDT", '<Q'),
-            0xcb: (8, "LREAL", '<d'),
-            0xd0: (1, "O_STRING", '<B'),
-            0xd1: (1, "BYTE", "<B"),
-            0xd2: (2, "WORD", "<I"),
-            0xd3: (4, "DWORD", '<i'),
-            0xd6: (4, "TIME32", '<I'),
-            0xd7: (8, "TIME", '<Q'),
-            0xda: (1, "STRING", '<B'),
-            0xdf: (8, "LTIME", '<Q')}
-
-
-class LogixTagScope(Enum):
-    """logix tag scope enumeration
-    """
-    PROGRAM = 0
-    PUBLIC = 1
-    CONTROLLER = 2
-
-
-class LogixInstructionType(Enum):
-    """logix instruction type enumeration
-    """
-    INPUT = 1
-    OUTPUT = 2
-    UNKOWN = 3
-    JSR = 4
-
-
-class LogixAssetType(Enum):
-    """logix element resolver enumeration
-    """
-    DEFAULT = 0
-    TAG = 1
-    DATATYPE = 2
-    AOI = 3
-    MODULE = 4
-    PROGRAM = 5
-    ROUTINE = 6
-    PROGRAMTAG = 7
-    RUNG = 8
-    ALL = 9
-
-
-class PlcObject(EnforcesNaming, SupportsMetaData, Generic[CTRL]):
-    """Base class for a L5X PLC object.
-
-    Args:
-        controller: The controller this object belongs to.
-        default_loader: Default loader function for metadata.
-        meta_data: Metadata for this object.
-
-    Attributes:
-        meta_data: The metadata dictionary or string for this object.
-        controller: The controller this object belongs to.
-        on_compiled: List of functions to call when object is compiled.
-        on_compiling: List of functions to call when object is compiling.
-    """
-
-    def __init__(
-        self,
-        controller: Optional[CTRL] = None,
-        meta_data: Union[dict, str] = defaultdict(None)
-    ) -> None:
-        super().__init__(meta_data=meta_data)
-        self.controller = controller
-
-        self._on_compiling: list[Callable] = []
-        self._on_compiled: list[Callable] = []
-        self._init_dict_order()
-
-    def __repr__(self) -> str:
-        return str(self)
-
-    def __str__(self) -> str:
-        return str(self.meta_data)
-
-    @property
-    def dict_key_order(self) -> list[str]:
-        """Get the order of keys in the metadata dict.
-
-        This is intended to be overridden by subclasses to provide a specific order of keys.
-
-        Returns:
-            list[str]: List of keys in preferred order.
-        """
-        return []
-
-    @property
-    def config(self) -> Optional['ControllerConfiguration']:
-        """Get the controller configuration for this object.
-
-        Returns:
-            ControllerConfiguration: The controller configuration, or default if no controller.
-        """
-        return ControllerConfiguration() if not self._controller else self._controller._config
-
-    @property
-    def controller(self) -> Optional[CTRL]:
-        """Get this object's controller.
-
-        Returns:
-            Controller: The controller this object belongs to.
-        """
-        return self._controller
-
-    @controller.setter
-    def controller(self, value: Optional[CTRL]):
-        """Set this object's controller.
-
-        Args:
-            value: The controller to set.
-
-        Raises:
-            TypeError: If controller is not of type Controller or None.
-        """
-        if value is None or isinstance(value, Controller):
-            self._controller = value
-        else:
-            raise TypeError(f"Controller must be of type {CTRL} or None!")
-
-    @property
-    def on_compiled(self) -> list[Callable]:
-        """Get the list of functions to call when this object is compiled.
-
-        Returns:
-            list[Callable]: List of callback functions.
-        """
-        return self._on_compiled
-
-    @property
-    def on_compiling(self) -> list[Callable]:
-        """Get the list of functions to call when this object is compiling.
-
-        Returns:
-            list[Callable]: List of callback functions.
-        """
-        return self._on_compiling
-
-    def _compile_from_meta_data(self):
-        """Compile this object from its metadata.
-
-        This method should be overridden by subclasses to provide specific compilation logic.
-
-        Raises:
-            NotImplementedError: This method must be implemented by subclasses.
-        """
-        raise NotImplementedError("This method should be overridden by subclasses to compile from meta data.")
-
-    def _init_dict_order(self):
-        """Initialize the dict order for this object.
-
-        This method relies on the child classes to define their own dict_key_order property.
-        """
-        if not self.dict_key_order:
-            return
-
-        if isinstance(self.meta_data, dict):
-            for index, key in enumerate(self.dict_key_order):
-                if key not in self.meta_data:
-                    insert_key_at_index(d=self.meta_data, key=key, index=index)
-
-    def _invalidate(self) -> None:
-        """Invalidate this object.
-
-        This method is called when the object needs to be recompiled or reset.
-        """
-        raise NotImplementedError("This method should be overridden by subclasses to invalidate the object.")
-
-    def compile(self) -> Self:
-        """Compile this object.
-
-        Additionally, this method will call all functions in the on_compiled list.
-
-        Returns:
-            Self: This object for method chaining.
-        """
-        [call() for call in self._on_compiling]
-        self._compile_from_meta_data()
-        self._init_dict_order()
-        [call() for call in self._on_compiled]
-        return self
-
-
-class NamedPlcObject(NamedPyroxObject, PlcObject):
-    """Supports a name and description for a PLC object.
-
-    Args:
-        meta_data: Metadata for this object.
-        default_loader: Default loader for this object.
-        name: Name of this object.
-        description: Description of this object.
-        controller: Controller for this object.
-
-    Attributes:
-        name: Name of this object.
-        description: Description of this object.
-    """
-
-    def __init__(
-        self,
-        meta_data=None,
-        controller: Optional[CTRL] = None,
-        name: Optional[str] = None,
-        description: Optional[str] = None
-    ) -> None:
-        PlcObject.__init__(
-            self,
-            meta_data=meta_data,
-            controller=controller
-        )
-        # Because these attrs could be defined by meta data,
-        # capture their values here before we continue the object resolution order.
-        final_name = name or self.name
-        final_description = description or self.description
-
-        NamedPyroxObject.__init__(
-            self,
-            name=final_name,
-            description=final_description,
-        )
-
-    @property
-    def name(self) -> str:
-        """Get this object's metadata name.
-
-        Returns:
-            str: The name of this object.
-        """
-        return self[L5X_PROP_NAME]
-
-    @name.setter
-    def name(self, value: str):
-        """Set this object's name.
-
-        Args:
-            value: The name to set.
-
-        Raises:
-            InvalidNamingException: If the name is invalid.
-        """
-        if not self.is_valid_string(value):
-            raise self.InvalidNamingException
-
-        self[L5X_PROP_NAME] = value
-
-    @property
-    def description(self) -> str:
-        """Get this object's metadata description.
-
-        Returns:
-            str: The description of this object.
-        """
-        return self[L5X_PROP_DESCRIPTION]
-
-    @description.setter
-    def description(self, value: str):
-        """Set this object's description.
-
-        Args:
-            value: The description to set.
-        """
-        self[L5X_PROP_DESCRIPTION] = value
-
-    @property
-    def process_name(self) -> str:
-        """Get the name of this controller without Customer plant identification prefixes
-
-        Overrides the base class to return the name instead of the metadata string.
-        """
-        return self.name
-
-    def _remove_asset_from_meta_data(
-        self,
-        asset: Union['NamedPlcObject', str],
-        asset_list: HashList,
-        raw_asset_list: list[dict]
-    ) -> None:
-        """Remove an asset from this object's metadata.
-
-        Args:
-            asset: The asset to remove.
-            asset_list: The HashList containing the asset.
-            raw_asset_list: The raw metadata list.
-
-        Raises:
-            ValueError: If asset is wrong type or doesn't exist.
-        """
-        if not isinstance(asset, (NamedPlcObject, str)):
-            raise ValueError(f"asset must be of type {type(NamedPlcObject)} or str!")
-
-        if not isinstance(asset_list, HashList):
-            raise ValueError('asset list must be of type HashList!')
-
-        if not isinstance(raw_asset_list, list):
-            raise ValueError('raw asset list must be of type list!')
-
-        asset_name = asset if isinstance(asset, str) else getattr(asset, asset_list.hash_key, None)
-
-        if asset_name not in asset_list:
-            raise ValueError(f"Asset with name {asset_name} does not exist in this container!")
-
-        raw_asset_list.remove(next((x for x in raw_asset_list if x[L5X_PROP_NAME] == asset_name), None))
-        self._invalidate()
-
-
-class LogixOperand(PlcObject):
+class LogixOperand(plc_meta.PlcObject):
     """Logix Operand
     """
 
@@ -600,7 +59,7 @@ class LogixOperand(PlcObject):
         meta_data: str,
         instruction: 'LogixInstruction',
         arg_position: int,
-        controller: Optional[CTRL] = None
+        controller: Optional[plc_meta.CTRL] = None
     ) -> None:
         super().__init__(
             meta_data=meta_data,
@@ -617,7 +76,7 @@ class LogixOperand(PlcObject):
         self._base_tag: Optional['Tag'] = None
         self._first_tag: Optional['Tag'] = None
         self._instruction = instruction
-        self._instruction_type: LogixInstructionType = None
+        self._instruction_type: plc_meta.LogixInstructionType = None
         self._parents: list[str] = None
         self._qualified_parents: list[str] = None
 
@@ -669,7 +128,7 @@ class LogixOperand(PlcObject):
         if not self.base_tag:
             return self.meta_data
 
-        if self.base_tag.scope is LogixTagScope.PROGRAM:
+        if self.base_tag.scope is plc_meta.LogixTagScope.PROGRAM:
             return f'Program:{self.container.name}.{self.as_aliased}'
         else:
             return self.as_aliased
@@ -706,35 +165,35 @@ class LogixOperand(PlcObject):
         return self._instruction
 
     @property
-    def instruction_type(self) -> LogixInstructionType:
+    def instruction_type(self) -> plc_meta.LogixInstructionType:
         """Get the instruction type of this operand
         """
         if self._instruction_type:
             return self._instruction_type
 
-        if self.instruction.instruction_name == INSTR_JSR:
-            self._instruction_type = LogixInstructionType.JSR
+        if self.instruction.instruction_name == plc_meta.INSTR_JSR:
+            self._instruction_type = plc_meta.LogixInstructionType.JSR
             return self._instruction_type
 
-        if self.instruction.instruction_name in INPUT_INSTRUCTIONS:
-            self._instruction_type = LogixInstructionType.INPUT
+        if self.instruction.instruction_name in plc_meta.INPUT_INSTRUCTIONS:
+            self._instruction_type = plc_meta.LogixInstructionType.INPUT
             return self._instruction_type
 
-        for instr in OUTPUT_INSTRUCTIONS:
+        for instr in plc_meta.OUTPUT_INSTRUCTIONS:
             if self.instruction.instruction_name == instr[0]:
                 if self.arg_position == instr[1] or (self.arg_position+1 == len(self.instruction.operands) and instr[1] == -1):
-                    self._instruction_type = LogixInstructionType.OUTPUT
+                    self._instruction_type = plc_meta.LogixInstructionType.OUTPUT
                 else:
-                    self._instruction_type = LogixInstructionType.INPUT
+                    self._instruction_type = plc_meta.LogixInstructionType.INPUT
 
                 return self._instruction_type
 
         # for now, all AOI operands will be considered out, until i can later dig into this.
         if self.instruction.instruction_name in [aoi.name for aoi in self.instruction.rung.controller.aois]:
-            self._instruction_type = LogixInstructionType.OUTPUT
+            self._instruction_type = plc_meta.LogixInstructionType.OUTPUT
             return self._instruction_type
 
-        self._instruction_type = LogixInstructionType.UNKOWN
+        self._instruction_type = plc_meta.LogixInstructionType.UNKOWN
         return self._instruction_type
 
     @property
@@ -783,7 +242,7 @@ class LogixOperand(PlcObject):
             self._qualified_parents = self.aliased_parents
             return self._qualified_parents
 
-        if self.base_tag.scope == LogixTagScope.CONTROLLER:
+        if self.base_tag.scope == plc_meta.LogixTagScope.CONTROLLER:
             self._qualified_parents = self.aliased_parents
             return self._qualified_parents
 
@@ -829,7 +288,7 @@ class LogixOperand(PlcObject):
         }
 
 
-class LogixInstruction(PlcObject):
+class LogixInstruction(plc_meta.PlcObject):
     """Logix instruction.
     """
 
@@ -844,7 +303,7 @@ class LogixInstruction(PlcObject):
         self._instruction_name: str = None
         self._rung = rung
         self._tag: Optional['Tag'] = None
-        self._type: LogixInstructionType = None
+        self._type: plc_meta.LogixInstructionType = None
         self._operands: list[LogixOperand] = []
         self._get_operands()
 
@@ -877,7 +336,7 @@ class LogixInstruction(PlcObject):
         if self._instruction_name:
             return self._instruction_name
 
-        matches = re.findall(INST_TYPE_RE_PATTERN, self._meta_data)
+        matches = re.findall(plc_meta.INST_TYPE_RE_PATTERN, self._meta_data)
         if not matches or len(matches) < 1:
             raise ValueError("Corrupt meta data for instruction, no type found!")
 
@@ -959,7 +418,7 @@ class LogixInstruction(PlcObject):
         return self._tag
 
     @property
-    def type(self) -> LogixInstructionType:
+    def type(self) -> plc_meta.LogixInstructionType:
         if self._type:
             return self._type
         self._type = self._get_instruction_type()
@@ -968,7 +427,7 @@ class LogixInstruction(PlcObject):
     def _get_operands(self):
         """get the operands for this instruction
         """
-        matches = re.findall(INST_OPER_RE_PATTERN, self.meta_data)
+        matches = re.findall(plc_meta.INST_OPER_RE_PATTERN, self.meta_data)
         if not matches or len(matches) < 1:
             raise ValueError("Corrupt meta data for instruction, no operands found!")
 
@@ -978,20 +437,20 @@ class LogixInstruction(PlcObject):
                 continue
             self._operands.append(LogixOperand(match, self, index, self.controller))
 
-    def _get_instruction_type(self) -> LogixInstructionType:
+    def _get_instruction_type(self) -> plc_meta.LogixInstructionType:
         """get the instruction type for this instruction
 
         Returns:
             :class:`LogixInstructionType`
         """
-        if self.instruction_name in INPUT_INSTRUCTIONS:
-            return LogixInstructionType.INPUT
-        elif self.instruction_name in [x[0] for x in OUTPUT_INSTRUCTIONS]:
-            return LogixInstructionType.OUTPUT
-        elif self.instruction_name == INSTR_JSR:
-            return LogixInstructionType.JSR
+        if self.instruction_name in plc_meta.INPUT_INSTRUCTIONS:
+            return plc_meta.LogixInstructionType.INPUT
+        elif self.instruction_name in [x[0] for x in plc_meta.OUTPUT_INSTRUCTIONS]:
+            return plc_meta.LogixInstructionType.OUTPUT
+        elif self.instruction_name == plc_meta.INSTR_JSR:
+            return plc_meta.LogixInstructionType.JSR
         else:
-            return LogixInstructionType.UNKOWN
+            return plc_meta.LogixInstructionType.UNKOWN
 
     def as_report_dict(self) -> dict:
         """get this operand as a report dictionary
@@ -1007,7 +466,7 @@ class LogixInstruction(PlcObject):
         }
 
 
-class ContainsTags(NamedPlcObject):
+class ContainsTags(plc_meta.NamedPlcObject):
     def __init__(
         self,
         meta_data=defaultdict(None),
@@ -1219,7 +678,7 @@ class AddOnInstruction(ContainsRoutines):
             controller (Self): controller dictionary
         """
 
-        super().__init__(meta_data=meta_data or l5x_dict_from_file(PLC_AOI_FILE)['AddOnInstructionDefinition'],
+        super().__init__(meta_data=meta_data or l5x_dict_from_file(plc_meta.PLC_AOI_FILE)['AddOnInstructionDefinition'],
                          controller=controller)
         # this is due to a weird rockwell issue with the character '<' in the revision extension
         if self.revision_extension is not None:
@@ -1453,7 +912,7 @@ class ConnectionCommand:
         return self._response_cb
 
 
-class DatatypeMember(NamedPlcObject):
+class DatatypeMember(plc_meta.NamedPlcObject):
     def __init__(self,
                  l5x_meta_data: dict,
                  parent_datatype: 'Datatype',
@@ -1493,14 +952,14 @@ class DatatypeMember(NamedPlcObject):
         Returns:
             :class:`bool`: True if atomic, False otherwise
         """
-        return self.datatype in ATOMIC_DATATYPES
+        return self.datatype in plc_meta.ATOMIC_DATATYPES
 
     @property
     def parent_datatype(self) -> 'Datatype':
         return self._parent_datatype
 
 
-class Datatype(NamedPlcObject):
+class Datatype(plc_meta.NamedPlcObject):
     """.. description::
         Datatype for a rockwell plc
         .. --------------------------------
@@ -1578,7 +1037,7 @@ class Datatype(NamedPlcObject):
         Returns:
             :class:`bool`: True if atomic, False otherwise
         """
-        return self.name in ATOMIC_DATATYPES
+        return self.name in plc_meta.ATOMIC_DATATYPES
 
     @property
     def members(self) -> list[DatatypeMember]:
@@ -1606,7 +1065,7 @@ class ModuleControlsType(Enum):
     POINT_IO = 'PointIO'
 
 
-class ModuleConnectionTag(PlcObject):
+class ModuleConnectionTag(plc_meta.PlcObject):
     def __init__(
         self,
         meta_data: dict = None,
@@ -1689,7 +1148,7 @@ class ModuleConnectionTag(PlcObject):
         return native_size * self.get_data_multiplier()
 
 
-class Module(NamedPlcObject):
+class Module(plc_meta.NamedPlcObject):
     def __init__(
         self,
         l5x_meta_data: dict = None,
@@ -1697,7 +1156,7 @@ class Module(NamedPlcObject):
     ) -> None:
 
         super().__init__(
-            meta_data=l5x_meta_data or l5x_dict_from_file(PLC_MOD_FILE)['Module'],
+            meta_data=l5x_meta_data or l5x_dict_from_file(plc_meta.PLC_MOD_FILE)['Module'],
             controller=controller
         )
         self._introspective_module: IntrospectiveModule = None
@@ -2025,7 +1484,7 @@ class Program(ContainsRoutines):
         """
 
         super().__init__(
-            meta_data=meta_data or l5x_dict_from_file(PLC_PROG_FILE)['Program'],
+            meta_data=meta_data or l5x_dict_from_file(plc_meta.PLC_PROG_FILE)['Program'],
             controller=controller
         )
 
@@ -2134,7 +1593,7 @@ class Program(ContainsRoutines):
             rung.text = rung.text.replace(f'XIC({blocking_bit})', '', 1)
 
 
-class Routine(NamedPlcObject):
+class Routine(plc_meta.NamedPlcObject):
     def __init__(
         self,
         meta_data: dict = None,
@@ -2152,7 +1611,7 @@ class Routine(NamedPlcObject):
         """
 
         super().__init__(
-            meta_data=meta_data or l5x_dict_from_file(PLC_ROUT_FILE)['Routine'],
+            meta_data=meta_data or l5x_dict_from_file(plc_meta.PLC_ROUT_FILE)['Routine'],
             controller=controller,
             name=name,
             description=description
@@ -2302,7 +1761,7 @@ class Routine(NamedPlcObject):
             bool: True if a JSR instruction to the specified routine is found, False otherwise.
         """
         for instruction in self.instructions:
-            if instruction.type == LogixInstructionType.JSR and instruction.operands:
+            if instruction.type == plc_meta.LogixInstructionType.JSR and instruction.operands:
                 if str(instruction.operands[0]) == routine_name:
                     return True
         return False
@@ -2387,7 +1846,7 @@ class RungBranch:
     nested_branches: List['RungBranch'] = field(default_factory=list)
 
 
-class Rung(PlcObject):
+class Rung(plc_meta.PlcObject):
     _branch_id_counter: int = 0  # Static counter for unique branch IDs
 
     def __init__(self,
@@ -2398,7 +1857,7 @@ class Rung(PlcObject):
                  text: Optional[str] = None,
                  comment: Optional[str] = None):
         """type class for plc Rung"""
-        super().__init__(meta_data=meta_data or l5x_dict_from_file(PLC_RUNG_FILE)['Rung'],
+        super().__init__(meta_data=meta_data or l5x_dict_from_file(plc_meta.PLC_RUNG_FILE)['Rung'],
                          controller=controller)
 
         self._routine: Optional[Routine] = routine
@@ -2463,7 +1922,7 @@ class Rung(PlcObject):
     def input_instructions(self) -> list[LogixInstruction]:
         if self._input_instructions:
             return self._input_instructions
-        self._input_instructions = [x for x in self.instructions if x.type is LogixInstructionType.INPUT]
+        self._input_instructions = [x for x in self.instructions if x.type is plc_meta.LogixInstructionType.INPUT]
         return self._input_instructions
 
     @property
@@ -2474,7 +1933,7 @@ class Rung(PlcObject):
     def output_instructions(self) -> list[LogixInstruction]:
         if self._output_instructions:
             return self._output_instructions
-        self._output_instructions = [x for x in self.instructions if x.type is LogixInstructionType.OUTPUT]
+        self._output_instructions = [x for x in self.instructions if x.type is plc_meta.LogixInstructionType.OUTPUT]
         return self._output_instructions
 
     @property
@@ -2981,7 +2440,7 @@ class Rung(PlcObject):
             raise ValueError("Instruction text must be a non-empty string!")
 
         # Validate instruction format
-        if not re.match(INST_RE_PATTERN, instruction_text):
+        if not re.match(plc_meta.INST_RE_PATTERN, instruction_text):
             raise ValueError(f"Invalid instruction format: {instruction_text}")
 
         current_text = self.text or ""
@@ -3017,7 +2476,7 @@ class Rung(PlcObject):
             List[int]: List of positions where the instruction appears
         """
         import re
-        existing_instructions = re.findall(INST_RE_PATTERN, self.text) if self.text else []
+        existing_instructions = re.findall(plc_meta.INST_RE_PATTERN, self.text) if self.text else []
         return [i for i, inst in enumerate(existing_instructions) if inst == instruction_text]
 
     def find_matching_branch_end(self, start_position: int) -> Optional[int]:
@@ -3149,8 +2608,8 @@ class Rung(PlcObject):
                     'instruction_type': element.instruction.instruction_name,
                     'instruction_text': element.instruction.meta_data,
                     'operands': [op.meta_data for op in element.instruction.operands],
-                    'is_input': element.instruction.type == LogixInstructionType.INPUT,
-                    'is_output': element.instruction.type == LogixInstructionType.OUTPUT
+                    'is_input': element.instruction.type == plc_meta.LogixInstructionType.INPUT,
+                    'is_output': element.instruction.type == plc_meta.LogixInstructionType.OUTPUT
                 })
             elif element.element_type in [RungElementType.BRANCH_START, RungElementType.BRANCH_END]:
                 sequence.append({
@@ -3474,7 +2933,7 @@ class Rung(PlcObject):
         if not self.text:
             raise ValueError("Cannot remove instruction from empty rung!")
 
-        existing_instructions = re.findall(INST_RE_PATTERN, self.text)
+        existing_instructions = re.findall(plc_meta.INST_RE_PATTERN, self.text)
         current_tokens = self._tokenize_rung_text(self.text)
 
         if not existing_instructions:
@@ -3527,7 +2986,7 @@ class Rung(PlcObject):
 
         # Validate new instruction format
         import re
-        if not re.match(INST_RE_PATTERN, new_instruction_text):
+        if not re.match(plc_meta.INST_RE_PATTERN, new_instruction_text):
             raise ValueError(f"Invalid instruction format: {new_instruction_text}")
 
         current_tokens = self._tokenize_rung_text(self.text)
@@ -3621,7 +3080,7 @@ class Rung(PlcObject):
         if not self.text:
             raise ValueError("Cannot wrap instructions in empty rung!")
 
-        current_instructions = re.findall(INST_RE_PATTERN, self.text)
+        current_instructions = re.findall(plc_meta.INST_RE_PATTERN, self.text)
         if not current_instructions:
             raise ValueError("No instructions found in rung!")
 
@@ -3647,7 +3106,7 @@ class Rung(PlcObject):
         return branch_id
 
 
-class TagEndpoint(PlcObject):
+class TagEndpoint(plc_meta.PlcObject):
     def __init__(self,
                  meta_data: str,
                  controller: Controller,
@@ -3666,7 +3125,7 @@ class TagEndpoint(PlcObject):
         return self._meta_data
 
 
-class Tag(NamedPlcObject):
+class Tag(plc_meta.NamedPlcObject):
     def __init__(self,
                  meta_data: Optional[dict] = None,
                  controller: Optional[Controller] = None,
@@ -3690,7 +3149,7 @@ class Tag(NamedPlcObject):
         container = container or controller
         super().__init__(
             controller=controller,
-            meta_data=meta_data or l5x_dict_from_file(PLC_TAG_FILE)['Tag'],
+            meta_data=meta_data or l5x_dict_from_file(plc_meta.PLC_TAG_FILE)['Tag'],
             name=name,
             description=description
         )
@@ -3879,11 +3338,11 @@ class Tag(NamedPlcObject):
         return self['@OpcUaAccess']
 
     @property
-    def scope(self) -> LogixTagScope:
+    def scope(self) -> plc_meta.LogixTagScope:
         if isinstance(self.container, Controller):
-            return LogixTagScope.CONTROLLER
+            return plc_meta.LogixTagScope.CONTROLLER
         elif isinstance(self.container, Program) or isinstance(self.container, AddOnInstruction):
-            return LogixTagScope.PROGRAM
+            return plc_meta.LogixTagScope.PROGRAM
         else:
             raise ValueError('Unknown tag scope!')
 
@@ -3957,7 +3416,7 @@ class Tag(NamedPlcObject):
         return alias
 
 
-class DataValueMember(NamedPlcObject):
+class DataValueMember(plc_meta.NamedPlcObject):
     """type class for plc Tag DataValueMember
 
         Args:
@@ -3990,7 +3449,7 @@ class DataValueMember(NamedPlcObject):
         return self._parent
 
 
-class ControllerSafetyInfo(PlcObject):
+class ControllerSafetyInfo(plc_meta.PlcObject):
     def __init__(self,
                  meta_data: str,
                  controller: 'Controller'):
@@ -4218,7 +3677,7 @@ class ControllerFactory(MetaFactory):
 
 
 class Controller(
-    NamedPlcObject,
+    plc_meta.NamedPlcObject,
     metaclass=FactoryTypeMeta[Self, ControllerFactory]
 ):
     """Controller container for Allen Bradley L5X Files.
@@ -4684,7 +4143,7 @@ class Controller(
         self._ip_address = address
 
     def _add_common(self,
-                    item: NamedPlcObject,
+                    item: plc_meta.NamedPlcObject,
                     item_class: type,
                     target_list: HashList,
                     target_meta_list: list[dict]):
@@ -4704,12 +4163,12 @@ class Controller(
 
     def _remove_common(
         self,
-        item: PlcObject,
+        item: plc_meta.PlcObject,
         target_list: HashList,
         target_meta_list: list[dict]
     ) -> None:
         """Remove an item from the controller's collection."""
-        if not isinstance(item, PlcObject):
+        if not isinstance(item, plc_meta.PlcObject):
             raise TypeError(f"{item.name} must be of type PlcObject!")
 
         if item.name not in target_list:
@@ -4740,7 +4199,7 @@ class Controller(
     def import_assets_from_file(
         self,
         file_location: str,
-        asset_types: Optional[List[str]] = L5X_ASSETS
+        asset_types: Optional[List[str]] = plc_meta.L5X_ASSETS
     ) -> None:
         """Import assets from an L5X file into this controller.
             .. -------------------------------
@@ -4760,7 +4219,7 @@ class Controller(
     def import_assets_from_l5x_dict(
         self,
         l5x_dict: dict,
-        asset_types: Optional[List[str]] = L5X_ASSETS
+        asset_types: Optional[List[str]] = plc_meta.L5X_ASSETS
     ) -> None:
         """Import assets from an L5X dictionary into this controller.
             .. -------------------------------
@@ -4975,18 +4434,18 @@ class Controller(
         self._remove_common(tag, self.tags, self.raw_tags)
 
     def rename_asset(self,
-                     element_type: LogixAssetType,
+                     element_type: plc_meta.LogixAssetType,
                      name: str,
                      replace_name: str):
         if not element_type or not name or not replace_name:
             return
 
         match element_type:
-            case LogixAssetType.TAG:
+            case plc_meta.LogixAssetType.TAG:
                 self.raw_tags = replace_strings_in_dict(
                     self.raw_tags, name, replace_name)
 
-            case LogixAssetType.ALL:
+            case plc_meta.LogixAssetType.ALL:
                 self.l5x_meta_data = replace_strings_in_dict(
                     self.l5x_meta_data, name, replace_name)
 
@@ -5201,7 +4660,7 @@ class ControllerModificationSchema(Loggable):
         action: dict
     ) -> None:
         file_location = action.get('file')
-        asset_types = action.get('asset_types', L5X_ASSETS)
+        asset_types = action.get('asset_types', plc_meta.L5X_ASSETS)
         if not file_location:
             self.logger.warning('No file location provided for import_datatypes_from_file action.')
             return
@@ -5218,7 +4677,7 @@ class ControllerModificationSchema(Loggable):
         action: dict
     ) -> None:
         l5x_dict = action.get('l5x_dict')
-        asset_types = action.get('asset_types', L5X_ASSETS)
+        asset_types = action.get('asset_types', plc_meta.L5X_ASSETS)
         if not l5x_dict:
             self.logger.warning('No L5X dictionary provided for import_assets_from_l5x_dict action.')
             return
@@ -5521,7 +4980,7 @@ class ControllerModificationSchema(Loggable):
     def add_import_from_l5x_dict(
         self,
         l5x_dict: dict,
-        asset_types: list[str] = L5X_ASSETS
+        asset_types: list[str] = plc_meta.L5X_ASSETS
     ) -> None:
         """
         Add actions to import assets from an L5X dictionary.
@@ -5542,7 +5001,7 @@ class ControllerModificationSchema(Loggable):
     def add_import_from_file(
         self,
         file_location: str,
-        asset_types: list[str] = L5X_ASSETS
+        asset_types: list[str] = plc_meta.L5X_ASSETS
     ) -> None:
         """
         Add actions to import assets from an L5X file.

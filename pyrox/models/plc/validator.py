@@ -3,8 +3,8 @@ from typing import Self
 from pyrox.models.abc.meta import PyroxObject
 from pyrox.models.abc.factory import FactoryTypeMeta, MetaFactory
 from pyrox.models.abc.list import HashList
-
-from .plc import Controller, PlcObject
+from .meta import PlcObject
+from .plc import Controller
 
 
 class ControllerValidatorFactory(MetaFactory):

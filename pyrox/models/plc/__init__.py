@@ -2,9 +2,17 @@
     """
 from . import test
 
+from .meta import (
+    BASE_FILES,
+    LogixInstructionType,
+    LogixTagScope,
+    LogixAssetType,
+    NamedPlcObject,
+    PlcObject,
+)
+
 from .plc import (
     AddOnInstruction,
-    BASE_FILES,
     ConnectionCommand,
     ConnectionCommandType,
     ConnectionParameters,
@@ -19,14 +27,9 @@ from .plc import (
     DatatypeMember,
     DataValueMember,
     LogixInstruction,
-    LogixInstructionType,
     LogixOperand,
-    LogixTagScope,
-    LogixAssetType,
     Module,
     ModuleControlsType,
-    NamedPlcObject,
-    PlcObject,
     Program,
     Routine,
     Rung,
