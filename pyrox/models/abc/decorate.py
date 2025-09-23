@@ -20,6 +20,9 @@ def deprecated(reason: str = "This function is deprecated", version: str = None)
     def decorator(func: Callable) -> Callable:
         @functools.wraps(func)
         def wrapper(*args, **kwargs):
+            if not isinstance(func, Callable):
+                raise TypeError("The @deprecated decorator can only be applied to callable objects.")
+
             message = f"{func.__name__} is deprecated"
             if reason:
                 message += f": {reason}"
