@@ -1,7 +1,6 @@
 """Unit tests for meta.py module."""
 
 import unittest
-from collections import defaultdict
 from unittest.mock import MagicMock, patch
 from pathlib import Path
 
@@ -39,7 +38,6 @@ from pyrox.models.plc.meta import (
     PlcObject,
     NamedPlcObject,
 )
-from pyrox.models.abc.list import HashList
 from pyrox.models.abc.meta import EnforcesNaming
 
 
