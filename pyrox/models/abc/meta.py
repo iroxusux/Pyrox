@@ -5,7 +5,7 @@ from enum import Enum
 from pathlib import Path
 import re
 from typing import Any, Optional, Union
-from .logging import Loggable
+from pyrox.models.abc.logging import Loggable
 
 __all__ = (
     'DEF_APP_NAME',

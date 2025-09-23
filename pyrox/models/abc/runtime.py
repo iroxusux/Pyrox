@@ -1,6 +1,6 @@
 from __future__ import annotations
 from typing import Any, Callable
-from .meta import NamedPyroxObject
+from pyrox.models.abc.meta import NamedPyroxObject
 
 __all__ = (
     'Buildable',

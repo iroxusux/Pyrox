@@ -4,7 +4,7 @@ These classes provide a structured way to implement saving and loading functiona
 import json
 from pathlib import Path
 from typing import Any, Optional
-from .meta import SupportsFileLocation
+from pyrox.models.abc.meta import SupportsFileLocation
 
 __all__ = (
     'SupportsLoading',

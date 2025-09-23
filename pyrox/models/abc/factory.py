@@ -5,7 +5,7 @@ import importlib
 import sys
 from typing import Dict, Generic, List, Optional, Self, Type, TypeVar, Union
 
-from .logging import Loggable
+from pyrox.models.abc.logging import Loggable
 
 
 __all__ = (

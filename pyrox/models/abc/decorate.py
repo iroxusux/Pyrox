@@ -5,6 +5,10 @@ import warnings
 import functools
 from typing import Callable
 
+__all__ = (
+    'deprecated',
+)
+
 
 def deprecated(reason: str = "This function is deprecated", version: str = None):
     """Decorator to mark functions as deprecated.
