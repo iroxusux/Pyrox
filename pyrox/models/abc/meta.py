@@ -163,8 +163,10 @@ class SliceableInt(int):
         self._value = self._value & ~(1 << bit_position)
         return self._value
 
-    def read_bit(self,
-                 bit_position: int) -> bool:
+    def read_bit(
+        self,
+        bit_position: int
+    ) -> bool:
         """Binary slicing operation to read a bit of an integer.
 
         .. -------------------------------------------------------
@@ -305,7 +307,9 @@ class SnowFlake:
     def __hash__(self) -> int:
         return hash(self._id)
 
-    def __init__(self):
+    def __init__(
+        self,
+    ) -> None:
         self._id = _IdGenerator.get_id()
 
     def __str__(self) -> str:
@@ -325,8 +329,11 @@ class PyroxObject(SnowFlake, Loggable):
     """A base class for all Pyrox objects."""
     __slots__ = ()
 
-    def __init__(self):
-        super().__init__()
+    def __init__(
+        self,
+        **kwargs
+    ) -> None:
+        super().__init__(**kwargs)
 
     def __repr__(self) -> str:
         return self.__class__.__name__
@@ -346,6 +353,8 @@ class SupportsItemAccess:
         return getattr(self, 'meta_data', None)
 
     def __getitem__(self, key) -> Any:
+        if self.indexed_attribute is None:
+            raise TypeError("This object does not support item access!")
         return self.indexed_attribute.get(key, None)
 
     def __setitem__(self, key, value) -> None:
@@ -355,7 +364,7 @@ class SupportsItemAccess:
             raise TypeError("Cannot set item on a non-dict indexed attribute!")
 
 
-class SupportsMetaData(PyroxObject, SupportsItemAccess):
+class SupportsMetaData(SupportsItemAccess):
     """Meta class for all classes to derive from to obtain meta data capabilities.
     This class allows for storing arbitrary meta data as a dictionary or string.
     """
@@ -367,9 +376,10 @@ class SupportsMetaData(PyroxObject, SupportsItemAccess):
     def __init__(
         self,
         meta_data: Optional[Union[str, dict]] = None,
+        **kwargs
     ) -> None:
-        super().__init__()
         self.meta_data: Optional[Union[str, dict]] = meta_data or {}
+        super().__init__(**kwargs)
 
     @property
     def meta_data(self) -> Optional[Union[str, dict]]:
@@ -407,9 +417,9 @@ class NamedPyroxObject(PyroxObject):
         self,
         name: Optional[str] = None,
         description: Optional[str] = None,
-        **__,
+        **kwargs,
     ) -> None:
-        super().__init__()
+        super().__init__(**kwargs)
         self.name = name if name else self.__class__.__name__
         self.description = description if description else ''
 
@@ -466,20 +476,20 @@ class NamedPyroxObject(PyroxObject):
         self._description = value
 
 
-class SupportsFileLocation(PyroxObject):
+class SupportsFileLocation:
     """A meta class for all classes to derive from to obtain file location capabilities.
 
     Attributes:
         file_location: The file location of the object.
     """
-    __slots__ = ('_file_location',)
 
     def __init__(
         self,
         file_location: Optional[str] = None,
+        **kwargs
     ) -> None:
-        super().__init__()
         self.file_location: Optional[str] = file_location
+        super().__init__(**kwargs)
 
     @property
     def file_location(self) -> Optional[str]:

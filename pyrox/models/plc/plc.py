@@ -496,12 +496,16 @@ class NamedPlcObject(NamedPyroxObject, PlcObject):
             meta_data=meta_data,
             controller=controller
         )
+        # Because these attrs could be defined by meta data,
+        # capture their values here before we continue the object resolution order.
+        final_name = name or self.name
+        final_description = description or self.description
 
-        if name is not None:
-            self.name = name
-
-        if description is not None:
-            self.description = description
+        NamedPyroxObject.__init__(
+            self,
+            name=final_name,
+            description=final_description,
+        )
 
     @property
     def name(self) -> str:

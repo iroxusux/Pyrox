@@ -38,6 +38,7 @@ class TestPlcObject(unittest.TestCase):
         self.controller = Controller.from_file(UNITTEST_PLC_FILE)
         self.meta_data = {"@Name": "TestObject", "Description": "Test Description"}
         self.plc_object = PlcObject(meta_data=self.meta_data, controller=self.controller)
+        print('something')
 
     def test_initialization(self):
         self.assertEqual(self.plc_object.meta_data, self.meta_data)

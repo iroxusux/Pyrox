@@ -3,7 +3,7 @@ These classes provide a structured way to implement saving and loading functiona
 """
 import json
 from pathlib import Path
-from typing import Any, Callable, Optional
+from typing import Any, Optional
 from .meta import SupportsFileLocation
 
 __all__ = (
@@ -48,25 +48,7 @@ class SupportsLoading(SupportsFileLocation):
 
 
 class SupportsSaving(SupportsFileLocation):
-    """A meta class for all classes to derive from to obtain saving capabilities.
-
-    Attributes:
-        save_path: Path to save the object to.
-        save_data_callback: Callback to call when saving data.
-    """
-    __slots__ = ()
-
-    @property
-    def save_data_callback(self) -> Optional[Callable]:
-        """Callback to call when saving data.
-
-        Returns:
-            Optional[Callable]: The callback function.
-
-        Raises:
-            NotImplementedError: This property should be implemented in subclasses.
-        """
-        raise NotImplementedError("This property should be implemented in subclasses.")
+    """A meta class for all classes to derive from to obtain saving capabilities."""
 
     def save(self, path: Optional[Path] = None, data: Optional[Any] = None) -> None:
         """Save the object to a file.
@@ -80,6 +62,11 @@ class SupportsSaving(SupportsFileLocation):
         """
         raise NotImplementedError("This method should be implemented in subclasses.")
 
+    def on_saving(self) -> None:
+        """Method to be called to retrieve the save data of the object.
+        """
+        ...
+
 
 class SupportsJsonSaving(SupportsSaving):
     """A meta class for all classes to derive from to obtain JSON saving capabilities.
@@ -88,9 +75,12 @@ class SupportsJsonSaving(SupportsSaving):
         save_path: Path to save the object to.
         save_data_callback: Callback to call when saving data.
     """
-    __slots__ = ()
 
-    def save_to_json(self, path: Optional[Path] = None, data: Optional[dict] = None) -> None:
+    def save_to_json(
+        self,
+        path: Optional[Path] = None,
+        data: Optional[dict] = None
+    ) -> None:
         """Save the object to a JSON file.
 
         Args:
@@ -102,9 +92,10 @@ class SupportsJsonSaving(SupportsSaving):
             IOError: If the file cannot be written.
         """
         path = path or self.file_location
-        data = data or self.save_data_callback()
         if not path:
             raise ValueError("No path provided for saving JSON data.")
+
+        data = data or self.on_saving()
 
         try:
             with open(path, 'w', encoding='utf-8') as f:
@@ -115,9 +106,11 @@ class SupportsJsonSaving(SupportsSaving):
 
 class SupportsJsonLoading(SupportsLoading):
     """A meta class for all classes to derive from to obtain JSON loading capabilities."""
-    __slots__ = ()
 
-    def load_from_json(self, path: Optional[Path] = None) -> Any:
+    def load_from_json(
+        self,
+        path: Optional[Path] = None
+    ) -> Any:
         """Load the object from a JSON file.
 
         Args:
@@ -126,9 +119,13 @@ class SupportsJsonLoading(SupportsLoading):
         Returns:
             Any: Loaded data from the JSON file, or None if file doesn't exist.
         """
+        if not self.file_location and not path:
+            return None
+
         path = Path(path) if path else Path(self.file_location)
         if not path or not path.exists():
             return None
+
         try:
             with open(path, 'r', encoding='utf-8') as f:
                 data = json.load(f)
