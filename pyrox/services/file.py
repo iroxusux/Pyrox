@@ -197,7 +197,7 @@ def _default_transform_function(file_path: str) -> dict:
 
 
 def transform_file_to_dict(
-    file_path: str,
+    file_path: Optional[str],
     transform_function=_default_transform_function
 ) -> dict:
     """transform a file to a dictionary using a provided function
@@ -209,6 +209,8 @@ def transform_file_to_dict(
     Returns:
         dict: transformed dictionary
     """
+    if not isinstance(file_path, str) or not file_path:
+        raise TypeError('file_path must be a non-empty string')
     if not os.path.isfile(file_path):
         raise FileNotFoundError(f'File not found: {file_path}')
     return transform_function(file_path)
