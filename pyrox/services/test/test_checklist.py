@@ -10,7 +10,6 @@ from pyrox.services.checklist import (
     _categorize_sections_by_header,
     _get_all_tests,
     _get_sections_tests,
-    _strip_new_lines_from_list
 )
 
 
@@ -371,7 +370,6 @@ Just a single line of content.
         self.assertIsInstance(result['sections'], dict)
         self.assertEqual(len(result['sections']), 0)
 
-    # Tests for helper methods
     def test_categorize_sections_by_header(self):
         """Test _categorize_sections_by_header function."""
         test_lines = [
@@ -457,15 +455,18 @@ Just a single line of content.
         # Verify structure
         self.assertIsInstance(result, dict)
 
-        # Each non-empty line should create a test entry
-        expected_tests = {'Test Step 1', 'Verify Step 1', 'Test Step 2', 'Verify Step 2'}
+        # With the updated logic, each test group starts with the first non-empty line after an empty line
+        expected_tests = {'Test Step 1', 'Test Step 2'}
         actual_tests = set(result.keys())
         self.assertEqual(actual_tests, expected_tests)
 
-        # Each test should have a 'lines' key with empty list
-        for test_name in result:
-            self.assertIn('lines', result[test_name])
-            self.assertEqual(result[test_name]['lines'], [])
+        # Each test should have a 'lines' key with the lines that belong to that test
+        self.assertIn('lines', result['Test Step 1'])
+        self.assertIn('lines', result['Test Step 2'])
+
+        # Verify that lines are grouped correctly
+        self.assertEqual(result['Test Step 1']['lines'], ['Test Step 1\n', 'Verify Step 1\n'])
+        self.assertEqual(result['Test Step 2']['lines'], ['Test Step 2\n', 'Verify Step 2\n'])
 
     def test_get_sections_tests_empty_lines_only(self):
         """Test _get_sections_tests with only empty lines."""
@@ -493,6 +494,11 @@ Just a single line of content.
         self.assertIn('Step 2', result)
         self.assertIn('Step 3', result)
 
+        # Verify each step has its own lines
+        self.assertEqual(result['Step 1']['lines'], ['Step 1\n'])
+        self.assertEqual(result['Step 2']['lines'], ['Step 2\n'])
+        self.assertEqual(result['Step 3']['lines'], ['Step 3\n'])
+
     def test_get_all_tests(self):
         """Test _get_all_tests function."""
         sections = {
@@ -515,15 +521,20 @@ Just a single line of content.
         self.assertIsInstance(sections['Section 1']['tests'], dict)
         self.assertIsInstance(sections['Section 2']['tests'], dict)
 
-        # Verify test content
+        # Verify test content - with updated logic, consecutive lines are grouped
         section1_tests = sections['Section 1']['tests']
-        self.assertIn('Test A', section1_tests)
-        self.assertIn('Test B', section1_tests)
-        self.assertIn('Test C', section1_tests)
+        self.assertIn('Test A', section1_tests)  # First test includes both Test A and Test B
+        self.assertIn('Test C', section1_tests)  # Test C is separate after empty line
+
+        # Verify the lines are grouped correctly
+        self.assertEqual(section1_tests['Test A']['lines'], ['Test A\n', 'Test B\n'])
+        self.assertEqual(section1_tests['Test C']['lines'], ['Test C\n'])
 
         section2_tests = sections['Section 2']['tests']
-        self.assertIn('Test X', section2_tests)
-        self.assertIn('Test Y', section2_tests)
+        self.assertIn('Test X', section2_tests)  # Test X includes both X and Y since no empty line between
+
+        # Verify the lines are grouped correctly
+        self.assertEqual(section2_tests['Test X']['lines'], ['Test X\n', 'Test Y\n'])
 
     def test_get_all_tests_empty_sections(self):
         """Test _get_all_tests with empty sections."""
@@ -533,39 +544,6 @@ Just a single line of content.
 
         # Should not crash and sections should still be empty
         self.assertEqual(len(sections), 0)
-
-    def test_strip_new_lines_from_list(self):
-        """Test _strip_new_lines_from_list function."""
-        test_list = [
-            'Line with content\n',
-            '',
-            '   ',  # Whitespace only
-            'Another line\n',
-            '\n',
-            'Final line'
-        ]
-
-        result = _strip_new_lines_from_list(test_list)
-
-        # Should only contain lines with non-whitespace content
-        expected = ['Line with content\n', 'Another line\n', 'Final line']
-        self.assertEqual(result, expected)
-
-    def test_strip_new_lines_from_list_all_empty(self):
-        """Test _strip_new_lines_from_list with all empty lines."""
-        test_list = ['', '   ', '\n', '\t\n']
-
-        result = _strip_new_lines_from_list(test_list)
-
-        self.assertEqual(result, [])
-
-    def test_strip_new_lines_from_list_no_empty_lines(self):
-        """Test _strip_new_lines_from_list with no empty lines."""
-        test_list = ['Line 1', 'Line 2', 'Line 3']
-
-        result = _strip_new_lines_from_list(test_list)
-
-        self.assertEqual(result, test_list)
 
     def test_integration_checklist_with_real_template_structure(self):
         """Integration test using structure similar to the actual checklist template."""
@@ -626,11 +604,161 @@ Verify Safety Response 2.
         # Verify specific content exists
         pdp_tests = sections['Power Distribution Panel']['tests']
         self.assertIn('Shut Off The **PDP Panel Disconnect.**', pdp_tests)
-        self.assertIn('Verify That **xxxPDPxSfty.M.DiscOn** Is Not Active.', pdp_tests)
+        # Note: With the updated logic, consecutive lines are grouped under the first line
 
         hmi_tests = sections['HMI']['tests']
         self.assertIn('Verify **Device IP** Is Correct.', hmi_tests)
         self.assertIn('**Remove Communications** To The HMI Enclosure.', hmi_tests)
+
+    def test_get_sections_tests_consecutive_lines_grouping(self):
+        """Test _get_sections_tests groups consecutive non-empty lines under first line."""
+        test_lines = [
+            'Main Test Step\n',
+            'Sub-step 1\n',
+            'Sub-step 2\n',
+            '\n',  # Empty line resets
+            'Another Test Step\n',
+            'Its sub-step\n'
+        ]
+
+        result = _get_sections_tests(test_lines)
+
+        # Should have 2 test groups
+        self.assertEqual(len(result), 2)
+        self.assertIn('Main Test Step', result)
+        self.assertIn('Another Test Step', result)
+
+        # Verify line grouping
+        self.assertEqual(len(result['Main Test Step']['lines']), 3)
+        self.assertEqual(len(result['Another Test Step']['lines']), 2)
+
+        # Verify specific content
+        main_test_lines = result['Main Test Step']['lines']
+        self.assertIn('Main Test Step\n', main_test_lines)
+        self.assertIn('Sub-step 1\n', main_test_lines)
+        self.assertIn('Sub-step 2\n', main_test_lines)
+
+    def test_get_sections_tests_single_line_tests(self):
+        """Test _get_sections_tests with single line tests separated by empty lines."""
+        test_lines = [
+            'Test 1\n',
+            '\n',
+            'Test 2\n',
+            '\n',
+            'Test 3\n'
+        ]
+
+        result = _get_sections_tests(test_lines)
+
+        self.assertEqual(len(result), 3)
+        self.assertIn('Test 1', result)
+        self.assertIn('Test 2', result)
+        self.assertIn('Test 3', result)
+
+        # Each should have only one line
+        for test_name in result:
+            self.assertEqual(len(result[test_name]['lines']), 1)
+
+    def test_get_sections_tests_whitespace_handling(self):
+        """Test _get_sections_tests handles various whitespace scenarios."""
+        test_lines = [
+            'Test with content\n',
+            '   \n',  # Whitespace-only line (should reset)
+            'Next test\n',
+            '\t\t\n',  # Tab-only line (should reset)
+            'Final test\n'
+        ]
+
+        result = _get_sections_tests(test_lines)
+
+        self.assertEqual(len(result), 3)
+        self.assertIn('Test with content', result)
+        self.assertIn('Next test', result)
+        self.assertIn('Final test', result)
+
+    def test_get_sections_tests_empty_input(self):
+        """Test _get_sections_tests with empty input."""
+        result = _get_sections_tests([])
+
+        self.assertIsInstance(result, dict)
+        self.assertEqual(len(result), 0)
+
+    def test_get_sections_tests_all_empty_lines(self):
+        """Test _get_sections_tests with only empty lines."""
+        test_lines = ['', '\n', '   \n', '\t\n']
+
+        result = _get_sections_tests(test_lines)
+
+        self.assertIsInstance(result, dict)
+        self.assertEqual(len(result), 0)
+
+    def test_get_sections_tests_realistic_checklist_structure(self):
+        """Test _get_sections_tests with realistic checklist content structure."""
+        test_lines = [
+            'Turn off the **Main Power Switch**.\n',
+            'Verify that **Power LED** is off.\n',
+            'Confirm **System Status** shows "OFF".\n',
+            '\n',
+            'Check **Emergency Stop** button.\n',
+            'Verify **E-Stop LED** is active.\n',
+            '\n',
+            'Test **Network Connection**.\n',
+            'Verify **Network LED** is green.\n',
+            'Check **Ping Response** is under 10ms.\n'
+        ]
+
+        result = _get_sections_tests(test_lines)
+
+        # Should have 3 test groups
+        self.assertEqual(len(result), 3)
+
+        expected_test_names = {
+            'Turn off the **Main Power Switch**.',
+            'Check **Emergency Stop** button.',
+            'Test **Network Connection**.'
+        }
+        actual_test_names = set(result.keys())
+        self.assertEqual(actual_test_names, expected_test_names)
+
+        # Verify line counts
+        self.assertEqual(len(result['Turn off the **Main Power Switch**.']['lines']), 3)
+        self.assertEqual(len(result['Check **Emergency Stop** button.']['lines']), 2)
+        self.assertEqual(len(result['Test **Network Connection**.']['lines']), 3)
+
+    def test_get_sections_tests_with_real_markdown_formatting(self):
+        """Test _get_sections_tests with realistic markdown-formatted test content."""
+        test_lines = [
+            'Shut Off The **PDP Panel Disconnect.**\n',
+            'Verify That **xxxPDPxSfty.M.DiscOn** Is Not Active.\n',
+            '\n',
+            'Remove Power From The **Surge Protection Device.**\n',
+            'Verify That **Manual Intervention Message** Appears.\n',
+            '"*xxxPDPx Surge Protection Disconnect Off. Col#*"\n',
+            '\n',
+            '**Remove Communications** To The HMI Enclosure.\n',
+            'Verify That **Fault Message** Appears.\n',
+            '"*HMIx Enclosure Safety IO Comm Fault Col.#*"\n',
+            'Verify That No Other Alarms Appear.\n'
+        ]
+
+        result = _get_sections_tests(test_lines)
+
+        # Should have 3 test groups based on empty line separation
+        self.assertEqual(len(result), 3)
+
+        # Verify test names (should be the first line of each group)
+        expected_test_names = {
+            'Shut Off The **PDP Panel Disconnect.**',
+            'Remove Power From The **Surge Protection Device.**',
+            '**Remove Communications** To The HMI Enclosure.'
+        }
+        actual_test_names = set(result.keys())
+        self.assertEqual(actual_test_names, expected_test_names)
+
+        # Verify that each test group contains the expected number of lines
+        self.assertEqual(len(result['Shut Off The **PDP Panel Disconnect.**']['lines']), 2)
+        self.assertEqual(len(result['Remove Power From The **Surge Protection Device.**']['lines']), 3)
+        self.assertEqual(len(result['**Remove Communications** To The HMI Enclosure.']['lines']), 4)
 
 
 if __name__ == '__main__':

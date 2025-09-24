@@ -29,14 +29,13 @@ def _get_sections_tests(lines: list) -> dict:
         if line.strip() == '':
             current_test = None
         else:
-            current_test = line.strip()
-            tests[current_test] = {'lines': []}
+            if not current_test:
+                current_test = line.strip()
+                tests[current_test] = {'lines': []}
+            if not current_test:
+                raise ValueError("Test name cannot be empty.")
+            tests[current_test]['lines'].append(line)
     return tests
-
-
-def _strip_new_lines_from_list(lines: list) -> list:
-    """Helper function to strip new lines from a list of strings."""
-    return [line for line in lines if line.strip() != '']
 
 
 def compile_checklist_from_md_file(
