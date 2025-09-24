@@ -140,12 +140,12 @@ class BaseEmulationGenerator(emu.EmulationGenerator):
         return self.base_tags[2][0]
 
 
-class BaseEplanProject(eplan.EplanProject):
+class BaseEplanProject(eplan.project.EplanProject):
     """Base class for Eplan project generation logic."""
     supporting_class = 'Controller'
 
 
-class BaseEplanValidator(eplan.EplanControllerValidator):
+class BaseEplanValidator(eplan.project.EplanControllerValidator):
     """Base class for Eplan project validation logic."""
     supporting_class = 'Controller'
 

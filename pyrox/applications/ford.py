@@ -3,12 +3,7 @@
 from typing import Optional, TypeVar
 
 from pyrox.models import HashList, plc, SupportsMetaData
-from pyrox.models.eplan import (
-    EPLAN_SHEET_OBJECTS_KEY,
-    EPLAN_SHEET_META_DATA_KEY,
-    EPLAN_UNKNOWN_ATTRIBUTE_DEFAULT,
-    EplanNetworkDevice
-)
+from pyrox.models import eplan
 from .indicon import BaseEmulationGenerator, BaseControllerValidator, BaseEplanProject
 
 
@@ -256,7 +251,7 @@ class FordEplanProject(BaseEplanProject):
     class IpAddressSheet(SupportsMetaData):
         def __init__(self, sheet: dict):
             super().__init__(sheet)
-            self._devices: list[EplanNetworkDevice] = []
+            self._devices: list[eplan.project.EplanNetworkDevice] = []
 
         @property
         def indexed_attribute(self) -> dict:
@@ -264,10 +259,10 @@ class FordEplanProject(BaseEplanProject):
 
         @property
         def sheet_objects(self) -> list[dict]:
-            return self[EPLAN_SHEET_OBJECTS_KEY]
+            return self[eplan.meta.EPLAN_SHEET_OBJECTS_KEY]
 
-        def _parse_sheet_object(self, obj: dict) -> Optional[EplanNetworkDevice]:
-            meta_data: list[dict] = obj.get(EPLAN_SHEET_META_DATA_KEY, [])
+        def _parse_sheet_object(self, obj: dict) -> Optional[eplan.project.EplanNetworkDevice]:
+            meta_data: list[dict] = obj.get(eplan.meta.EPLAN_SHEET_META_DATA_KEY, [])
 
             if not isinstance(meta_data, list):
                 return None
@@ -282,23 +277,23 @@ class FordEplanProject(BaseEplanProject):
             ip_index = 2
 
             device_name = BaseEplanProject.strip_eplan_naming_conventions(
-                meta_data[device_index].get(interest_key, EPLAN_UNKNOWN_ATTRIBUTE_DEFAULT)
+                meta_data[device_index].get(interest_key, eplan.meta.EPLAN_UNKNOWN_ATTRIBUTE_DEFAULT)
             )
             description = BaseEplanProject.strip_eplan_naming_conventions(
-                meta_data[description_index].get(interest_key, EPLAN_UNKNOWN_ATTRIBUTE_DEFAULT)
+                meta_data[description_index].get(interest_key, eplan.meta.EPLAN_UNKNOWN_ATTRIBUTE_DEFAULT)
             )
             ip_address = BaseEplanProject.strip_eplan_naming_conventions(
-                meta_data[ip_index].get(interest_key, EPLAN_UNKNOWN_ATTRIBUTE_DEFAULT)
+                meta_data[ip_index].get(interest_key, eplan.meta.EPLAN_UNKNOWN_ATTRIBUTE_DEFAULT)
             )
 
-            return EplanNetworkDevice(
+            return eplan.project.EplanNetworkDevice(
                 name=device_name,
                 description=description,
                 ip_address=ip_address,
                 data=meta_data
             )
 
-        def get_project_devices(self) -> list[EplanNetworkDevice]:
+        def get_project_devices(self) -> list[eplan.project.EplanNetworkDevice]:
             if self._devices:
                 return self._devices
 
