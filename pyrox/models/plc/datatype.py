@@ -141,11 +141,4 @@ class Datatype(plc_meta.NamedPlcObject):
 
     @property
     def raw_members(self) -> list[dict]:
-        if not self['Members']:
-            self['Members'] = {'Member': []}
-        if not isinstance(self['Members']['Member'], list):
-            if self['Members']['Member'] == {} or self['Members']['Member'] is None:
-                self['Members']['Member'] = []
-            else:
-                self['Members']['Member'] = [self['Members']['Member']]
-        return self['Members']['Member']
+        return self._raw_list_asset('Members', 'Member')
