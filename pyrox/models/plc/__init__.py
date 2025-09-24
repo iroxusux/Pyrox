@@ -11,6 +11,7 @@ from .meta import (
     PlcObject,
 )
 
+from .collections import ContainsRoutines, ContainsTags
 from .instruction import LogixInstruction
 from .operand import LogixOperand
 
@@ -19,8 +20,6 @@ from .plc import (
     ConnectionCommand,
     ConnectionCommandType,
     ConnectionParameters,
-    ContainsRoutines,
-    ContainsTags,
     Controller,
     ControllerConfiguration,
     ControllerFactory,

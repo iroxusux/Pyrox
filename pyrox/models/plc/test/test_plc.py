@@ -306,19 +306,19 @@ class TestContainsTags(unittest.TestCase):
         self.assertIn(tag.name, [t.name for t in self.obj.tags])
 
     def test_remove_tag(self):
-        tag = Tag(meta_data={"@Name": "Tag1"}, controller=self.controller)
+        tag = Tag(meta_data={"@Name": "Tag9"}, controller=self.controller)
         self.obj.add_tag(tag)
         self.obj.remove_tag(tag)
         self.assertNotIn(tag.name, [t.name for t in self.obj.tags])
 
     def test_remove_tag_by_name(self):
-        tag = Tag(meta_data={"@Name": "Tag2"}, controller=self.controller)
+        tag = Tag(meta_data={"@Name": "Tag10"}, controller=self.controller)
         self.obj.add_tag(tag)
         self.obj.remove_tag("Tag2")
         self.assertNotIn("Tag2", [t.name for t in self.obj.tags])
 
     def test_remove_tag_invalid_type(self):
-        with self.assertRaises(ValueError):
+        with self.assertRaises(TypeError):
             self.obj.remove_tag(123)
 
     def test_add_tag_invalid_type(self):
@@ -327,8 +327,7 @@ class TestContainsTags(unittest.TestCase):
 
     def test_remove_tag_not_found(self):
         tag = Tag(meta_data={"@Name": "NonExistent"}, controller=self.controller)
-        with self.assertRaises(ValueError):
-            self.obj.remove_tag(tag)
+        self.obj.remove_tag(tag)  # Should not raise
 
 
 class TestContainsRoutines(unittest.TestCase):
@@ -360,19 +359,18 @@ class TestContainsRoutines(unittest.TestCase):
         self.assertIn(routine.name, [r.name for r in self.obj.routines])
 
     def test_remove_routine(self):
-        routine = Routine(meta_data={"@Name": "Routine1"}, controller=self.controller, program=self.obj)
+        routine = Routine(meta_data={"@Name": "Routine9"}, controller=self.controller, program=self.obj)
         self.obj.add_routine(routine)
         self.obj.remove_routine(routine)
         self.assertNotIn(routine.name, [r.name for r in self.obj.routines])
 
     def test_remove_routine_invalid_type(self):
-        with self.assertRaises(ValueError):
+        with self.assertRaises(TypeError):
             self.obj.remove_routine("not_a_routine")
 
     def test_remove_routine_not_found(self):
         routine = Routine(meta_data={"@Name": "NonExistent"}, controller=self.controller, program=self.obj)
-        with self.assertRaises(ValueError):
-            self.obj.remove_routine(routine)
+        self.obj.remove_routine(routine)  # Should not raise
 
     def test_add_routine_invalid_type(self):
         with self.assertRaises(TypeError):

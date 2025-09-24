@@ -365,8 +365,11 @@ class PlcObject(EnforcesNaming, SupportsMetaData, Generic[CTRL]):
         if not hasattr(self, 'config'):
             self._controller = value
             return  # If there is no config, then the type must not be important enough to check.
+        if getattr(self, 'config', None) is None:
+            self._controller = value
+            return  # If there is no config, then the type must not be important enough to check.
         if not isinstance(value, self.config.controller_type):
-            raise TypeError(f'controller must be of type {self.config.controller_type} or None!')
+            raise TypeError(f'Controller must be of type {self.config.controller_type} or None!')
         self._controller = value
 
     @property
@@ -520,11 +523,63 @@ class NamedPlcObject(NamedPyroxObject, PlcObject):
         """
         return self.name
 
+    def _add_asset_to_meta_data(
+        self,
+        asset: Union['NamedPlcObject', str],
+        asset_list: HashList,
+        raw_asset_list: list[dict],
+        index: Optional[int] = None,
+        inhibit_invalidate: bool = False
+    ) -> None:
+        """Add an asset to this object's metadata.
+
+        Args:
+            asset: The asset to add.
+            asset_list: The HashList containing the asset.
+            raw_asset_list: The raw metadata list.
+            index: The index to insert the asset at. If None, appends to the end.
+            inhibit_invalidate: If True, does not invalidate the object after adding.
+
+        Raises:
+            ValueError: If asset is wrong type or already exists.
+        """
+        if not isinstance(asset, (NamedPlcObject, str)):
+            raise ValueError(f"asset must be of type {NamedPlcObject.__name__} or str! Got {type(asset)}")
+
+        if not isinstance(asset_list, HashList):
+            raise ValueError('asset list must be of type HashList!')
+
+        if not isinstance(raw_asset_list, list):
+            raise ValueError('raw asset list must be of type list!')
+
+        asset_name = asset if isinstance(asset, str) else getattr(asset, asset_list.hash_key, None)
+
+        if asset_name in asset_list:
+            self._remove_asset_from_meta_data(
+                asset_name,
+                asset_list,
+                raw_asset_list,
+                inhibit_invalidate=True
+            )
+
+        if isinstance(asset, NamedPlcObject):
+            raw_asset_list.insert(index if index is not None else len(raw_asset_list), asset.meta_data)
+            asset_list.append(asset)
+        else:
+            raw_asset_list.insert(index if index is not None else len(raw_asset_list), {L5X_PROP_NAME: asset_name})
+            asset_list.append(asset_name)
+
+        if inhibit_invalidate:
+            return
+
+        self._invalidate()
+
     def _remove_asset_from_meta_data(
         self,
         asset: Union['NamedPlcObject', str],
         asset_list: HashList,
-        raw_asset_list: list[dict]
+        raw_asset_list: list[dict],
+        inhibit_invalidate: bool = False
     ) -> None:
         """Remove an asset from this object's metadata.
 
@@ -537,7 +592,7 @@ class NamedPlcObject(NamedPyroxObject, PlcObject):
             ValueError: If asset is wrong type or doesn't exist.
         """
         if not isinstance(asset, (NamedPlcObject, str)):
-            raise ValueError(f"asset must be of type {type(NamedPlcObject)} or str!")
+            raise ValueError(f"asset must be of type {NamedPlcObject.__name__} or str!")
 
         if not isinstance(asset_list, HashList):
             raise ValueError('asset list must be of type HashList!')
@@ -547,8 +602,10 @@ class NamedPlcObject(NamedPyroxObject, PlcObject):
 
         asset_name = asset if isinstance(asset, str) else getattr(asset, asset_list.hash_key, None)
 
-        if asset_name not in asset_list:
-            raise ValueError(f"Asset with name {asset_name} does not exist in this container!")
+        if asset_name in asset_list:
+            raw_asset_list.remove(next((x for x in raw_asset_list if x[L5X_PROP_NAME] == asset_name), None))
 
-        raw_asset_list.remove(next((x for x in raw_asset_list if x[L5X_PROP_NAME] == asset_name), None))
+        if inhibit_invalidate:
+            return
+
         self._invalidate()

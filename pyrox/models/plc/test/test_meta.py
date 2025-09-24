@@ -39,6 +39,7 @@ from pyrox.models.plc.meta import (
     NamedPlcObject,
 )
 from pyrox.models.abc.meta import EnforcesNaming
+from pyrox.models.abc.list import HashList
 
 
 class TestConstants(unittest.TestCase):
@@ -307,6 +308,8 @@ class TestPlcObject(unittest.TestCase):
         obj = self.TestPlcObject()
         invalid_controller = MagicMock()
         invalid_controller.__class__.__name__ = 'InvalidController'
+        from pyrox.models.plc import ControllerConfiguration
+        obj._config = ControllerConfiguration()
 
         with self.assertRaises(TypeError) as context:
             obj.controller = invalid_controller
@@ -610,6 +613,197 @@ class TestNamedPlcObject(unittest.TestCase):
         self.mock_controller.config = mock_config
         self.assertEqual(obj.config, mock_config)
 
+    def test_add_asset_to_meta_data_valid_named_object(self):
+        """Test _add_asset_to_meta_data with NamedPlcObject."""
+        obj = self.TestNamedPlcObject()
+
+        # Create mock asset
+        mock_asset = MagicMock(spec=NamedPlcObject)
+        mock_asset.test_attr = "TestAsset"
+        mock_asset.meta_data = {L5X_PROP_NAME: "TestAsset", "data": "value"}
+
+        # Create mock hash list
+        mock_hash_list = MagicMock(spec=HashList)
+        mock_hash_list.hash_key = 'test_attr'
+        mock_hash_list.__contains__ = MagicMock(return_value=False)
+        mock_hash_list.append = MagicMock()
+
+        # Create raw asset list
+        raw_asset_list = [
+            {L5X_PROP_NAME: "OtherAsset", "data": "value2"}
+        ]
+
+        obj._add_asset_to_meta_data(mock_asset, mock_hash_list, raw_asset_list)
+
+        # Asset should be added to raw list
+        self.assertEqual(len(raw_asset_list), 2)
+        self.assertEqual(raw_asset_list[1], mock_asset.meta_data)
+
+        # Asset should be added to hash list
+        mock_hash_list.append.assert_called_once_with(mock_asset)
+
+        # _invalidate should be called
+        self.assertTrue(obj.invalidated)
+
+    def test_add_asset_to_meta_data_valid_string(self):
+        """Test _add_asset_to_meta_data with string asset name."""
+        obj = self.TestNamedPlcObject()
+
+        # Create mock hash list
+        mock_hash_list = MagicMock(spec=HashList)
+        mock_hash_list.hash_key = 'test_attr'
+        mock_hash_list.__contains__ = MagicMock(return_value=False)
+        mock_hash_list.append = MagicMock()
+
+        # Create raw asset list
+        raw_asset_list = [
+            {L5X_PROP_NAME: "OtherAsset", "data": "value2"}
+        ]
+
+        obj._add_asset_to_meta_data("TestAsset", mock_hash_list, raw_asset_list)
+
+        # Asset should be added to raw list
+        self.assertEqual(len(raw_asset_list), 2)
+        expected_entry = {L5X_PROP_NAME: "TestAsset"}
+        self.assertEqual(raw_asset_list[1], expected_entry)
+
+        # String should be added to hash list
+        mock_hash_list.append.assert_called_once_with("TestAsset")
+
+    def test_add_asset_to_meta_data_with_index(self):
+        """Test _add_asset_to_meta_data with specific index."""
+        obj = self.TestNamedPlcObject()
+
+        # Create mock asset
+        mock_asset = MagicMock(spec=NamedPlcObject)
+        mock_asset.test_attr = "TestAsset"
+        mock_asset.meta_data = {L5X_PROP_NAME: "TestAsset"}
+
+        # Create mock hash list
+        mock_hash_list = MagicMock(spec=HashList)
+        mock_hash_list.hash_key = 'test_attr'
+        mock_hash_list.__contains__ = MagicMock(return_value=False)
+        mock_hash_list.append = MagicMock()
+
+        # Create raw asset list with existing items
+        raw_asset_list = [
+            {L5X_PROP_NAME: "Asset1"},
+            {L5X_PROP_NAME: "Asset2"}
+        ]
+
+        obj._add_asset_to_meta_data(mock_asset, mock_hash_list, raw_asset_list, index=1)
+
+        # Asset should be inserted at specified index
+        self.assertEqual(len(raw_asset_list), 3)
+        self.assertEqual(raw_asset_list[1], mock_asset.meta_data)
+        self.assertEqual(raw_asset_list[0][L5X_PROP_NAME], "Asset1")
+        self.assertEqual(raw_asset_list[2][L5X_PROP_NAME], "Asset2")
+
+    def test_add_asset_to_meta_data_inhibit_invalidate(self):
+        """Test _add_asset_to_meta_data with inhibit_invalidate=True."""
+        obj = self.TestNamedPlcObject()
+
+        # Create mock asset
+        mock_asset = MagicMock(spec=NamedPlcObject)
+        mock_asset.test_attr = "TestAsset"
+        mock_asset.meta_data = {L5X_PROP_NAME: "TestAsset"}
+
+        # Create mock hash list
+        mock_hash_list = MagicMock(spec=HashList)
+        mock_hash_list.hash_key = 'test_attr'
+        mock_hash_list.__contains__ = MagicMock(return_value=False)
+        mock_hash_list.append = MagicMock()
+
+        raw_asset_list = []
+
+        obj._add_asset_to_meta_data(
+            mock_asset,
+            mock_hash_list,
+            raw_asset_list,
+            inhibit_invalidate=True
+        )
+
+        # Asset should be added
+        self.assertEqual(len(raw_asset_list), 1)
+
+        # _invalidate should NOT be called
+        self.assertFalse(hasattr(obj, 'invalidated'))
+
+    def test_add_asset_to_meta_data_invalid_asset_type(self):
+        """Test _add_asset_to_meta_data with invalid asset type."""
+        obj = self.TestNamedPlcObject()
+
+        mock_hash_list = MagicMock(spec=HashList)
+        raw_asset_list = []
+
+        with self.assertRaises(ValueError) as context:
+            obj._add_asset_to_meta_data(123, mock_hash_list, raw_asset_list)
+
+        self.assertIn("asset must be of type", str(context.exception))
+
+    def test_add_asset_to_meta_data_invalid_asset_list_type(self):
+        """Test _add_asset_to_meta_data with invalid asset list type."""
+        obj = self.TestNamedPlcObject()
+
+        with self.assertRaises(ValueError) as context:
+            obj._add_asset_to_meta_data("test", "not_hash_list", [])
+
+        self.assertIn("asset list must be of type HashList", str(context.exception))
+
+    def test_add_asset_to_meta_data_invalid_raw_asset_list_type(self):
+        """Test _add_asset_to_meta_data with invalid raw asset list type."""
+        obj = self.TestNamedPlcObject()
+
+        mock_hash_list = MagicMock(spec=HashList)
+
+        with self.assertRaises(ValueError) as context:
+            obj._add_asset_to_meta_data("test", mock_hash_list, "not_list")
+
+        self.assertIn("raw asset list must be of type list", str(context.exception))
+
+    def test_add_asset_to_meta_data_asset_already_exists(self):
+        """Test _add_asset_to_meta_data with asset that already exists."""
+        obj = self.TestNamedPlcObject()
+
+        mock_hash_list = MagicMock(spec=HashList)
+        mock_hash_list.__contains__ = MagicMock(return_value=True)
+
+        # Create raw asset list with the existing asset
+        raw_asset_list = [
+            {L5X_PROP_NAME: "ExistingAsset", "data": "existing_data"}
+        ]
+
+        obj._add_asset_to_meta_data("ExistingAsset", mock_hash_list, raw_asset_list)
+
+        # Asset should be re-added (removed then added back)
+        self.assertEqual(len(raw_asset_list), 1)
+        expected_entry = {L5X_PROP_NAME: "ExistingAsset"}
+        self.assertEqual(raw_asset_list[0], expected_entry)
+
+        # Asset should be added to hash list (after removal)
+        mock_hash_list.append.assert_called_once_with("ExistingAsset")
+
+    def test_add_asset_to_meta_data_string_asset_at_index(self):
+        """Test _add_asset_to_meta_data with string asset at specific index."""
+        obj = self.TestNamedPlcObject()
+
+        mock_hash_list = MagicMock(spec=HashList)
+        mock_hash_list.__contains__ = MagicMock(return_value=False)
+        mock_hash_list.append = MagicMock()
+
+        raw_asset_list = [
+            {L5X_PROP_NAME: "Asset1"},
+            {L5X_PROP_NAME: "Asset2"}
+        ]
+
+        obj._add_asset_to_meta_data("NewAsset", mock_hash_list, raw_asset_list, index=0)
+
+        # Asset should be inserted at the beginning
+        self.assertEqual(len(raw_asset_list), 3)
+        self.assertEqual(raw_asset_list[0][L5X_PROP_NAME], "NewAsset")
+        self.assertEqual(raw_asset_list[1][L5X_PROP_NAME], "Asset1")
+        self.assertEqual(raw_asset_list[2][L5X_PROP_NAME], "Asset2")
+
 
 class TestIntegration(unittest.TestCase):
     """Integration tests for meta module components."""
@@ -778,6 +972,8 @@ class TestPlcObjectEdgeCases(unittest.TestCase):
         # Test with object that has Controller name but isn't actually a Controller
         fake_controller = MagicMock()
         fake_controller.__class__.__name__ = 'NotController'
+        from pyrox.models.plc import ControllerConfiguration
+        obj._config = ControllerConfiguration()
 
         with self.assertRaises(TypeError):
             obj.controller = fake_controller
