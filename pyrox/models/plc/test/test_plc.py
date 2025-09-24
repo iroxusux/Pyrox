@@ -844,7 +844,7 @@ class TestRung(unittest.TestCase):
             "@Number": "0",
             "@Type": "RLL",
             "Comment": "Test rung",
-            "Text": "XIC(Tag1) OTE(Tag2);"
+            "Text": "XIC(Tag1)OTE(Tag2);"
         }
         self.routine = Routine(meta_data={"@Name": "Routine1"}, controller=self.controller)
         self.rung = Rung(meta_data=self.meta_data, controller=self.controller, routine=self.routine)
@@ -874,9 +874,9 @@ class TestRung(unittest.TestCase):
         self.assertIs(self.rung.routine, new_routine)
 
     def test_text_property(self):
-        self.assertEqual(self.rung.text, "XIC(Tag1) OTE(Tag2);")
-        self.rung.text = "XIC(Tag3) OTE(Tag4)"
-        self.assertEqual(self.rung.text, "XIC(Tag3) OTE(Tag4);")
+        self.assertEqual(self.rung.text, "XIC(Tag1)OTE(Tag2);")
+        self.rung.text = "XIC(Tag3)OTE(Tag4)"
+        self.assertEqual(self.rung.text, "XIC(Tag3)OTE(Tag4);")
 
     def test_type_property(self):
         self.assertEqual(self.rung.type, "RLL")

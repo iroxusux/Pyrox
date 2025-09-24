@@ -11,6 +11,9 @@ from .meta import (
     PlcObject,
 )
 
+from .instruction import LogixInstruction
+from .operand import LogixOperand
+
 from .plc import (
     AddOnInstruction,
     ConnectionCommand,
@@ -26,8 +29,6 @@ from .plc import (
     Datatype,
     DatatypeMember,
     DataValueMember,
-    LogixInstruction,
-    LogixOperand,
     Module,
     ModuleControlsType,
     Program,
