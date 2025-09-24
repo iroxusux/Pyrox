@@ -5,7 +5,7 @@ from dataclasses import dataclass
 import tkinter as tk
 from tkinter import ttk, messagebox
 from tkinter.ttk import Widget
-from typing import Any, Optional, Union
+from typing import Any, Optional, TextIO, Union
 
 from . import meta
 from .treeview import LazyLoadingTreeView
@@ -86,8 +86,10 @@ class FrameWithTreeViewAndScrollbar(meta.PyroxFrame):
 class LogFrame(meta.PyroxFrame):
     """Enhanced log window that captures both logging and stderr/stdout."""
 
-    def __init__(self,
-                 parent,):
+    def __init__(
+        self,
+        parent
+    ) -> None:
         super().__init__(parent)
 
         # Create toolbar frame
@@ -220,6 +222,39 @@ class LogFrame(meta.PyroxFrame):
         except tk.TclError as e:
             print(f'Error logging message: {e}')
 
+    def add_toolbar_button(self, text: str, command: callable):
+        """Add a custom button to the toolbar."""
+
+        button = ttk.Button(
+            self._toolbar,
+            text=text,
+            command=command,
+        )
+        button.pack(side=tk.LEFT, fill=tk.Y)
+        return button
+
+    def clear_log_window(self):
+        """Clear all text from the log window."""
+        try:
+            self._logtext.config(state='normal')
+            self._logtext.delete('1.0', 'end')
+            self._logtext.config(state='disabled')
+            self.update()
+        except tk.TclError as e:
+            print(f'Error clearing log window: {e}')
+
+    def fill_log_from_stream(
+        self,
+        stream: TextIO,
+        tag: Optional[str] = 'STDOUT'
+    ) -> None:
+        """Fill the log window from a stream (stdout/stderr)."""
+        if not stream:
+            return
+
+        for line in stream:
+            self._log_message(line, tag)
+
     def log(self, message: str):
         """Log a message with automatic severity detection."""
         # Detect severity from message content
@@ -235,27 +270,6 @@ class LogFrame(meta.PyroxFrame):
         if not message.endswith('\n'):
             message += '\n'
         self._log_message(message, tag)
-
-    def clear_log_window(self):
-        """Clear all text from the log window."""
-        try:
-            self._logtext.config(state='normal')
-            self._logtext.delete('1.0', 'end')
-            self._logtext.config(state='disabled')
-            self.update()
-        except tk.TclError as e:
-            print(f'Error clearing log window: {e}')
-
-    def add_toolbar_button(self, text: str, command: callable):
-        """Add a custom button to the toolbar."""
-
-        button = ttk.Button(
-            self._toolbar,
-            text=text,
-            command=command,
-        )
-        button.pack(side=tk.LEFT, fill=tk.Y)
-        return button
 
 
 class OrganizerWindow(meta.PyroxFrame):

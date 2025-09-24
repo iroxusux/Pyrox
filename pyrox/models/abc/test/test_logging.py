@@ -89,7 +89,12 @@ class TestLoggingManager(unittest.TestCase):
 
         handler = logger.handlers[0]
         self.assertIsInstance(handler, logging.StreamHandler)
-        self.assertEqual(handler.stream, sys.stderr)
+
+        # Test that handler uses the appropriate stream
+        expected_stream = (LoggingManager._captured_stderr
+                           if LoggingManager._streams_captured
+                           else sys.stderr)
+        self.assertEqual(handler.stream, expected_stream)
 
     def test_get_or_create_logger_new_logger(self):
         """Test getting or creating a new logger."""
@@ -304,7 +309,7 @@ class TestLoggingManager(unittest.TestCase):
         custom_logger.addHandler(custom_handler)
 
         with patch.object(LoggingManager, '_setup_standard_logger') as mock_setup:
-            LoggingManager.force_all_loggers_to_stderr()
+            LoggingManager.force_all_loggers_to_captured_stderr()
 
             # Should be called for root logger + each logger in manager dict
             # + each existing logger in the global logger dict

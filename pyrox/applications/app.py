@@ -324,6 +324,8 @@ class App(models.Application):
         self._log_window = models.LogFrame(self.frame)
         self._log_window.pack(fill='both', expand=True)
         self._sub_paned_window.add(self._log_window)
+        for stream in self._multi_stream.streams:
+            self._log_window.fill_log_from_stream(stream)
 
     def _build_organizer(self) -> None:
         self._organizer: AppOrganizer = AppOrganizer(application=self)
