@@ -182,6 +182,10 @@ class HashList(Subscribable, Generic[T]):
         If the object exists, its' entity is updated in this hash list
 
         """
+        if not isinstance(value, object):
+            raise TypeError("value must be an object")
+        if isinstance(value, (str, int, float, bool)):
+            raise TypeError("value must be an object, not a primitive type")
         self._hashes[getattr(value, self._hash_key)] = value
         self.emit()
 
@@ -261,6 +265,11 @@ class HashList(Subscribable, Generic[T]):
             return list(self._hashes.values())[index]
         except IndexError:
             return None
+
+    def clear(self) -> None:
+        """Clear all items from this hash list."""
+        self._hashes.clear()
+        self.emit()
 
     def emit(self, *args, **kwargs):
         for subscriber in self.subscribers:

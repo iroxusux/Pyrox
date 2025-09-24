@@ -13,7 +13,7 @@ from typing import (
     Union
 )
 from pyrox.models.abc.list import HashList
-from pyrox.models.abc.meta import EnforcesNaming, NamedPyroxObject, SupportsMetaData
+from pyrox.models.abc.meta import EnforcesNaming, NamedPyroxObject, PyroxObject, SupportsMetaData
 from pyrox.services.dict import insert_key_at_index
 
 if TYPE_CHECKING:
@@ -285,7 +285,7 @@ class LogixAssetType(Enum):
     ALL = 9
 
 
-class PlcObject(EnforcesNaming, SupportsMetaData, Generic[CTRL]):
+class PlcObject(EnforcesNaming, SupportsMetaData, Generic[CTRL], PyroxObject):
     """Base class for a L5X PLC object.
 
     Args:
@@ -375,6 +375,17 @@ class PlcObject(EnforcesNaming, SupportsMetaData, Generic[CTRL]):
         if not isinstance(value, self.config.controller_type):
             raise TypeError(f'Controller must be of type {self.config.controller_type} or None! Got {type(value)}')
         self._controller = value
+
+    @property
+    def name(self) -> str:
+        """Get this object's name.
+        PlcObject isn't named, so return the class name.
+        This attribute is read-only for this class.
+
+        Returns:
+            str: The name of this object.
+        """
+        return self.__class__.__name__ + str(self.id)
 
     @property
     def on_compiled(self) -> list[Callable]:
@@ -489,6 +500,13 @@ class PlcObject(EnforcesNaming, SupportsMetaData, Generic[CTRL]):
         self._init_dict_order()
         [call() for call in self._on_compiled]
         return self
+
+    def invalidate(self) -> None:
+        """Invalidate this object.
+
+        This method will call the _invalidate method to reset the object's state.
+        """
+        self._invalidate()
 
 
 class NamedPlcObject(NamedPyroxObject, PlcObject):
@@ -627,6 +645,32 @@ class NamedPlcObject(NamedPyroxObject, PlcObject):
 
         if inhibit_invalidate:
             return
+
+        self._invalidate()
+
+    def _redefine_raw_asset_list_from_asset_list(
+        self,
+        asset_list: HashList,
+        raw_asset_list: list[dict]
+    ) -> None:
+        """Redefine the raw asset list from the asset list.
+
+        Args:
+            asset_list: The HashList containing the assets.
+            raw_asset_list: The raw metadata list to redefine.
+        """
+        if not isinstance(asset_list, HashList):
+            raise ValueError('asset list must be of type HashList!')
+
+        if not isinstance(raw_asset_list, list):
+            raise ValueError('raw asset list must be of type list!')
+
+        raw_asset_list.clear()
+        for asset in asset_list:
+            if isinstance(asset, (NamedPlcObject, PlcObject)):
+                raw_asset_list.append(asset.meta_data)
+            else:
+                raise ValueError(f"asset must be of type {NamedPlcObject.__name__} or PlcObject! Got {type(asset)}")
 
         self._invalidate()
 

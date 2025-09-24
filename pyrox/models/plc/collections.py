@@ -192,6 +192,17 @@ class ContainsRoutines(ContainsTags):
             self._compile_routines()
         return self._routines
 
+    @routines.setter
+    def routines(self, value: HashList['Routine']) -> None:
+        if not isinstance(value, HashList):
+            raise TypeError("routines must be a HashList")
+        for routine in value:
+            self._type_check(routine)
+        self._redefine_raw_asset_list_from_asset_list(
+            value,
+            self.raw_routines
+        )
+
     @property
     def raw_routines(self) -> list[dict]:
         if not self['Routines']:

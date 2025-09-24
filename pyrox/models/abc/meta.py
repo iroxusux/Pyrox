@@ -309,6 +309,7 @@ class SnowFlake:
 
     def __init__(
         self,
+        **_
     ) -> None:
         self._id = _IdGenerator.get_id()
 
@@ -419,7 +420,7 @@ class NamedPyroxObject(PyroxObject):
         description: Optional[str] = None,
         **kwargs,
     ) -> None:
-        super().__init__(**kwargs)
+        PyroxObject.__init__(self, **kwargs)
         self.name = name if name else self.__class__.__name__
         self.description = description if description else ''
 

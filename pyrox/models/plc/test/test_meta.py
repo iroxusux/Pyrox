@@ -1,7 +1,7 @@
 """Unit tests for meta.py module."""
 
 import unittest
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock, Mock, patch
 from pathlib import Path
 
 from pyrox.models.plc.meta import (
@@ -804,6 +804,295 @@ class TestNamedPlcObject(unittest.TestCase):
         self.assertEqual(raw_asset_list[0][L5X_PROP_NAME], "NewAsset")
         self.assertEqual(raw_asset_list[1][L5X_PROP_NAME], "Asset1")
         self.assertEqual(raw_asset_list[2][L5X_PROP_NAME], "Asset2")
+
+    def test_redefine_with_named_plc_objects(self):
+        """Test redefining raw asset list with NamedPlcObject instances."""
+        # Create asset objects
+        asset1 = NamedPlcObject(
+            meta_data={'@Name': 'Asset1', 'Description': 'First asset'},
+            controller=self.mock_controller
+        )
+        asset2 = NamedPlcObject(
+            meta_data={'@Name': 'Asset2', 'Description': 'Second asset'},
+            controller=self.mock_controller
+        )
+
+        # Create HashList with assets
+        asset_list = HashList(hash_key='name')
+        asset_list.extend([asset1, asset2])
+
+        # Create raw asset list (initially different)
+        raw_asset_list = [
+            {'@Name': 'OldAsset1', 'Description': 'Old asset'},
+            {'@Name': 'OldAsset2', 'Description': 'Another old asset'}
+        ]
+
+        named_plc_object = self.TestNamedPlcObject(controller=self.mock_controller)
+
+        # Mock _invalidate
+        named_plc_object._invalidate = Mock()
+
+        # Call method
+        named_plc_object._redefine_raw_asset_list_from_asset_list(asset_list, raw_asset_list)
+
+        # Verify raw_asset_list was cleared and repopulated
+        assert len(raw_asset_list) == 2
+        assert raw_asset_list[0] == asset1.meta_data
+        assert raw_asset_list[1] == asset2.meta_data
+        assert raw_asset_list[0]['@Name'] == 'Asset1'
+        assert raw_asset_list[1]['@Name'] == 'Asset2'
+
+        # Verify _invalidate was called
+        named_plc_object._invalidate.assert_called_once()
+
+    def test_redefine_with_plc_objects(self):
+        """Test redefining raw asset list with PlcObject instances."""
+        # Create PlcObject instances
+        plc_obj1 = PlcObject(
+            meta_data={'@Name': 'PlcObj1', 'Type': 'TestType'},
+            controller=self.mock_controller
+        )
+        plc_obj2 = PlcObject(
+            meta_data={'@Name': 'PlcObj2', 'Type': 'TestType'},
+            controller=self.mock_controller
+        )
+
+        # Create HashList with PlcObjects
+        asset_list = HashList(hash_key='name')
+        asset_list.extend([plc_obj1, plc_obj2])
+
+        # Create raw asset list
+        raw_asset_list = []
+
+        named_plc_object = self.TestNamedPlcObject(controller=self.mock_controller)
+
+        # Mock _invalidate
+        named_plc_object._invalidate = Mock()
+
+        # Call method
+        named_plc_object._redefine_raw_asset_list_from_asset_list(asset_list, raw_asset_list)
+
+        # Verify raw_asset_list was populated correctly
+        assert len(raw_asset_list) == 2
+        assert raw_asset_list[0] == plc_obj1.meta_data
+        assert raw_asset_list[1] == plc_obj2.meta_data
+
+        # Verify _invalidate was called
+        named_plc_object._invalidate.assert_called_once()
+
+    def test_redefine_with_empty_asset_list(self):
+        """Test redefining with empty asset list."""
+        # Create empty HashList
+        asset_list = HashList(hash_key='name')
+
+        # Create raw asset list with existing data
+        raw_asset_list = [
+            {'@Name': 'ExistingAsset', 'Description': 'Will be cleared'}
+        ]
+
+        named_plc_object = self.TestNamedPlcObject(controller=self.mock_controller)
+
+        # Mock _invalidate
+        named_plc_object._invalidate = Mock()
+
+        # Call method
+        named_plc_object._redefine_raw_asset_list_from_asset_list(asset_list, raw_asset_list)
+
+        # Verify raw_asset_list was cleared
+        assert len(raw_asset_list) == 0
+        assert raw_asset_list == []
+
+        # Verify _invalidate was called
+        named_plc_object._invalidate.assert_called_once()
+
+    def test_redefine_with_mixed_object_types(self):
+        """Test redefining with mixed NamedPlcObject and PlcObject types."""
+        # Create mixed objects
+        named_obj = NamedPlcObject(
+            meta_data={'@Name': 'NamedObj', 'Description': 'Named object'},
+            controller=self.mock_controller
+        )
+        plc_obj = PlcObject(
+            meta_data={'@Name': 'PlcObj', 'Type': 'TestType'},
+            controller=self.mock_controller
+        )
+
+        # Create HashList with mixed objects
+        asset_list = HashList(hash_key='name')
+        asset_list.extend([named_obj, plc_obj])
+
+        # Create raw asset list
+        raw_asset_list = []
+
+        named_plc_object = self.TestNamedPlcObject(controller=self.mock_controller)
+
+        # Mock _invalidate
+        named_plc_object._invalidate = Mock()
+
+        # Call method
+        named_plc_object._redefine_raw_asset_list_from_asset_list(asset_list, raw_asset_list)
+
+        # Verify both objects were added correctly
+        assert len(raw_asset_list) == 2
+        assert raw_asset_list[0] == named_obj.meta_data
+        assert raw_asset_list[1] == plc_obj.meta_data
+
+        # Verify _invalidate was called
+        named_plc_object._invalidate.assert_called_once()
+
+    def test_redefine_with_large_asset_list(self):
+        """Test redefining with large number of assets."""
+        # Create many assets
+        assets = []
+        for i in range(100):
+            asset = NamedPlcObject(
+                meta_data={'@Name': f'Asset{i}', 'Description': f'Asset number {i}'},
+                controller=self.mock_controller
+            )
+            assets.append(asset)
+
+        # Create HashList with many assets
+        asset_list = HashList(hash_key='name')
+        asset_list.extend(assets)
+
+        # Create raw asset list
+        raw_asset_list = []
+
+        named_plc_object = self.TestNamedPlcObject(controller=self.mock_controller)
+
+        # Mock _invalidate
+        named_plc_object._invalidate = Mock()
+
+        # Call method
+        named_plc_object._redefine_raw_asset_list_from_asset_list(asset_list, raw_asset_list)
+
+        # Verify all assets were added
+        assert len(raw_asset_list) == 100
+        for i, raw_asset in enumerate(raw_asset_list):
+            assert raw_asset == assets[i].meta_data
+            assert raw_asset['@Name'] == f'Asset{i}'
+
+        # Verify _invalidate was called
+        named_plc_object._invalidate.assert_called_once()
+
+    def test_redefine_preserves_asset_order(self):
+        """Test that asset order is preserved during redefinition."""
+        # Create assets in specific order
+        asset_names = ['Charlie', 'Alpha', 'Bravo', 'Delta']
+        assets = []
+        for name in asset_names:
+            asset = NamedPlcObject(
+                meta_data={'@Name': name, 'Description': f'{name} asset'},
+                controller=self.mock_controller
+            )
+            assets.append(asset)
+
+        # Create HashList maintaining order
+        asset_list = HashList(hash_key='name')
+        asset_list.extend(assets)
+
+        # Create raw asset list
+        raw_asset_list = []
+
+        named_plc_object = self.TestNamedPlcObject(controller=self.mock_controller)
+
+        # Mock _invalidate
+        named_plc_object._invalidate = Mock()
+
+        # Call method
+        named_plc_object._redefine_raw_asset_list_from_asset_list(asset_list, raw_asset_list)
+
+        # Verify order is preserved
+        assert len(raw_asset_list) == 4
+        for i, expected_name in enumerate(asset_names):
+            assert raw_asset_list[i]['@Name'] == expected_name
+
+    def test_redefine_invalid_asset_list_type(self):
+        """Test error when asset_list is not HashList."""
+        regular_list = ['not', 'a', 'hashlist']
+        raw_asset_list = []
+        named_plc_object = self.TestNamedPlcObject(controller=self.mock_controller)
+
+        with self.assertRaises(ValueError) as context:
+            named_plc_object._redefine_raw_asset_list_from_asset_list(regular_list, raw_asset_list)
+
+        self.assertIn("asset list must be of type HashList", str(context.exception))
+
+    def test_redefine_invalid_raw_asset_list_type(self):
+        """Test error when raw_asset_list is not list."""
+        asset_list = HashList(hash_key='name')
+        not_a_list = {'not': 'a list'}
+        named_plc_object = self.TestNamedPlcObject(controller=self.mock_controller)
+
+        with self.assertRaises(ValueError) as context:
+            named_plc_object._redefine_raw_asset_list_from_asset_list(asset_list, not_a_list)
+
+        self.assertIn("raw asset list must be of type list", str(context.exception))
+
+    def test_redefine_modifies_original_list_reference(self):
+        """Test that the original raw_asset_list reference is modified, not replaced."""
+        # Create asset
+        asset = NamedPlcObject(
+            meta_data={'@Name': 'TestAsset', 'Description': 'Test'},
+            controller=self.mock_controller
+        )
+
+        # Create HashList
+        asset_list = HashList(hash_key='name')
+        asset_list.append(asset)
+
+        # Create raw asset list and keep reference
+        raw_asset_list = [{'@Name': 'OldAsset'}]
+        original_list_id = id(raw_asset_list)
+
+        named_plc_object = self.TestNamedPlcObject(controller=self.mock_controller)
+
+        # Mock _invalidate
+        named_plc_object._invalidate = Mock()
+
+        # Call method
+        named_plc_object._redefine_raw_asset_list_from_asset_list(asset_list, raw_asset_list)
+
+        # Verify the same list object was modified
+        assert id(raw_asset_list) == original_list_id
+        assert len(raw_asset_list) == 1
+        assert raw_asset_list[0] == asset.meta_data
+
+    def test_redefine_clears_existing_content(self):
+        """Test that existing raw_asset_list content is completely cleared."""
+        # Create new asset
+        new_asset = NamedPlcObject(
+            meta_data={'@Name': 'NewAsset', 'Description': 'New'},
+            controller=self.mock_controller
+        )
+
+        # Create HashList with new asset
+        asset_list = HashList(hash_key='name')
+        asset_list.append(new_asset)
+
+        # Create raw asset list with existing content
+        raw_asset_list = [
+            {'@Name': 'Old1', 'Description': 'Old asset 1'},
+            {'@Name': 'Old2', 'Description': 'Old asset 2'},
+            {'@Name': 'Old3', 'Description': 'Old asset 3'}
+        ]
+
+        named_plc_object = self.TestNamedPlcObject(controller=self.mock_controller)
+
+        # Mock _invalidate
+        named_plc_object._invalidate = Mock()
+
+        # Call method
+        named_plc_object._redefine_raw_asset_list_from_asset_list(asset_list, raw_asset_list)
+
+        # Verify old content is completely gone
+        assert len(raw_asset_list) == 1
+        assert raw_asset_list[0] == new_asset.meta_data
+        assert raw_asset_list[0]['@Name'] == 'NewAsset'
+
+        # Verify no old content remains
+        for old_asset in [{'@Name': 'Old1'}, {'@Name': 'Old2'}, {'@Name': 'Old3'}]:
+            assert old_asset not in raw_asset_list
 
 
 class TestIntegration(unittest.TestCase):

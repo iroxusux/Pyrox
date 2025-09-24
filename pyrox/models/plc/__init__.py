@@ -21,6 +21,7 @@ from .datatype import Datatype, DatatypeMember
 from .instruction import LogixInstruction
 from .module import Module, ModuleControlsType
 from .operand import LogixOperand
+from .program import Program
 
 from .plc import (
     AddOnInstruction,
@@ -30,7 +31,6 @@ from .plc import (
     ControllerModificationSchema,
     ControllerSafetyInfo,
     DataValueMember,
-    Program,
     Routine,
     Rung,
     RungElementType,

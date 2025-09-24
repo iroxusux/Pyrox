@@ -553,6 +553,24 @@ class TestHashList(unittest.TestCase):
         self.assertTrue(hasattr(HashList, '__slots__'))
         self.assertEqual(HashList.__slots__, ('_hash_key', '_hashes'))
 
+    def test_clear_method(self):
+        """Test clear method."""
+        hash_list = HashList('name')
+        callback = MagicMock()
+        hash_list.subscribe(callback)
+
+        hash_list.append(self.test_obj1)
+        hash_list.append(self.test_obj2)
+        self.assertEqual(len(hash_list), 2)
+
+        callback.reset_mock()
+        hash_list.clear()
+
+        self.assertEqual(len(hash_list), 0)
+        self.assertNotIn('obj1', hash_list.hashes)
+        self.assertNotIn('obj2', hash_list.hashes)
+        callback.assert_called_once()
+
 
 class TestSafeList(unittest.TestCase):
     """Test cases for SafeList class."""
