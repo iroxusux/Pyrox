@@ -359,10 +359,15 @@ class PlcObject(EnforcesNaming, SupportsMetaData, Generic[CTRL]):
         Raises:
             TypeError: If controller is not of type Controller or None.
         """
-        if value is None or value.__class__.__name__ == 'Controller':
+        if value is None:
             self._controller = value
-        else:
-            raise TypeError(f"Controller must be of type {CTRL} or None!")
+            return
+        if not hasattr(self, 'config'):
+            self._controller = value
+            return  # If there is no config, then the type must not be important enough to check.
+        if not isinstance(value, self.config.controller_type):
+            raise TypeError(f'controller must be of type {self.config.controller_type} or None!')
+        self._controller = value
 
     @property
     def on_compiled(self) -> list[Callable]:

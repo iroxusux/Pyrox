@@ -19,7 +19,7 @@ from tkinter import (
 from typing import Any, Callable, Optional, Self, Union
 
 from .abc import Buildable, Runnable, SupportsJsonLoading, SupportsJsonSaving
-from .abc import meta
+from .abc import meta, runtime
 from .abc.logging import LoggingManager
 from ..services.file import remove_all_files
 
@@ -461,7 +461,7 @@ class ApplicationRuntimeInfo(SupportsJsonSaving, SupportsJsonLoading):
             file_location=application.directory_service.app_runtime_info_file,
         )
         self._application: 'Application' = application
-        self._data = meta.RuntimeDict(self.save_to_json)
+        self._data = runtime.RuntimeDict(self.save_to_json)
         self.load_from_json()
         self._data['last_start_time'] = datetime.datetime.now().isoformat()
 
@@ -548,7 +548,7 @@ class ApplicationRuntimeInfo(SupportsJsonSaving, SupportsJsonLoading):
             self.application.logger.warning(
                 'No data loaded from the runtime info file, initializing with empty RuntimeDict.'
             )
-            self._data = meta.RuntimeDict(self.save_to_json)
+            self._data = runtime.RuntimeDict(self.save_to_json)
             return
 
         if not isinstance(data, dict):

@@ -1,6 +1,7 @@
 """run this app
     """
-from pyrox import App, ApplicationConfiguration
+from pyrox.applications import App
+from pyrox.models import ApplicationConfiguration
 
 if __name__ == '__main__':
     config = ApplicationConfiguration.root()

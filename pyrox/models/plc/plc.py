@@ -3196,17 +3196,6 @@ class ControllerSafetyInfo(plc_meta.PlcObject):
             self.safety_tag_map = None
 
 
-@dataclass
-class ControllerConfiguration:
-    aoi_type: type = AddOnInstruction
-    datatype_type: type = Datatype
-    module_type: type = Module
-    program_type: type = Program
-    routine_type: type = Routine
-    rung_type: type = Rung
-    tag_type: type = Tag
-
-
 class ControllerFactory(MetaFactory):
     """Controller factory with scoring-based matching."""
 
@@ -4036,6 +4025,18 @@ class Controller(
 
             case _:
                 return
+
+
+@dataclass
+class ControllerConfiguration:
+    aoi_type: type = AddOnInstruction
+    controller_type: type = Controller
+    datatype_type: type = Datatype
+    module_type: type = Module
+    program_type: type = Program
+    routine_type: type = Routine
+    rung_type: type = Rung
+    tag_type: type = Tag
 
 
 class ControllerModificationSchema(Loggable):

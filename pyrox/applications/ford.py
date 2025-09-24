@@ -21,6 +21,7 @@ class FordPlcObject(plc.PlcObject[FORD_CTRL]):
     def config(self) -> plc.ControllerConfiguration:
         return plc.ControllerConfiguration(
             aoi_type=FordAddOnInstruction,
+            controller_type=FordController,
             datatype_type=FordDatatype,
             module_type=FordModule,
             program_type=FordProgram,

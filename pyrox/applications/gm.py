@@ -169,13 +169,16 @@ class GmPlcObject(plc.PlcObject[GM_CTRL]):
 
     @property
     def config(self) -> plc.ControllerConfiguration:
-        return plc.ControllerConfiguration(aoi_type=GmAddOnInstruction,
-                                           datatype_type=GmDatatype,
-                                           module_type=GmModule,
-                                           program_type=GmProgram,
-                                           routine_type=GmRoutine,
-                                           rung_type=GmRung,
-                                           tag_type=GmTag)
+        return plc.ControllerConfiguration(
+            aoi_type=GmAddOnInstruction,
+            controller_type=GmController,
+            datatype_type=GmDatatype,
+            module_type=GmModule,
+            program_type=GmProgram,
+            routine_type=GmRoutine,
+            rung_type=GmRung,
+            tag_type=GmTag
+        )
 
 
 class NamedGmPlcObject(plc.NamedPlcObject, GmPlcObject):

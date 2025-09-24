@@ -7,7 +7,6 @@ from typing import Any, Optional
 import tkinter as tk
 from tkinter import ttk
 
-from .gm import GmController
 from .. import models
 from ..services.dict import remove_none_values_inplace
 from ..services.plc import dict_to_xml_file, l5x_dict_from_file
@@ -509,12 +508,6 @@ class App(models.Application):
                 return
 
             self.logger.info('new ctrl loaded -> %s', ctrl.name)
-
-            # General Motors PLC detection
-            if 'zz_Version' in ctrl.datatypes:  # This is gross, fix this
-                ctrl = self._transform_controller(ctrl, GmController)
-                self.logger.info('Loaded GmController from metadata: %s', ctrl.name)
-
             ctrl.file_location = file_location
             self.controller = ctrl
         finally:
