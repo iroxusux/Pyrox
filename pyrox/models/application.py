@@ -19,7 +19,7 @@ from tkinter import (
 from typing import Any, Callable, Optional, Self, Union
 
 from .abc import Buildable, Runnable, SupportsJsonLoading, SupportsJsonSaving
-from .abc import meta, runtime
+from .abc import meta, runtime, stream
 from .abc.logging import LoggingManager
 from ..services.file import remove_all_files
 
@@ -687,10 +687,10 @@ class Application(Runnable):
             self.logger.warning('MultiStream is already set up, skipping setup.')
             return
         try:
-            self._multi_stream = meta.MultiStream(
+            self._multi_stream = stream.MultiStream(
                 sys.__stderr__,
                 self._directory_service.get_log_file_stream(),
-                meta.SimpleStream(self.log))
+                stream.SimpleStream(self.log))
             sys.stdout = self._multi_stream
             sys.stderr = self._multi_stream
             LoggingManager.force_all_loggers_to_stderr()
