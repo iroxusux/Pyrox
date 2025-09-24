@@ -14,7 +14,8 @@ from pyrox.services.file import (
     get_save_location,
     is_file_readable,
     remove_all_files,
-    save_file
+    save_file,
+    transform_file_to_dict
 )
 
 
@@ -741,6 +742,445 @@ class TestIsFileReadable(unittest.TestCase):
             result = is_file_readable(None)
             self.assertFalse(result)
             mock_print.assert_called_once()
+
+
+class TestTransformFileToDict(unittest.TestCase):
+    """Test cases for transform_file_to_dict and _default_transform_function."""
+
+    def setUp(self):
+        """Set up test fixtures."""
+        self.test_dir = tempfile.mkdtemp()
+        self.test_file_path = os.path.join(self.test_dir, 'transform_test.txt')
+        self.test_content_lines = [
+            "Line 1: First line of content\n",
+            "Line 2: Second line of content\n",
+            "Line 3: Third line of content\n",
+            "Line 4: Fourth line of content\n",
+            "Line 5: Fifth line of content\n",
+            "Line 6: Sixth line of content\n",
+            "Line 7: Seventh line of content\n"
+        ]
+
+        # Create test file with multiple lines
+        with open(self.test_file_path, 'w', encoding='utf-8') as f:
+            f.writelines(self.test_content_lines)
+
+    def tearDown(self):
+        """Clean up test fixtures."""
+        if os.path.exists(self.test_dir):
+            shutil.rmtree(self.test_dir, ignore_errors=True)
+
+    def test_default_transform_function_basic(self):
+        """Test _default_transform_function with basic file."""
+        from pyrox.services.file import _default_transform_function
+
+        result = _default_transform_function(self.test_file_path)
+
+        self.assertIsInstance(result, dict)
+        self.assertEqual(result['file_path'], self.test_file_path)
+        self.assertEqual(result['line_count'], 7)
+        self.assertEqual(len(result['content_preview']), 5)
+        self.assertEqual(result['content_preview'], self.test_content_lines[:5])
+        self.assertEqual(result['content'], self.test_content_lines)
+
+    def test_default_transform_function_empty_file(self):
+        """Test _default_transform_function with empty file."""
+        from pyrox.services.file import _default_transform_function
+
+        empty_file = os.path.join(self.test_dir, 'empty.txt')
+        with open(empty_file, 'w', encoding='utf-8') as _:
+            pass  # Create empty file
+
+        result = _default_transform_function(empty_file)
+
+        self.assertEqual(result['file_path'], empty_file)
+        self.assertEqual(result['line_count'], 0)
+        self.assertEqual(result['content_preview'], [])
+        self.assertEqual(result['content'], [])
+
+    def test_default_transform_function_single_line(self):
+        """Test _default_transform_function with single line file."""
+        from pyrox.services.file import _default_transform_function
+
+        single_line_file = os.path.join(self.test_dir, 'single_line.txt')
+        single_line_content = ["Only one line\n"]
+
+        with open(single_line_file, 'w', encoding='utf-8') as f:
+            f.writelines(single_line_content)
+
+        result = _default_transform_function(single_line_file)
+
+        self.assertEqual(result['line_count'], 1)
+        self.assertEqual(result['content_preview'], single_line_content)
+        self.assertEqual(result['content'], single_line_content)
+
+    def test_default_transform_function_exactly_five_lines(self):
+        """Test _default_transform_function with exactly 5 lines."""
+        from pyrox.services.file import _default_transform_function
+
+        five_line_file = os.path.join(self.test_dir, 'five_lines.txt')
+        five_lines_content = self.test_content_lines[:5]
+
+        with open(five_line_file, 'w', encoding='utf-8') as f:
+            f.writelines(five_lines_content)
+
+        result = _default_transform_function(five_line_file)
+
+        self.assertEqual(result['line_count'], 5)
+        self.assertEqual(result['content_preview'], five_lines_content)
+        self.assertEqual(result['content'], five_lines_content)
+
+    def test_default_transform_function_no_newlines(self):
+        """Test _default_transform_function with file without newlines."""
+        from pyrox.services.file import _default_transform_function
+
+        no_newline_file = os.path.join(self.test_dir, 'no_newlines.txt')
+        content_without_newlines = "Single line without newline"
+
+        with open(no_newline_file, 'w', encoding='utf-8') as f:
+            f.write(content_without_newlines)
+
+        result = _default_transform_function(no_newline_file)
+
+        self.assertEqual(result['line_count'], 1)
+        self.assertEqual(result['content_preview'], [content_without_newlines])
+        self.assertEqual(result['content'], [content_without_newlines])
+
+    def test_transform_file_to_dict_with_default_function(self):
+        """Test transform_file_to_dict using default transform function."""
+        result = transform_file_to_dict(self.test_file_path)
+
+        self.assertIsInstance(result, dict)
+        self.assertEqual(result['file_path'], self.test_file_path)
+        self.assertEqual(result['line_count'], 7)
+        self.assertEqual(len(result['content_preview']), 5)
+        self.assertEqual(result['content'], self.test_content_lines)
+
+    def test_transform_file_to_dict_with_custom_function(self):
+        """Test transform_file_to_dict with custom transform function."""
+        def custom_transform(file_path: str) -> dict:
+            with open(file_path, 'r', encoding='utf-8') as f:
+                content = f.read()
+            return {
+                'path': file_path,
+                'size': len(content),
+                'uppercase_content': content.upper(),
+                'word_count': len(content.split())
+            }
+
+        result = transform_file_to_dict(self.test_file_path, custom_transform)
+
+        self.assertIsInstance(result, dict)
+        self.assertEqual(result['path'], self.test_file_path)
+        self.assertIn('size', result)
+        self.assertIn('uppercase_content', result)
+        self.assertIn('word_count', result)
+        self.assertGreater(result['size'], 0)
+        self.assertGreater(result['word_count'], 0)
+
+    def test_transform_file_to_dict_nonexistent_file(self):
+        """Test transform_file_to_dict with non-existent file."""
+        nonexistent_file = os.path.join(self.test_dir, 'nonexistent.txt')
+
+        with self.assertRaises(FileNotFoundError) as context:
+            transform_file_to_dict(nonexistent_file)
+
+        self.assertIn('File not found:', str(context.exception))
+        self.assertIn(nonexistent_file, str(context.exception))
+
+    def test_transform_file_to_dict_directory_instead_of_file(self):
+        """Test transform_file_to_dict with directory path instead of file."""
+        with self.assertRaises(FileNotFoundError) as context:
+            transform_file_to_dict(self.test_dir)
+
+        self.assertIn('File not found:', str(context.exception))
+
+    def test_transform_file_to_dict_custom_function_exception(self):
+        """Test transform_file_to_dict when custom function raises exception."""
+        def failing_transform(file_path: str) -> dict:
+            raise ValueError("Custom transform function failed")
+
+        with self.assertRaises(ValueError) as context:
+            transform_file_to_dict(self.test_file_path, failing_transform)
+
+        self.assertEqual(str(context.exception), "Custom transform function failed")
+
+    def test_transform_file_to_dict_custom_function_file_access_error(self):
+        """Test transform_file_to_dict when custom function has file access issues."""
+        def file_access_error_transform(file_path: str) -> dict:
+            with open('/nonexistent/path/file.txt', 'r') as f:
+                return {'content': f.read()}
+
+        with self.assertRaises(FileNotFoundError):
+            transform_file_to_dict(self.test_file_path, file_access_error_transform)
+
+    def test_transform_file_to_dict_json_transform(self):
+        """Test transform_file_to_dict with JSON-like transform function."""
+        # Create a JSON-like file
+        json_like_file = os.path.join(self.test_dir, 'json_like.txt')
+        json_content = '{"name": "test", "value": 123, "items": ["a", "b", "c"]}'
+
+        with open(json_like_file, 'w', encoding='utf-8') as f:
+            f.write(json_content)
+
+        def json_transform(file_path: str) -> dict:
+            import json
+            with open(file_path, 'r', encoding='utf-8') as f:
+                content = f.read()
+            try:
+                parsed_json = json.loads(content)
+                return {
+                    'file_path': file_path,
+                    'is_valid_json': True,
+                    'parsed_data': parsed_json,
+                    'json_keys': list(parsed_json.keys()) if isinstance(parsed_json, dict) else None
+                }
+            except json.JSONDecodeError:
+                return {
+                    'file_path': file_path,
+                    'is_valid_json': False,
+                    'raw_content': content
+                }
+
+        result = transform_file_to_dict(json_like_file, json_transform)
+
+        self.assertTrue(result['is_valid_json'])
+        self.assertEqual(result['parsed_data']['name'], 'test')
+        self.assertEqual(result['parsed_data']['value'], 123)
+        self.assertIn('name', result['json_keys'])
+
+    def test_transform_file_to_dict_csv_transform(self):
+        """Test transform_file_to_dict with CSV-like transform function."""
+        # Create a CSV-like file
+        csv_file = os.path.join(self.test_dir, 'test.csv')
+        csv_content = "name,age,city\nJohn,30,New York\nJane,25,Los Angeles\nBob,35,Chicago"
+
+        with open(csv_file, 'w', encoding='utf-8') as f:
+            f.write(csv_content)
+
+        def csv_transform(file_path: str) -> dict:
+            with open(file_path, 'r', encoding='utf-8') as f:
+                lines = f.readlines()
+
+            if not lines:
+                return {'file_path': file_path, 'rows': 0, 'headers': [], 'data': []}
+
+            headers = [h.strip() for h in lines[0].strip().split(',')]
+            data_rows = []
+
+            for line in lines[1:]:
+                row_data = [cell.strip() for cell in line.strip().split(',')]
+                data_rows.append(dict(zip(headers, row_data)))
+
+            return {
+                'file_path': file_path,
+                'rows': len(data_rows),
+                'headers': headers,
+                'data': data_rows
+            }
+
+        result = transform_file_to_dict(csv_file, csv_transform)
+
+        self.assertEqual(result['rows'], 3)
+        self.assertEqual(result['headers'], ['name', 'age', 'city'])
+        self.assertEqual(result['data'][0]['name'], 'John')
+        self.assertEqual(result['data'][1]['age'], '25')
+
+    def test_transform_file_to_dict_binary_file_handling(self):
+        """Test transform_file_to_dict with binary file handling."""
+        # Create a file with binary content
+        binary_file = os.path.join(self.test_dir, 'binary.bin')
+        binary_content = bytes([0, 1, 2, 255, 254, 253])
+
+        with open(binary_file, 'wb') as f:
+            f.write(binary_content)
+
+        def binary_aware_transform(file_path: str) -> dict:
+            try:
+                # Try text first
+                with open(file_path, 'r', encoding='utf-8') as f:
+                    content = f.read()
+                return {'file_path': file_path, 'type': 'text', 'content': content}
+            except UnicodeDecodeError:
+                # Fall back to binary
+                with open(file_path, 'rb') as f:
+                    content = f.read()
+                return {
+                    'file_path': file_path,
+                    'type': 'binary',
+                    'size': len(content),
+                    'first_bytes': list(content[:10])
+                }
+
+        result = transform_file_to_dict(binary_file, binary_aware_transform)
+
+        self.assertEqual(result['type'], 'binary')
+        self.assertEqual(result['size'], 6)
+        self.assertEqual(result['first_bytes'], [0, 1, 2, 255, 254, 253])
+
+    def test_transform_file_to_dict_large_file(self):
+        """Test transform_file_to_dict with large file."""
+        large_file = os.path.join(self.test_dir, 'large.txt')
+
+        # Create a file with many lines
+        large_content = []
+        for i in range(1000):
+            large_content.append(f"Line {i+1}: This is line number {i+1}\n")
+
+        with open(large_file, 'w', encoding='utf-8') as f:
+            f.writelines(large_content)
+
+        def size_aware_transform(file_path: str) -> dict:
+            with open(file_path, 'r', encoding='utf-8') as f:
+                lines = f.readlines()
+
+            return {
+                'file_path': file_path,
+                'total_lines': len(lines),
+                'first_10_lines': lines[:10],
+                'last_10_lines': lines[-10:],
+                'sample_line_lengths': [len(line) for line in lines[:5]]
+            }
+
+        result = transform_file_to_dict(large_file, size_aware_transform)
+
+        self.assertEqual(result['total_lines'], 1000)
+        self.assertEqual(len(result['first_10_lines']), 10)
+        self.assertEqual(len(result['last_10_lines']), 10)
+        self.assertTrue(all(length > 0 for length in result['sample_line_lengths']))
+
+    def test_transform_file_to_dict_unicode_content(self):
+        """Test transform_file_to_dict with Unicode content."""
+        unicode_file = os.path.join(self.test_dir, 'unicode.txt')
+        unicode_content = [
+            "English: Hello World\n",
+            "Spanish: Hola Mundo\n",
+            "French: Bonjour le Monde\n",
+            "German: Hallo Welt\n",
+            "Chinese: 你好世界\n",
+            "Japanese: こんにちは世界\n",
+            "Arabic: مرحبا بالعالم\n",
+            "Russian: Привет мир\n",
+            "Emoji: 🌍🌎🌏 Hello! 👋\n"
+        ]
+
+        with open(unicode_file, 'w', encoding='utf-8') as f:
+            f.writelines(unicode_content)
+
+        def unicode_transform(file_path: str) -> dict:
+            with open(file_path, 'r', encoding='utf-8') as f:
+                lines = f.readlines()
+
+            return {
+                'file_path': file_path,
+                'line_count': len(lines),
+                'has_emoji': any('🌍' in line or '👋' in line for line in lines),
+                'languages': [line.split(':')[0] for line in lines if ':' in line],
+                'total_chars': sum(len(line) for line in lines)
+            }
+
+        result = transform_file_to_dict(unicode_file, unicode_transform)
+
+        self.assertEqual(result['line_count'], 9)
+        self.assertTrue(result['has_emoji'])
+        self.assertIn('English', result['languages'])
+        self.assertIn('Chinese', result['languages'])
+        self.assertGreater(result['total_chars'], 0)
+
+    def test_transform_file_to_dict_empty_custom_function_result(self):
+        """Test transform_file_to_dict when custom function returns empty dict."""
+        def empty_result_transform(file_path: str) -> dict:
+            return {}
+
+        result = transform_file_to_dict(self.test_file_path, empty_result_transform)
+
+        self.assertEqual(result, {})
+
+    def test_transform_file_to_dict_none_result_custom_function(self):
+        """Test transform_file_to_dict when custom function returns None."""
+        def none_result_transform(file_path: str) -> dict:
+            return None
+
+        result = transform_file_to_dict(self.test_file_path, none_result_transform)
+
+        self.assertIsNone(result)
+
+    @patch('os.path.isfile')
+    def test_transform_file_to_dict_os_isfile_exception(self, mock_isfile):
+        """Test transform_file_to_dict when os.path.isfile raises exception."""
+        mock_isfile.side_effect = OSError("Mocked OS error")
+
+        with self.assertRaises(OSError):
+            transform_file_to_dict('/some/path')
+
+    def test_default_transform_function_file_access_error(self):
+        """Test _default_transform_function when file access fails."""
+        from pyrox.services.file import _default_transform_function
+
+        # This should raise an exception since the file doesn't exist
+        with self.assertRaises(FileNotFoundError):
+            _default_transform_function('/nonexistent/file.txt')
+
+    def test_default_transform_function_permission_error(self):
+        """Test _default_transform_function with permission error."""
+        from pyrox.services.file import _default_transform_function
+
+        with patch('builtins.open', side_effect=PermissionError("Permission denied")):
+            with self.assertRaises(PermissionError):
+                _default_transform_function(self.test_file_path)
+
+    def test_transform_file_to_dict_integration_with_other_functions(self):
+        """Test transform_file_to_dict integration with other file functions."""
+        # Create multiple test files
+        test_files = []
+        for i in range(3):
+            file_path = os.path.join(self.test_dir, f'integration_test_{i}.txt')
+            content = [f"File {i} - Line {j}\n" for j in range(5)]
+
+            with open(file_path, 'w', encoding='utf-8') as f:
+                f.writelines(content)
+            test_files.append(file_path)
+
+        # Use get_all_files_in_directory to find files
+        all_files = get_all_files_in_directory(self.test_dir)
+
+        # Transform each file found
+        results = []
+        for file_path in all_files:
+            if file_path.endswith('.txt') and 'integration_test' in file_path:
+                result = transform_file_to_dict(file_path)
+                results.append(result)
+
+        # Verify results
+        self.assertEqual(len(results), 3)
+        for result in results:
+            self.assertIn('file_path', result)
+            self.assertEqual(result['line_count'], 5)
+            self.assertIn('integration_test', result['file_path'])
+
+    def test_transform_file_to_dict_with_save_and_transform_cycle(self):
+        """Test complete cycle of save_file and transform_file_to_dict."""
+        # Use save_file to create a file
+        test_data = "Saved file content\nSecond line\nThird line"
+        save_path = os.path.join(self.test_dir, 'saved_file')
+
+        save_result = save_file(save_path, '.txt', 'w', test_data)
+        self.assertTrue(save_result)
+
+        # Transform the saved file
+        full_path = save_path + '.txt'
+        result = transform_file_to_dict(full_path)
+
+        # Verify the transformation
+        self.assertEqual(result['file_path'], full_path)
+        self.assertEqual(result['line_count'], 3)
+        self.assertIn('Saved file content', result['content'][0])
+        self.assertIn('Second line', result['content'][1])
+        self.assertIn('Third line', result['content'][2])
+
+
+if __name__ == '__main__':
+    unittest.main(verbosity=2)
 
 
 if __name__ == '__main__':

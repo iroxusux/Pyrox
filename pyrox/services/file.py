@@ -137,7 +137,7 @@ def save_file(
     file_extension: str,
     save_mode: str,
     file_data: str | bytes,
-    encoding: str = None
+    encoding: Optional[str] = None
 ) -> bool:
     """save file to location
 
@@ -175,3 +175,40 @@ def save_file(
         print('file not found error thrown!')
         return False
     return True
+
+
+def _default_transform_function(file_path: str) -> dict:
+    """default transform function that reads a file and returns its contents as a dictionary
+
+    Args:
+        file_path (str): file path to read
+
+    Returns:
+        dict: dictionary with file contents
+    """
+    with open(file_path, 'r', encoding='utf-8') as f:
+        content = f.readlines()
+    return {
+        'file_path': file_path,
+        'line_count': len(content),
+        'content_preview': content[:5],  # Preview first 5 lines
+        'content': content
+    }
+
+
+def transform_file_to_dict(
+    file_path: str,
+    transform_function=_default_transform_function
+) -> dict:
+    """transform a file to a dictionary using a provided function
+
+    Args:
+        file_path (str): file path to transform
+        transform_function (Callable): function to transform the file
+
+    Returns:
+        dict: transformed dictionary
+    """
+    if not os.path.isfile(file_path):
+        raise FileNotFoundError(f'File not found: {file_path}')
+    return transform_function(file_path)
