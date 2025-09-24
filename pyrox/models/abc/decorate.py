@@ -3,14 +3,17 @@
 
 import warnings
 import functools
-from typing import Callable
+from typing import Callable, Optional
 
 __all__ = (
     'deprecated',
 )
 
 
-def deprecated(reason: str = "This function is deprecated", version: str = None):
+def deprecated(
+    reason: str = "This function is deprecated",
+    version: Optional[str] = None
+) -> Callable:
     """Decorator to mark functions as deprecated.
 
     Args:

@@ -3,7 +3,7 @@
 from abc import ABCMeta
 import importlib
 import sys
-from typing import Dict, Generic, List, Optional, Self, Type, TypeVar, Union
+from typing import Dict, Generic, List, Optional, Type, TypeVar, Union
 
 from pyrox.models.abc.logging import Loggable
 
@@ -25,7 +25,7 @@ class MetaFactory(ABCMeta, Loggable):
 
     def __init_subclass__(cls, **kwargs):
         super().__init_subclass__(**kwargs)
-        cls._registered_types: Dict[str, Type[T]] = {}
+        cls._registered_types: Dict[str, type] = {}
 
     @classmethod
     def _get_class_from_module(cls, module, class_name: str) -> Optional[Type]:
@@ -38,13 +38,15 @@ class MetaFactory(ABCMeta, Loggable):
     @classmethod
     def _reload_class_module(
         cls,
-        class_type: Type
+        class_type: Optional[Type[T]]
     ) -> Type:
         """Reload the module of the given class type to ensure the latest version is used.
 
         Args:
             class_type: The class type whose module should be reloaded.
         """
+        if class_type is None:
+            raise ValueError("class_type cannot be None")
 
         module_name = class_type.__module__
         class_name = class_type.__name__
@@ -196,7 +198,7 @@ class FactoryTypeMeta(ABCMeta, Loggable, Generic[T, F]):
         bases,
         attrs,
         **_
-    ) -> Type[Self]:
+    ) -> Type:
         new_cls = super().__new__(cls, name, bases, attrs)
         if new_cls.supports_registering is False:
             cls.logger.debug(f'FactoryTypeMeta: Class {name} does not support registering with a factory.')
