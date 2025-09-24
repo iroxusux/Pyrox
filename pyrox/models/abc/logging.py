@@ -82,7 +82,7 @@ class LoggingManager:
     _streams_captured = False
 
     @classmethod
-    def capture_system_streams(cls) -> tuple[StreamCapture, StreamCapture]:
+    def capture_system_streams(cls) -> tuple[Optional[StreamCapture], Optional[StreamCapture]]:
         """Capture sys.stdout and sys.stderr at application boot.
 
         Returns:
@@ -227,7 +227,7 @@ class LoggingManager:
         return handler
 
     @classmethod
-    def _setup_standard_logger(cls, name: str = None) -> logging.Logger:
+    def _setup_standard_logger(cls, name: Optional[str] = None) -> logging.Logger:
         """Get a standard logger with the specified name.
 
         Args:
