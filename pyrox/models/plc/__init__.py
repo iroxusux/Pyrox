@@ -12,21 +12,22 @@ from .meta import (
 )
 
 from .collections import ContainsRoutines, ContainsTags
+from .connection_needs_test import (
+    ConnectionCommand,
+    ConnectionCommandType,
+    ConnectionParameters,
+)
+from .datatype import Datatype, DatatypeMember
 from .instruction import LogixInstruction
 from .operand import LogixOperand
 
 from .plc import (
     AddOnInstruction,
-    ConnectionCommand,
-    ConnectionCommandType,
-    ConnectionParameters,
     Controller,
     ControllerConfiguration,
     ControllerFactory,
     ControllerModificationSchema,
     ControllerSafetyInfo,
-    Datatype,
-    DatatypeMember,
     DataValueMember,
     Module,
     ModuleControlsType,
