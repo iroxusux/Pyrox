@@ -445,6 +445,37 @@ class PlcObject(EnforcesNaming, SupportsMetaData, Generic[CTRL]):
                 self[asset_key][asset_list_name] = [self[asset_key][asset_list_name]]
         return self[asset_key][asset_list_name]
 
+    def _safe_set_integer_property(
+        self,
+        property_name: str,
+        value: Union[int, str],
+        minimum: Optional[int] = None,
+        maximum: Optional[int] = None
+    ) -> None:
+        """Set an integer property safely.
+
+        Args:
+            property_name: The name of the property to set.
+            value: The value to set.
+            minimum: The minimum allowed value.
+            maximum: The maximum allowed value.
+
+        Raises:
+            ValueError: If the value is not an integer or is out of bounds.
+        """
+        try:
+            int_value = int(value)
+        except ValueError:
+            raise ValueError(f"{property_name} must be an integer! Got {value}")
+
+        if minimum is not None and int_value < minimum:
+            raise ValueError(f"{property_name} must be at least {minimum}! Got {int_value}")
+
+        if maximum is not None and int_value > maximum:
+            raise ValueError(f"{property_name} must be at most {maximum}! Got {int_value}")
+
+        self[property_name] = str(value)
+
     def compile(self) -> Self:
         """Compile this object.
 

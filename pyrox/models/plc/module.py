@@ -278,10 +278,7 @@ class Module(plc_meta.NamedPlcObject):
 
     @vendor.setter
     def vendor(self, value: str):
-        if not isinstance(int(value), int):
-            raise ValueError("Vendor must be an integer!")
-
-        self['@Vendor'] = value
+        self._safe_set_integer_property('@Vendor', value)
 
     @property
     def product_type(self) -> str:
@@ -289,10 +286,7 @@ class Module(plc_meta.NamedPlcObject):
 
     @product_type.setter
     def product_type(self, value: str):
-        if not isinstance(int(value), int):
-            raise ValueError("Product type must be an integer!")
-
-        self['@ProductType'] = value
+        self._safe_set_integer_property('@ProductType', value)
 
     @property
     def product_code(self) -> str:
@@ -300,10 +294,7 @@ class Module(plc_meta.NamedPlcObject):
 
     @product_code.setter
     def product_code(self, value: str):
-        if not isinstance(int(value), int):
-            raise ValueError("Product code must be an integer!")
-
-        self['@ProductCode'] = value
+        self._safe_set_integer_property('@ProductCode', value)
 
     @property
     def major(self) -> str:
@@ -311,10 +302,7 @@ class Module(plc_meta.NamedPlcObject):
 
     @major.setter
     def major(self, value: str):
-        if not isinstance(int(value), int):
-            raise ValueError("Major version must be an integer!")
-
-        self['@Major'] = value
+        self._safe_set_integer_property('@Major', value)
 
     @property
     def minor(self) -> str:
@@ -322,10 +310,7 @@ class Module(plc_meta.NamedPlcObject):
 
     @minor.setter
     def minor(self, value: str):
-        if not isinstance(int(value), int):
-            raise ValueError("Minor version must be an integer!")
-
-        self['@Minor'] = value
+        self._safe_set_integer_property('@Minor', value)
 
     @property
     def parent_module(self) -> str:
