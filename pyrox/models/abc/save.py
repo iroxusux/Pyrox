@@ -3,7 +3,7 @@ These classes provide a structured way to implement saving and loading functiona
 """
 import json
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any, Optional, Union
 from pyrox.models.abc.meta import SupportsFileLocation
 
 __all__ = (
@@ -78,7 +78,7 @@ class SupportsJsonSaving(SupportsSaving):
 
     def save_to_json(
         self,
-        path: Optional[Path] = None,
+        path: Optional[Union[Path, str]] = None,
         data: Optional[dict] = None
     ) -> None:
         """Save the object to a JSON file.
@@ -112,7 +112,7 @@ class SupportsJsonLoading(SupportsLoading):
 
     def load_from_json(
         self,
-        path: Optional[Path] = None
+        path: Optional[Union[Path, str]] = None
     ) -> Any:
         """Load the object from a JSON file.
 
@@ -122,11 +122,19 @@ class SupportsJsonLoading(SupportsLoading):
         Returns:
             Any: Loaded data from the JSON file, or None if file doesn't exist.
         """
-        if not self.file_location and not path:
+        if self.file_location is None and path is None:
             return None
 
-        path = Path(path) if path else Path(self.file_location)
-        if not path or not path.exists():
+        if isinstance(path, str):
+            path = Path(path)
+
+        if path is None and self.file_location is not None:
+            path = Path(self.file_location)
+
+        if not isinstance(path, Path):
+            raise TypeError("Path must be a Path object or a string representing a path.")
+
+        if not path.exists():
             return None
 
         try:
