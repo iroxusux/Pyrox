@@ -363,10 +363,10 @@ class TrackedList(list[T]):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self._subscribers: SafeList[callable] = SafeList()
+        self.subscribers = SafeList()
 
     @property
-    def subscribers(self) -> list[T]:
+    def subscribers(self) -> SafeList[Callable]:
         """Iterable list of subscribers who are called when this list is updated.
 
         Returns:
@@ -376,6 +376,8 @@ class TrackedList(list[T]):
 
     @subscribers.setter
     def subscribers(self, value) -> None:
+        if not isinstance(value, SafeList):
+            raise TypeError('subscribers must be a SafeList')
         self._subscribers = value
 
     def emit(self) -> None:

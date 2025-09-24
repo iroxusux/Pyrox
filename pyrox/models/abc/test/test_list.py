@@ -727,9 +727,9 @@ class TestTrackedList(unittest.TestCase):
         tracked_list = TrackedList()
         new_subscribers = [lambda: None, lambda: None]
 
-        tracked_list.subscribers = new_subscribers
-
-        self.assertEqual(tracked_list.subscribers, new_subscribers)
+        with self.assertRaises(TypeError) as context:
+            tracked_list.subscribers = new_subscribers
+        self.assertEqual(str(context.exception), 'subscribers must be a SafeList')
 
     def test_subscribers_is_safe_list(self):
         """Test that subscribers is a SafeList."""
