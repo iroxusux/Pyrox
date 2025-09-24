@@ -2,8 +2,6 @@
 
 import pytest
 from unittest.mock import Mock, patch
-
-from pyrox.models.abc.list import HashList
 from pyrox.models.plc.program import Program
 from pyrox.models.plc import Controller, Routine, LogixInstruction
 
