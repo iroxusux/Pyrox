@@ -57,7 +57,11 @@ class EplanProjectFactory(MetaFactory):
     """Eplan Project factory."""
 
 
-class EplanProject(SupportsFileLocation, SupportsMetaData, metaclass=FactoryTypeMeta[Self, EplanProjectFactory]):
+class EplanProject(
+    SupportsFileLocation,
+    SupportsMetaData,
+    metaclass=FactoryTypeMeta[Self, EplanProjectFactory]
+):
     """EPLAN project model.
 
     Attributes:
@@ -86,7 +90,10 @@ class EplanProject(SupportsFileLocation, SupportsMetaData, metaclass=FactoryType
         self.sheet_details: List[Dict] = []
         self.bom_details: List[Dict] = []
 
-    def __init_subclass__(cls, **kwargs):
+    def __init_subclass__(
+        cls,
+        **kwargs
+    ):
         cls.supports_registering = True
         return super().__init_subclass__(**kwargs)
 
