@@ -394,6 +394,28 @@ class PlcObject(EnforcesNaming, SupportsMetaData, Generic[CTRL]):
         """
         return self._on_compiling
 
+    @property
+    def _raw_list_asset(
+        self,
+        asset_key: str,
+        asset_list_name: str,
+    ) -> list[dict]:
+        """Get the raw list asset from the metadata.
+
+        This is intended to be overridden by subclasses to provide a specific raw list asset.
+
+        Returns:
+            list[dict]: The raw list asset.
+        """
+        if not self[asset_key]:
+            self[asset_key] = {asset_list_name: []}
+        if not isinstance(self[asset_key][asset_list_name], list):
+            if self[asset_key][asset_list_name] == {} or self[asset_key][asset_list_name] is None:
+                self[asset_key][asset_list_name] = []
+            else:
+                self[asset_key][asset_list_name] = [self[asset_key][asset_list_name]]
+        return self[asset_key][asset_list_name]
+
     def _compile_from_meta_data(self):
         """Compile this object from its metadata.
 
