@@ -7,6 +7,8 @@ from typing import Any, Optional
 import tkinter as tk
 from tkinter import ttk
 
+from pyrox.models.abc.logging import LoggingManager
+
 from .. import models
 from ..services.dict import remove_none_values_inplace
 from ..services.plc import dict_to_xml_file, l5x_dict_from_file
@@ -324,8 +326,10 @@ class App(models.Application):
         self._log_window = models.LogFrame(self.frame)
         self._log_window.pack(fill='both', expand=True)
         self._sub_paned_window.add(self._log_window)
-        for stream in self._multi_stream.streams:
-            self._log_window.fill_log_from_stream(stream)
+        for stream in [LoggingManager._captured_stdout, LoggingManager._captured_stderr]:
+            if stream:
+                for line in stream.get_lines():
+                    self._log_window.log(line)
 
     def _build_organizer(self) -> None:
         self._organizer: AppOrganizer = AppOrganizer(application=self)

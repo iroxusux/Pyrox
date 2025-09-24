@@ -693,7 +693,7 @@ class Application(Runnable):
                 stream.SimpleStream(self.log))
             sys.stdout = self._multi_stream
             sys.stderr = self._multi_stream
-            LoggingManager.force_all_loggers_to_stderr()
+            LoggingManager.force_all_loggers_to_captured_stderr()
             self.logger.info(f'Logging to file: {self._directory_service.user_log_file}')
         except Exception as e:
             print(f'Failed to set up multi-stream logging: {e}', file=sys.__stderr__)
