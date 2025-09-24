@@ -338,7 +338,11 @@ class PlcObject(EnforcesNaming, SupportsMetaData, Generic[CTRL]):
         """
         if hasattr(self, '_config'):
             return self._config
-        return None if not self.controller else self.controller.config
+        if not self.controller or not self.controller.config:
+            from pyrox.models.plc.plc import ControllerConfiguration
+            self._config = ControllerConfiguration()
+            return self._config
+        return self.controller.config
 
     @property
     def controller(self) -> Optional[CTRL]:
@@ -369,7 +373,7 @@ class PlcObject(EnforcesNaming, SupportsMetaData, Generic[CTRL]):
             self._controller = value
             return  # If there is no config, then the type must not be important enough to check.
         if not isinstance(value, self.config.controller_type):
-            raise TypeError(f'Controller must be of type {self.config.controller_type} or None!')
+            raise TypeError(f'Controller must be of type {self.config.controller_type} or None! Got {type(value)}')
         self._controller = value
 
     @property

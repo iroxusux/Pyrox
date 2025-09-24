@@ -3,6 +3,7 @@
 import unittest
 from unittest.mock import MagicMock, patch
 
+from pyrox.models.plc import Controller
 from pyrox.models.plc.instruction import LogixInstruction
 from pyrox.models.plc.operand import LogixOperand
 from pyrox.models.plc import meta as plc_meta
@@ -642,7 +643,7 @@ class TestLogixInstructionEdgeCases(unittest.TestCase):
 
     def setUp(self):
         """Set up test fixtures."""
-        self.mock_controller = MagicMock()
+        self.mock_controller = MagicMock(spec=Controller)
         self.mock_controller.__class__.__name__ = 'Controller'
         self.mock_controller.tags = MagicMock()
         self.mock_controller.aois = []

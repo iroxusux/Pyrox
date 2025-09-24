@@ -683,7 +683,7 @@ class TestIntegration(unittest.TestCase):
         """Test error handling in integrated save/load operations."""
         class TestErrorHandling(SupportsJsonSaving, SupportsJsonLoading):
             @property
-            def save_data_callback(self):
+            def on_saving(self):
                 return lambda: {'error_test': True}
 
         obj = TestErrorHandling()

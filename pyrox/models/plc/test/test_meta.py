@@ -203,7 +203,8 @@ class TestPlcObject(unittest.TestCase):
 
     def setUp(self):
         """Set up test fixtures."""
-        self.mock_controller = MagicMock()
+        from pyrox.models.plc import Controller
+        self.mock_controller = MagicMock(spec=Controller)
         self.mock_controller.__class__.__name__ = 'Controller'
 
         # Create a concrete subclass for testing
@@ -265,7 +266,7 @@ class TestPlcObject(unittest.TestCase):
         """Test config property when no controller is set."""
         obj = self.TestPlcObject()
 
-        self.assertIsNone(obj.config)
+        self.assertIsNotNone(obj.config)
 
     def test_config_property_with_controller(self):
         """Test config property with controller."""
