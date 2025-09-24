@@ -97,6 +97,9 @@ class SupportsJsonSaving(SupportsSaving):
 
         data = data or self.on_saving()
 
+        if data is None:
+            raise ValueError("No data provided for saving JSON.")
+
         try:
             with open(path, 'w', encoding='utf-8') as f:
                 json.dump(data, f, indent=4)

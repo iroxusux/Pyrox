@@ -555,6 +555,14 @@ class ApplicationRuntimeInfo(SupportsJsonSaving, SupportsJsonLoading):
             raise TypeError('Loaded data must be a dictionary.')
         self.data = data
 
+    def on_saving(self) -> dict:
+        """Method to be called to retrieve the save data of the object.
+
+        Returns:
+            dict: The data to be saved.
+        """
+        return self._data.data
+
     def set(self, key: str, value: Any) -> None:
         """Set a key-value pair in the runtime information data.
 
