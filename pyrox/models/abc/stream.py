@@ -29,7 +29,8 @@ class SimpleStream:
         try:
             self.callback(text)
         except Exception as e:
-            sys.__stderr__.write(f"SimpleStream error: {e}\n")
+            if sys.__stderr__:
+                sys.__stderr__.write(f"SimpleStream error: {e}\n")
 
     def flush(self):
         """Flush the stream (no-op for SimpleStream)."""
@@ -49,7 +50,8 @@ class MultiStream:
 
     def _fallback_write(self, text):
         """Fallback method to write to sys.__stderr__ if write fails."""
-        sys.__stderr__.write(f"MultiStream error: {text}\n")
+        if sys.__stderr__:
+            sys.__stderr__.write(f"MultiStream error: {text}\n")
 
     def write(self, text):
         """Write text to all streams."""
