@@ -4,7 +4,7 @@ from typing import TYPE_CHECKING, Optional
 from pyrox.models.plc import meta as plc_meta
 
 if TYPE_CHECKING:
-    from .plc import LogixInstruction, Tag, ContainsRoutines
+    from .controller import LogixInstruction, Tag, ContainsRoutines
 
 
 class LogixOperand(plc_meta.PlcObject):

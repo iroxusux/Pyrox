@@ -7,7 +7,7 @@ from pyrox.models.plc import meta as plc_meta
 from pyrox.models.plc.instruction import LogixInstruction
 
 if TYPE_CHECKING:
-    from .plc import Routine, Tag
+    from .controller import Routine, Tag
 
 
 class ContainsTags(plc_meta.NamedPlcObject):

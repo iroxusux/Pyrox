@@ -4,7 +4,7 @@ from pyrox.models.abc.meta import PyroxObject
 from pyrox.models.abc.factory import FactoryTypeMeta, MetaFactory
 from pyrox.models.abc.list import HashList
 from .meta import PlcObject
-from .plc import Controller
+from .controller import Controller
 
 
 class ControllerValidatorFactory(MetaFactory):

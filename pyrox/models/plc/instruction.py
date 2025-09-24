@@ -4,7 +4,7 @@ import re
 from typing import TYPE_CHECKING, Optional, Union
 from pyrox.models.plc import meta as plc_meta
 if TYPE_CHECKING:
-    from .plc import Controller, Program, AddOnInstruction, Routine, Rung, Tag
+    from .controller import Controller, Program, AddOnInstruction, Routine, Rung, Tag
 from .operand import LogixOperand
 
 

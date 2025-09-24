@@ -17,25 +17,22 @@ from .connection_needs_test import (
     ConnectionCommandType,
     ConnectionParameters,
 )
+from .aoi import AddOnInstruction
 from .datatype import Datatype, DatatypeMember
 from .instruction import LogixInstruction
 from .module import Module, ModuleControlsType
 from .operand import LogixOperand
 from .program import Program
+from .routine import Routine
+from .rung import Rung, RungElementType
+from .tag import Tag, TagEndpoint, DataValueMember
 
-from .plc import (
-    AddOnInstruction,
+from .controller import (
     Controller,
     ControllerConfiguration,
     ControllerFactory,
     ControllerModificationSchema,
     ControllerSafetyInfo,
-    DataValueMember,
-    Routine,
-    Rung,
-    RungElementType,
-    Tag,
-    TagEndpoint,
 )
 
 from .matcher import (

@@ -9,7 +9,7 @@ from typing import Optional, Dict, List
 import re
 
 from .frames import TaskFrame
-from ..plc import plc
+from ..plc import controller
 from ..abc.meta import Loggable
 
 
@@ -33,7 +33,7 @@ class LadderElement:
     width: int
     height: int
     canvas_id: int
-    instruction: Optional[plc.LogixInstruction] = None
+    instruction: Optional[controller.LogixInstruction] = None
     text: str = ""
     is_selected: bool = False
     branch_level: int = 0
@@ -94,12 +94,12 @@ class LadderCanvas(Canvas, Loggable):
         self.bind('<MouseWheel>', self._on_mousewheel)
 
     @property
-    def routine(self) -> Optional[plc.Routine]:
+    def routine(self) -> Optional[controller.Routine]:
         """Get the current routine being edited."""
         return self._routine
 
     @routine.setter
-    def routine(self, value: Optional[plc.Routine]):
+    def routine(self, value: Optional[controller.Routine]):
         """Set the routine to edit."""
         self._routine = value
         self.clear_canvas()
@@ -154,7 +154,7 @@ class LadderCanvas(Canvas, Loggable):
         # Update scroll region
         self.configure(scrollregion=self.bbox("all"))
 
-    def _draw_rung(self, rung: plc.Rung, rung_number: int, y_pos: int):
+    def _draw_rung(self, rung: controller.Rung, rung_number: int, y_pos: int):
         """Draw a single rung using the enhanced PLC data structure."""
         self._rung_y_positions[rung_number] = y_pos
 
@@ -184,14 +184,14 @@ class LadderCanvas(Canvas, Loggable):
             self.create_line(rail_x, center_y, right_rail_x, center_y,
                              width=2, tags=f"rung_{rung_number}")
 
-    def _draw_rung_sequence(self, rung: plc.Rung, rung_number: int, y_pos: int, start_x: int):
+    def _draw_rung_sequence(self, rung: controller.Rung, rung_number: int, y_pos: int, start_x: int):
         """Draw rung using the enhanced sequence structure from PLC model."""
         current_x = start_x
         center_y = y_pos + self.RUNG_HEIGHT // 2
         branch_stack = []  # Track active branches
 
         for element in rung.rung_sequence:
-            if element.element_type == plc.RungElementType.INSTRUCTION:
+            if element.element_type == controller.RungElementType.INSTRUCTION:
                 # Draw the instruction
                 ladder_element = self._draw_instruction(element.instruction, current_x, center_y, rung_number)
                 if ladder_element:
@@ -205,7 +205,7 @@ class LadderCanvas(Canvas, Loggable):
                     self._elements.append(ladder_element)
                     current_x += ladder_element.width + 10
 
-            elif element.element_type == plc.RungElementType.BRANCH_START:
+            elif element.element_type == controller.RungElementType.BRANCH_START:
                 # Handle branch start
                 branch_y = center_y + (len(branch_stack) + 1) * self.BRANCH_SPACING
 
@@ -251,7 +251,7 @@ class LadderCanvas(Canvas, Loggable):
                     width=2, tags=f"rung_{rung_number}_branch"
                 )
 
-            elif element.element_type == plc.RungElementType.BRANCH_END:
+            elif element.element_type == controller.RungElementType.BRANCH_END:
                 # Handle branch end
                 if branch_stack and element.branch_id in branch_stack:
                     branch_stack.remove(element.branch_id)
@@ -296,7 +296,7 @@ class LadderCanvas(Canvas, Loggable):
                     )
 
     def _draw_rung_instructions(self,
-                                instructions: List[plc.LogixInstruction],
+                                instructions: List[controller.LogixInstruction],
                                 rung_number: int, y_pos: int,
                                 start_x: int):
         """Draw instructions for a rung (fallback method)."""
@@ -309,7 +309,7 @@ class LadderCanvas(Canvas, Loggable):
                 self._elements.append(element)
                 current_x += element.width + 10
 
-    def _draw_instruction(self, instruction: plc.LogixInstruction, x: int, y: int,
+    def _draw_instruction(self, instruction: controller.LogixInstruction, x: int, y: int,
                           rung_number: int) -> Optional[LadderElement]:
         """Draw a single instruction.
 
@@ -328,7 +328,7 @@ class LadderCanvas(Canvas, Loggable):
         else:  # Function blocks
             return self._draw_block(instruction, x, y, rung_number)
 
-    def _draw_contact(self, instruction: plc.LogixInstruction, x: int, center_y: int,
+    def _draw_contact(self, instruction: controller.LogixInstruction, x: int, center_y: int,
                       rung_number: int) -> LadderElement:
         """Draw a contact instruction centered on the rung."""
         # Determine contact type
@@ -400,7 +400,7 @@ class LadderCanvas(Canvas, Loggable):
             text=operand
         )
 
-    def _draw_coil(self, instruction: plc.LogixInstruction, x: int, center_y: int,
+    def _draw_coil(self, instruction: controller.LogixInstruction, x: int, center_y: int,
                    rung_number: int) -> LadderElement:
         """Draw a coil instruction centered on the rung."""
         # Calculate top and bottom Y positions for centering
@@ -461,7 +461,7 @@ class LadderCanvas(Canvas, Loggable):
             text=operand
         )
 
-    def _draw_block(self, instruction: plc.LogixInstruction, x: int, center_y: int,
+    def _draw_block(self, instruction: controller.LogixInstruction, x: int, center_y: int,
                     rung_number: int) -> LadderElement:
         """Draw a function block instruction centered on the rung."""
         # Calculate top and bottom Y positions for centering
@@ -662,7 +662,7 @@ class LadderCanvas(Canvas, Loggable):
 
         # Find positions in the text where branch markers should be inserted
         # This is a simplified approach - you may need more sophisticated parsing
-        instructions = re.findall(plc.INST_RE_PATTERN, current_text)
+        instructions = re.findall(controller.INST_RE_PATTERN, current_text)
 
         if len(instructions) >= 2:
             # Insert branch start after first instruction
@@ -752,7 +752,7 @@ class LadderCanvas(Canvas, Loggable):
 
     def _insert_contact(self, x: int, center_y: int, rung_number: int, branch_level: int = 0):
         """Insert a contact, optionally on a branch."""
-        new_instruction = plc.LogixInstruction(
+        new_instruction = controller.LogixInstruction(
             meta_data='XIC(NewContact)',
             rung=self._routine.rungs[rung_number] if self._routine else None,
             controller=self._routine.controller if self._routine else None
@@ -766,7 +766,7 @@ class LadderCanvas(Canvas, Loggable):
 
     def _insert_coil(self, x: int, center_y: int, rung_number: int, branch_level: int = 0):
         """Insert a new coil at given position (centered on rung)."""
-        new_instruction = plc.LogixInstruction(
+        new_instruction = controller.LogixInstruction(
             meta_data='OTE(NewCoil)',
             rung=self._routine.rungs[rung_number] if self._routine else None,
             controller=self._routine.controller if self._routine else None
@@ -780,7 +780,7 @@ class LadderCanvas(Canvas, Loggable):
 
     def _insert_block(self, x: int, center_y: int, rung_number: int, branch_level: int = 0):
         """Insert a new function block at given position (centered on rung)."""
-        new_instruction = plc.LogixInstruction(
+        new_instruction = controller.LogixInstruction(
             meta_data='TON(Timer1,1000,0)',
             rung=self._routine.rungs[rung_number] if self._routine else None,
             controller=self._routine.controller if self._routine else None
@@ -792,7 +792,7 @@ class LadderCanvas(Canvas, Loggable):
             self._elements.append(element)
             self._add_instruction_to_rung(new_instruction, rung_number)
 
-    def _add_instruction_to_rung(self, instruction: plc.LogixInstruction, rung_number: int):
+    def _add_instruction_to_rung(self, instruction: controller.LogixInstruction, rung_number: int):
         """Add instruction to the appropriate rung in the routine."""
         if not self._routine or not hasattr(self._routine, 'rungs'):
             return
@@ -890,7 +890,7 @@ class LadderCanvas(Canvas, Loggable):
         finally:
             menu.grab_release()
 
-    def _edit_instruction(self, instruction: plc.LogixInstruction):
+    def _edit_instruction(self, instruction: controller.LogixInstruction):
         """Edit an instruction (placeholder - implement instruction editor dialog)."""
         self._show_status(f"Edit instruction: {instruction.meta_data}")
 
@@ -946,10 +946,10 @@ class LadderCanvas(Canvas, Loggable):
         """Add a new empty rung to the routine."""
         if not self._routine:
             # Create a basic routine if none exists
-            self._routine = plc.Routine(controller=None)
+            self._routine = controller.Routine(controller=None)
 
         # Create new rung
-        new_rung = plc.Rung(controller=self._routine.controller if self._routine else None)
+        new_rung = controller.Rung(controller=self._routine.controller if self._routine else None)
         new_rung.number = str(len(self._routine.rungs))
         new_rung.text = ""
         new_rung.comment = ""
@@ -1120,12 +1120,12 @@ class DebugTaskFrame(TaskFrame):
         self.destroy()
 
     @property
-    def routine(self) -> Optional[plc.Routine]:
+    def routine(self) -> Optional[controller.Routine]:
         """Get the current routine."""
         return self._routine
 
     @routine.setter
-    def routine(self, value: Optional[plc.Routine]):
+    def routine(self, value: Optional[controller.Routine]):
         """Set the routine to edit."""
         self._routine = value
         self._ladder_canvas.routine = value

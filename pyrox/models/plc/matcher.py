@@ -6,7 +6,7 @@ from pyrox.models.abc.meta import PyroxObject
 from pyrox.models.abc.factory import FactoryTypeMeta, MetaFactory
 from pyrox.utils import check_wildcard_patterns
 
-from .plc import Controller
+from .controller import Controller
 
 
 class ControllerMatcherFactory(MetaFactory):

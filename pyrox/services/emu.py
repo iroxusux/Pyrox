@@ -1,6 +1,6 @@
 """Pyrox emulation services module.
 """
-from pyrox.models.plc import plc
+from pyrox.models.plc import controller
 from pyrox.models import emu
 
 __all__ = (
@@ -10,7 +10,7 @@ __all__ = (
 
 
 def _get_generator(
-    controller: plc.Controller
+    controller: controller.Controller
 ) -> emu.EmulationGenerator:
     generator: emu.EmulationGenerator = emu.EmulationGeneratorFactory.get_registered_type_by_supporting_class(controller)
     if not isinstance(generator, type(emu.EmulationGenerator)):
@@ -19,7 +19,7 @@ def _get_generator(
 
 
 def _work_precheck(
-    controller: plc.Controller,
+    controller: controller.Controller,
     generator: emu.EmulationGenerator,
 ) -> None:
     if not controller:
@@ -29,7 +29,7 @@ def _work_precheck(
 
 
 def inject_emulation_routine(
-    controller: plc.Controller
+    controller: controller.Controller
 ) -> None:
     """Injects emulation routine the current controller.
 
@@ -42,7 +42,7 @@ def inject_emulation_routine(
 
 
 def remove_emulation_routine(
-    controller: plc.Controller
+    controller: controller.Controller
 ) -> None:
     """Removes emulation routine from the current controller.
 

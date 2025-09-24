@@ -17,7 +17,7 @@ from pyrox.models.abc.meta import EnforcesNaming, NamedPyroxObject, PyroxObject,
 from pyrox.services.dict import insert_key_at_index
 
 if TYPE_CHECKING:
-    from pyrox.models.plc.plc import Controller, ControllerConfiguration
+    from pyrox.models.plc.controller import Controller, ControllerConfiguration
 
 T = TypeVar('T')
 CTRL = TypeVar('CTRL', bound='Controller')
@@ -339,7 +339,7 @@ class PlcObject(EnforcesNaming, SupportsMetaData, Generic[CTRL], PyroxObject):
         if hasattr(self, '_config'):
             return self._config
         if not self.controller or not self.controller.config:
-            from pyrox.models.plc.plc import ControllerConfiguration
+            from pyrox.models.plc.controller import ControllerConfiguration
             self._config = ControllerConfiguration()
             return self._config
         return self.controller.config
