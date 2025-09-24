@@ -19,6 +19,7 @@ from .connection_needs_test import (
 )
 from .datatype import Datatype, DatatypeMember
 from .instruction import LogixInstruction
+from .module import Module, ModuleControlsType
 from .operand import LogixOperand
 
 from .plc import (
@@ -29,8 +30,6 @@ from .plc import (
     ControllerModificationSchema,
     ControllerSafetyInfo,
     DataValueMember,
-    Module,
-    ModuleControlsType,
     Program,
     Routine,
     Rung,

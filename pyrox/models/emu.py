@@ -2,7 +2,7 @@
 """
 from typing import Optional, Self, List
 
-from .plc import plc, imodule
+from .plc import plc, imodule, ModuleControlsType
 from .abc import meta, factory
 
 
@@ -278,7 +278,7 @@ class EmulationGenerator(meta.PyroxObject, metaclass=factory.FactoryTypeMeta[Sel
 
     def _generate_builtin_common(
         self,
-        generation_type: plc.ModuleControlsType
+        generation_type: ModuleControlsType
     ) -> None:
         modules: list[plc.IntrospectiveModule] = imodule.ModuleWarehouseFactory.filter_modules_by_type(
             self.generator_object.modules,
