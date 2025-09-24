@@ -3,7 +3,7 @@
 from abc import ABCMeta
 import importlib
 import sys
-from typing import Dict, Generic, List, Optional, Type, TypeVar, Union
+from typing import Any, Dict, Generic, List, Optional, Type, TypeVar, Union
 
 from pyrox.models.abc.logging import Loggable
 
@@ -72,7 +72,7 @@ class MetaFactory(ABCMeta, Loggable):
         type_name: str,
         *args,
         **kwargs
-    ) -> Optional[T]:
+    ) -> Optional[Any]:
         """Create an instance of the specified type."""
         type_class = cls.get_registered_types().get(type_name)
         if type_class:
@@ -89,7 +89,7 @@ class MetaFactory(ABCMeta, Loggable):
     def get_registered_type(
         cls,
         type_name: Union[str, object]
-    ) -> Optional[Type[T]]:
+    ) -> Optional[type]:
         """Get the registered type class for the given type name.
 
         Args:
@@ -110,7 +110,7 @@ class MetaFactory(ABCMeta, Loggable):
     def get_registered_type_by_supporting_class(
         cls,
         supporting_class: Union[object, str, Type]
-    ) -> Optional[Type[T]]:
+    ) -> Optional[type]:
         """Get the registered type class that supports the given class.
 
         Args:
@@ -146,7 +146,7 @@ class MetaFactory(ABCMeta, Loggable):
             raise ValueError('supporting_class must be a string, type, or an object instance.')
 
     @classmethod
-    def get_registered_types(cls) -> dict[str, Type[T]]:
+    def get_registered_types(cls) -> dict[str, type]:
         """Get the registered types for this factory.
 
         Returns:
