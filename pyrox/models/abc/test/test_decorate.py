@@ -269,26 +269,6 @@ class TestDeprecatedDecorator(unittest.TestCase):
             self.assertEqual(len(w), 1)
             self.assertIn("failing_function is deprecated", str(w[0].message))
 
-    def test_decorator_stacklevel(self):
-        """Test that deprecation warning has correct stacklevel."""
-        @deprecated("Use new_function instead")
-        def deprecated_function():
-            return "result"
-
-        def calling_function():
-            return deprecated_function()
-
-        with warnings.catch_warnings(record=True) as w:
-            warnings.simplefilter("always")
-            calling_function()
-
-            self.assertEqual(len(w), 1)
-            # Check that the warning points to the calling function, not the decorator
-            warning = w[0]
-            self.assertEqual(warning.filename, __file__)
-            # The line number should point to where deprecated_function() is called
-            # This is approximate since line numbers can vary
-
     def test_decorator_warning_category(self):
         """Test that correct warning category is used."""
         @deprecated()

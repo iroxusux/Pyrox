@@ -25,7 +25,7 @@ class ApplicationTaskFactory(MetaFactory):
             task(application=application).inject()  # Instantiate to ensure registration
 
 
-class ApplicationTask(Runnable, metaclass=FactoryTypeMeta[Self, ApplicationTaskFactory]):
+class ApplicationTask(Runnable, metaclass=FactoryTypeMeta[type(Self), ApplicationTaskFactory]):
     """Application task to add additional functionality to the application.
 
     Normally, these tasks are injected into the application's main menu toolbar.

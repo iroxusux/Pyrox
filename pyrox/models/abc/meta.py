@@ -180,7 +180,7 @@ class SliceableInt(int):
         ----------
             :class:`bool`
         """
-        return (self._value & (1 << bit_position)) >> bit_position
+        return bool((self._value & (1 << bit_position)) >> bit_position)
 
     def set_bit(self,
                 bit_position: int) -> int:
@@ -299,8 +299,8 @@ class SnowFlake:
     """
     __slots__ = ('_id',)
 
-    def __eq__(self, other: 'SnowFlake') -> bool:
-        if type(self) is type(other):
+    def __eq__(self, other) -> bool:
+        if issubclass(type(other), SnowFlake):
             return self.id == other.id
         return False
 
@@ -345,7 +345,7 @@ class SupportsItemAccess:
     This class allows for accessing items using the indexing syntax (e.g., obj[key]).
     """
     @property
-    def indexed_attribute(self) -> dict:
+    def indexed_attribute(self) -> Optional[Any]:
         """A specified indexed attribute for this object.
 
         Returns:
@@ -379,7 +379,7 @@ class SupportsMetaData(SupportsItemAccess):
         meta_data: Optional[Union[str, dict]] = None,
         **kwargs
     ) -> None:
-        self.meta_data: Optional[Union[str, dict]] = meta_data if meta_data is not None else {}
+        self.meta_data = meta_data if meta_data is not None else {}
         super().__init__(**kwargs)
 
     @property
@@ -489,7 +489,7 @@ class SupportsFileLocation:
         file_location: Optional[str] = None,
         **kwargs
     ) -> None:
-        self.file_location: Optional[str] = file_location
+        self.file_location = file_location
         super().__init__(**kwargs)
 
     @property
