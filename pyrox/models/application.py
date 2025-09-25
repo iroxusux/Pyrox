@@ -18,6 +18,8 @@ from tkinter import (
 )
 from typing import Any, Callable, Optional, Self, Union
 
+from pyrox.services.env import EnvManager
+
 from .abc import Buildable, Runnable, SupportsJsonLoading, SupportsJsonSaving
 from .abc import meta, runtime, stream
 from .abc.logging import LoggingManager
@@ -77,9 +79,14 @@ class BaseMenu(Buildable):
         Returns:
             dict: Dictionary of menu commands, where the key is the label and the value is the command.
         """
+        if not isinstance(menu, Menu):
+            raise TypeError('Menu must be a Tkinter Menu instance.')
         cmds = {}
         try:
-            for x in range(menu.index('end') + 1):
+            last_index = menu.index('end')
+            if not last_index or last_index < 0:
+                return cmds
+            for x in range(last_index + 1):
                 if menu.type(x) == 'command':
                     label = menu.entrycget(x, 'label')
                     cmd = menu.entrycget(x, 'command')
@@ -201,7 +208,7 @@ class ApplicationConfiguration:
     author_name: Optional[str] = meta.DEF_AUTHOR_NAME
     title: Optional[str] = meta.DEF_WIN_TITLE
     type_: ApplicationTkType = ApplicationTkType.ROOT
-    icon: Optional[str] = meta.DEF_ICON
+    icon: Optional[Union[str, Path]] = meta.DEF_ICON
     size_: Optional[str] = meta.DEF_WIN_SIZE
 
     @classmethod
@@ -212,7 +219,7 @@ class ApplicationConfiguration:
         author_name: str = meta.DEF_AUTHOR_NAME,
         title: str = meta.DEF_WIN_TITLE,
         type_: ApplicationTkType = ApplicationTkType.ROOT,
-        icon: str = meta.DEF_ICON,
+        icon: Optional[Union[str, Path]] = meta.DEF_ICON,
         size_: str = meta.DEF_WIN_SIZE
     ) -> Self:
         """Common assembly method for creating ApplicationConfiguration instances.
@@ -247,7 +254,7 @@ class ApplicationConfiguration:
         Returns:
             Self: A toplevel ApplicationConfiguration instance.
         """
-        return ApplicationConfiguration._common_assembly(
+        return cls._common_assembly(
             type_=ApplicationTkType.TOPLEVEL,
         )
 
@@ -258,7 +265,7 @@ class ApplicationConfiguration:
         Returns:
             Self: A root ApplicationConfiguration instance.
         """
-        return ApplicationConfiguration._common_assembly()
+        return cls._common_assembly()
 
 
 class ApplicationDirectoryService:
@@ -281,7 +288,11 @@ class ApplicationDirectoryService:
     """
     __slots__ = ('_app_name', '_author_name')
 
-    def __init__(self, author_name: str, app_name: str):
+    def __init__(
+        self,
+        author_name: Optional[str] = meta.DEF_AUTHOR_NAME,
+        app_name: Optional[str] = meta.DEF_APP_NAME
+    ) -> None:
         if not author_name or author_name == '':
             raise ValueError('A valid, non-null author name must be supplied for this class!')
 
@@ -489,7 +500,7 @@ class ApplicationRuntimeInfo(SupportsJsonSaving, SupportsJsonLoading):
         )
 
     @property
-    def data(self) -> meta.RuntimeDict:
+    def data(self) -> runtime.RuntimeDict:
         """Runtime data dictionary.
 
         Returns:
@@ -606,16 +617,13 @@ class Application(Runnable):
     ) -> None:
         super().__init__()
         sys.excepthook = self._excepthook
-        self._config: ApplicationConfiguration = config or ApplicationConfiguration.root()
-        self._directory_service: ApplicationDirectoryService = ApplicationDirectoryService(
+        self.config = config or ApplicationConfiguration.root()
+        self.directory_service = ApplicationDirectoryService(
             author_name=self.config.author_name,
             app_name=self.config.application_name
         )
-        self._frame: Frame = None
-        self._menu: MainApplicationMenu = None
-        self._runtime_info: ApplicationRuntimeInfo = None
-        self._tk_app: Union[Tk, Toplevel] = None
-        self._multi_stream: Optional[meta.MultiStream] = None
+        self.environment_manager = EnvManager()
+        self.multi_stream = None
 
     @property
     def tk_app(self) -> Union[Tk, Toplevel]:
@@ -635,6 +643,20 @@ class Application(Runnable):
         """
         return self._config
 
+    @config.setter
+    def config(self, value: ApplicationConfiguration) -> None:
+        """Set the configuration for this Application.
+
+        Args:
+            value: The new configuration to set.
+
+        Raises:
+            TypeError: If the value is not an instance of ApplicationConfiguration.
+        """
+        if not isinstance(value, ApplicationConfiguration):
+            raise TypeError('Config must be an instance of ApplicationConfiguration.')
+        self._config = value
+
     @property
     def directory_service(self) -> ApplicationDirectoryService:
         """Directory service for this Application.
@@ -645,6 +667,20 @@ class Application(Runnable):
             ApplicationDirectoryService: The directory service instance.
         """
         return self._directory_service
+
+    @directory_service.setter
+    def directory_service(self, value: ApplicationDirectoryService) -> None:
+        """Set the directory service for this Application.
+
+        Args:
+            value: The new directory service to set.
+
+        Raises:
+            TypeError: If the value is not an instance of ApplicationDirectoryService.
+        """
+        if not isinstance(value, ApplicationDirectoryService):
+            raise TypeError('Directory service must be an instance of ApplicationDirectoryService.')
+        self._directory_service = value
 
     @property
     def frame(self) -> Frame:
@@ -665,6 +701,31 @@ class Application(Runnable):
         return self._menu
 
     @property
+    def multi_stream(self) -> Optional[stream.MultiStream]:
+        """The MultiStream for this Application.
+
+        This stream captures stdout and stderr and redirects them to multiple destinations.
+
+        Returns:
+            Optional[stream.MultiStream]: The MultiStream instance, or None if not set up.
+        """
+        return self._multi_stream
+
+    @multi_stream.setter
+    def multi_stream(self, value: Optional[stream.MultiStream]) -> None:
+        """Set the MultiStream for this Application.
+
+        Args:
+            value: The new MultiStream to set.
+
+        Raises:
+            TypeError: If the value is not an instance of stream.MultiStream.
+        """
+        if not isinstance(value, stream.MultiStream) and value is not None:
+            raise TypeError('MultiStream must be an instance of stream.MultiStream.')
+        self._multi_stream = value
+
+    @property
     def runtime_info(self) -> ApplicationRuntimeInfo:
         """Runtime information for this Application.
 
@@ -676,7 +737,7 @@ class Application(Runnable):
         return self._runtime_info
 
     def _build_app_icon(self) -> None:
-        icon_path = Path(self.config.icon)
+        icon_path = Path(str(self.config.icon))
         if icon_path.exists():
             self._tk_app.iconbitmap(self.config.icon)
             self._tk_app.iconbitmap(default=self.config.icon)
@@ -722,9 +783,10 @@ class Application(Runnable):
             raise ValueError('Application type is not supported. Please use ROOT or TOPLEVEL.')
 
     def _connect_tk_attributes(self) -> None:
-        self._tk_app.report_callback_exception = self._excepthook
-        self._tk_app.protocol('WM_DELETE_WINDOW', self.close)
-        self._tk_app.title(self.config.title)
+        if isinstance(self.tk_app, Tk):
+            self.tk_app.report_callback_exception = self._excepthook
+        self.tk_app.protocol('WM_DELETE_WINDOW', self.close)
+        self.tk_app.title(self.config.title)
 
     def _excepthook(self, exc_type, exc_value, exc_traceback) -> None:
         """Handle uncaught exceptions.
@@ -749,9 +811,13 @@ class Application(Runnable):
         Args:
             event: The Tk event that triggered this method.
         """
+        root = event.widget
+        if not isinstance(root, Tk):
+            return
+
         if event.widget != self.tk_app:
             return
-        root = event.widget
+
         self._runtime_info.data.inhibit()
         self._runtime_info.data['window_size'] = f'{root.winfo_width()}x{root.winfo_height()}'
         self._runtime_info.data['window_position'] = (root.winfo_x(), root.winfo_y())

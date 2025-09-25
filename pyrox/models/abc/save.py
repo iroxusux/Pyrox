@@ -62,7 +62,7 @@ class SupportsSaving(SupportsFileLocation):
         """
         raise NotImplementedError("This method should be implemented in subclasses.")
 
-    def on_saving(self) -> None:
+    def on_saving(self) -> Any:
         """Method to be called to retrieve the save data of the object.
         """
         ...
