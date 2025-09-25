@@ -6,7 +6,8 @@ import winreg
 
 import os
 import re
-from typing import Optional
+from typing import Optional, Union
+from pathlib import Path
 import xmltodict
 import lxml.etree
 from xml.sax.saxutils import unescape
@@ -34,7 +35,9 @@ def cdata(s):
         return '<![CDATA[' + s + ']]>'
 
 
-def l5x_dict_from_file(file_location: str) -> Optional[dict]:
+def l5x_dict_from_file(
+    file_location: Union[Path, str]
+) -> Optional[dict]:
     """get a controller dictionary from a provided .l5x file location
 
     Args:

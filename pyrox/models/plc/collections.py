@@ -7,7 +7,9 @@ from pyrox.models.plc import meta as plc_meta
 from pyrox.models.plc.instruction import LogixInstruction
 
 if TYPE_CHECKING:
-    from .controller import Routine, Tag
+    from .controller import Controller
+    from .routine import Routine
+    from .tag import Tag
 
 
 class ContainsTags(plc_meta.NamedPlcObject):
@@ -146,8 +148,8 @@ class ContainsRoutines(ContainsTags):
 
     def __init__(
         self,
-        meta_data=defaultdict(None),
-        controller=None
+        meta_data: Optional[dict] = defaultdict(None),
+        controller: Optional['Controller'] = None
     ) -> None:
         super().__init__(
             meta_data,

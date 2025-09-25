@@ -1,11 +1,10 @@
 """AddOn Instruction Definition for a rockwell plc
 """
 from __future__ import annotations
-from typing import TYPE_CHECKING
+from typing import Optional, TYPE_CHECKING
 
 from pyrox.models.plc import meta as plc_meta
 from pyrox.models.plc import collections
-from pyrox.services.plc import l5x_dict_from_file
 
 if TYPE_CHECKING:
     from pyrox.models.plc import Controller
@@ -17,8 +16,8 @@ class AddOnInstruction(collections.ContainsRoutines):
 
     def __init__(
         self,
-        meta_data: dict = None,
-        controller: Controller = None
+        meta_data: Optional[dict] = None,
+        controller: Optional[Controller] = None
     ) -> None:
         """type class for plc AddOn Instruction Definition
 
@@ -26,10 +25,14 @@ class AddOnInstruction(collections.ContainsRoutines):
             l5x_meta_data (str): meta data
             controller (Self): controller dictionary
         """
+        self._get_default_meta_data(
+            meta_data=meta_data,
+            file_location=plc_meta.PLC_AOI_FILE,
+            l5x_dict_key='AddOnInstructionDefinition'
+        )
 
         super().__init__(
-            meta_data=meta_data or l5x_dict_from_file(
-                plc_meta.PLC_AOI_FILE)['AddOnInstructionDefinition'],
+            meta_data=meta_data,
             controller=controller
         )
         # this is due to a weird rockwell issue with the character '<' in the revision extension

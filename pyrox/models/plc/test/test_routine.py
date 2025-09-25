@@ -647,7 +647,7 @@ class TestRoutineRungMethods(unittest.TestCase):
             meta_data=self.basic_routine_meta,
             controller=self.mock_controller
         )
-        routine.logger = Mock()
+        routine.log = Mock()
 
         # Add some rungs
         routine.raw_rungs.extend([
@@ -659,7 +659,7 @@ class TestRoutineRungMethods(unittest.TestCase):
             routine.clear_rungs()
 
             self.assertEqual(len(routine.raw_rungs), 0)
-            routine.logger.debug.assert_called_once()
+            routine.log().debug.assert_called_once()
             mock_compile.assert_called_once()
 
 
