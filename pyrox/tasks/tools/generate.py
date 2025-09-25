@@ -2,7 +2,7 @@
     """
 import importlib
 from pyrox.applications import AppTask
-from pyrox.services import emu
+from pyrox.services import checklist, emu
 from tkinter import Menu
 
 
@@ -18,6 +18,10 @@ class ControllerGenerateTask(AppTask):
 
     def generate_stellantis(self):
         raise NotImplementedError('Stellantis controller generation not implemented yet.')
+
+    def _gen_checklist(self):
+        importlib.reload(checklist)
+        raise NotImplementedError('Checklist generation not implemented yet.')
 
     def _inject(self):
         importlib.reload(emu)
@@ -41,3 +45,5 @@ class ControllerGenerateTask(AppTask):
 
         emu_drop_down.add_command(label='Inject Emulation Routine', command=self._inject)
         emu_drop_down.add_command(label='Remove Emulation Routine', command=self._remove)
+        emu_drop_down.add_separator()
+        emu_drop_down.add_command(label='Generate Checklist', command=self._gen_checklist)
