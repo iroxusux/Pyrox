@@ -307,7 +307,8 @@ class PlcObject(EnforcesNaming, SupportsMetaData, Generic[CTRL], PyroxObject):
     def __init__(
         self,
         controller: Optional[CTRL] = None,
-        meta_data: Optional[Union[dict, str]] = defaultdict(None)
+        meta_data: Optional[Union[dict, str]] = defaultdict(None),
+        **kwargs
     ) -> None:
         self._get_default_meta_data(
             meta_data=meta_data,
@@ -320,6 +321,7 @@ class PlcObject(EnforcesNaming, SupportsMetaData, Generic[CTRL], PyroxObject):
         self._on_compiling: list[Callable] = []
         self._on_compiled: list[Callable] = []
         self._init_dict_order()
+        self._post_init(**kwargs)
 
     def __repr__(self) -> str:
         return str(self)
@@ -482,6 +484,16 @@ class PlcObject(EnforcesNaming, SupportsMetaData, Generic[CTRL], PyroxObject):
         """
         raise NotImplementedError("This method should be overridden by subclasses to invalidate the object.")
 
+    def _post_init(
+        self,
+        **kwargs
+    ) -> None:
+        """Post initialization hook.
+
+        This method is called after the object has been initialized.
+        """
+        pass
+
     def _raw_list_asset(
         self,
         asset_key: str,
@@ -581,7 +593,9 @@ class NamedPlcObject(NamedPyroxObject, PlcObject):
         PlcObject.__init__(
             self,
             meta_data=meta_data,
-            controller=controller
+            controller=controller,
+            name=name,
+            description=description
         )
         # Because these attrs could be defined by meta data,
         # capture their values here before we continue the object resolution order.

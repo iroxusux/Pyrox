@@ -26,7 +26,7 @@ class TestDatatypeMember:
     def test_initialization(self):
         """Test DatatypeMember initialization."""
         member = DatatypeMember(
-            l5x_meta_data=self.sample_member_data,
+            meta_data=self.sample_member_data,
             parent_datatype=self.mock_parent_datatype,
             controller=self.mock_controller
         )
@@ -38,7 +38,7 @@ class TestDatatypeMember:
     def test_datatype_property(self):
         """Test datatype property getter."""
         member = DatatypeMember(
-            l5x_meta_data=self.sample_member_data,
+            meta_data=self.sample_member_data,
             parent_datatype=self.mock_parent_datatype,
             controller=self.mock_controller
         )
@@ -48,7 +48,7 @@ class TestDatatypeMember:
     def test_dimension_property(self):
         """Test dimension property getter."""
         member = DatatypeMember(
-            l5x_meta_data=self.sample_member_data,
+            meta_data=self.sample_member_data,
             parent_datatype=self.mock_parent_datatype,
             controller=self.mock_controller
         )
@@ -58,7 +58,7 @@ class TestDatatypeMember:
     def test_hidden_property(self):
         """Test hidden property getter."""
         member = DatatypeMember(
-            l5x_meta_data=self.sample_member_data,
+            meta_data=self.sample_member_data,
             parent_datatype=self.mock_parent_datatype,
             controller=self.mock_controller
         )
@@ -71,7 +71,7 @@ class TestDatatypeMember:
         member_data['@Hidden'] = 'true'
 
         member = DatatypeMember(
-            l5x_meta_data=member_data,
+            meta_data=member_data,
             parent_datatype=self.mock_parent_datatype,
             controller=self.mock_controller
         )
@@ -82,7 +82,7 @@ class TestDatatypeMember:
     def test_is_atomic_true_for_atomic_datatype(self):
         """Test is_atomic property returns True for atomic datatypes."""
         member = DatatypeMember(
-            l5x_meta_data=self.sample_member_data,
+            meta_data=self.sample_member_data,
             parent_datatype=self.mock_parent_datatype,
             controller=self.mock_controller
         )
@@ -96,7 +96,7 @@ class TestDatatypeMember:
         member_data['@DataType'] = 'CustomDatatype'
 
         member = DatatypeMember(
-            l5x_meta_data=member_data,
+            meta_data=member_data,
             parent_datatype=self.mock_parent_datatype,
             controller=self.mock_controller
         )
@@ -106,7 +106,7 @@ class TestDatatypeMember:
     def test_parent_datatype_property(self):
         """Test parent_datatype property getter."""
         member = DatatypeMember(
-            l5x_meta_data=self.sample_member_data,
+            meta_data=self.sample_member_data,
             parent_datatype=self.mock_parent_datatype,
             controller=self.mock_controller
         )
@@ -122,7 +122,7 @@ class TestDatatypeMember:
             member_data['@DataType'] = datatype
 
             member = DatatypeMember(
-                l5x_meta_data=member_data,
+                meta_data=member_data,
                 parent_datatype=self.mock_parent_datatype,
                 controller=self.mock_controller
             )
@@ -132,7 +132,7 @@ class TestDatatypeMember:
     def test_inheritance_from_named_plc_object(self):
         """Test that DatatypeMember inherits from NamedPlcObject."""
         member = DatatypeMember(
-            l5x_meta_data=self.sample_member_data,
+            meta_data=self.sample_member_data,
             parent_datatype=self.mock_parent_datatype,
             controller=self.mock_controller
         )
@@ -496,7 +496,7 @@ class TestDatatypeMemberEdgeCases:
         }
 
         member = DatatypeMember(
-            l5x_meta_data=minimal_data,
+            meta_data=minimal_data,
             parent_datatype=self.mock_parent_datatype,
             controller=self.mock_controller
         )
@@ -518,7 +518,7 @@ class TestDatatypeMemberEdgeCases:
         }
 
         member = DatatypeMember(
-            l5x_meta_data=member_data,
+            meta_data=member_data,
             parent_datatype=self.mock_parent_datatype,
             controller=self.mock_controller
         )
@@ -536,7 +536,7 @@ class TestDatatypeMemberEdgeCases:
         }
 
         member = DatatypeMember(
-            l5x_meta_data=member_data,
+            meta_data=member_data,
             parent_datatype=self.mock_parent_datatype,
             controller=self.mock_controller
         )
