@@ -14,6 +14,9 @@ class AddOnInstruction(collections.ContainsRoutines):
     """AddOn Instruction Definition for a rockwell plc
     """
 
+    _default_l5x_file_path = plc_meta.PLC_AOI_FILE
+    _default_l5x_asset_key = 'AddOnInstructionDefinition'
+
     def __init__(
         self,
         meta_data: Optional[dict] = None,
@@ -25,11 +28,6 @@ class AddOnInstruction(collections.ContainsRoutines):
             l5x_meta_data (str): meta data
             controller (Self): controller dictionary
         """
-        self._get_default_meta_data(
-            meta_data=meta_data,
-            file_location=plc_meta.PLC_AOI_FILE,
-            l5x_dict_key='AddOnInstructionDefinition'
-        )
 
         super().__init__(
             meta_data=meta_data,

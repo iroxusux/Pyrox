@@ -301,11 +301,19 @@ class PlcObject(EnforcesNaming, SupportsMetaData, Generic[CTRL], PyroxObject):
         on_compiling: List of functions to call when object is compiling.
     """
 
+    _default_l5x_file_path: Optional[Union[Path, str]] = None
+    _default_l5x_asset_key: Optional[str] = None
+
     def __init__(
         self,
         controller: Optional[CTRL] = None,
         meta_data: Optional[Union[dict, str]] = defaultdict(None)
     ) -> None:
+        self._get_default_meta_data(
+            meta_data=meta_data,
+            file_location=self._default_l5x_file_path,
+            l5x_dict_key=self._default_l5x_asset_key
+        )
         super().__init__(meta_data=meta_data)
         self.controller = controller
 
@@ -414,21 +422,36 @@ class PlcObject(EnforcesNaming, SupportsMetaData, Generic[CTRL], PyroxObject):
         """
         raise NotImplementedError("This method should be overridden by subclasses to compile from meta data.")
 
-    @staticmethod
+    @classmethod
     def _get_default_meta_data(
-        meta_data: Optional[dict],
+        cls,
+        meta_data: Optional[Union[dict, str]],
         file_location: Optional[Union[str, Path]],
         l5x_dict_key: Optional[str]
-    ) -> dict:
+    ) -> Optional[Union[dict, str]]:
         """Validate passed meta data and load default meta data if necessary.
 
         Args:
-            meta_data: The metadata to validate or replace.
+            meta_data: The metadata to validate or load.
+            file_location: The file location to load default metadata from if necessary.
+            l5x_dict_key: The key in the L5X file to load the metadata
+        Returns:
+            Union[dict, str]: The validated or loaded metadata.
+        Raises:
+            ValueError: If file_location or l5x_dict_key is not provided when meta_data is None.
         """
+        if isinstance(meta_data, str):
+            return meta_data  # Assume it's an attribute string and let the caller handle it
+        file_location = file_location or cls._default_l5x_file_path
+        l5x_dict_key = l5x_dict_key or cls._default_l5x_asset_key
+
+        if not isinstance(meta_data, dict) and meta_data is not None:
+            raise ValueError(f"meta_data must be of type dict or None! Got {type(meta_data)}")
+
         if file_location is None:
-            raise ValueError("file_location must be provided to load default meta data!")
+            return meta_data  # No file location to load from, so just return what was passed in
         if l5x_dict_key is None:
-            raise ValueError("l5x_dict_key must be provided to load default meta data!")
+            return meta_data  # No dict key to load from, so just return what was passed in
 
         if meta_data is None:
             meta_dict = l5x_dict_from_file(file_location)
