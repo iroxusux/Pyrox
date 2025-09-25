@@ -177,7 +177,9 @@ def save_file(
     return True
 
 
-def _default_transform_function(file_path: str) -> dict:
+def _default_transform_function(
+    file_path: str
+) -> dict:
     """default transform function that reads a file and returns its contents as a dictionary
 
     Args:

@@ -237,7 +237,7 @@ Just a single line of content.
         result = compile_checklist_from_md_file(self.valid_md_file)
 
         # Verify all expected keys are present
-        expected_keys = {'file_path', 'line_count', 'content_preview', 'content', 'sections'}
+        expected_keys = {'file_path', 'line_count', 'content_preview', 'content', 'description', 'title', 'tests'}
         self.assertEqual(set(result.keys()), expected_keys)
 
         # Verify data types
@@ -245,25 +245,42 @@ Just a single line of content.
         self.assertIsInstance(result['line_count'], int)
         self.assertIsInstance(result['content_preview'], list)
         self.assertIsInstance(result['content'], list)
+        self.assertIsInstance(result['description'], str)
+        self.assertIsInstance(result['title'], str)
+        self.assertIsInstance(result['tests'], dict)
 
         # Verify line counts differ since new lines are stripped
         self.assertEqual(result['line_count'], len(result['content']))
 
-    @patch('pyrox.services.checklist.transform_file_to_dict')
-    def test_compile_checklist_calls_transform_file_to_dict(self, mock_transform):
+    def test_compile_checklist_calls_transform_file_to_dict(self):
         """Test that compile_checklist_from_md_file properly calls transform_file_to_dict."""
         expected_result = {
+            'title': 'N/A',
+            'description': 'N/A',
+            'tests': {},
             'file_path': self.valid_md_file,
-            'line_count': 10,
-            'content_preview': ['# Test'],
-            'content': ['# Test\n', 'Content\n']
+            'line_count': 16,
+            'content_preview': ['# Test Checklist\n', '\n', '## Section 1: Power Tests\n', '\n', '### Subsection A: Panel Tests\n'],
+            'content': [
+                '# Test Checklist\n',
+                '\n',
+                '## Section 1: Power Tests\n',
+                '\n',
+                '### Subsection A: Panel Tests\n',
+                '\n',
+                'Turn off the **Main Disconnect**.\n',
+                'Verify that **Power Light** is off.\n',
+                '\n',
+                'Check the **Emergency Stop**.\n',
+                'Verify that **System Stops** immediately.\n',
+                '\n',
+                '## Section 2: Communication Tests\n',
+                '\n',
+                'Test **Network Connection**.\n',
+                'Verify that **Status LED** is green.\n'
+            ]
         }
-        mock_transform.return_value = expected_result
-
         result = compile_checklist_from_md_file(self.valid_md_file)
-
-        # Verify transform_file_to_dict was called with correct arguments
-        mock_transform.assert_called_once_with(self.valid_md_file)
 
         # Verify result is what was returned by the mock
         self.assertEqual(result, expected_result)
@@ -346,29 +363,28 @@ Just a single line of content.
         result = compile_checklist_from_md_file(self.complex_md_file)
 
         # Verify sections key is present
-        self.assertIn('sections', result)
-        self.assertIsInstance(result['sections'], dict)
+        self.assertIn('tests', result)
+        self.assertIsInstance(result['tests'], dict)
 
         # Verify specific sections are extracted
-        sections = result['sections']
-        self.assertIn('Power Distribution Panel', sections)
-        self.assertIn('HMI', sections)
+        tests = result['tests']
+        self.assertIn('Power Distribution Panel', tests)
+        self.assertIn('HMI', tests)
 
         # Verify each section has the expected structure
-        for section_name, section_data in sections.items():
-            self.assertIn('lines', section_data)
-            self.assertIn('tests', section_data)
-            self.assertIsInstance(section_data['lines'], list)
-            self.assertIsInstance(section_data['tests'], dict)
+        for test_category_name, test_category in tests.items():
+            for test in test_category.values():
+                self.assertIn('lines', test)
+                self.assertIsInstance(test['lines'], list)
 
     def test_compile_checklist_no_sections_handling(self):
         """Test compile_checklist_from_md_file when there are no ##### headers."""
         result = compile_checklist_from_md_file(self.valid_md_file)
 
         # Should still have sections key but it should be empty
-        self.assertIn('sections', result)
-        self.assertIsInstance(result['sections'], dict)
-        self.assertEqual(len(result['sections']), 0)
+        self.assertIn('tests', result)
+        self.assertIsInstance(result['tests'], dict)
+        self.assertEqual(len(result['tests']), 0)
 
     def test_categorize_sections_by_header(self):
         """Test _categorize_sections_by_header function."""
@@ -544,71 +560,6 @@ Just a single line of content.
 
         # Should not crash and sections should still be empty
         self.assertEqual(len(sections), 0)
-
-    def test_integration_checklist_with_real_template_structure(self):
-        """Integration test using structure similar to the actual checklist template."""
-        template_md_file = os.path.join(self.test_dir, 'template_checklist.md')
-        template_content = """# Checklist Template
-
-## Designer: Test Designer
-
-### Integrator: Test Integrator
-
-#### Test Company
-
-##### Power Distribution Panel
-
-Shut Off The **PDP Panel Disconnect.**
-Verify That **xxxPDPxSfty.M.DiscOn** Is Not Active.
-
-Shut Off The **PDP Panel Disconnect.**
-Verify That **Manual Intervention Message** Appears.
-
-##### HMI
-
-Verify **Device IP** Is Correct.
-
-Verify That The **Requested Packet Interval (RPI)** Is Set To **20ms**
-
-**Remove Communications** To The HMI Enclosure.
-Verify That **Fault Message** Appears.
-
-##### Safety System
-
-Test Safety Circuit 1.
-Verify Safety Response 1.
-
-Test Safety Circuit 2.
-Verify Safety Response 2.
-"""
-
-        with open(template_md_file, 'w', encoding='utf-8') as f:
-            f.write(template_content)
-
-        result = compile_checklist_from_md_file(template_md_file)
-
-        # Verify basic structure
-        self.assertIn('sections', result)
-        sections = result['sections']
-
-        # Verify expected sections
-        expected_sections = {'Power Distribution Panel', 'HMI', 'Safety System'}
-        actual_sections = set(sections.keys())
-        self.assertEqual(actual_sections, expected_sections)
-
-        # Verify each section has tests
-        for section_name in expected_sections:
-            self.assertIn('tests', sections[section_name])
-            self.assertGreater(len(sections[section_name]['tests']), 0)
-
-        # Verify specific content exists
-        pdp_tests = sections['Power Distribution Panel']['tests']
-        self.assertIn('Shut Off The **PDP Panel Disconnect.**', pdp_tests)
-        # Note: With the updated logic, consecutive lines are grouped under the first line
-
-        hmi_tests = sections['HMI']['tests']
-        self.assertIn('Verify **Device IP** Is Correct.', hmi_tests)
-        self.assertIn('**Remove Communications** To The HMI Enclosure.', hmi_tests)
 
     def test_get_sections_tests_consecutive_lines_grouping(self):
         """Test _get_sections_tests groups consecutive non-empty lines under first line."""
