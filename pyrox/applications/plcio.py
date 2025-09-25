@@ -196,8 +196,8 @@ class PlcControllerConnectionModel(Model):
 
         self.params = params
         self.log().info('connecting to -> %s | %s',
-                         self._params.ip_address,
-                         str(self._params.slot))
+                        self._params.ip_address,  # type: ignore
+                        str(self._params.slot))  # type: ignore
         self._commands.clear()  # clear out command buffer for any left-over commands
         self._connecting = True
         self._connection_loop()

@@ -431,10 +431,10 @@ class TestSupportsMetaData:
         obj = SupportsMetaData()
 
         with pytest.raises(TypeError, match="Meta data must be a dictionary, string, or None"):
-            obj.meta_data = 42
+            obj.meta_data = 42  # type: ignore
 
         with pytest.raises(TypeError, match="Meta data must be a dictionary, string, or None"):
-            obj.meta_data = ['list', 'not', 'allowed']
+            obj.meta_data = ['list', 'not', 'allowed']  # type: ignore
 
     def test_item_access_inheritance(self):
         """Test that item access works with meta data."""
@@ -442,7 +442,7 @@ class TestSupportsMetaData:
         assert obj['test'] == 'value'
 
         obj['new_key'] = 'new_value'
-        assert obj.meta_data['new_key'] == 'new_value'
+        assert obj.meta_data['new_key'] == 'new_value'  # type: ignore
 
 
 class TestNamedPyroxObject:
@@ -499,10 +499,10 @@ class TestNamedPyroxObject:
         obj = NamedPyroxObject()
 
         with pytest.raises(TypeError, match="Description must be a string"):
-            obj.description = 42
+            obj.description = 42  # type: ignore
 
         with pytest.raises(TypeError, match="Description must be a string"):
-            obj.description = None
+            obj.description = None  # type: ignore
 
     def test_string_representations(self):
         """Test string representations."""
@@ -562,10 +562,10 @@ class TestSupportsFileLocation:
         obj = SupportsFileLocation()
 
         with pytest.raises(TypeError, match="File location must be a string or None"):
-            obj.file_location = 42
+            obj.file_location = 42  # type: ignore
 
         with pytest.raises(TypeError, match="File location must be a string or None"):
-            obj.file_location = ['path', 'list']
+            obj.file_location = ['path', 'list']  # type: ignore
 
 
 class TestIntegration:

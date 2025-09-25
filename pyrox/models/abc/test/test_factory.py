@@ -147,7 +147,7 @@ class TestMetaFactory(unittest.TestCase):
         instance = self.TestFactory.create_instance('TestType', 'test_value')
 
         self.assertIsInstance(instance, TestType)
-        self.assertEqual(instance.value, 'test_value')
+        self.assertEqual(instance.value, 'test_value')  # type: ignore
 
     def test_create_instance_with_kwargs(self):
         """Test create_instance with keyword arguments."""
@@ -161,8 +161,8 @@ class TestMetaFactory(unittest.TestCase):
         instance = self.TestFactory.create_instance('TestType', 'test_value', name='test_name')
 
         self.assertIsInstance(instance, TestType)
-        self.assertEqual(instance.value, 'test_value')
-        self.assertEqual(instance.name, 'test_name')
+        self.assertEqual(instance.value, 'test_value')  # type: ignore
+        self.assertEqual(instance.name, 'test_name')  # type: ignore
 
     def test_create_instance_type_not_found(self):
         """Test create_instance when type is not registered."""
@@ -561,8 +561,8 @@ class TestIntegration(unittest.TestCase):
         instance = self.TestFactory.create_instance('TestWidget', 'test_widget', value=42)
 
         self.assertIsInstance(instance, TestWidget)
-        self.assertEqual(instance.name, 'test_widget')
-        self.assertEqual(instance.value, 42)
+        self.assertEqual(instance.name, 'test_widget')  # type: ignore
+        self.assertEqual(instance.value, 42)  # type: ignore
 
     def test_supporting_class_workflow(self):
         """Test workflow with supporting_class attribute."""
@@ -584,7 +584,7 @@ class TestIntegration(unittest.TestCase):
         # Should be registered by Controller name, not class name
         self.assertIn(Controller, registered_types)
         self.assertNotIn(WidgetController, registered_types)
-        self.assertEqual(registered_types[Controller], WidgetController)
+        self.assertEqual(registered_types[Controller], WidgetController)  # type: ignore
 
         # Test retrieval by supporting class
         controller_instance = Controller()  # Create instance of Controller, not WidgetController
@@ -647,7 +647,7 @@ class TestIntegration(unittest.TestCase):
 
         self.assertIsInstance(base_instance, BaseWidget)
         self.assertIsInstance(special_instance, SpecialWidget)
-        self.assertEqual(special_instance.special_value, 'special_val')
+        self.assertEqual(special_instance.special_value, 'special_val')  # type: ignore
 
     def test_factory_type_discovery(self):
         """Test discovering available factory types."""
@@ -701,7 +701,7 @@ class TestIntegration(unittest.TestCase):
         # Create a real module-like object and add the TestType to it
         import types
         mock_module = types.ModuleType('test_module')
-        mock_module.TestType = TestType
+        mock_module.TestType = TestType  # type: ignore
 
         with patch.object(sys, 'modules', {'test_module': mock_module}):
             with patch('pyrox.models.abc.factory.importlib.reload') as mock_reload:
@@ -714,20 +714,20 @@ class TestIntegration(unittest.TestCase):
     def test_complex_type_hierarchy(self):
         """Test complex type hierarchy with factory registration."""
         class BaseController(metaclass=FactoryTypeMeta):
-            supporting_class = 'Controller'
+            supporting_class = 'Controller'  # type: ignore
 
             @classmethod
             def get_factory(cls):
                 return self.TestFactory
 
         class DatabaseController(BaseController):
-            supporting_class = 'DatabaseController'
+            supporting_class = 'DatabaseController'  # type: ignore
 
         class APIController(BaseController):
-            supporting_class = 'APIController'
+            supporting_class = 'APIController'  # type: ignore
 
         class SpecialAPIController(APIController):
-            supporting_class = 'SpecialAPIController'
+            supporting_class = 'SpecialAPIController'  # type: ignore
 
         registered_types = self.TestFactory.get_registered_types()
 
@@ -761,7 +761,7 @@ class TestIntegration(unittest.TestCase):
         # Create instance (Python doesn't enforce generic types at runtime)
         instance = self.TestFactory.create_instance('GenericWidget', "test_string")
         self.assertIsInstance(instance, GenericWidget)
-        self.assertEqual(instance.item, "test_string")
+        self.assertEqual(instance.item, "test_string")  # type: ignore
 
     def test_factory_isolation(self):
         """Test that different factories are properly isolated."""

@@ -532,7 +532,7 @@ class TestDeprecatedDecoratorEdgeCases(unittest.TestCase):
     def test_decorator_with_non_string_reason(self):
         """Test deprecated decorator with non-string reason."""
         # The decorator should handle non-string reasons gracefully
-        @deprecated(reason=123)
+        @deprecated(reason=123)  # type: ignore
         def test_function():
             return "result"
 
@@ -548,7 +548,7 @@ class TestDeprecatedDecoratorEdgeCases(unittest.TestCase):
 
     def test_decorator_with_non_string_version(self):
         """Test deprecated decorator with non-string version."""
-        @deprecated(version=2.0)
+        @deprecated(version=2.0)  # type: ignore
         def test_function():
             return "result"
 
