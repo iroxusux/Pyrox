@@ -1054,7 +1054,7 @@ class ControllerModificationSchema(Loggable):
         super().__init__()
         self.source = source
         self.destination = destination
-        self.actions = []  # List of migration actions
+        self.actions: list[dict] = []  # List of migration actions
 
     def _execute_add_controller_tag(
         self,
@@ -1065,7 +1065,8 @@ class ControllerModificationSchema(Loggable):
             self.logger.warning('No tag data provided for add_controller_tag action.')
             return
 
-        config = self.destination.config
+        destination = self._safe_get_destination_controller()
+        config = self._safe_get_controller_config()
 
         tag = config.tag_type(
             meta_data=tag_data,
@@ -1074,7 +1075,7 @@ class ControllerModificationSchema(Loggable):
         )
 
         try:
-            self.destination.add_tag(tag)
+            destination.add_tag(tag)
             self.logger.info(f'Added tag {tag.name} to destination controller.')
         except ValueError as e:
             self.logger.warning(f'Failed to add tag {tag.name}:\n{e}')
@@ -1392,6 +1393,20 @@ class ControllerModificationSchema(Loggable):
         for rung_num, new_rung in rung_updates.items():
             dest_routine.rungs[rung_num] = new_rung
             self.logger.info(f'Updated rung {rung_num} in routine {routine_name} of program {destination_program_name}.')
+
+    def _safe_get_controller_config(self) -> ControllerConfiguration:
+        destination = self._safe_get_destination_controller()
+
+        if not destination.config:
+            raise ValueError('Destination controller configuration not set!')
+
+        return destination.config
+
+    def _safe_get_destination_controller(self) -> Controller:
+        if not self.destination:
+            raise ValueError('Destination controller not set!')
+
+        return self.destination
 
     def _safe_register_action(
         self,
@@ -1719,6 +1734,9 @@ class ControllerModificationSchema(Loggable):
     def execute(self):
         """Perform all migration and import actions."""
         self.logger.info('Executing controller modification schema...')
+
+        if not self.destination:
+            raise ValueError('Destination controller is not set.')
 
         # call all action's methods
         for action in self.actions:
