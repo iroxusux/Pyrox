@@ -1048,8 +1048,8 @@ class ControllerModificationSchema(Loggable):
 
     def __init__(
         self,
-        source: Controller,
-        destination: Controller
+        source: Optional[Controller],
+        destination: Optional[Controller]
     ) -> None:
         super().__init__()
         self.source = source

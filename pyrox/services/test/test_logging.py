@@ -24,7 +24,7 @@ class TestConstants(unittest.TestCase):
 
     def test_default_date_format(self):
         """Test default date format string."""
-        expected = "%m/%d/%Y, %H:%M:%S"
+        expected = "%Y-%m-%d %H:%M:%S"
         self.assertEqual(DEF_DATE_FMT, expected)
 
     def test_formatter_contains_required_fields(self):

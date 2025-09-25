@@ -1,8 +1,8 @@
 """Warehouse module for pyrox module applications.
 """
 from __future__ import annotations
-from typing import List, Optional, Self, TYPE_CHECKING
-from pyrox.models.abc import FactoryTypeMeta, MetaFactory
+from typing import List, Optional, Self, TYPE_CHECKING, Union
+from pyrox.models.abc import FactoryTypeMeta, HashList, MetaFactory
 from pyrox.services.logging import Loggable
 
 
@@ -63,7 +63,7 @@ class ModuleWarehouseFactory(MetaFactory):
     @classmethod
     def filter_modules_by_type(
         cls,
-        modules: List[Module],
+        modules: Union[List[Module], HashList[Module]],
         module_type: ModuleControlsType
     ) -> List[IntrospectiveModule]:
         """Filter a list of modules by a specific type.

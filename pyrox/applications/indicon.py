@@ -8,7 +8,7 @@ from typing import Optional, Self
 
 class BaseControllerValidator(plc.ControllerValidator):
     """Validator for controllers."""
-    supporting_class = 'Controller'
+    supporting_class = plc.Controller
 
     @classmethod
     def validate_all(
@@ -16,12 +16,12 @@ class BaseControllerValidator(plc.ControllerValidator):
         controller: plc.Controller
     ) -> Self:
         cls.logger.info('Starting Indicon controller validation...')
-        super().validate_all(controller)
+        return super().validate_all(controller)
 
 
 class BaseEmulationGenerator(emu.EmulationGenerator):
     """Base class for emulation logic generators."""
-    supporting_class = 'Controller'
+    supporting_class = plc.Controller
 
     def __init__(
         self,
@@ -30,7 +30,7 @@ class BaseEmulationGenerator(emu.EmulationGenerator):
         super().__init__(controller)
 
     @property
-    def base_tags(self) -> list[str]:
+    def base_tags(self) -> list[tuple[str, str, str]]:
         """List of base tags common to all controllers.
 
         Returns:

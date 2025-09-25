@@ -750,19 +750,19 @@ class Application(Runnable):
 
     def _build_multi_stream(self) -> None:
         if self._multi_stream is not None:
-            self.logger.warning('MultiStream is already set up, skipping setup.')
-            return
+            raise RuntimeError('MultiStream has already been set up for this application.')
         try:
             self._multi_stream = stream.MultiStream(
-                sys.__stderr__,
                 self._directory_service.get_log_file_stream(),
                 stream.SimpleStream(self.log))
-            sys.stdout = self._multi_stream
-            sys.stderr = self._multi_stream
-            LoggingManager.force_all_loggers_to_captured_stderr()
+
+            LoggingManager.register_callback_to_captured_streams(
+                self._multi_stream.write
+            )
+
             self.logger.info(f'Logging to file: {self._directory_service.user_log_file}')
         except Exception as e:
-            print(f'Failed to set up multi-stream logging: {e}', file=sys.__stderr__)
+            raise RuntimeError(f'Failed to set up MultiStream: {e}') from e
 
     def _build_runtime_info(self) -> None:
         self._runtime_info = ApplicationRuntimeInfo(self)

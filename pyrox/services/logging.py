@@ -19,6 +19,7 @@ class StreamCapture(io.StringIO):
         super().__init__()
         self.original_stream = original_stream
         self._lines = []
+        self._callbacks = []
 
     def write(self, s: str) -> int:
         """Write to both the capture buffer and optionally the original stream."""
@@ -38,6 +39,13 @@ class StreamCapture(io.StringIO):
         # Store line for iteration
         if '\n' in s:
             self._lines.extend(s.splitlines(keepends=True))
+
+        # Call any registered callbacks
+        for callback in self._callbacks:
+            try:
+                callback(s)
+            except Exception:
+                pass  # Ignore errors in callbacks
 
         return result
 
@@ -63,6 +71,11 @@ class StreamCapture(io.StringIO):
     def readable(self) -> bool:
         """Always return True - this stream is readable."""
         return True
+
+    def register_callback(self, callback):
+        """Register a callback to be called on each write."""
+        if callable(callback):
+            self._callbacks.append(callback)
 
     def seekable(self) -> bool:
         """Return True - StringIO is seekable."""
@@ -188,6 +201,21 @@ class LoggingManager:
             for i, handler in enumerate(logger.handlers):
                 print(f"    Handler {i}: {type(handler).__name__} -> {getattr(handler, 'stream', 'N/A')}")
             print()
+
+    @classmethod
+    def register_callback_to_captured_streams(
+        cls,
+        callback
+    ) -> None:
+        """Register a callback to be called on writes to the captured streams.
+
+        Args:
+            callback: A callable that takes a single string argument.
+        """
+        if cls._captured_stdout:
+            cls._captured_stdout.register_callback(callback)
+        if cls._captured_stderr:
+            cls._captured_stderr.register_callback(callback)
 
     @classmethod
     def _create_logger(cls, name: str = __name__) -> logging.Logger:

@@ -8,6 +8,7 @@ import tkinter as tk
 from tkinter import ttk, Canvas
 from typing import Any, Optional, Dict, List, Literal, Union
 
+from pyrox.models import plc
 from .frames import TaskFrame
 from ..plc import controller
 from ..abc.meta import Loggable
@@ -984,7 +985,7 @@ class LadderCanvas(Canvas, Loggable):
     def _assm_ladder_element_from_rung_element(
         self,
         ladder_element: LadderElement,
-        rung_element: controller.RungElement,
+        rung_element: plc.rung.RungElement,
     ) -> None:
         """Assemble a LadderElement from a RungElement.
 
@@ -1244,7 +1245,7 @@ class LadderCanvas(Canvas, Loggable):
             controller=self._routine.controller
         )
 
-    def _create_end_rung(self) -> controller.RungElement:
+    def _create_end_rung(self) -> plc.rung.RungElement:
         """Create an end rung element."""
         routine = self._get_routine()
         return controller.Rung(
@@ -1566,7 +1567,7 @@ class LadderCanvas(Canvas, Loggable):
 
     def _draw_branch_left_rail(
             self,
-            element: controller.RungElement,
+            element: plc.rung.RungElement,
     ) -> LadderElement:
         """Draw the left rail branch start indicator and preview lines.
         Args:
@@ -1873,7 +1874,7 @@ class LadderCanvas(Canvas, Loggable):
 
     def _draw_instruction(
         self,
-        element: controller.RungElement,
+        element: plc.rung.RungElement,
         x: int,
         y: int,
     ) -> LadderElement:
@@ -2327,21 +2328,21 @@ class LadderCanvas(Canvas, Loggable):
         self._branch_tracking.clear()  # Clear branch tracking for each rung
 
         for element in rung.rung_sequence:
-            if element.element_type == controller.RungElementType.INSTRUCTION:
+            if element.element_type == plc.rung.RungElementType.INSTRUCTION:
                 self._draw_rung_sequence_instruction(element)
 
-            elif element.element_type == controller.RungElementType.BRANCH_START:
+            elif element.element_type == plc.rung.RungElementType.BRANCH_START:
                 self._draw_rung_sequence_branch_start(element)
 
-            elif element.element_type == controller.RungElementType.BRANCH_NEXT:
+            elif element.element_type == plc.rung.RungElementType.BRANCH_NEXT:
                 self._draw_rung_sequence_branch_next(element)
 
-            elif element.element_type == controller.RungElementType.BRANCH_END:
+            elif element.element_type == plc.rung.RungElementType.BRANCH_END:
                 self._draw_rung_sequence_branch_end(element)
 
     def _draw_rung_sequence_branch_end(
             self,
-            element: controller.RungElement,
+            element: plc.rung.RungElement,
     ):
         rung_number = self._get_rung_number(element.rung)
 
@@ -2384,7 +2385,7 @@ class LadderCanvas(Canvas, Loggable):
 
     def _draw_rung_sequence_branch_start(
             self,
-            element: controller.RungElement
+            element: plc.rung.RungElement
     ) -> None:
         """Draw a branch start element in the rung sequence.
         Args:
@@ -2396,7 +2397,7 @@ class LadderCanvas(Canvas, Loggable):
 
     def _draw_rung_sequence_instruction(
             self,
-            element: controller.RungElement,
+            element: plc.rung.RungElement,
     ) -> None:
         """Draw an instruction element in the rung sequence.
         Args:
@@ -2408,7 +2409,7 @@ class LadderCanvas(Canvas, Loggable):
 
     def _draw_rung_sequence_branch_next(
         self,
-        element: controller.RungElement
+        element: plc.rung.RungElement
     ) -> None:
         """Draw a branch next element in the rung sequence.
         Args:
@@ -3116,7 +3117,7 @@ class LadderCanvas(Canvas, Loggable):
 
     def _get_element_x_y_sequence_spacing(
         self,
-        element: controller.RungElement
+        element: plc.rung.RungElement
     ) -> tuple[int, int]:
         """Get x, y coordinates for spacing elements in a rung sequence.
 
@@ -3173,7 +3174,7 @@ class LadderCanvas(Canvas, Loggable):
 
     def _get_last_branch_ladder_x_element(
         self,
-        element: controller.RungElement
+        element: plc.rung.RungElement
     ) -> Optional[LadderElement]:
         """Get the last ladder element in a main branch seqeuence (The most to the right)."""
         rung_number = self._get_rung_number(element.rung)
@@ -3213,7 +3214,7 @@ class LadderCanvas(Canvas, Loggable):
 
     def _get_last_ladder_element(
         self,
-        element: Optional[controller.RungElement] = None,
+        element: Optional[plc.rung.RungElement] = None,
         rung_number: Optional[Union[str, int]] = None
     ) -> Optional[LadderElement]:
         """Get the last ladder element in the rung sequence."""
@@ -3221,7 +3222,7 @@ class LadderCanvas(Canvas, Loggable):
             raise ValueError("Either element or rung_number must be provided.")
         if element:
 
-            if element.element_type == controller.RungElementType.BRANCH_END:
+            if element.element_type == plc.rung.RungElementType.BRANCH_END:
                 return self._get_last_branch_ladder_x_element(element)
 
             ladder_elements = self._get_rung_ladder_elements(element.rung_number, element.branch_level, element.root_branch_id)

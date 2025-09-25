@@ -389,9 +389,13 @@ class App(models.Application):
         self._sub_paned_window.pack(fill='both', expand=True)
 
     def _build_log_window(self) -> None:
+        if not self._sub_paned_window:
+            raise RuntimeError('Sub paned window must be built before log window.')
+
         self._log_window = models.LogFrame(self.frame)
         self._log_window.pack(fill='both', expand=True)
         self._sub_paned_window.add(self._log_window)
+
         for stream in [LoggingManager._captured_stdout, LoggingManager._captured_stderr]:
             if stream:
                 for line in stream.get_lines():
