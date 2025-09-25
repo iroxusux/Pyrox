@@ -16,6 +16,9 @@ from pyrox.models.abc.logging import Loggable
 class EnvManager(Loggable):
     """Manager for environment variables and .env files."""
 
+    def __getitem__(self, key: str) -> Any:
+        return self.get(key)
+
     def __init__(
         self,
         env_file: Optional[str] = None,
@@ -34,6 +37,9 @@ class EnvManager(Loggable):
 
         if auto_load:
             self.load()
+
+    def __setitem__(self, key: str, value: Any) -> None:
+        self.set(key, value)
 
     def load(
         self,

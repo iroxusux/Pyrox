@@ -531,6 +531,19 @@ class TestGlobalFunctions(unittest.TestCase):
         self.assertEqual(get_data_dir(), './data')
         self.assertEqual(get_database_url(), 'sqlite:///pyrox.db')
 
+    def test_getitem(self):
+        """Test __getitem__ method of EnvManager."""
+        os.environ['TEST_VAR'] = 'test_value'
+        manager = get_env_manager()
+        self.assertEqual(manager['TEST_VAR'], 'test_value')
+
+    def test_setitem(self):
+        """Test __setitem__ method of EnvManager."""
+        manager = get_env_manager()
+        manager['NEW_VAR'] = 'new_value'
+        self.assertEqual(manager.get('NEW_VAR'), 'new_value')
+        self.assertEqual(os.environ.get('NEW_VAR'), 'new_value')
+
 
 class TestErrorHandling(unittest.TestCase):
     """Test cases for error handling scenarios."""
