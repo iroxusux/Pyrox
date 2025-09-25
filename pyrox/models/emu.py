@@ -2,7 +2,7 @@
 """
 from typing import Optional, List
 
-from .plc import controller, imodule, module
+from .plc import controller, imodule, module, routine
 from .abc import meta, factory
 
 
@@ -10,7 +10,13 @@ class EmulationGeneratorFactory(factory.MetaFactory):
     """Factory for creating EmulationGenerator instances."""
 
 
-class EmulationGenerator(meta.PyroxObject, metaclass=factory.FactoryTypeMeta['EmulationGenerator', EmulationGeneratorFactory]):
+class EmulationGenerator(
+    meta.PyroxObject,
+    metaclass=factory.FactoryTypeMeta[
+        'EmulationGenerator',
+        EmulationGeneratorFactory
+    ]
+):
     """Base class for emulation logic generators."""
     supporting_class: Optional[type] = None
     supports_registering: bool = False
@@ -25,8 +31,8 @@ class EmulationGenerator(meta.PyroxObject, metaclass=factory.FactoryTypeMeta['Em
             source=None,
             destination=self.generator_object
         )
-        self.emu_routine: Optional[controller.Routine] = None
-        self.safety_emu_routine: Optional[controller.Routine] = None
+        self._emulation_standard_routine = None
+        self._emulation_safety_routine = None
 
     def __init_subclass__(cls, **kwargs):
         cls.supports_registering = True
@@ -51,6 +57,21 @@ class EmulationGenerator(meta.PyroxObject, metaclass=factory.FactoryTypeMeta['Em
         raise NotImplementedError("Subclasses must implement custom_tags")
 
     @property
+    def emulation_safety_routine(self) -> Optional[routine.Routine]:
+        """The safety emulation routine, if created.
+
+        Returns:
+            Optional[Routine]: The safety emulation routine or None
+        """
+        return self._emulation_safety_routine
+
+    @emulation_safety_routine.setter
+    def emulation_safety_routine(self, value: Optional[routine.Routine]):
+        if value and not isinstance(value, controller.Routine):
+            raise TypeError(f'Emulation safety routine must be of type Routine, got {type(value)} instead.')
+        self._emulation_safety_routine = value
+
+    @property
     def emulation_safety_routine_description(self) -> str:
         """Description for the safety routine to add emulation logic to.
 
@@ -67,6 +88,21 @@ class EmulationGenerator(meta.PyroxObject, metaclass=factory.FactoryTypeMeta['Em
             str: Name of the safety routine
         """
         raise NotImplementedError("Subclasses must implement emulation_safety_routine_name")
+
+    @property
+    def emulation_standard_routine(self) -> Optional[routine.Routine]:
+        """The standard emulation routine, if created.
+
+        Returns:
+            Optional[Routine]: The standard emulation routine or None
+        """
+        return self._emulation_standard_routine
+
+    @emulation_standard_routine.setter
+    def emulation_standard_routine(self, value: Optional[routine.Routine]):
+        if value and not isinstance(value, controller.Routine):
+            raise TypeError(f'Emulation standard routine must be of type Routine, got {type(value)} instead.')
+        self._emulation_standard_routine = value
 
     @property
     def emulation_standard_routine_description(self) -> str:
@@ -163,13 +199,19 @@ class EmulationGenerator(meta.PyroxObject, metaclass=factory.FactoryTypeMeta['Em
     def get_factory(cls):
         return EmulationGeneratorFactory
 
-    def _add_rung_to_common(
+    def _add_rung_common(
         self,
         rung: controller.Rung,
         program_name: str,
         routine_name: str
     ) -> None:
-        """Helper to add a rung to a specified routine."""
+        """Helper to add a rung to a specified routine.
+
+        Args:
+            rung: The rung to add
+            program_name: Name of the program
+            routine_name: Name of the routine
+        """
         self.schema.add_rung(
             program_name=program_name,
             routine_name=routine_name,
@@ -203,7 +245,7 @@ class EmulationGenerator(meta.PyroxObject, metaclass=factory.FactoryTypeMeta['Em
     def _generate_base_safety_routine(self) -> None:
         """Generate a safety routine common to all controllers."""
         self.logger.debug("Generating base safety routine...")
-        self.safety_emu_routine = self.add_routine(
+        self.emulation_safety_routine = self.add_routine(
             program_name=self.target_safety_program_name,
             routine_name=self.emulation_safety_routine_name,
             routine_description=self.emulation_safety_routine_description,
@@ -214,10 +256,10 @@ class EmulationGenerator(meta.PyroxObject, metaclass=factory.FactoryTypeMeta['Em
     def _generate_base_safety_rungs(self) -> None:
         """Generate base rungs in the safety emulation routine."""
         self.logger.info("Generating base safety rungs...")
-        if not self.safety_emu_routine:
+        if not self.emulation_safety_routine:
             raise ValueError("Safety emulation routine has not been created yet.")
 
-        self.safety_emu_routine.clear_rungs()
+        self.emulation_safety_routine.clear_rungs()
         self.add_rung_to_safety_routine(
             controller.Rung(
                 controller=self.generator_object,
@@ -228,7 +270,7 @@ class EmulationGenerator(meta.PyroxObject, metaclass=factory.FactoryTypeMeta['Em
     def _generate_base_standard_routine(self) -> None:
         """Generate a standard base routine common to all controllers."""
         self.logger.info("Generating base standard routine...")
-        self.emu_routine = self.add_routine(
+        self.emulation_standard_routine = self.add_routine(
             program_name=self.target_standard_program_name,
             routine_name=self.emulation_standard_routine_name,
             routine_description=self.emulation_standard_routine_description,
@@ -239,10 +281,10 @@ class EmulationGenerator(meta.PyroxObject, metaclass=factory.FactoryTypeMeta['Em
     def _generate_base_standard_rungs(self) -> None:
         """Generate base rungs in the standard emulation routine."""
         self.logger.info("Generating base standard rungs...")
-        if not self.emu_routine:
+        if not self.emulation_standard_routine:
             raise ValueError("Emulation routine has not been created yet.")
 
-        self.emu_routine.clear_rungs()
+        self.emulation_standard_routine.clear_rungs()
         self.add_rung_to_standard_routine(
             controller.Rung(
                 text='NOP();',
@@ -341,7 +383,7 @@ class EmulationGenerator(meta.PyroxObject, metaclass=factory.FactoryTypeMeta['Em
 
     def _generate_module_inhibit_rungs(self) -> None:
         """Generate inhibit logic for modules."""
-        if not self.emu_routine:
+        if not self.emulation_standard_routine:
             raise ValueError("Emulation routine has not been created yet.")
 
         if not self.generator_object.config:
@@ -534,9 +576,9 @@ class EmulationGenerator(meta.PyroxObject, metaclass=factory.FactoryTypeMeta['Em
 
     def add_rung_to_safety_routine(self, rung: controller.Rung) -> None:
         """Helper to add a rung to the safety emulation routine."""
-        if not self.safety_emu_routine:
+        if not self.emulation_safety_routine:
             raise ValueError("Safety emulation routine has not been created yet.")
-        self._add_rung_to_common(
+        self._add_rung_common(
             rung=rung,
             program_name=self.target_safety_program_name,
             routine_name=self.emulation_safety_routine_name
@@ -544,9 +586,9 @@ class EmulationGenerator(meta.PyroxObject, metaclass=factory.FactoryTypeMeta['Em
 
     def add_rung_to_standard_routine(self, rung: controller.Rung) -> None:
         """Helper to add a rung to the standard emulation routine."""
-        if not self.emu_routine:
+        if not self.emulation_standard_routine:
             raise ValueError("Emulation routine has not been created yet.")
-        self._add_rung_to_common(
+        self._add_rung_common(
             rung=rung,
             program_name=self.target_standard_program_name,
             routine_name=self.emulation_standard_routine_name
@@ -615,8 +657,6 @@ class EmulationGenerator(meta.PyroxObject, metaclass=factory.FactoryTypeMeta['Em
             ControllerModificationSchema: The modification schema with all changes.
         """
         self.logger.info(f"Starting emulation generation for {self.generator_object.name}")
-        if not self.validate_controller():
-            raise ValueError(f"Controller {self.generator_object.name} is not valid for {self.generator_object.__class__.__name__} emulation")
         self._generate_base_emulation()
         self._generate_custom_module_emulation()
         self._generate_custom_logic()
@@ -747,14 +787,3 @@ class EmulationGenerator(meta.PyroxObject, metaclass=factory.FactoryTypeMeta['Em
             program_name,
             routine_name
         )
-
-    def validate_controller(self) -> bool:
-        """Validate that the controller is compatible with this generator.
-
-        Returns:
-            bool: True if controller is valid for this generator type.
-
-        Raises:
-            ValueError: If controller validation fails.
-        """
-        return True

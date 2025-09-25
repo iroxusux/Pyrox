@@ -4,7 +4,7 @@ from unittest.mock import Mock, patch, call
 from typing import Optional
 
 from pyrox.models.emu import EmulationGenerator, EmulationGeneratorFactory
-from pyrox.models.plc import controller, module
+from pyrox.models.plc import controller, module, routine
 from pyrox.models.abc import meta, factory
 
 
@@ -105,8 +105,8 @@ class TestEmulationGenerator(unittest.TestCase):
         """Test initialization with valid controller."""
         self.assertEqual(self.generator.generator_object, self.mock_controller)
         self.assertIsInstance(self.generator.schema, Mock)
-        self.assertIsNone(self.generator.emu_routine)
-        self.assertIsNone(self.generator.safety_emu_routine)
+        self.assertIsNone(self.generator.emulation_standard_routine)
+        self.assertIsNone(self.generator.emulation_safety_routine)
 
     def test_init_subclass_sets_supports_registering(self):
         """Test that __init_subclass__ sets supports_registering to True."""
@@ -133,6 +133,38 @@ class TestEmulationGenerator(unittest.TestCase):
             self.generator.generator_object = invalid_controller
 
         self.assertIn("Controller must be of type", str(context.exception))
+
+    def test_safety_routine_setter_valid_type(self):
+        """Test emulation_safety_routine setter with valid Routine type."""
+        mock_routine = Mock(spec=controller.Routine)
+
+        self.generator.emulation_safety_routine = mock_routine
+        self.assertEqual(self.generator.emulation_safety_routine, mock_routine)
+
+    def test_safety_routine_setter_invalid_type(self):
+        """Test emulation_safety_routine setter with invalid type."""
+        invalid_routine = Mock()
+
+        with self.assertRaises(TypeError) as context:
+            self.generator.emulation_safety_routine = invalid_routine
+
+        self.assertIn("Emulation safety routine must be of type", str(context.exception))
+
+    def test_standard_routine_setter_valid_type(self):
+        """Test emulation_standard_routine setter with valid Routine type."""
+        mock_routine = Mock(spec=controller.Routine)
+
+        self.generator.emulation_standard_routine = mock_routine
+        self.assertEqual(self.generator.emulation_standard_routine, mock_routine)
+
+    def test_standard_routine_setter_invalid_type(self):
+        """Test emulation_standard_routine setter with invalid type."""
+        invalid_routine = Mock()
+
+        with self.assertRaises(TypeError) as context:
+            self.generator.emulation_standard_routine = invalid_routine
+
+        self.assertIn("Emulation standard routine must be of type", str(context.exception))
 
     def test_base_tags_implemented(self):
         """Test that base_tags property returns expected tags."""
@@ -444,10 +476,10 @@ class TestEmulationGenerator(unittest.TestCase):
     def test_add_rung_to_standard_routine(self):
         """Test add_rung_to_standard_routine method."""
         # Setup emulation routine
-        self.generator.emu_routine = Mock()
+        self.generator.emulation_standard_routine = Mock(spec=controller.Routine)
         mock_rung = Mock(spec=controller.Rung)
 
-        with patch.object(self.generator, '_add_rung_to_common') as mock_add_common:
+        with patch.object(self.generator, '_add_rung_common') as mock_add_common:
             self.generator.add_rung_to_standard_routine(mock_rung)
 
             mock_add_common.assert_called_once_with(
@@ -468,10 +500,10 @@ class TestEmulationGenerator(unittest.TestCase):
     def test_add_rung_to_safety_routine(self):
         """Test add_rung_to_safety_routine method."""
         # Setup safety emulation routine
-        self.generator.safety_emu_routine = Mock()
+        self.generator.emulation_safety_routine = Mock(spec=routine.Routine)
         mock_rung = Mock(spec=controller.Rung)
 
-        with patch.object(self.generator, '_add_rung_to_common') as mock_add_common:
+        with patch.object(self.generator, '_add_rung_common') as mock_add_common:
             self.generator.add_rung_to_safety_routine(mock_rung)
 
             mock_add_common.assert_called_once_with(
@@ -557,24 +589,15 @@ class TestEmulationGenerator(unittest.TestCase):
 
         self.mock_schema.remove_datatype.assert_called_once_with(datatype_name="TestDataType")
 
-    def test_validate_controller_default(self):
-        """Test validate_controller method default implementation."""
-        result = self.generator.validate_controller()
-        self.assertTrue(result)
-
-    @patch.object(ConcreteEmulationGenerator, 'validate_controller')
     @patch.object(ConcreteEmulationGenerator, '_generate_base_emulation')
     @patch.object(ConcreteEmulationGenerator, '_generate_custom_module_emulation')
     @patch.object(ConcreteEmulationGenerator, '_generate_custom_logic')
     def test_generate_emulation_logic_success(self, mock_custom_logic, mock_custom_module,
-                                              mock_base_emulation, mock_validate):
+                                              mock_base_emulation):
         """Test generate_emulation_logic method success path."""
-        mock_validate.return_value = True
-
         result = self.generator.generate_emulation_logic()
 
         # Verify all generation methods were called
-        mock_validate.assert_called_once()
         mock_base_emulation.assert_called_once()
         mock_custom_module.assert_called_once()
         mock_custom_logic.assert_called_once()
@@ -582,16 +605,6 @@ class TestEmulationGenerator(unittest.TestCase):
         # Verify schema execution
         self.mock_schema.execute.assert_called_once()
         self.assertEqual(result, self.mock_schema)
-
-    @patch.object(ConcreteEmulationGenerator, 'validate_controller')
-    def test_generate_emulation_logic_validation_fails(self, mock_validate):
-        """Test generate_emulation_logic when validation fails."""
-        mock_validate.return_value = False
-
-        with self.assertRaises(ValueError) as context:
-            self.generator.generate_emulation_logic()
-
-        self.assertIn("is not valid for", str(context.exception))
 
     @patch.object(ConcreteEmulationGenerator, 'remove_base_emulation')
     @patch.object(ConcreteEmulationGenerator, 'remove_module_emulation')
@@ -636,7 +649,7 @@ class TestEmulationGenerator(unittest.TestCase):
     def test_generate_base_standard_routine(self):
         """Test _generate_base_standard_routine method."""
         with patch.object(self.generator, 'add_routine') as mock_add_routine:
-            mock_routine = Mock()
+            mock_routine = Mock(spec=routine.Routine)
             mock_add_routine.return_value = mock_routine
 
             self.generator._generate_base_standard_routine()
@@ -648,12 +661,12 @@ class TestEmulationGenerator(unittest.TestCase):
                 call_from_main=True,
                 rung_position=0
             )
-            self.assertEqual(self.generator.emu_routine, mock_routine)
+            self.assertEqual(self.generator.emulation_standard_routine, mock_routine)
 
     def test_generate_base_safety_routine(self):
         """Test _generate_base_safety_routine method."""
         with patch.object(self.generator, 'add_routine') as mock_add_routine:
-            mock_routine = Mock()
+            mock_routine = Mock(spec=routine.Routine)
             mock_add_routine.return_value = mock_routine
 
             self.generator._generate_base_safety_routine()
@@ -665,14 +678,14 @@ class TestEmulationGenerator(unittest.TestCase):
                 call_from_main=True,
                 rung_position=0
             )
-            self.assertEqual(self.generator.safety_emu_routine, mock_routine)
+            self.assertEqual(self.generator.emulation_safety_routine, mock_routine)
 
     @patch('pyrox.models.emu.controller.Rung')
     def test_generate_base_standard_rungs(self, mock_rung_class):
         """Test _generate_base_standard_rungs method."""
         # Setup mock routine
-        mock_routine = Mock()
-        self.generator.emu_routine = mock_routine
+        mock_routine = Mock(spec=routine.Routine)
+        self.generator.emulation_standard_routine = mock_routine
 
         with patch.object(self.generator, 'add_rung_to_standard_routine') as mock_add_rung:
             with patch.object(self.generator, '_generate_module_inhibit_rungs') as mock_module_inhibit:
@@ -689,7 +702,7 @@ class TestEmulationGenerator(unittest.TestCase):
 
     def test_generate_base_standard_rungs_no_routine(self):
         """Test _generate_base_standard_rungs without emulation routine."""
-        self.generator.emu_routine = None
+        self.generator.emulation_standard_routine = None
 
         with self.assertRaises(ValueError) as context:
             self.generator._generate_base_standard_rungs()
@@ -700,8 +713,8 @@ class TestEmulationGenerator(unittest.TestCase):
     def test_generate_base_safety_rungs(self, mock_rung_class):
         """Test _generate_base_safety_rungs method."""
         # Setup mock routine
-        mock_routine = Mock()
-        self.generator.safety_emu_routine = mock_routine
+        mock_routine = Mock(spec=routine.Routine)
+        self.generator.emulation_safety_routine = mock_routine
 
         with patch.object(self.generator, 'add_rung_to_safety_routine') as mock_add_rung:
             self.generator._generate_base_safety_rungs()
@@ -714,7 +727,7 @@ class TestEmulationGenerator(unittest.TestCase):
 
     def test_generate_base_safety_rungs_no_routine(self):
         """Test _generate_base_safety_rungs without safety emulation routine."""
-        self.generator.safety_emu_routine = None
+        self.generator.emulation_safety_routine = None
 
         with self.assertRaises(ValueError) as context:
             self.generator._generate_base_safety_rungs()
@@ -724,18 +737,18 @@ class TestEmulationGenerator(unittest.TestCase):
     def test_generate_module_inhibit_rungs(self):
         """Test _generate_module_inhibit_rungs method."""
         # Setup mock modules
-        mock_local_module = Mock()
+        mock_local_module = Mock(spec=module.Module)
         mock_local_module.name = "Local"
-        mock_module1 = Mock()
+        mock_module1 = Mock(spec=module.Module)
         mock_module1.name = "Module1"
-        mock_module2 = Mock()
+        mock_module2 = Mock(spec=module.Module)
         mock_module2.name = "Module2"
 
         self.mock_controller.modules = [mock_local_module, mock_module1, mock_module2]
         self.mock_controller.config.rung_type.return_value = Mock()
 
         # Setup emulation routine
-        self.generator.emu_routine = Mock()
+        self.generator.emulation_standard_routine = Mock(spec=routine.Routine)
 
         with patch.object(self.generator, 'add_rung_to_standard_routine') as mock_add_rung:
             self.generator._generate_module_inhibit_rungs()
@@ -745,7 +758,7 @@ class TestEmulationGenerator(unittest.TestCase):
 
     def test_generate_module_inhibit_rungs_no_routine(self):
         """Test _generate_module_inhibit_rungs without emulation routine."""
-        self.generator.emu_routine = None
+        self.generator.emulation_standard_routine = None
 
         with self.assertRaises(ValueError) as context:
             self.generator._generate_module_inhibit_rungs()
@@ -858,19 +871,18 @@ class TestEmulationGeneratorIntegration(unittest.TestCase):
     def test_full_emulation_generation_workflow(self):
         """Test a complete emulation generation workflow."""
         # Mock all the generation steps
-        with patch.object(self.generator, 'validate_controller', return_value=True):
-            with patch.object(self.generator, '_generate_base_emulation') as mock_base:
-                with patch.object(self.generator, '_generate_custom_module_emulation') as mock_custom_mod:
-                    with patch.object(self.generator, '_generate_custom_logic') as mock_custom_logic:
+        with patch.object(self.generator, '_generate_base_emulation') as mock_base:
+            with patch.object(self.generator, '_generate_custom_module_emulation') as mock_custom_mod:
+                with patch.object(self.generator, '_generate_custom_logic') as mock_custom_logic:
 
-                        result = self.generator.generate_emulation_logic()
+                    result = self.generator.generate_emulation_logic()
 
-                        # Verify the workflow
-                        mock_base.assert_called_once()
-                        mock_custom_mod.assert_called_once()
-                        mock_custom_logic.assert_called_once()
-                        self.generator.schema.execute.assert_called_once()
-                        self.assertEqual(result, self.generator.schema)
+                    # Verify the workflow
+                    mock_base.assert_called_once()
+                    mock_custom_mod.assert_called_once()
+                    mock_custom_logic.assert_called_once()
+                    self.generator.schema.execute.assert_called_once()
+                    self.assertEqual(result, self.generator.schema)
 
     def test_tag_management_workflow(self):
         """Test tag management workflow."""
