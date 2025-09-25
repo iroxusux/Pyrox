@@ -4,7 +4,8 @@ from typing import Optional, TypeVar
 
 from pyrox.models import HashList, plc, SupportsMetaData
 from pyrox.models import eplan
-from .indicon import BaseEmulationGenerator, BaseControllerValidator, BaseEplanProject
+from .generator import BaseEmulationGenerator
+from .indicon import BaseControllerValidator, BaseEplanProject
 
 
 FORD_CTRL = TypeVar('FORD_CTRL', bound='FordController')

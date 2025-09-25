@@ -6,7 +6,7 @@ from pyrox.models import HashList, plc
 import re
 from typing import Optional, TypeVar, Union
 
-from .indicon import BaseEmulationGenerator
+from .generator import BaseEmulationGenerator
 from ..utils import find_duplicates
 
 GM_CTRL = TypeVar('GM_CTRL', bound='GmController')

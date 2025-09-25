@@ -92,8 +92,8 @@ class EmulationGenerator(meta.PyroxObject, metaclass=factory.FactoryTypeMeta['Em
 
     @generator_object.setter
     def generator_object(self, value: controller.Controller):
-        if value.__class__.__name__ != self.supporting_class:
-            raise TypeError(f'Controller must be of type {self.supporting_class}, got {value.__class__.__name__} instead.')
+        if self.supporting_class is not None and not isinstance(value, self.supporting_class):
+            raise TypeError(f'Controller must be of type {self.supporting_class}, got {type(value)} instead.')
         self._generator_object = value
 
     @property
@@ -344,16 +344,19 @@ class EmulationGenerator(meta.PyroxObject, metaclass=factory.FactoryTypeMeta['Em
         if not self.emu_routine:
             raise ValueError("Emulation routine has not been created yet.")
 
+        if not self.generator_object.config:
+            raise ValueError("Controller configuration is not set.")
+
         self.logger.info("Generating module inhibit rungs...")
 
-        for module in self.generator_object.modules:
-            if module.name == 'Local':
+        for mod in self.generator_object.modules:
+            if mod.name == 'Local':
                 continue
             self.add_rung_to_standard_routine(
                 self.generator_object.config.rung_type(
-                    controller=self.controller,
-                    text=f'SSV(Module,{module.name},Mode,{self.local_mode_tag});',
-                    comment=f'// Inhibit logic for module {module.name}'
+                    controller=self.generator_object,
+                    text=f'SSV(Module,{mod.name},Mode,{self.local_mode_tag});',
+                    comment=f'// Inhibit logic for module {mod.name}'
                 ))
 
     def add_l5x_imports(
@@ -395,7 +398,7 @@ class EmulationGenerator(meta.PyroxObject, metaclass=factory.FactoryTypeMeta['Em
         return self.schema.add_program_tag(
             program_name=program_name,
             tag=controller.Tag(
-                controller=self.controller,
+                controller=self.generator_object,
                 name=tag_name,
                 datatype=datatype,
                 **kwargs
@@ -424,7 +427,7 @@ class EmulationGenerator(meta.PyroxObject, metaclass=factory.FactoryTypeMeta['Em
         self.logger.debug(f"Scheduling controller tag: {tag_name} with datatype {datatype}.")
         return self.schema.add_controller_tag(
             controller.Tag(
-                controller=self.controller,
+                controller=self.generator_object,
                 name=tag_name,
                 datatype=datatype,
                 description=description,
@@ -467,9 +470,11 @@ class EmulationGenerator(meta.PyroxObject, metaclass=factory.FactoryTypeMeta['Em
             Routine: The created routine
         """
         self.logger.debug(f"Adding emulation routine '{routine_name}' to program '{program_name}' to schema.")
+        if not self.generator_object.config:
+            raise ValueError("Controller configuration is not set.")
 
         # Create the routine
-        routine: controller.Routine = self.controller.config.routine_type(controller=self.controller)
+        routine: controller.Routine = self.generator_object.config.routine_type(controller=self.generator_object)
         routine.name = routine_name
         routine.description = routine_description
         routine.clear_rungs()
@@ -482,14 +487,14 @@ class EmulationGenerator(meta.PyroxObject, metaclass=factory.FactoryTypeMeta['Em
 
         # Add JSR call if requested
         if call_from_main:
-            program: controller.Program = self.controller.programs.get(program_name)
+            program: Optional[controller.Program] = self.generator_object.programs.get(program_name)
             if program and program.main_routine:
                 if program.main_routine.check_for_jsr(routine_name):
                     self.logger.debug(f"JSR to '{routine_name}' already exists in main routine of program '{program_name}'")
                 else:
                     self.logger.debug(f"Adding JSR call to '{routine_name}' in main routine of program '{program_name}'")
                     jsr_rung = controller.Rung(
-                        controller=self.controller,
+                        controller=self.generator_object,
                         text=f'JSR({routine_name},0);',
                         comment=f'Call the {routine_name} routine.'
                     )
@@ -609,15 +614,15 @@ class EmulationGenerator(meta.PyroxObject, metaclass=factory.FactoryTypeMeta['Em
         Returns:
             ControllerModificationSchema: The modification schema with all changes.
         """
-        self.logger.info(f"Starting emulation generation for {self.controller.name}")
+        self.logger.info(f"Starting emulation generation for {self.generator_object.name}")
         if not self.validate_controller():
-            raise ValueError(f"Controller {self.controller.name} is not valid for {self.controller_type} emulation")
+            raise ValueError(f"Controller {self.generator_object.name} is not valid for {self.generator_object.__class__.__name__} emulation")
         self._generate_base_emulation()
         self._generate_custom_module_emulation()
         self._generate_custom_logic()
 
         self.schema.execute()
-        self.logger.info(f"Emulation generation completed for {self.controller.name}")
+        self.logger.info(f"Emulation generation completed for {self.generator_object.name}")
         return self.schema
 
     def get_modules_by_type(self, module_type: str) -> List[controller.Module]:
@@ -629,7 +634,7 @@ class EmulationGenerator(meta.PyroxObject, metaclass=factory.FactoryTypeMeta['Em
         Returns:
             List[Module]: List of matching modules
         """
-        mods = [module for module in self.controller.modules if module.type_ == module_type]
+        mods = [module for module in self.generator_object.modules if module.type_ == module_type]
         self.logger.info('Found %d modules of type %s...', len(mods), module_type)
         return mods
 
@@ -642,7 +647,7 @@ class EmulationGenerator(meta.PyroxObject, metaclass=factory.FactoryTypeMeta['Em
         Returns:
             List[Module]: List of matching modules
         """
-        mods = [m for m in self.controller.modules if m.description and pattern in m.description]
+        mods = [m for m in self.generator_object.modules if m.description and pattern in m.description]
         self.logger.info('Found %d modules matching description pattern "%s"...', len(mods), pattern)
         return mods
 
@@ -660,7 +665,7 @@ class EmulationGenerator(meta.PyroxObject, metaclass=factory.FactoryTypeMeta['Em
         Returns:
             ControllerModificationSchema: The modification schema with all removals.
         """
-        self.logger.info(f"Starting emulation removal for {self.controller.name}")
+        self.logger.info(f"Starting emulation removal for {self.generator_object.name}")
 
         # Remove emulation logic
         self.remove_base_emulation()
@@ -670,7 +675,7 @@ class EmulationGenerator(meta.PyroxObject, metaclass=factory.FactoryTypeMeta['Em
         # Execute the schema to remove added elements
         self.schema.execute()
 
-        self.logger.info(f"Emulation removal completed for {self.controller.name}")
+        self.logger.info(f"Emulation removal completed for {self.generator_object.name}")
         return self.schema
 
     def remove_custom_logic(self) -> None:

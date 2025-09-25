@@ -282,7 +282,7 @@ class IntrospectiveModule(Loggable):
         return obj.controls_type
 
     @classmethod
-    def get_required_imports(cls) -> list[tuple[str, str]]:
+    def get_required_imports(cls) -> List[tuple[str, List[str]]]:
         """Get the required datatype imports for the module.
 
         Returns:
