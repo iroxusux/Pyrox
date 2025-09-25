@@ -303,7 +303,7 @@ class PlcObject(EnforcesNaming, SupportsMetaData, Generic[CTRL], PyroxObject):
     def __init__(
         self,
         controller: Optional[CTRL] = None,
-        meta_data: Union[dict, str] = defaultdict(None)
+        meta_data: Optional[Union[dict, str]] = defaultdict(None)
     ) -> None:
         super().__init__(meta_data=meta_data)
         self.controller = controller
@@ -371,7 +371,7 @@ class PlcObject(EnforcesNaming, SupportsMetaData, Generic[CTRL], PyroxObject):
             return  # If there is no config, then the type must not be important enough to check.
         from pyrox.models.plc.controller import Controller
         if not isinstance(value, Controller):
-            raise TypeError(f'controller must be of type Controller or None! Got {type(value)}')
+            raise TypeError(f'Controller must be of type Controller or None! Got {type(value)}')
         self._controller = value
 
     @property
@@ -625,6 +625,8 @@ class NamedPlcObject(NamedPyroxObject, PlcObject):
             raise ValueError('raw asset list must be of type list!')
 
         asset_name = asset if isinstance(asset, str) else getattr(asset, asset_list.hash_key, None)
+        if not isinstance(asset_name, str):
+            raise ValueError(f"asset name must be of type str! Got {type(asset_name)}")
 
         if asset_name in asset_list:
             self._remove_asset_from_meta_data(
@@ -635,6 +637,8 @@ class NamedPlcObject(NamedPyroxObject, PlcObject):
             )
 
         if isinstance(asset, NamedPlcObject):
+            if not isinstance(asset.meta_data, dict):
+                raise ValueError('asset meta_data must be of type dict!')
             raw_asset_list.insert(index if index is not None else len(raw_asset_list), asset.meta_data)
             asset_list.append(asset)
         else:
@@ -666,6 +670,8 @@ class NamedPlcObject(NamedPyroxObject, PlcObject):
         raw_asset_list.clear()
         for asset in asset_list:
             if isinstance(asset, (NamedPlcObject, PlcObject)):
+                if not isinstance(asset.meta_data, dict):
+                    raise ValueError('asset meta_data must be of type dict!')
                 raw_asset_list.append(asset.meta_data)
             else:
                 raise ValueError(f"asset must be of type {NamedPlcObject.__name__} or PlcObject! Got {type(asset)}")
@@ -699,9 +705,15 @@ class NamedPlcObject(NamedPyroxObject, PlcObject):
             raise ValueError('raw asset list must be of type list!')
 
         asset_name = asset if isinstance(asset, str) else getattr(asset, asset_list.hash_key, None)
+        if not isinstance(asset_name, str):
+            raise ValueError(f"asset name must be of type str! Got {type(asset_name)}")
 
         if asset_name in asset_list:
-            raw_asset_list.remove(next((x for x in raw_asset_list if x[L5X_PROP_NAME] == asset_name), None))
+            asset_to_remove = next((
+                x for x in raw_asset_list if x[L5X_PROP_NAME] == asset_name), None
+            )
+            if asset_to_remove is not None:
+                raw_asset_list.remove(asset_to_remove)
 
         if inhibit_invalidate:
             return
