@@ -18,11 +18,9 @@ from tkinter import (
 )
 from typing import Any, Callable, Optional, Self, Union
 
-from pyrox.services.env import EnvManager
-
 from .abc import Buildable, Runnable, SupportsJsonLoading, SupportsJsonSaving
 from .abc import meta, runtime, stream
-from .abc.logging import LoggingManager
+from ..services.logging import LoggingManager
 from ..services.file import remove_all_files
 
 __all__ = (
@@ -622,7 +620,6 @@ class Application(Runnable):
             author_name=self.config.author_name,
             app_name=self.config.application_name
         )
-        self.environment_manager = EnvManager()
         self.multi_stream = None
 
     @property

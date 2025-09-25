@@ -3,11 +3,11 @@ from __future__ import annotations
 import copy
 import os
 
-from typing import Any, Optional
+from typing import Any, Callable, Optional, Union
 import tkinter as tk
 from tkinter import ttk
 
-from pyrox.models.abc.logging import LoggingManager
+from pyrox.services.logging import LoggingManager, log
 
 from .. import models
 from ..services.dict import remove_none_values_inplace
@@ -29,15 +29,24 @@ class AppOrganizerContextMenu(models.ContextMenu):
 
     def __init__(
         self,
-        master: Optional[models.FrameWithTreeViewAndScrollbar] = None,
+        master: Optional[Any] = None,
         app: Optional[App] = None,
-    ):
-        super().__init__(
-            master=master,
-        )
+    ) -> None:
+        super().__init__(master=master)
         self._app = app
-        self._master = master
-        self.on_refresh: list[callable] = []
+        self.on_refresh: list[Callable] = []
+
+    @property
+    def app(self) -> Optional[App]:
+        """The application associated with this context menu.
+
+        .. ------------------------------------------------------------
+
+        Returns
+        -----------
+            app: Optional[:class:`App`]
+        """
+        return self._app
 
     @property
     def _default_menu_items(self) -> list[models.MenuItem]:
@@ -47,52 +56,109 @@ class AppOrganizerContextMenu(models.ContextMenu):
                             command=self._on_refresh),
         ]
 
-    def _on_modify_plc_object(self,
-                              item: str = None,
-                              plc_object: models.plc.PlcObject = None) -> None:
-        """Handle the modification of a PlcObject in the context menu."""
-        frame = models.ObjectEditTaskFrame(master=self._app.workspace,
-                                           object_=plc_object,
-                                           properties=models.PlcGuiObject.from_data(plc_object).gui_interface_attributes())
-        self._app.register_frame(frame, raise_=True)
+    def _get_clicked_object(
+        self,
+        hash_item: Optional[Union[list, models.HashList, dict, models.PlcGuiObject]] = None,
+        lookup_attribute: Optional[Union[str, int]] = None
+    ) -> Optional[Any]:
+        """Get the object that was clicked on in the context menu."""
+        if isinstance(hash_item, (list, models.HashList)):
+            if not isinstance(lookup_attribute, int):
+                log(self).error('Lookup attribute must be an integer for list or HashList types.')
+                return None
+            return hash_item[lookup_attribute]
 
-    def _on_edit_routine(self,
-                         routine: models.plc.Routine):
+        if isinstance(hash_item, dict):
+            return hash_item.get(lookup_attribute, None)
+
+        if isinstance(hash_item, models.PlcGuiObject):
+            if not isinstance(lookup_attribute, str):
+                log(self).error('Lookup attribute must be a string for PlcGuiObject types.')
+                return None
+            return getattr(hash_item, lookup_attribute, None)
+
+        log(self).error('Unable to determine clicked object from provided hash_item and lookup_attribute.')
+        return None
+
+    def _on_modify_plc_object(
+        self,
+        item: Optional[str] = None,
+        plc_object: Optional[models.plc.PlcObject] = None
+    ) -> None:
+        """Handle the modification of a PlcObject in the context menu."""
+        if self.app is None:
+            log(self).error('No application associated with this context menu.')
+            return
+
+        if plc_object is None:
+            log(self).error('No PlcObject provided to modify.')
+            return
+
+        frame = models.ObjectEditTaskFrame(
+            master=self.app.workspace,
+            object_=plc_object,
+            properties=models.PlcGuiObject.from_data(plc_object).gui_interface_attributes()
+        )
+        self.app.register_frame(frame, raise_=True)
+
+    def _on_edit_routine(
+        self,
+        routine: models.plc.Routine
+    ) -> None:
+        if self.app is None:
+            log(self).error('No application associated with this context menu.')
+            return
+
         ladder_frame = models.LadderEditorTaskFrame(
-            master=self._app.workspace,
-            controller=self._app.controller,
+            master=self.app.workspace,
+            controller=self.app.controller,
             routine=routine
         )
-        self._app.register_frame(ladder_frame, raise_=True)
+        self.app.register_frame(ladder_frame, raise_=True)
 
     def _on_refresh(self):
         [x() for x in self.on_refresh if callable(x)]
 
-    def compile_menu_from_item(self,
-                               event: tk.Event,
-                               treeview_item: str,
-                               hash_item: Any,
-                               lookup_attribute: str) -> list[models.MenuItem]:
+    def compile_menu_from_item(
+        self,
+        event: tk.Event,
+        treeview_item: str,
+        hash_item: Any,
+        lookup_attribute: str
+    ) -> list[models.MenuItem]:
         menu_list = self._default_menu_items
 
         if None in [treeview_item, hash_item, lookup_attribute]:
             return menu_list
 
-        clicked_obj = None
+        clicked_obj = self._get_clicked_object(hash_item, lookup_attribute)
+        if not clicked_obj:
+            if hasattr(self.master, 'tree'):
+                tree: models.gui.meta.PyroxTreeview = self.master.tree
+            else:
+                return menu_list
+
+            if not isinstance(self.master.tree, models.gui.meta.PyroxTreeview):
+                return menu_list
+
+            clicked_obj_parent = self.master.tree.parent(treeview_item)
+            if not clicked_obj_parent:
+                return menu_list
+            return self.master.tree.on_right_click(event=event,
+                                                   treeview_item=clicked_obj_parent,)
         plc_obj = None
 
         if isinstance(hash_item, (list, models.HashList)):
+            if not isinstance(lookup_attribute, int):
+                return menu_list
             clicked_obj = hash_item[lookup_attribute]
+
         elif isinstance(hash_item, dict):
             clicked_obj = hash_item.get(lookup_attribute, None)
         elif isinstance(hash_item, models.PlcGuiObject):
             clicked_obj = getattr(hash_item, lookup_attribute, None)
         else:
-            clicked_obj_parent = self._master.tree.parent(treeview_item)
-            if not clicked_obj_parent:
-                return menu_list
-            return self._master.tree.on_right_click(event=event,
-                                                    treeview_item=clicked_obj_parent,)
+            pass
 
         if isinstance(hash_item, models.PyroxGuiObject):
             plc_obj = clicked_obj if isinstance(clicked_obj, models.plc.PlcObject) else hash_item.pyrox_object
@@ -121,7 +187,7 @@ class AppOrganizerContextMenu(models.ContextMenu):
         return menu_list
 
 
-class AppOrganizer(models.Loggable):
+class AppOrganizer(models.PyroxObject):
     """Application orgranizer class.
     """
 

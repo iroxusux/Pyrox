@@ -11,7 +11,7 @@ from typing import (
     Type,
 )
 from pyrox.models.abc.factory import MetaFactory, FactoryTypeMeta
-from pyrox.models.abc.logging import Loggable
+from pyrox.services.logging import Loggable
 from pyrox.models.abc.list import HashList
 
 from . import meta as plc_meta

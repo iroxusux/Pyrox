@@ -5,10 +5,11 @@ import logging
 import sys
 import io
 from typing import Optional, TextIO
+import os
 
 
-DEF_FORMATTER = '%(asctime)s | %(name)s | %(levelname)s | %(message)s'
-DEF_DATE_FMT = "%m/%d/%Y, %H:%M:%S"
+DEF_FORMATTER = os.getenv('PYROX_LOG_FORMAT', default='%(asctime)s | %(name)s | %(levelname)s | %(message)s')
+DEF_DATE_FMT = os.getenv('PYROX_LOG_DATE_FORMAT', default='%Y-%m-%d %H:%M:%S')
 
 
 class StreamCapture(io.StringIO):
@@ -285,6 +286,25 @@ class LoggingManager:
             cls._setup_standard_logger(name)
 
     @classmethod
+    def log(
+        cls,
+        caller: Optional[object] = None,
+    ) -> logging.Logger:
+        """Get a logger for the specified caller.
+
+        Args:
+            caller: The object or class requesting the logger. If None, uses the module logger.
+        Returns:
+            logging.Logger: The logger instance.
+        """
+        if caller is None:
+            return cls.get_or_create_logger(name=__name__)
+        elif isinstance(caller, str):
+            return cls.get_or_create_logger(name=caller)
+        else:
+            return cls.get_or_create_logger(name=caller.__class__.__name__)
+
+    @classmethod
     def set_logging_level(cls, log_level: int = logging.INFO) -> None:
         """Set the logging level for all current loggers.
 
@@ -309,6 +329,17 @@ class Loggable:
         super().__init_subclass__(**kwargs)
         # Create logger for each subclass
         cls.logger = LoggingManager.get_or_create_logger(name=cls.__name__)
+
+
+def log(caller: Optional[object] = None) -> logging.Logger:
+    """Get a logger for the specified caller.
+
+    Args:
+        caller: The object or class requesting the logger. If None, uses the module logger.
+    Returns:
+        logging.Logger: The logger instance.
+    """
+    return LoggingManager.log(caller=caller)
 
 
 # Auto-capture streams when module is imported

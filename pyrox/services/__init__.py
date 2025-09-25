@@ -2,6 +2,7 @@
 """
 
 from . import (
+    logging,
     byte,
     eplan,
     file,
@@ -19,9 +20,9 @@ __all__ = (
     'eplan',
     'file',
     'get_open_file',
+    'logging',
     'notify_services',
     'plc',
     'test',
-    'test_services',
     'utkinter',
 )

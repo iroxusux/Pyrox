@@ -5,7 +5,7 @@ import string
 import re
 from typing import Optional, Union
 
-from pyrox.models.abc.logging import LoggingManager
+from pyrox.services.logging import LoggingManager
 
 LOGGER = LoggingManager.get_or_create_logger(__name__)
 

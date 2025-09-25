@@ -2,7 +2,8 @@
 """
 from __future__ import annotations
 from typing import List, Optional, Self, TYPE_CHECKING
-from pyrox.models.abc import FactoryTypeMeta, Loggable, MetaFactory
+from pyrox.models.abc import FactoryTypeMeta, MetaFactory
+from pyrox.services.logging import Loggable
 
 
 if TYPE_CHECKING:

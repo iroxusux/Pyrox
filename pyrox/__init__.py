@@ -4,17 +4,16 @@ and services for file and directory operations.
 It also includes utility classes for managing user interfaces, such as list boxes and context menus.
 """
 from . import (
-    models,
-    applications,
+    utils,
     services,
+    models,
     tasks,
-    utils
+    applications,
 )
 
 
 __all__ = (
     'applications',
-    'file',
     'services',
     'models',
     'tasks',

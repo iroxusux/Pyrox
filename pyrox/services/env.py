@@ -10,10 +10,10 @@ import re
 from pathlib import Path
 from typing import Any, Dict, Optional
 
-from pyrox.models.abc.logging import Loggable
+from .logging import log
 
 
-class EnvManager(Loggable):
+class EnvManager:
     """Manager for environment variables and .env files."""
 
     def __getitem__(self, key: str) -> Any:
@@ -61,21 +61,21 @@ class EnvManager(Loggable):
             self._env_file = self._find_env_file()
 
         if not self._env_file:
-            self.logger.warning("No .env file found")
+            log(self).warning("No .env file found")
             return False
 
         # Check if file exists and is readable
         if not self._is_file_readable(self._env_file):
-            self.logger.warning(f"File is not readable: {self._env_file}")
+            log(self).warning(f"File is not readable: {self._env_file}")
             return False
 
         try:
             self._load_from_file(self._env_file)
-            self.logger.info(f"Loaded environment variables from: {self._env_file}")
+            log(self).info(f"Loaded environment variables from: {self._env_file}")
             self._loaded = True
             return True
         except Exception as e:
-            self.logger.error(f"Failed to load .env file {self._env_file}: {e}")
+            log(self).error(f"Failed to load .env file {self._env_file}: {e}")
             return False
 
     def _is_file_readable(self, file_path: str) -> bool:
@@ -90,17 +90,17 @@ class EnvManager(Loggable):
         try:
             # Check if file exists
             if not os.path.exists(file_path):
-                self.logger.debug(f"File does not exist: {file_path}")
+                log(self).debug(f"File does not exist: {file_path}")
                 return False
 
             # Check if it's actually a file (not a directory)
             if not os.path.isfile(file_path):
-                self.logger.debug(f"Path is not a file: {file_path}")
+                log(self).debug(f"Path is not a file: {file_path}")
                 return False
 
             # Check read permissions using os.access
             if not os.access(file_path, os.R_OK):
-                self.logger.debug(f"File is not readable (permissions): {file_path}")
+                log(self).debug(f"File is not readable (permissions): {file_path}")
                 return False
 
             # Try to actually open and read a small portion to verify readability
@@ -109,11 +109,11 @@ class EnvManager(Loggable):
                     f.read(1)  # Try to read just one character
                 return True
             except (IOError, OSError, PermissionError, UnicodeDecodeError) as e:
-                self.logger.debug(f"File cannot be read: {file_path}, error: {e}")
+                log(self).debug(f"File cannot be read: {file_path}, error: {e}")
                 return False
 
         except Exception as e:
-            self.logger.debug(f"Error checking file readability for {file_path}: {e}")
+            log(self).debug(f"Error checking file readability for {file_path}: {e}")
             return False
 
     def _find_env_file(self) -> Optional[str]:
@@ -127,7 +127,7 @@ class EnvManager(Loggable):
         for search_path in search_paths:
             env_path = os.path.join(search_path, '.env')
             if self._is_file_readable(env_path):
-                self.logger.debug(f"Found readable .env file at: {env_path}")
+                log(self).debug(f"Found readable .env file at: {env_path}")
                 return env_path
 
         return None
@@ -145,7 +145,7 @@ class EnvManager(Loggable):
 
                     # Parse key=value pairs
                     if '=' not in line:
-                        self.logger.warning(f"Invalid line {line_num} in {file_path}: {line}")
+                        log(self).warning(f"Invalid line {line_num} in {file_path}: {line}")
                         continue
 
                     key, value = self._parse_line(line, line_num, file_path)
@@ -155,13 +155,13 @@ class EnvManager(Loggable):
                         if key not in os.environ:
                             os.environ[key] = value
         except (IOError, OSError, PermissionError) as e:
-            self.logger.error(f"IO error reading file {file_path}: {e}")
+            log(self).error(f"IO error reading file {file_path}: {e}")
             raise
         except UnicodeDecodeError as e:
-            self.logger.error(f"Encoding error reading file {file_path}: {e}")
+            log(self).error(f"Encoding error reading file {file_path}: {e}")
             raise
         except Exception as e:
-            self.logger.error(f"Unexpected error reading file {file_path}: {e}")
+            log(self).error(f"Unexpected error reading file {file_path}: {e}")
             raise
 
     def _parse_line(
@@ -175,7 +175,7 @@ class EnvManager(Loggable):
             # Handle different quote styles and escaping
             match = re.match(r'^([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(.*)$', line)
             if not match:
-                self.logger.warning(f"Invalid format at line {line_num} in {file_path}")
+                log(self).warning(f"Invalid format at line {line_num} in {file_path}")
                 return "", ""
 
             key, value = match.groups()
@@ -186,7 +186,7 @@ class EnvManager(Loggable):
             return key, value
 
         except Exception as e:
-            self.logger.error(f"Error parsing line {line_num} in {file_path}: {e}")
+            log(self).error(f"Error parsing line {line_num} in {file_path}: {e}")
             return "", ""
 
     def _process_value(self, value: str) -> str:
@@ -261,7 +261,7 @@ class EnvManager(Loggable):
             else:
                 return cast_type(value)
         except (ValueError, TypeError) as e:
-            self.logger.warning(f"Failed to cast {key}={value} to {cast_type.__name__}: {e}")
+            log(self).warning(f"Failed to cast {key}={value} to {cast_type.__name__}: {e}")
             return default
 
     def set(self, key: str, value: str, update_os_environ: bool = True) -> None:
@@ -275,7 +275,7 @@ class EnvManager(Loggable):
         self._env_vars[key] = str(value)
         if update_os_environ:
             os.environ[key] = str(value)
-        self.logger.debug(f"Set environment variable: {key}={value}")
+        log(self).debug(f"Set environment variable: {key}={value}")
 
     def get_all(self, prefix: Optional[str] = None) -> Dict[str, str]:
         """Get all environment variables, optionally filtered by prefix.
@@ -344,9 +344,9 @@ ENCRYPTION_ALGORITHM=AES256
         try:
             with open(file_path, 'w', encoding='utf-8') as f:
                 f.write(template_content)
-            self.logger.info(f"Created .env template at: {file_path}")
+            log(self).info(f"Created .env template at: {file_path}")
         except (IOError, OSError, PermissionError) as e:
-            self.logger.error(f"Failed to create template file {file_path}: {e}")
+            log(self).error(f"Failed to create template file {file_path}: {e}")
             raise
 
     def is_loaded(self) -> bool:

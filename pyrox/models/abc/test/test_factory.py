@@ -7,7 +7,7 @@ from pyrox.models.abc.factory import (
     FactoryTypeMeta,
     MetaFactory,
 )
-from pyrox.models.abc.logging import Loggable
+from pyrox.services.logging import Loggable
 
 
 class TestMetaFactory(unittest.TestCase):

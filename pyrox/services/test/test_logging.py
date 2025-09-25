@@ -6,7 +6,7 @@ import sys
 import unittest
 from unittest.mock import patch
 
-from pyrox.models.abc.logging import (
+from pyrox.services.logging import (
     DEF_FORMATTER,
     DEF_DATE_FMT,
     LoggingManager,
