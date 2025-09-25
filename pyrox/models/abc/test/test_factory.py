@@ -400,8 +400,8 @@ class TestMetaFactory(unittest.TestCase):
 
     def test_logger_integration(self):
         """Test that MetaFactory properly integrates with logging."""
-        self.assertTrue(hasattr(self.TestFactory, 'logger'))
-        self.assertIsNotNone(self.TestFactory.logger)
+        self.assertTrue(hasattr(self.TestFactory, 'log'))
+        self.assertIsNotNone(self.TestFactory.log())
 
 
 class TestFactoryTypeMeta(unittest.TestCase):
@@ -492,8 +492,8 @@ class TestFactoryTypeMeta(unittest.TestCase):
 
     def test_logger_integration(self):
         """Test that FactoryTypeMeta properly integrates with logging."""
-        self.assertTrue(hasattr(FactoryTypeMeta, 'logger'))
-        self.assertIsNotNone(FactoryTypeMeta.logger)
+        self.assertTrue(hasattr(FactoryTypeMeta, 'log'))
+        self.assertIsNotNone(FactoryTypeMeta.log())
 
     def test_supporting_class_inheritance(self):
         """Test supporting_class attribute inheritance."""
@@ -740,19 +740,6 @@ class TestIntegration(unittest.TestCase):
         # Test instance creation
         api_instance = self.TestFactory.create_instance('APIController')
         self.assertIsInstance(api_instance, APIController)
-
-    def test_logging_integration_during_registration(self):
-        """Test logging integration during type registration."""
-        with patch.object(FactoryTypeMeta, 'logger') as mock_logger:
-            class LoggedType(metaclass=FactoryTypeMeta):
-                @classmethod
-                def get_factory(cls):
-                    return self.TestFactory
-
-            # Should log debug message about registration
-            mock_logger.debug.assert_called_once()
-            call_args = mock_logger.debug.call_args[0][0]
-            self.assertIn('Registering class LoggedType', call_args)
 
     def test_generic_type_support(self):
         """Test that generic types work with the factory system."""

@@ -321,10 +321,10 @@ class TestDeprecatedDecorator(unittest.TestCase):
         def test_function():
             return "test"
 
-        decorated = deprecated()(test_function)
+        decorated: Callable = deprecated()(test_function)
 
         self.assertTrue(callable(decorated))
-        self.assertIsInstance(decorated, Callable)
+        self.assertIsInstance(decorated, Callable)  # type: ignore
 
     def test_decorator_factory_return_type(self):
         """Test that decorator factory returns decorator."""

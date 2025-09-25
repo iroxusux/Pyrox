@@ -473,7 +473,7 @@ class TestHashList(unittest.TestCase):
         result = hash_list.find_first(lambda x: x.value > 15)
 
         self.assertIsNotNone(result)
-        self.assertGreater(result.value, 15)
+        self.assertGreater(result.value, 15)  # type: ignore
 
     def test_find_first_not_found(self):
         """Test find_first method when no match found."""
@@ -1056,10 +1056,10 @@ class TestIntegration(unittest.TestCase):
 
         # Should work with any type (Python doesn't enforce at runtime)
         test_obj = type('TestObj', (), {'name': 'test'})()
-        string_hash_list.append(test_obj)
+        string_hash_list.append(test_obj)  # type: ignore
 
-        int_safe_list.append("not an int")  # Would work in Python
-        float_tracked_list.append({"not": "a float"})  # Would work in Python
+        int_safe_list.append("not an int")  # Would work in Python  # type: ignore
+        float_tracked_list.append({"not": "a float"})  # Would work in Python  # type: ignore
 
         # Just verify they work as expected
         self.assertEqual(len(string_hash_list), 1)

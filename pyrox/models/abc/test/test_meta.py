@@ -329,7 +329,7 @@ class TestPyroxObject:
         assert obj.id == 1
 
         # Should inherit from Loggable
-        assert hasattr(obj, 'logger')
+        assert hasattr(obj, 'log')
 
     def test_repr(self):
         """Test PyroxObject string representation."""
@@ -520,7 +520,7 @@ class TestNamedPyroxObject:
         assert obj.id == 1
 
         # Should have logger from Loggable
-        assert hasattr(obj, 'logger')
+        assert hasattr(obj, 'log')
 
 
 class TestSupportsFileLocation:

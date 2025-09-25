@@ -33,7 +33,7 @@ class HelpTask(ApplicationTask):
         self._app = None  # coming back to this later, this is causing issues with logging... Application(self._app_config)
 
     def about(self):
-        self.logger.info('launching about page...')
+        self.log().info('launching about page...')
         config = ApplicationConfiguration.toplevel()
         config.headless = True
         config.title = 'About Pyrox'
@@ -62,7 +62,7 @@ class HelpTask(ApplicationTask):
         app.start()
 
     def guide(self):
-        self.logger.info('guides...')
+        self.log().info('guides...')
 
     def inject(self) -> None:
         if not self.application.menu:
@@ -73,7 +73,7 @@ class HelpTask(ApplicationTask):
         self.application.menu.help.insert_cascade(0, label='Set Logging Level', menu=drop_down)
 
         for level, name in LOGGING_LEVELS:
-            var = BooleanVar(value=(self.application.logger.level == level))
+            var = BooleanVar(value=(self.application.log().level == level))
             self._logger_var[level] = var
 
             def set_logger_level(x=level):

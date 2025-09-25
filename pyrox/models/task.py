@@ -16,10 +16,10 @@ class ApplicationTaskFactory(MetaFactory):
     ) -> None:
         """Build and register all available ApplicationTask types."""
         tasks = cls.get_registered_types().values()
-        cls.logger.info(f'Building {len(tasks)} tasks for application {application.name}')
+        cls.log().info(f'Building {len(tasks)} tasks for application {application.name}')
         for task in tasks:
             if issubclass(task, ApplicationTask):
-                cls.logger.debug(f'Registering task: {task.__name__}')
+                cls.log().debug(f'Registering task: {task.__name__}')
             else:
                 cls.logger.warning(f'Task {task.__name__} is not a subclass of ApplicationTask and will be ignored.')
             task(application=application).inject()  # Instantiate to ensure registration

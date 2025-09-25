@@ -238,13 +238,13 @@ class EmulationGenerator(
 
     def _generate_base_module_emulation(self) -> None:
         """Generate base module emulation logic common to all controllers."""
-        self.logger.info("Generating base module emulation...")
+        self.log().info("Generating base module emulation...")
         for controller_type in module.ModuleControlsType:
             self._generate_builtin_common(controller_type)
 
     def _generate_base_safety_routine(self) -> None:
         """Generate a safety routine common to all controllers."""
-        self.logger.debug("Generating base safety routine...")
+        self.log().debug("Generating base safety routine...")
         self.emulation_safety_routine = self.add_routine(
             program_name=self.target_safety_program_name,
             routine_name=self.emulation_safety_routine_name,
@@ -255,7 +255,7 @@ class EmulationGenerator(
 
     def _generate_base_safety_rungs(self) -> None:
         """Generate base rungs in the safety emulation routine."""
-        self.logger.info("Generating base safety rungs...")
+        self.log().info("Generating base safety rungs...")
         if not self.emulation_safety_routine:
             raise ValueError("Safety emulation routine has not been created yet.")
 
@@ -269,7 +269,7 @@ class EmulationGenerator(
 
     def _generate_base_standard_routine(self) -> None:
         """Generate a standard base routine common to all controllers."""
-        self.logger.info("Generating base standard routine...")
+        self.log().info("Generating base standard routine...")
         self.emulation_standard_routine = self.add_routine(
             program_name=self.target_standard_program_name,
             routine_name=self.emulation_standard_routine_name,
@@ -280,7 +280,7 @@ class EmulationGenerator(
 
     def _generate_base_standard_rungs(self) -> None:
         """Generate base rungs in the standard emulation routine."""
-        self.logger.info("Generating base standard rungs...")
+        self.log().info("Generating base standard rungs...")
         if not self.emulation_standard_routine:
             raise ValueError("Emulation routine has not been created yet.")
 
@@ -314,7 +314,7 @@ class EmulationGenerator(
 
     def _generate_base_tags(self) -> None:
         """Generate base tags common to all controllers."""
-        self.logger.info("Generating base tags...")
+        self.log().info("Generating base tags...")
         for tag_name, datatype, description in self.base_tags:
             self.add_controller_tag(tag_name, datatype, description=description)
 
@@ -327,16 +327,16 @@ class EmulationGenerator(
             generation_type
         )
 
-        self.logger.info("Generating built-in common emulation for %d modules of type %s...", len(modules), generation_type.value)
+        self.log().info("Generating built-in common emulation for %d modules of type %s...", len(modules), generation_type.value)
 
         for _, value in enumerate(modules):
             if not value:
-                self.logger.warning("Module has no introspective_module, skipping...")
+                self.log().warning("Module has no introspective_module, skipping...")
                 continue
             if not value.module:
-                self.logger.warning("IntrospectiveModule has no associated module, skipping...")
+                self.log().warning("IntrospectiveModule has no associated module, skipping...")
                 continue
-            self.logger.info("Generating emulation for %s %s of class %s", generation_type.value, value.module.name, value.__class__.__name__)
+            self.log().info("Generating emulation for %s %s of class %s", generation_type.value, value.module.name, value.__class__.__name__)
             self.add_l5x_imports(value.get_required_imports())
             self.add_controller_tags(value.get_required_tags())
             self.add_safety_tag_mapping(*value.get_required_standard_to_safety_mapping())
@@ -377,7 +377,7 @@ class EmulationGenerator(
 
     def _generate_custom_tags(self) -> None:
         """Generate custom tags. Override in subclasses if needed."""
-        self.logger.info("Generating custom tags...")
+        self.log().info("Generating custom tags...")
         for tag_name, datatype, description, dimensions in self.custom_tags:
             self.add_controller_tag(tag_name, datatype, description=description, dimensions=dimensions)
 
@@ -389,7 +389,7 @@ class EmulationGenerator(
         if not self.generator_object.config:
             raise ValueError("Controller configuration is not set.")
 
-        self.logger.info("Generating module inhibit rungs...")
+        self.log().info("Generating module inhibit rungs...")
 
         for mod in self.generator_object.modules:
             if mod.name == 'Local':
@@ -411,7 +411,7 @@ class EmulationGenerator(
             imports: List of tuples (file_location, [asset_types])
         """
         for file_location, asset_types in imports:
-            self.logger.debug(f"Scheduling import of {asset_types} from {file_location}")
+            self.log().debug(f"Scheduling import of {asset_types} from {file_location}")
             self.schema.add_import_from_file(
                 file_location=file_location,
                 asset_types=asset_types
@@ -435,7 +435,7 @@ class EmulationGenerator(
         Returns:
             Tag: The created tag
         """
-        self.logger.debug(f"Adding program tag: {tag_name} with datatype {datatype} to program {program_name}")
+        self.log().debug(f"Adding program tag: {tag_name} with datatype {datatype} to program {program_name}")
 
         return self.schema.add_program_tag(
             program_name=program_name,
@@ -466,7 +466,7 @@ class EmulationGenerator(
         Returns:
             Tag: The created tag
         """
-        self.logger.debug(f"Scheduling controller tag: {tag_name} with datatype {datatype}.")
+        self.log().debug(f"Scheduling controller tag: {tag_name} with datatype {datatype}.")
         return self.schema.add_controller_tag(
             controller.Tag(
                 controller=self.generator_object,
@@ -511,7 +511,7 @@ class EmulationGenerator(
         Returns:
             Routine: The created routine
         """
-        self.logger.debug(f"Adding emulation routine '{routine_name}' to program '{program_name}' to schema.")
+        self.log().debug(f"Adding emulation routine '{routine_name}' to program '{program_name}' to schema.")
         if not self.generator_object.config:
             raise ValueError("Controller configuration is not set.")
 
@@ -532,9 +532,9 @@ class EmulationGenerator(
             program: Optional[controller.Program] = self.generator_object.programs.get(program_name)
             if program and program.main_routine:
                 if program.main_routine.check_for_jsr(routine_name):
-                    self.logger.debug(f"JSR to '{routine_name}' already exists in main routine of program '{program_name}'")
+                    self.log().debug(f"JSR to '{routine_name}' already exists in main routine of program '{program_name}'")
                 else:
-                    self.logger.debug(f"Adding JSR call to '{routine_name}' in main routine of program '{program_name}'")
+                    self.log().debug(f"Adding JSR call to '{routine_name}' in main routine of program '{program_name}'")
                     jsr_rung = controller.Rung(
                         controller=self.generator_object,
                         text=f'JSR({routine_name},0);',
@@ -564,7 +564,7 @@ class EmulationGenerator(
             new_rung: The rung to add
             rung_number: Position to insert the rung (-1 for end)
         """
-        self.logger.debug(
+        self.log().debug(
             f"Adding rung to routine '{routine_name}' in program '{program_name}' at rung {rung_number if rung_number is not None else 'end'}"
         )
         return self.schema.add_rung(
@@ -647,7 +647,7 @@ class EmulationGenerator(
             program_name: Name of the program
             routine_name: Name of the routine
         """
-        self.logger.debug(f"Blocking JSR call to routine '{routine_name}' in program '{program_name}'")
+        self.log().debug(f"Blocking JSR call to routine '{routine_name}' in program '{program_name}'")
         ...
 
     def generate_emulation_logic(self) -> controller.ControllerModificationSchema:
@@ -656,13 +656,13 @@ class EmulationGenerator(
         Returns:
             ControllerModificationSchema: The modification schema with all changes.
         """
-        self.logger.info(f"Starting emulation generation for {self.generator_object.name}")
+        self.log().info(f"Starting emulation generation for {self.generator_object.name}")
         self._generate_base_emulation()
         self._generate_custom_module_emulation()
         self._generate_custom_logic()
 
         self.schema.execute()
-        self.logger.info(f"Emulation generation completed for {self.generator_object.name}")
+        self.log().info(f"Emulation generation completed for {self.generator_object.name}")
         return self.schema
 
     def get_modules_by_type(self, module_type: str) -> List[controller.Module]:
@@ -675,7 +675,7 @@ class EmulationGenerator(
             List[Module]: List of matching modules
         """
         mods = [module for module in self.generator_object.modules if module.type_ == module_type]
-        self.logger.info('Found %d modules of type %s...', len(mods), module_type)
+        self.log().info('Found %d modules of type %s...', len(mods), module_type)
         return mods
 
     def get_modules_by_description_pattern(self, pattern: str) -> List[controller.Module]:
@@ -688,7 +688,7 @@ class EmulationGenerator(
             List[Module]: List of matching modules
         """
         mods = [m for m in self.generator_object.modules if m.description and pattern in m.description]
-        self.logger.info('Found %d modules matching description pattern "%s"...', len(mods), pattern)
+        self.log().info('Found %d modules matching description pattern "%s"...', len(mods), pattern)
         return mods
 
     def remove_base_emulation(self) -> None:
@@ -705,7 +705,7 @@ class EmulationGenerator(
         Returns:
             ControllerModificationSchema: The modification schema with all removals.
         """
-        self.logger.info(f"Starting emulation removal for {self.generator_object.name}")
+        self.log().info(f"Starting emulation removal for {self.generator_object.name}")
 
         # Remove emulation logic
         self.remove_base_emulation()
@@ -715,7 +715,7 @@ class EmulationGenerator(
         # Execute the schema to remove added elements
         self.schema.execute()
 
-        self.logger.info(f"Emulation removal completed for {self.generator_object.name}")
+        self.log().info(f"Emulation removal completed for {self.generator_object.name}")
         return self.schema
 
     def remove_custom_logic(self) -> None:
@@ -731,7 +731,7 @@ class EmulationGenerator(
         Args:
             tag_name: Name of the tag to remove
         """
-        self.logger.debug(f"Removing controller tag '{tag_name}'")
+        self.log().debug(f"Removing controller tag '{tag_name}'")
 
         self.schema.remove_controller_tag(
             tag_name=tag_name
@@ -746,7 +746,7 @@ class EmulationGenerator(
         Args:
             datatype_name: Name of the datatype to remove
         """
-        self.logger.debug(f"Removing datatype '{datatype_name}' from controller")
+        self.log().debug(f"Removing datatype '{datatype_name}' from controller")
 
         self.schema.remove_datatype(
             datatype_name=datatype_name
@@ -763,7 +763,7 @@ class EmulationGenerator(
             program_name: Name of the program
             tag_name: Name of the tag to remove
         """
-        self.logger.debug(f"Removing tag '{tag_name}' from program '{program_name}'")
+        self.log().debug(f"Removing tag '{tag_name}' from program '{program_name}'")
 
         self.schema.remove_program_tag(
             program_name=program_name,
@@ -781,7 +781,7 @@ class EmulationGenerator(
             program_name: Name of the program containing the routine
             routine_name: Name of the routine to remove
         """
-        self.logger.debug(f"Removing routine '{routine_name}' from controller")
+        self.log().debug(f"Removing routine '{routine_name}' from controller")
 
         self.schema.remove_routine(
             program_name,

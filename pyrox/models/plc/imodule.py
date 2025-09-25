@@ -259,11 +259,11 @@ class IntrospectiveModule(Loggable):
                 continue
             return mod
 
-        cls.logger.warning(
+        cls.log().warning(
             'No matching module type found for %s, enable debug for more info.',
             module.name
         )
-        cls.logger.debug('Module details: %s', {
+        cls.log().debug('Module details: %s', {
             'ModuleName': module.name,
             'CatalogNumber': module.catalog_number,
             'InputCxnPoint': module.input_connection_point,

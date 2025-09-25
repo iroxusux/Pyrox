@@ -347,16 +347,23 @@ class LoggingManager:
 
 
 class Loggable:
-    """An easier mixin class that doesn't require a name property for logging.
-    \n Rather, it uses the inheriting class's builtin name.
+    """A mixin class to provide logging capabilities to subclasses.
+    This allows logging through inheritance rather than importing the logging module directly.
     """
-
-    logger: logging.Logger = LoggingManager.get_or_create_logger(name='Loggable')
 
     def __init_subclass__(cls, **kwargs):
         super().__init_subclass__(**kwargs)
-        # Create logger for each subclass
-        cls.logger = LoggingManager.get_or_create_logger(name=cls.__name__)
+        # Ensure logger is registered in LoggingManager._curr_loggers
+        LoggingManager._curr_loggers[cls.__name__] = LoggingManager.get_or_create_logger(name=cls.__name__)
+
+    @classmethod
+    def log(cls) -> logging.Logger:
+        """Get a logger for this instance's class.
+
+        Returns:
+            logging.Logger: The logger instance.
+        """
+        return LoggingManager.log(caller=cls.__name__)
 
 
 def log(caller: Optional[object] = None) -> logging.Logger:

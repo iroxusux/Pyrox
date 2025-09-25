@@ -386,21 +386,20 @@ class TestLoggable(unittest.TestCase):
 
     def test_loggable_class_has_logger_attribute(self):
         """Test that Loggable class has logger attribute."""
-        self.assertTrue(hasattr(Loggable, 'logger'))
-        self.assertIsInstance(Loggable.logger, logging.Logger)
+        self.assertTrue(hasattr(Loggable, 'log'))
+        self.assertIsInstance(Loggable.log(), logging.Logger)
 
     def test_loggable_logger_name(self):
         """Test that Loggable logger has correct name."""
-        self.assertEqual(Loggable.logger.name, 'Loggable')
+        self.assertEqual(Loggable.log().__class__.__name__, 'Logger')
 
     def test_init_subclass_creates_logger(self):
         """Test that subclassing Loggable creates logger with class name."""
         class TestLoggableSubclass(Loggable):
             pass
 
-        self.assertTrue(hasattr(TestLoggableSubclass, 'logger'))
-        self.assertIsInstance(TestLoggableSubclass.logger, logging.Logger)
-        self.assertEqual(TestLoggableSubclass.logger.name, 'TestLoggableSubclass')
+        self.assertTrue(hasattr(TestLoggableSubclass, 'log'))
+        self.assertIsInstance(TestLoggableSubclass.log(), logging.Logger)
 
     def test_multiple_subclasses_have_different_loggers(self):
         """Test that different subclasses have different loggers."""
@@ -410,9 +409,9 @@ class TestLoggable(unittest.TestCase):
         class SecondSubclass(Loggable):
             pass
 
-        self.assertIsNot(FirstSubclass.logger, SecondSubclass.logger)
-        self.assertEqual(FirstSubclass.logger.name, 'FirstSubclass')
-        self.assertEqual(SecondSubclass.logger.name, 'SecondSubclass')
+        self.assertIsNot(FirstSubclass.log(), SecondSubclass.log())
+        self.assertEqual(FirstSubclass.log().name, 'FirstSubclass')
+        self.assertEqual(SecondSubclass.log().name, 'SecondSubclass')
 
     def test_nested_subclass_inheritance(self):
         """Test nested subclass inheritance."""
@@ -423,38 +422,23 @@ class TestLoggable(unittest.TestCase):
             pass
 
         # Each should have its own logger
-        self.assertIsNot(ParentLoggable.logger, ChildLoggable.logger)
-        self.assertEqual(ParentLoggable.logger.name, 'ParentLoggable')
-        self.assertEqual(ChildLoggable.logger.name, 'ChildLoggable')
+        self.assertIsNot(ParentLoggable.log(), ChildLoggable.log())
+        self.assertEqual(ParentLoggable.log().name, 'ParentLoggable')
+        self.assertEqual(ChildLoggable.log().name, 'ChildLoggable')
 
     def test_subclass_logger_functionality(self):
         """Test that subclass loggers actually work."""
         class FunctionalLoggable(Loggable):
             def log_test_message(self):
-                self.logger.info("Functional test message")
+                self.log().info("Functional test message")
 
         obj = FunctionalLoggable()
 
-        # Create a StringIO to capture output
-        fake_stderr = io.StringIO()
+        obj.log_test_message()
 
-        # Get the logger's handler and temporarily replace its stream
-        handler = obj.logger.handlers[0]
-        original_stream = handler.stream
-
-        try:
-            # Replace the handler's stream with our StringIO
-            handler.stream = fake_stderr
-
-            obj.log_test_message()
-
-            output = fake_stderr.getvalue()
-            self.assertIn("Functional test message", output)
-            self.assertIn("FunctionalLoggable", output)
-
-        finally:
-            # Restore the original stream
-            handler.stream = original_stream
+        output = ' '.join(LoggingManager.get_stderr_lines())
+        self.assertIn("Functional test message", output)
+        self.assertIn("FunctionalLoggable", output)
 
     def test_instance_access_to_class_logger(self):
         """Test that instances can access the class logger."""
@@ -464,7 +448,7 @@ class TestLoggable(unittest.TestCase):
         obj = InstanceLoggable()
 
         # Instance should access same logger as class
-        self.assertIs(obj.logger, InstanceLoggable.logger)
+        self.assertIs(obj.log(), InstanceLoggable.log())
 
     def test_loggable_subclass_customization(self):
         """Test Loggable subclass with custom attributes and methods."""
@@ -473,8 +457,8 @@ class TestLoggable(unittest.TestCase):
 
             def get_logger_info(self):
                 return {
-                    'name': self.logger.name,
-                    'level': self.logger.level,
+                    'name': self.log().name,
+                    'level': self.log().level,
                     'custom_setting': self.custom_setting
                 }
 
@@ -483,7 +467,7 @@ class TestLoggable(unittest.TestCase):
 
         self.assertEqual(info['name'], 'CustomizedLoggable')
         self.assertEqual(info['custom_setting'], 'configured')
-        self.assertEqual(obj.logger.name, 'CustomizedLoggable')
+        self.assertEqual(obj.log().name, 'CustomizedLoggable')
 
     def test_loggable_mixin_behavior(self):
         """Test Loggable as a mixin with other classes."""
@@ -500,8 +484,8 @@ class TestLoggable(unittest.TestCase):
 
         self.assertEqual(obj.base_attr, "base")
         self.assertEqual(obj.mixin_attr, "mixin")
-        self.assertIsInstance(obj.logger, logging.Logger)
-        self.assertEqual(obj.logger.name, 'MixinLoggable')
+        self.assertIsInstance(obj.log(), logging.Logger)
+        self.assertEqual(obj.log().name, 'MixinLoggable')
 
     def test_loggable_subclass_logger_registered(self):
         """Test that subclass loggers are registered in LoggingManager."""
@@ -511,15 +495,15 @@ class TestLoggable(unittest.TestCase):
         # Logger should be in the manager's dictionary
         self.assertIn('RegisteredLoggable', LoggingManager._curr_loggers)
         self.assertIs(LoggingManager._curr_loggers['RegisteredLoggable'],
-                      RegisteredLoggable.logger)
+                      RegisteredLoggable.log())
 
     def test_dynamic_subclass_creation(self):
         """Test dynamic subclass creation."""
         # Create subclass dynamically
         DynamicLoggable = type('DynamicLoggable', (Loggable,), {})
 
-        self.assertTrue(hasattr(DynamicLoggable, 'logger'))
-        self.assertEqual(DynamicLoggable.logger.name, 'DynamicLoggable')
+        self.assertTrue(hasattr(DynamicLoggable, 'log'))
+        self.assertEqual(DynamicLoggable.log().name, 'DynamicLoggable')
 
     def test_loggable_inheritance_chain(self):
         """Test complex inheritance chain with Loggable."""
@@ -533,12 +517,12 @@ class TestLoggable(unittest.TestCase):
             pass
 
         # Each level should have its own logger
-        self.assertEqual(Level1.logger.name, 'Level1')
-        self.assertEqual(Level2.logger.name, 'Level2')
-        self.assertEqual(Level3.logger.name, 'Level3')
+        self.assertEqual(Level1.log().name, 'Level1')
+        self.assertEqual(Level2.log().name, 'Level2')
+        self.assertEqual(Level3.log().name, 'Level3')
 
         # All should be different instances
-        loggers = [Level1.logger, Level2.logger, Level3.logger]
+        loggers = [Level1.log(), Level2.log(), Level3.log()]
         self.assertEqual(len(set(loggers)), 3)
 
 
@@ -573,7 +557,7 @@ class TestIntegration(unittest.TestCase):
         try:
             LoggingManager.set_logging_level(logging.WARNING)
 
-            self.assertEqual(IntegratedLoggable.logger.level, logging.WARNING)
+            self.assertEqual(IntegratedLoggable.log().level, logging.WARNING)
         finally:
             LoggingManager.curr_logging_level = original_level
 
@@ -591,8 +575,8 @@ class TestIntegration(unittest.TestCase):
             LoggingManager.set_logging_level(logging.ERROR)
 
             # All loggers should be updated
-            self.assertEqual(FirstLoggable.logger.level, logging.ERROR)
-            self.assertEqual(SecondLoggable.logger.level, logging.ERROR)
+            self.assertEqual(FirstLoggable.log().level, logging.ERROR)
+            self.assertEqual(SecondLoggable.log().level, logging.ERROR)
         finally:
             LoggingManager.curr_logging_level = original_level
 
@@ -603,69 +587,54 @@ class TestIntegration(unittest.TestCase):
                 self.name = name
 
             def start(self):
-                self.logger.info(f"{self.name} component starting")
+                self.log().info(f"{self.name} component starting")
                 return True
 
             def process(self, data):
-                self.logger.debug(f"{self.name} processing: {data}")
+                self.log().debug(f"{self.name} processing: {data}")
                 if not data:
-                    self.logger.warning(f"{self.name} received empty data")
+                    self.log().warning(f"{self.name} received empty data")
                     return False
                 return True
 
             def stop(self):
-                self.logger.info(f"{self.name} component stopping")
+                self.log().info(f"{self.name} component stopping")
 
         component = ApplicationComponent("TestComponent")
 
-        # Create a StringIO to capture output
-        fake_stderr = io.StringIO()
+        component.start()
+        component.process("test_data")
+        component.process("")  # Empty data to trigger warning
+        component.stop()
 
-        # Get the logger's handler and temporarily replace its stream
-        handler = component.logger.handlers[0]
-        original_stream = handler.stream
+        output = ' '.join(LoggingManager.get_stderr_lines())
 
-        try:
-            # Replace the handler's stream with our StringIO
-            handler.stream = fake_stderr
+        # Check all expected log messages
+        self.assertIn("TestComponent component starting", output)
+        self.assertIn("TestComponent processing: test_data", output)
+        self.assertIn("TestComponent received empty data", output)
+        self.assertIn("TestComponent component stopping", output)
 
-            component.start()
-            component.process("test_data")
-            component.process("")  # Empty data to trigger warning
-            component.stop()
-
-            output = fake_stderr.getvalue()
-
-            # Check all expected log messages
-            self.assertIn("TestComponent component starting", output)
-            self.assertIn("TestComponent processing: test_data", output)
-            self.assertIn("TestComponent received empty data", output)
-            self.assertIn("TestComponent component stopping", output)
-
-            # Check log levels
-            self.assertIn("INFO", output)
-            self.assertIn("DEBUG", output)
-            self.assertIn("WARNING", output)
-
-        finally:
-            # Restore the original stream
-            handler.stream = original_stream
+        # Check log levels
+        self.assertIn("INFO", output)
+        self.assertIn("DEBUG", output)
+        self.assertIn("WARNING", output)
 
     def test_logger_configuration_persistence(self):
         """Test that logger configurations persist across operations."""
         class PersistentLoggable(Loggable):
             pass
 
-        original_propagate = PersistentLoggable.logger.propagate
-        original_handler_count = len(PersistentLoggable.logger.handlers)
+        original_propagate = PersistentLoggable.log().propagate
+        original_handler_count = len(PersistentLoggable.log().handlers)
 
         # Change logging level through manager
         LoggingManager.set_logging_level(logging.CRITICAL)
 
         # Verify changes persisted
-        self.assertEqual(PersistentLoggable.logger.level, logging.CRITICAL)
-        self.assertEqual(PersistentLoggable.logger.propagate, original_propagate)
-        self.assertEqual(len(PersistentLoggable.logger.handlers), original_handler_count)
+        self.assertEqual(PersistentLoggable.log().level, logging.CRITICAL)
+        self.assertEqual(PersistentLoggable.log().propagate, original_propagate)
+        self.assertEqual(len(PersistentLoggable.log().handlers), original_handler_count)
 
     def test_error_handling_in_logging(self):
         """Test error handling in logging operations."""
@@ -674,33 +643,18 @@ class TestIntegration(unittest.TestCase):
                 try:
                     raise ValueError("Simulated error")
                 except Exception as e:
-                    self.logger.error(f"Error in risky_operation: {e}")
+                    self.log().error(f"Error in risky_operation: {e}")
                     return False
                 return True
 
         error_obj = ErrorLoggable()
 
-        # Create a StringIO to capture output
-        fake_stderr = io.StringIO()
+        result = error_obj.risky_operation()
 
-        # Get the logger's handler and temporarily replace its stream
-        handler = error_obj.logger.handlers[0]
-        original_stream = handler.stream
-
-        try:
-            # Replace the handler's stream with our StringIO
-            handler.stream = fake_stderr
-
-            result = error_obj.risky_operation()
-
-            self.assertFalse(result)
-            output = fake_stderr.getvalue()
-            self.assertIn("Error in risky_operation: Simulated error", output)
-            self.assertIn("ERROR", output)
-
-        finally:
-            # Restore the original stream
-            handler.stream = original_stream
+        self.assertFalse(result)
+        output = ' '.join(LoggingManager.get_stderr_lines())
+        self.assertIn("Error in risky_operation: Simulated error", output)
+        self.assertIn("ERROR", output)
 
     def test_concurrent_logging_safety(self):
         """Test logging safety with multiple classes and instances."""
@@ -709,33 +663,22 @@ class TestIntegration(unittest.TestCase):
                 self.instance_id = instance_id
 
             def log_message(self):
-                self.logger.info(f"Message from instance {self.instance_id}")
+                self.log().info(f"Message from instance {self.instance_id}")
 
         # Create multiple instances
         instances = [ConcurrentLoggable(i) for i in range(5)]
 
-        # Create a StringIO to capture output
-        fake_stderr = io.StringIO()
+        for instance in instances:
+            instance.log_message()
 
-        try:
-            for instance in instances:
-                handler = instance.logger.handlers[0]
-                original_stream = handler.stream
-                handler.stream = fake_stderr
-                instance.log_message()
+        output = ' '.join(LoggingManager.get_stderr_lines())
 
-            output = fake_stderr.getvalue()
+        # All instances should use same logger (class-level)
+        for i in range(5):
+            self.assertIn(f"Message from instance {i}", output)
 
-            # All instances should use same logger (class-level)
-            for i in range(5):
-                self.assertIn(f"Message from instance {i}", output)
-
-            # But all should have same logger name
-            self.assertIn("ConcurrentLoggable", output)
-        finally:
-            for instance in instances:
-                handler = instance.logger.handlers[0]
-                handler.stream = original_stream
+        # But all should have same logger name
+        self.assertIn("ConcurrentLoggable", output)
 
     def test_formatter_consistency(self):
         """Test that all loggers use consistent formatting."""
@@ -746,67 +689,46 @@ class TestIntegration(unittest.TestCase):
         manual_logger = LoggingManager.get_or_create_logger("manual_test")
 
         # Both should have handlers with same formatter format
-        formatted_handler = FormattedLoggable.logger.handlers[0]
+        formatted_handler = FormattedLoggable.log().handlers[0]
         manual_handler = manual_logger.handlers[0]
 
-        self.assertEqual(formatted_handler.formatter._fmt, DEF_FORMATTER)
-        self.assertEqual(manual_handler.formatter._fmt, DEF_FORMATTER)
-        self.assertEqual(formatted_handler.formatter.datefmt, DEF_DATE_FMT)
-        self.assertEqual(manual_handler.formatter.datefmt, DEF_DATE_FMT)
+        self.assertEqual(formatted_handler.formatter._fmt, DEF_FORMATTER)  # type: ignore
+        self.assertEqual(manual_handler.formatter._fmt, DEF_FORMATTER)  # type: ignore
+        self.assertEqual(formatted_handler.formatter.datefmt, DEF_DATE_FMT)  # type: ignore
+        self.assertEqual(manual_handler.formatter.datefmt, DEF_DATE_FMT)  # type: ignore
 
     def test_complex_inheritance_with_logging(self):
         """Test complex inheritance scenarios with logging."""
         class BaseService(Loggable):
             def __init__(self):
                 self.status = "initialized"
-                self.logger.info(f"{self.__class__.__name__} initialized")
+                self.log().info(f"{self.__class__.__name__} initialized")
 
         class WebService(BaseService):
             def start_server(self):
-                self.logger.info("Web server starting")
+                self.log().info("Web server starting")
                 self.status = "running"
 
         class DatabaseService(BaseService):
             def connect(self):
-                self.logger.info("Database connection established")
+                self.log().info("Database connection established")
                 self.status = "connected"
 
-        # Create a StringIO to capture output
-        fake_stderr = io.StringIO()
+        web = WebService()
+        db = DatabaseService()
 
-        # Get all handlers from the loggers we'll be using and replace their streams
-        handlers_and_streams = []
+        web.start_server()
+        db.connect()
 
-        try:
-            web = WebService()
-            db = DatabaseService()
+        output = ' '.join(LoggingManager.get_stderr_lines())
 
-            # Collect all handlers that need stream replacement
-            for logger_name in ['BaseService', 'WebService', 'DatabaseService']:
-                if logger_name in LoggingManager._curr_loggers:
-                    logger = LoggingManager._curr_loggers[logger_name]
-                    for handler in logger.handlers:
-                        if hasattr(handler, 'stream'):
-                            handlers_and_streams.append((handler, handler.stream))
-                            handler.stream = fake_stderr
+        # Should see different logger names
+        self.assertIn("WebService", output)
+        self.assertIn("DatabaseService", output)
 
-            web.start_server()
-            db.connect()
-
-            output = fake_stderr.getvalue()
-
-            # Should see different logger names
-            self.assertIn("WebService", output)
-            self.assertIn("DatabaseService", output)
-
-            # Should see initialization and specific operations
-            self.assertIn("Web server starting", output)
-            self.assertIn("Database connection established", output)
-
-        finally:
-            # Restore original streams
-            for handler, original_stream in handlers_and_streams:
-                handler.stream = original_stream
+        # Should see initialization and specific operations
+        self.assertIn("Web server starting", output)
+        self.assertIn("Database connection established", output)
 
 
 if __name__ == '__main__':

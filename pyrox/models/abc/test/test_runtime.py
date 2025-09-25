@@ -365,7 +365,7 @@ class TestRuntimeDict(unittest.TestCase):
     def test_init_with_none_callback_raises_error(self):
         """Test initialization with None callback raises ValueError."""
         with self.assertRaises(ValueError) as context:
-            RuntimeDict(None)
+            RuntimeDict(None)  # type: ignore
 
         self.assertEqual(str(context.exception),
                          'A valid callback function must be provided to RuntimeDict.')
@@ -373,7 +373,7 @@ class TestRuntimeDict(unittest.TestCase):
     def test_init_with_non_callable_raises_error(self):
         """Test initialization with non-callable raises TypeError."""
         with self.assertRaises(TypeError) as context:
-            RuntimeDict("not callable")
+            RuntimeDict("not callable")  # type: ignore
 
         self.assertEqual(str(context.exception), 'Callback must be a callable function.')
 
@@ -482,7 +482,7 @@ class TestRuntimeDict(unittest.TestCase):
         rd = RuntimeDict(callback)
 
         with self.assertRaises(ValueError):
-            rd.callback = None
+            rd.callback = None  # type: ignore
 
     def test_callback_property_setter_non_callable_raises_error(self):
         """Test callback property setter with non-callable raises ValueError."""
@@ -490,7 +490,7 @@ class TestRuntimeDict(unittest.TestCase):
         rd = RuntimeDict(callback)
 
         with self.assertRaises(ValueError):
-            rd.callback = "not callable"
+            rd.callback = "not callable"  # type: ignore
 
     def test_data_property_getter(self):
         """Test data property getter."""
@@ -693,7 +693,7 @@ class TestRuntimeDict(unittest.TestCase):
         rd = RuntimeDict(callback)
 
         # Make callback invalid
-        rd._callback = "not callable"
+        rd._callback = "not callable"  # type: ignore
 
         with self.assertRaises(TypeError) as context:
             rd._call()

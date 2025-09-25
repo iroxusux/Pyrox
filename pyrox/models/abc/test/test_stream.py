@@ -45,28 +45,28 @@ class TestSimpleStream(unittest.TestCase):
     def test_init_with_invalid_callback_none(self):
         """Test initialization with None callback raises TypeError."""
         with self.assertRaises(TypeError) as context:
-            SimpleStream(None)
+            SimpleStream(None)  # type: ignore
 
         self.assertEqual(str(context.exception), "Callback must be a callable function.")
 
     def test_init_with_invalid_callback_string(self):
         """Test initialization with string callback raises TypeError."""
         with self.assertRaises(TypeError) as context:
-            SimpleStream("not a function")
+            SimpleStream("not a function")  # type: ignore
 
         self.assertEqual(str(context.exception), "Callback must be a callable function.")
 
     def test_init_with_invalid_callback_number(self):
         """Test initialization with number callback raises TypeError."""
         with self.assertRaises(TypeError) as context:
-            SimpleStream(123)
+            SimpleStream(123)  # type: ignore
 
         self.assertEqual(str(context.exception), "Callback must be a callable function.")
 
     def test_init_with_invalid_callback_dict(self):
         """Test initialization with dict callback raises TypeError."""
         with self.assertRaises(TypeError) as context:
-            SimpleStream({'key': 'value'})
+            SimpleStream({'key': 'value'})  # type: ignore
 
         self.assertEqual(str(context.exception), "Callback must be a callable function.")
 

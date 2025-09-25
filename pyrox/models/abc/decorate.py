@@ -11,7 +11,7 @@ __all__ = (
 
 
 def deprecated(
-    reason: str = "This function is deprecated",
+    reason: Optional[str] = "This function is deprecated",
     version: Optional[str] = None
 ) -> Callable:
     """Decorator to mark functions as deprecated.

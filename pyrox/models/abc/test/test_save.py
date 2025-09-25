@@ -142,7 +142,7 @@ class TestSupportsSaving(unittest.TestCase):
             def save_data_callback(self):
                 return lambda: self.data
 
-            def save(self, path=None, data=None):
+            def save(self, path=None, data=None):  # type: ignore
                 self.saved_path = path or self.file_location
                 self.saved_data = data or self.save_data_callback()
                 return True
@@ -683,7 +683,7 @@ class TestIntegration(unittest.TestCase):
         """Test error handling in integrated save/load operations."""
         class TestErrorHandling(SupportsJsonSaving, SupportsJsonLoading):
             @property
-            def on_saving(self):
+            def on_saving(self):  # type: ignore
                 return lambda: {'error_test': True}
 
         obj = TestErrorHandling()
@@ -801,7 +801,7 @@ class TestIntegration(unittest.TestCase):
         self.assertTrue(config2.is_loaded)
         self.assertTrue(config2.get_setting('debug'))
         self.assertEqual(config2.get_setting('app_name'), 'Pyrox App')
-        self.assertEqual(config2.get_setting('database')['host'], 'localhost')
+        self.assertEqual(config2.get_setting('database')['host'], 'localhost')  # type: ignore
 
 
 if __name__ == '__main__':

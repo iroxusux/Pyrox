@@ -58,11 +58,11 @@ class MetaFactory(ABCMeta, Loggable):
                 if not class_type:
                     raise ImportError(f'Class {class_name} not found in module {module_name} after reload.')
                 cls.register_type(class_type)
-                cls.logger.debug(f'Reloaded module {module_name} for class {class_name}.')
+                cls.log().debug(f'Reloaded module {module_name} for class {class_name}.')
             except Exception as e:
                 raise ImportError(f'Failed to reload module {module_name}: {e}') from e
         else:
-            cls.logger.warning(f'Module {module_name} not found in sys.modules; cannot reload.')
+            cls.log().warning(f'Module {module_name} not found in sys.modules; cannot reload.')
 
         return class_type
 
@@ -77,7 +77,7 @@ class MetaFactory(ABCMeta, Loggable):
         type_class = cls.get_registered_types().get(type_name)
         if type_class:
             return type_class(*args, **kwargs)
-        cls.logger.warning(f'Type {type_name} not found in {cls.__name__}')
+        cls.log().warning(f'Type {type_name} not found in {cls.__name__}')
         return None
 
     @classmethod
@@ -201,19 +201,19 @@ class FactoryTypeMeta(ABCMeta, Loggable, Generic[T, F]):
     ) -> Type:
         new_cls = super().__new__(cls, name, bases, attrs)
         if new_cls.supports_registering is False:
-            cls.logger.debug(f'FactoryTypeMeta: Class {name} does not support registering with a factory.')
+            cls.log().debug(f'FactoryTypeMeta: Class {name} does not support registering with a factory.')
             return new_cls
 
         factory = new_cls.get_factory()
         if factory is None:
-            cls.logger.warning(f'FactoryTypeMeta: No factory found for class {name}.')
+            cls.log().warning(f'FactoryTypeMeta: No factory found for class {name}.')
             return new_cls
 
         if (new_cls.__name__ != 'FactoryTypeMeta'):
-            cls.logger.debug(f'FactoryTypeMeta: Registering class {name} with factory {factory.__name__}.')
+            cls.log().debug(f'FactoryTypeMeta: Registering class {name} with factory {factory.__name__}.')
             factory.register_type(new_cls)
         else:
-            cls.logger.warning(
+            cls.log().warning(
                 f'FactoryTypeMeta: Class {name} is the factory class itself or does not subclass it.'
             )
 

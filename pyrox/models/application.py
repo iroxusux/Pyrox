@@ -739,7 +739,7 @@ class Application(Runnable):
             self._tk_app.iconbitmap(self.config.icon)
             self._tk_app.iconbitmap(default=self.config.icon)
         else:
-            self.logger.warning(f'Icon file not found: {self.config.icon}.')
+            self.log().warning(f'Icon file not found: {self.config.icon}.')
 
     def _build_frame(self) -> None:
         self._frame: Frame = Frame(master=self._tk_app, background='#2b2b2b')
@@ -754,13 +754,13 @@ class Application(Runnable):
         try:
             self._multi_stream = stream.MultiStream(
                 self._directory_service.get_log_file_stream(),
-                stream.SimpleStream(self.log))
+                stream.SimpleStream(self.application_log))
 
             LoggingManager.register_callback_to_captured_streams(
                 self._multi_stream.write
             )
 
-            self.logger.info(f'Logging to file: {self._directory_service.user_log_file}')
+            self.log().info(f'Logging to file: {self._directory_service.user_log_file}')
         except Exception as e:
             raise RuntimeError(f'Failed to set up MultiStream: {e}') from e
 
@@ -795,7 +795,7 @@ class Application(Runnable):
         """
         if issubclass(exc_type, KeyboardInterrupt):
             return
-        self.logger.error(
+        self.log().error(
             msg=f'Uncaught exception: {exc_value}',
             exc_info=(exc_type, exc_value, exc_traceback)
         )
@@ -828,7 +828,7 @@ class Application(Runnable):
             self._tk_app.geometry(self._runtime_info.get('window_size', self.config.size_))
             self._tk_app.state(self._runtime_info.get('window_state', 'normal'))
         except TclError as e:
-            self.logger.error(f'TclError: Could not set geometry or state for the application: {e}')
+            self.log().error(f'TclError: Could not set geometry or state for the application: {e}')
             self._tk_app.geometry(self.config.size_)
             self._tk_app.state('normal')
 
@@ -863,7 +863,7 @@ class Application(Runnable):
 
     def close(self) -> None:
         """Close this application."""
-        self.logger.info('Closing application...')
+        self.log().info('Closing application...')
         self.stop()
         try:
             if isinstance(self.tk_app, Tk):
@@ -872,11 +872,11 @@ class Application(Runnable):
             elif isinstance(self.tk_app, Toplevel):
                 self.tk_app.destroy()
         except TclError:
-            self.logger.error('TclError: Could not destroy the parent window')
+            self.log().error('TclError: Could not destroy the parent window')
         finally:
             gc.collect()  # Process garbage collection for tk/tcl elements
 
-    def log(self, message: str) -> None:
+    def application_log(self, message: str) -> None:
         """Post a message.
 
         This method should be overridden to implement custom logging functionality.
@@ -926,7 +926,7 @@ class Application(Runnable):
         """Start the application."""
         super().start()
         self.on_pre_run()
-        self.tk_app.after(100, lambda: self.logger.info('Ready...'))
+        self.tk_app.after(100, lambda: self.log().info('Ready...'))
         self.tk_app.focus()
         self.tk_app.mainloop()
 
