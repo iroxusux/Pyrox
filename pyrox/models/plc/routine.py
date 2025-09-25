@@ -201,7 +201,7 @@ class Routine(plc_meta.NamedPlcObject):
 
     def clear_rungs(self):
         """clear all rungs from this routine"""
-        self.logger.debug(f"Clearing all rungs from routine {self.name}")
+        self.log().debug(f"Clearing all rungs from routine {self.name}")
         self.raw_rungs.clear()
         self._compile_from_meta_data()
 

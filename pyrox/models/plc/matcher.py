@@ -182,12 +182,12 @@ class ControllerMatcher(PyroxObject, metaclass=FactoryTypeMeta[Self, ControllerM
         """
         if not patterns:
             return False
-        cls.logger.debug(f"Checking patterns {patterns} in key '{key}' of dict list")
+        cls.log().debug(f"Checking patterns {patterns} in key '{key}' of dict list")
         result = check_wildcard_patterns(
             [item.get(key, '') for item in dict_list],
             patterns
         )
-        cls.logger.debug(f"Pattern match result: {result}")
+        cls.log().debug(f"Pattern match result: {result}")
         return result
 
     @classmethod

@@ -160,7 +160,7 @@ class PlcControllerConnectionModel(Model):
         self._params = value
         self.application.runtime_info.set(APP_RUNTIME_INFO_IP, str(self._params.ip_address))
         self.application.runtime_info.set(APP_RUNTIME_INFO_SLOT, str(self._params.slot))
-        self.logger.info('Connection parameters set to %s', str(self._params))
+        self.log().info('Connection parameters set to %s', str(self._params))
 
     @property
     def tags(self) -> list[Tag]:
@@ -185,17 +185,17 @@ class PlcControllerConnectionModel(Model):
                  params: ConnectionParameters) -> None:
         """Connect to the PLC.
         """
-        self.logger.info('Connecting to PLC...')
+        self.log().info('Connecting to PLC...')
         if self._connected:
-            self.logger.warning('PLC connection already running...')
+            self.log().warning('PLC connection already running...')
             return
 
         if not params:
-            self.logger.error('no parameters, cannot connect')
+            self.log().error('no parameters, cannot connect')
             return
 
         self.params = params
-        self.logger.info('connecting to -> %s | %s',
+        self.log().info('connecting to -> %s | %s',
                          self._params.ip_address,
                          str(self._params.slot))
         self._commands.clear()  # clear out command buffer for any left-over commands
@@ -206,14 +206,14 @@ class PlcControllerConnectionModel(Model):
         """Main connection loop for the PLC.
         """
         if not self._connected and not self._connecting:
-            self.logger.info('PLC connection not established or lost...')
+            self.log().info('PLC connection not established or lost...')
             self.connected = False
             return
 
         try:
             self._strobe_plc()
         except Exception as e:
-            self.logger.error('Error during PLC connection: %s', str(e))
+            self.log().error('Error during PLC connection: %s', str(e))
             self.connected = False
 
         [x() for x in self._on_tick]
@@ -224,7 +224,7 @@ class PlcControllerConnectionModel(Model):
         """Fetch tags from the PLC controller.
         """
         if not self._connected or self._connecting:
-            self.logger.error('PLC is not connected, cannot fetch tags.')
+            self.log().error('PLC is not connected, cannot fetch tags.')
             return
 
         with PLC(ip_address=self._params.ip_address,
@@ -232,9 +232,9 @@ class PlcControllerConnectionModel(Model):
             tags = comm.GetTagList()
             if tags.Status == 'Success':
                 self.tags = [tag for tag in tags.Value]
-                self.logger.info('Fetched %d tags from PLC', len(self._tags))
+                self.log().info('Fetched %d tags from PLC', len(self._tags))
             else:
-                self.logger.error('Failed to fetch tags: %s', tags.Status)
+                self.log().error('Failed to fetch tags: %s', tags.Status)
 
     def _on_connected(self, connected: bool):
         self._connected = connected
@@ -260,7 +260,7 @@ class PlcControllerConnectionModel(Model):
                     response = comm.Read(command.tag_name, datatype=command.data_type)
                     command.response_cb(response)
                 except KeyError as e:
-                    self.logger.error('Error reading tag %s: %s', command.tag_name, str(e))
+                    self.log().error('Error reading tag %s: %s', command.tag_name, str(e))
                     command.response_cb(Response(tag_name=command.tag_name, value=None, status='Error'))
 
     def _run_commands_write(self, comm: PLC):
@@ -276,7 +276,7 @@ class PlcControllerConnectionModel(Model):
                     response = comm.Write(command.tag_name, tag_value, datatype=command.data_type)
                     command.response_cb(response)
                 except KeyError as e:
-                    self.logger.error('Error writing tag %s: %s', command.tag_name, str(e))
+                    self.log().error('Error writing tag %s: %s', command.tag_name, str(e))
                     command.response_cb(Response(tag_name=command.tag_name, value=None, status='Error'))
 
     def _strobe_plc(self) -> Response:
@@ -286,10 +286,10 @@ class PlcControllerConnectionModel(Model):
 
             if not sts.Value:
                 self.connected = False
-                self.logger.error('Disonnected. PLC Status Error -> %s', sts.Status)
+                self.log().error('Disonnected. PLC Status Error -> %s', sts.Status)
             elif self._connecting:
                 self.connected = True
-                self.logger.info('Status -> %s | PlcTime -> %s', str(sts.Status), str(sts.Value))
+                self.log().info('Status -> %s | PlcTime -> %s', str(sts.Status), str(sts.Value))
 
             self._connecting = False
 
@@ -314,7 +314,7 @@ class PlcControllerConnectionModel(Model):
     def disconnect(self) -> None:
         """disconnect process from plc
         """
-        self.logger.info('Disconnecting...')
+        self.log().info('Disconnecting...')
         self.connected = False
 
     def get_controller_tags(self) -> None:
@@ -400,7 +400,7 @@ class PlcWatchTableModel(Model):
             raise TypeError(f'Expected Response, got {type(response)}')
 
         if response.Status != 'Success':
-            self.logger.error('Error updating tag value: %s', response.Status)
+            self.log().error('Error updating tag value: %s', response.Status)
 
         [x(response) for x in self._on_tag_value_update]
 

@@ -197,7 +197,7 @@ class FordEmulationGenerator(BaseEmulationGenerator):
         for program in self.controller.programs:
             comm_edit = program.comm_edit_routine
             if not comm_edit:
-                self.logger.debug(f"No Comm Edit routine found in program {program.name}, skipping.")
+                self.log().debug(f"No Comm Edit routine found in program {program.name}, skipping.")
                 continue
             for instruction in comm_edit.instructions:
                 if 'CommOk' in instruction.meta_data and instruction.instruction_name in ['OTE', 'OTL']:
@@ -207,7 +207,7 @@ class FordEmulationGenerator(BaseEmulationGenerator):
     def _generate_custom_logic(self):
         comm_ok_bits = self._scrape_all_comm_ok_bits()
         if not comm_ok_bits:
-            self.logger.warning("No Comm OK bits found in Comm Edit routines.")
+            self.log().warning("No Comm OK bits found in Comm Edit routines.")
 
         for bit in comm_ok_bits:
             device_name = bit.operands[0].meta_data.split('.')[0]
@@ -269,7 +269,7 @@ class FordEplanProject(BaseEplanProject):
                 return None
 
             if len(meta_data) != 3:
-                self.logger.warning(f"Unexpected metadata format in sheet object: {meta_data}")
+                self.log().warning(f"Unexpected metadata format in sheet object: {meta_data}")
                 return None
 
             interest_key = '@A511'
@@ -301,12 +301,12 @@ class FordEplanProject(BaseEplanProject):
             for obj in self.sheet_objects:
                 device = self._parse_sheet_object(obj)
                 if device is None:
-                    self.logger.debug(f"Skipping invalid or incomplete sheet object: {obj}")
+                    self.log().debug(f"Skipping invalid or incomplete sheet object: {obj}")
                     continue
                 self._devices.append(device)
 
             if len(self._devices) == 0:
-                self.logger.warning("No valid devices found in the IP Address sheet.")
+                self.log().warning("No valid devices found in the IP Address sheet.")
 
             return self._devices
 
@@ -322,7 +322,7 @@ class FordEplanProject(BaseEplanProject):
     def _gather_project_ethernet_devices(self):
         ip_sheet = self.ip_address_sheet
         if not ip_sheet:
-            self.logger.warning("No 'Device IP / Network Address List' sheet found in the project.")
+            self.log().warning("No 'Device IP / Network Address List' sheet found in the project.")
 
         devices = ip_sheet.get_project_devices()
         self.devices.extend(devices)

@@ -175,31 +175,31 @@ class ControllerReport(PyroxObject):
         return self._as_categorized()
 
     def _check_controller(self):
-        self.logger.info('Checking controller...')
+        self.log().info('Checking controller...')
 
         # comm path
-        self.logger.info('Comms path...')
+        self.log().info('Comms path...')
         good = True if self._controller.comm_path != '' else False
         if good:
-            self.logger.info('ok... -> %s' % str(self._controller.comm_path))
+            self.log().info('ok... -> %s' % str(self._controller.comm_path))
         else:
-            self.logger.error('error!')
+            self.log().error('error!')
 
         # slot
-        self.logger.info('Slot...')
+        self.log().info('Slot...')
         good = True if self._controller.slot is not None else False
         if good:
-            self.logger.info('ok... -> %s' % str(self._controller.slot))
+            self.log().info('ok... -> %s' % str(self._controller.slot))
         else:
-            self.logger.error('error!')
+            self.log().error('error!')
 
         # plc module
-        self.logger.info('PLC Module...')
+        self.log().info('PLC Module...')
         good = True if self._controller.plc_module else False
         if good:
-            self.logger.info('ok... -> %s' % str(self._controller.plc_module['@Name']))
+            self.log().info('ok... -> %s' % str(self._controller.plc_module['@Name']))
         else:
-            self.logger.error('error!')
+            self.log().error('error!')
 
     @classmethod
     def _check_common(
