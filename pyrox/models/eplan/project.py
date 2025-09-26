@@ -88,7 +88,7 @@ class EplanProject(
         self.connections: List[Dict[str, Any]] = []
         self.properties: Dict[str, str] = {}
         self.sheet_details: List[Dict] = []
-        self.bom_details: List[Dict] = []
+        self.bom_details: List[Dict[str, Any]] = []
 
     def __init_subclass__(
         cls,
@@ -291,8 +291,7 @@ class EplanProject(
 
     def _gather_project_bom_details(
         self,
-        skip_zero_counts: bool = True,
-    ) -> List[dict]:
+    ) -> None:
         """Gather all BOM details from the project."""
         self.bom_details.clear()
         bom_items = self.project_bom
@@ -301,9 +300,12 @@ class EplanProject(
             bom_items = [bom_items]
 
         for item in bom_items:
-            self.bom_details.append(
-                self._process_bom_item(item)
-            )
+            if not item:
+                continue
+            processed_item = self._process_bom_item(item)
+            if not processed_item:
+                continue
+            self.bom_details.append(processed_item)
 
     def _gather_project_device_io_details(self) -> None:
         """Gather all device IO details from the project."""
@@ -322,9 +324,10 @@ class EplanProject(
             groups = [groups]
 
         for group in groups:
-            self.groups.append(
-                self._process_group_data(group)
-            )
+            processed_group = self._process_group_data(group)
+            if not processed_group:
+                continue
+            self.groups.append(processed_group)
 
     def _gather_project_sheet_details(self) -> None:
         """Gather all sheet details from the project."""
@@ -353,7 +356,7 @@ class EplanProject(
         """
         item_bom_meta: dict = item.get(meta.EPLAN_PROPERTY_KEY, {})
         if not item_bom_meta:
-            return
+            return None
 
         part_number = item_bom_meta.get(meta.EPLAN_BOM_PART_NO_KEY, meta.EPLAN_UNKNOWN_ATTRIBUTE_DEFAULT)
         if part_number == meta.EPLAN_UNKNOWN_ATTRIBUTE_DEFAULT:
@@ -493,11 +496,15 @@ class EplanControllerValidator(
 
     def __init__(
         self,
-        controller: Optional[Controller] = None,
-        project: Optional[EplanProject] = None,
+        controller: Controller,
+        project: EplanProject,
     ) -> None:
-        self.controller: Optional[Controller] = controller
-        self.project: Optional[EplanProject] = project
+        if not isinstance(controller, Controller):
+            raise ValueError('controller must be an instance of Controller!')
+        if not isinstance(project, EplanProject):
+            raise ValueError('project must be an instance of EplanProject!')
+        self.controller: Controller = controller
+        self.project: EplanProject = project
 
     def __init_subclass__(cls, **kwargs):
         cls.supports_registering = True
@@ -528,9 +535,13 @@ class EplanControllerValidator(
         """
         if not self.controller:
             raise ValueError("Controller is not set for validation.")
+        for module in self.controller.modules:
+            if module.name.lower() in device_name.lower():
+                return module
+            if device_name.lower() in module.name.lower():
+                return module
 
-        almost_matching_device = next((m for m in self.controller.modules if m.name.lower() in device_name.lower()), None)
-        return almost_matching_device
+        return None
 
     def find_matching_device_in_controller(
         self,

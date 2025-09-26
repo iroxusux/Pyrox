@@ -5,7 +5,7 @@ import warnings
 import functools
 from typing import Callable
 
-from pyrox.models.abc.decorate import deprecated
+from pyrox.services.decorate import deprecated
 
 
 class TestDeprecatedDecorator(unittest.TestCase):

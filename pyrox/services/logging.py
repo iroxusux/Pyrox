@@ -7,6 +7,7 @@ import io
 from typing import Optional, TextIO
 import os
 
+from .decorate import deprecated
 
 DEF_FORMATTER = os.getenv('PYROX_LOG_FORMAT', default='%(asctime)s | %(name)s | %(levelname)s | %(message)s')
 DEF_DATE_FMT = os.getenv('PYROX_LOG_DATE_FORMAT', default='%Y-%m-%d %H:%M:%S')
@@ -357,6 +358,7 @@ class Loggable:
         LoggingManager._curr_loggers[cls.__name__] = LoggingManager.get_or_create_logger(name=cls.__name__)
 
     @classmethod
+    @deprecated(reason="Use LoggingManager.log(cls) instead or pyrox.services.logging.log.", version="2.0")
     def log(cls) -> logging.Logger:
         """Get a logger for this instance's class.
 

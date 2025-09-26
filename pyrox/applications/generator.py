@@ -85,7 +85,9 @@ class BaseEmulationGenerator(emu.EmulationGenerator):
 
     @generator_object.setter
     def generator_object(self, value: plc.Controller):
-        if value.__class__.__name__ != self.supporting_class:
+        if not self.supporting_class:
+            raise ValueError("supporting_class is not set for the Emulation Generator.")
+        if not isinstance(value, self.supporting_class):
             raise TypeError(f'Controller must be of type {self.supporting_class}, got {value.__class__.__name__} instead.')
         self._generator_object = value
 
