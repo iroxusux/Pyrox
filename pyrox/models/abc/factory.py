@@ -35,6 +35,14 @@ class MetaFactory(ABCMeta, Loggable):
             return getattr(module, class_name)
         return None
 
+    @staticmethod
+    def _get_class_register_name(type_class) -> str:
+        """Get the name used for registering the class in the factory."""
+        type_name = getattr(type_class, 'supporting_class', type_class.__name__)
+        if not type_name:
+            type_name = type_class.__name__
+        return type_name
+
     @classmethod
     def _reload_class_module(
         cls,
@@ -62,9 +70,9 @@ class MetaFactory(ABCMeta, Loggable):
             except Exception as e:
                 raise ImportError(f'Failed to reload module {module_name}: {e}') from e
         else:
-            cls.log().warning(f'Module {module_name} not found in sys.modules; cannot reload.')
+            raise ImportError(f'Module {module_name} not found in sys.modules.')
 
-        return class_type
+        return cls._registered_types[cls._get_class_register_name(class_type)]
 
     @classmethod
     def create_instance(
@@ -167,10 +175,7 @@ class MetaFactory(ABCMeta, Loggable):
         if not hasattr(cls, '_registered_types'):
             raise RuntimeError(f'Factory {cls.__name__} is not properly initialized.')
 
-        type_name = getattr(type_class, 'supporting_class', type_class.__name__)
-        if not type_name:
-            type_name = type_class.__name__
-
+        type_name = cls._get_class_register_name(type_class)
         cls._registered_types[type_name] = type_class
 
 

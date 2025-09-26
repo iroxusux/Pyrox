@@ -12,7 +12,7 @@ __all__ = (
 def _get_generator(
     controller: controller.Controller
 ) -> emu.EmulationGenerator:
-    generator: emu.EmulationGenerator = emu.EmulationGeneratorFactory.get_registered_type_by_supporting_class(controller)
+    generator = emu.EmulationGeneratorFactory.get_registered_type_by_supporting_class(controller)
     if not isinstance(generator, type(emu.EmulationGenerator)):
         raise ValueError('No valid generator found for this controller type!')
     return generator(controller)

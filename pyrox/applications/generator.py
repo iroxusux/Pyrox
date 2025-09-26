@@ -37,7 +37,7 @@ class BaseEmulationGenerator(emu.EmulationGenerator):
         Returns:
             list[str]: List of tuples (tag_name, datatype, description, dimensions).
         """
-        raise NotImplementedError("Subclasses must implement custom_tags")
+        return []
 
     @property
     def emulation_safety_routine_description(self) -> str:
@@ -98,7 +98,7 @@ class BaseEmulationGenerator(emu.EmulationGenerator):
         Returns:
             str: Name of the safety program
         """
-        raise NotImplementedError("Subclasses must implement target_safety_program_name")
+        return 'MainProgram'
 
     @property
     def target_standard_program_name(self) -> str:
@@ -107,7 +107,7 @@ class BaseEmulationGenerator(emu.EmulationGenerator):
         Returns:
             str: Name of the standard program
         """
-        raise NotImplementedError("Subclasses must implement target_standard_program_name")
+        return 'MainProgram'
 
     @property
     def test_mode_tag(self) -> str:

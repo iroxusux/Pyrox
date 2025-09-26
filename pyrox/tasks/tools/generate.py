@@ -38,12 +38,18 @@ class ControllerGenerateTask(AppTask):
             self.log().error('Error generating checklist... Cannot continue.')
 
     def _inject(self):
+        if not self.controller:
+            self.log().warning('No controller loaded, cannot inject emulation routine!')
+            return
         importlib.reload(emu)
-        emu.inject_emulation_routine(self.application.controller)
+        emu.inject_emulation_routine(self.controller)
 
     def _remove(self):
+        if not self.controller:
+            self.log().warning('No controller loaded, cannot remove emulation routine!')
+            return
         importlib.reload(emu)
-        emu.remove_emulation_routine(self.application.controller)
+        emu.remove_emulation_routine(self.controller)
 
     def inject(self) -> None:
         drop_down = Menu(self.application.menu.tools, name='generate_tasks', tearoff=0)
