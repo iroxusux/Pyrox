@@ -201,9 +201,9 @@ class TestContainsTags(unittest.TestCase):
             controller=self.mock_controller
         )
 
-        mock_tag1 = MagicMock()
+        mock_tag1 = MagicMock(spec=Tag)
         mock_tag1.name = 'Tag1'
-        mock_tag2 = MagicMock()
+        mock_tag2 = MagicMock(spec=Tag)
         mock_tag2.name = 'Tag2'
 
         self.mock_tag_type.side_effect = [mock_tag1, mock_tag2]
@@ -242,19 +242,21 @@ class TestContainsTags(unittest.TestCase):
         """Test _type_check with valid Tag object."""
         container = ContainsTags()
         mock_tag = MagicMock(spec=Tag)
-        container._type_check(mock_tag, check_str=False)
+        container._type_check(mock_tag)
 
     def test_type_check_valid_string(self):
         """Test _type_check with valid string when check_str=True."""
         container = ContainsTags()
-        container._type_check("tag_name", check_str=True)
+        with self.assertRaises(TypeError) as context:
+            container._type_check("tag_name")  # type: ignore
+        self.assertIn("tag must be a Tag object", str(context.exception))
 
     def test_type_check_invalid_string_when_check_str_false(self):
         """Test _type_check with string when check_str=False raises TypeError."""
         container = ContainsTags()
 
         with self.assertRaises(TypeError) as context:
-            container._type_check("tag_name", check_str=False)
+            container._type_check("tag_name")  # type: ignore
 
         self.assertIn("tag must be a Tag object", str(context.exception))
 
@@ -263,7 +265,7 @@ class TestContainsTags(unittest.TestCase):
         container = ContainsTags()
 
         with self.assertRaises(TypeError) as context:
-            container._type_check(123, check_str=False)
+            container._type_check(123)  # type: ignore
 
         self.assertIn("tag must be a Tag object", str(context.exception))
 

@@ -1,5 +1,6 @@
 from typing import Optional
 from pyrox.services.file import transform_file_to_dict
+from pyrox.services.logging import log
 
 
 def _categorize_sections_by_header(lines: list, header: str) -> dict:
@@ -59,6 +60,16 @@ def _get_sections_tests(lines: list) -> dict:
     return tests
 
 
+def _finalize_checklist_checks(checklist: dict) -> None:
+    """Helper function to log test information."""
+    if checklist is None:
+        raise ValueError("Checklist compilation error occured!")
+    log().info('Checklist template generated')
+    log().info(f'- Tests generated: {len(checklist["tests"])}')
+    for test_name, content in checklist['tests'].items():
+        log().info(f'  - {test_name}: {len(content)} steps')
+
+
 def compile_checklist_from_md_file(
     file_path: Optional[str] = None
 ) -> dict:
@@ -78,4 +89,5 @@ def compile_checklist_from_md_file(
 
     _get_all_tests(checklist_meta['sections'])
     checklist = _compile_checklist_from_metadata(checklist_meta)
+    _finalize_checklist_checks(checklist)
     return checklist

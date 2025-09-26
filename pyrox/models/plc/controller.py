@@ -9,6 +9,7 @@ from typing import (
     Self,
     Tuple,
     Type,
+    Union
 )
 from pyrox.models.abc.factory import MetaFactory, FactoryTypeMeta
 from pyrox.services.logging import Loggable
@@ -119,7 +120,7 @@ class ControllerSafetyInfo(plc_meta.PlcObject):
     @property
     def safety_tag_map_dict_list(self) -> list[dict]:
         if not self.safety_tag_map:
-            return self.safety_tag_map
+            return []
 
         if not isinstance(self.safety_tag_map, str):
             raise ValueError("Safety tag map must be a string!")
@@ -193,9 +194,6 @@ class ControllerSafetyInfo(plc_meta.PlcObject):
         elif f"{tag_name}={safety_tag_name}" in self.safety_tag_map:
             self.safety_tag_map = self.safety_tag_map.replace(f"{tag_name}={safety_tag_name}", '')
 
-        if not self.safety_tag_map:
-            self.safety_tag_map = None
-
 
 class ControllerFactory(MetaFactory):
     """Controller factory with scoring-based matching."""
@@ -205,7 +203,7 @@ class ControllerFactory(MetaFactory):
         cls,
         controller_data: dict,
         min_score: float = 0.3
-    ) -> Type:
+    ) -> Optional[Type]:
         """Get the best matching controller type based on scoring."""
         if not controller_data:
             cls.log().warning("No controller data provided")
@@ -253,14 +251,17 @@ class ControllerFactory(MetaFactory):
 
 class Controller(
     plc_meta.NamedPlcObject,
-    metaclass=FactoryTypeMeta[Self, ControllerFactory]
+    metaclass=FactoryTypeMeta['Controller', ControllerFactory]
 ):
-    """Controller container for Allen Bradley L5X Files.
-    .. ------------------------------------------------------------
+    """Controller for a PLC project.
 
-    .. package:: emulation_preparation.types.plc
-
-    .. ------------------------------------------------------------
+    Args:
+        meta_data (str, optional): The meta data for the controller. Defaults to None.
+        file_location (str, optional): The file location of the controller project. Defaults to None.
+    Raises:
+        ValueError: If meta_data is not a dictionary
+        \n\tor if required keys are missing
+        \n\tor if file_location is not a string
     """
 
     generator_type = 'EmulationGenerator'
@@ -273,24 +274,26 @@ class Controller(
         if key == '@MajorRev' or key == '@MinorRev':
             self.log().info('Changing revisions of processor...')
             self.content_meta_data['@SoftwareRevision'] = f'{self.major_revision}.{self.minor_revision}'
+            if not self.plc_module:
+                raise RuntimeError('No PLC module found in controller!')
             self.plc_module['@Major'] = self.major_revision
             self.plc_module['@Minor'] = self.minor_revision
 
     def __init__(
         self,
-        meta_data: str = None,
-        file_location: str = None
+        meta_data: Optional[dict] = None,
+        file_location: Optional[str] = None
     ) -> None:
         super().__init__(meta_data=meta_data)
 
         self._file_location, self._ip_address, self._slot = file_location, None, None
         self._config = ControllerConfiguration()
 
-        self._aois: Optional[HashList[AddOnInstruction]] = None
-        self._datatypes: Optional[HashList[Datatype]] = None
-        self._modules: Optional[HashList[Module]] = None
-        self._programs: Optional[HashList[Program]] = None
-        self._tags: Optional[HashList[Tag]] = None
+        self._aois: HashList[AddOnInstruction] = HashList('name')
+        self._datatypes: HashList[Datatype] = HashList('name')
+        self._modules: HashList[Module] = HashList('name')
+        self._programs: HashList[Program] = HashList('name')
+        self._tags: HashList[Tag] = HashList('name')
         self._safety_info: Optional[ControllerSafetyInfo] = None
 
     @property
@@ -301,15 +304,10 @@ class Controller(
 
     @property
     def raw_aois(self) -> list[dict]:
-        if not self['AddOnInstructionDefinitions']:
-            self['AddOnInstructionDefinitions'] = {'AddOnInstructionDefinition': []}
-        if not isinstance(self['AddOnInstructionDefinitions']['AddOnInstructionDefinition'], list):
-            self['AddOnInstructionDefinitions']['AddOnInstructionDefinition'] = [
-                self['AddOnInstructionDefinitions']['AddOnInstructionDefinition']]
-        return self['AddOnInstructionDefinitions']['AddOnInstructionDefinition']
+        return self._get_raw_l5x_asset_list(plc_meta.L5X_ASSET_ADDONINSTRUCTIONDEFINITIONS)
 
     @property
-    def comm_path(self) -> str:
+    def comm_path(self) -> Optional[str]:
         return self['@CommPath']
 
     @comm_path.setter
@@ -320,6 +318,8 @@ class Controller(
 
     @property
     def content_meta_data(self) -> dict:
+        if self.meta_data is None:
+            raise RuntimeError('Meta data is not set!')
         return self.meta_data['RSLogix5000Content']
 
     @property
@@ -338,19 +338,19 @@ class Controller(
 
     @property
     def raw_datatypes(self) -> list[dict]:
-        if not self['DataTypes']:
-            self['DataTypes'] = {'DataType': []}
-        if not isinstance(self['DataTypes']['DataType'], list):
-            self['DataTypes']['DataType'] = [self['DataTypes']['DataType']]
-        return self['DataTypes']['DataType']
+        return self._get_raw_l5x_asset_list(plc_meta.L5X_ASSET_DATATYPES)
 
     @property
-    def file_location(self) -> str:
+    def file_location(self) -> Optional[str]:
         return self._file_location
 
     @file_location.setter
-    def file_location(self,
-                      value: str):
+    def file_location(
+        self,
+        value: str
+    ):
+        if not isinstance(value, str) and value is not None:
+            raise ValueError('File location must be a string or None!')
         self._file_location = value
 
     @property
@@ -387,15 +387,33 @@ class Controller(
 
     @property
     def major_revision(self) -> int:
-        return int(self['@MajorRev'])
+        rev = self['@MajorRev']
+        if not rev:
+            raise RuntimeError('Major revision is not set!')
+        return int(rev)
 
     @major_revision.setter
     def major_revision(self, value: int):
         self['@MajorRev'] = int(value)
 
     @property
+    def meta_data(self) -> Optional[dict]:
+        if not isinstance(self._meta_data, dict):
+            raise RuntimeError('Meta data must be a dictionary!')
+        return self._meta_data
+
+    @meta_data.setter
+    def meta_data(self, value: Optional[Union[dict, str]]) -> None:
+        if not isinstance(value, dict):
+            raise ValueError('Meta data must be a dictionary!')
+        self._meta_data = value
+
+    @property
     def minor_revision(self) -> int:
-        return int(self['@MinorRev'])
+        rev = self['@MinorRev']
+        if not rev:
+            raise RuntimeError('Minor revision is not set!')
+        return int(rev)
 
     @minor_revision.setter
     def minor_revision(self, value: int):
@@ -409,19 +427,29 @@ class Controller(
 
     @property
     def raw_modules(self) -> list[dict]:
-        if not self['Modules']:
-            self['Modules'] = {'Module': []}
-        if not isinstance(self['Modules']['Module'], list):
-            self['Modules']['Module'] = [self['Modules']['Module']]
-        return self['Modules']['Module']
+        return self._get_raw_l5x_asset_list(plc_meta.L5X_ASSET_MODULES)
 
     @property
-    def plc_module(self) -> dict:
-        return next((x for x in self.raw_modules if x['@Name'] == 'Local'), None)
+    def plc_module(self) -> Optional[dict]:
+        if not self.raw_modules:
+            return None
+        for module in self.raw_modules:
+            if not isinstance(module, dict):
+                continue
+            if module['@Name'] == 'Local':
+                return module
+        return None
 
     @property
-    def plc_module_icp_port(self) -> dict:
-        return next((x for x in self.plc_module_ports if x['@Type'] == 'ICP' or x['@Type'] == '5069'), None)
+    def plc_module_icp_port(self) -> Optional[dict]:
+        if not self.plc_module_ports:
+            return None
+        for port in self.plc_module_ports:
+            if not isinstance(port, dict):
+                continue
+            if port['@Type'] == 'ICP' or port['@Type'] == '5069':
+                return port
+        return None
 
     @property
     def plc_module_ports(self) -> list[dict]:
@@ -440,11 +468,7 @@ class Controller(
 
     @property
     def raw_programs(self) -> list[dict]:
-        if not self['Programs']:
-            self['Programs'] = {'Program': []}
-        if not isinstance(self['Programs']['Program'], list):
-            self['Programs']['Program'] = [self['Programs']['Program']]
-        return self['Programs']['Program']
+        return self._get_raw_l5x_asset_list(plc_meta.L5X_ASSET_PROGRAMS)
 
     @property
     def safety_info(self) -> Optional[ControllerSafetyInfo]:
@@ -459,7 +483,7 @@ class Controller(
         return val
 
     @property
-    def slot(self) -> int:
+    def slot(self) -> Optional[int]:
         if not self.plc_module_icp_port:
             return None
         return int(self.plc_module_icp_port['@Address'])
@@ -483,11 +507,7 @@ class Controller(
 
     @property
     def raw_tags(self) -> list[dict]:
-        if not self['Tags']:
-            self['Tags'] = {'Tag': []}
-        if not isinstance(self['Tags']['Tag'], list):
-            self['Tags']['Tag'] = [self['Tags']['Tag']]
-        return self['Tags']['Tag']
+        return self._get_raw_l5x_asset_list(plc_meta.L5X_ASSET_TAGS)
 
     @raw_tags.setter
     def raw_tags(self,
@@ -504,9 +524,9 @@ class Controller(
 
     @classmethod
     def from_file(
-        cls: Self,
+        cls,
         file_location: str
-    ) -> Optional[Self]:
+    ) -> Optional['Controller']:
         """Create a Controller instance from an L5X file.
 
         Args:
@@ -516,28 +536,31 @@ class Controller(
             Optional[Controller]: The created Controller instance, or None if the file could not be read.
         """
         meta_data = l5x_dict_from_file(file_location)
-        if not meta_data:
+        if meta_data is None:
             return None
 
         ctrl = ControllerFactory.create_controller(meta_data)
         if not ctrl:
-            print('Could not determine controller type from file! Creating generic controller')
+            cls.log().warning('Could not determine controller type from file! Creating generic controller')
             ctrl = cls(
                 meta_data=meta_data,
                 file_location=file_location
             )
+
+        if not isinstance(ctrl, Controller):
+            raise RuntimeError('Incorrect object built from controller factory!')
+
         return ctrl
 
     @classmethod
     def from_meta_data(
-        cls: Self,
+        cls,
         meta_data: dict
-    ) -> Self:
+    ) -> 'Controller':
         """Create a Controller instance from meta data.
 
         Args:
             meta_data (dict): The meta data dictionary to create the controller from.
-            config (ControllerConfiguration, optional): Configuration for custom types. Defaults to None.
 
         Returns:
             Controller: The created Controller instance.
@@ -555,8 +578,8 @@ class Controller(
             raise ValueError('Meta data must contain RSLogix5000Content!')
         if 'Controller' not in meta_data['RSLogix5000Content']:
             raise ValueError('Meta data must contain Controller!')
-        controller = cls(meta_data=meta_data)
-        return controller
+        ctrl = cls(meta_data=meta_data)
+        return ctrl
 
     @classmethod
     def get_class(cls) -> Type[Self]:
@@ -628,19 +651,19 @@ class Controller(
     def _compile_from_meta_data(self):
         """Compile this controller from its meta data."""
         self.log().info('Compiling controller from meta data...')
-        self._aois = None
+        self._aois.clear()
         self._compile_aois()
 
-        self._datatypes = None
+        self._datatypes.clear()
         self._compile_datatypes()
 
-        self._modules = None
+        self._modules.clear()
         self._compile_modules()
 
-        self._programs = None
+        self._programs.clear()
         self._compile_programs()
 
-        self._tags = None
+        self._tags.clear()
         self._compile_tags()
 
         self._safety_info = None
@@ -721,7 +744,7 @@ class Controller(
                     item: plc_meta.NamedPlcObject,
                     item_class: type,
                     target_list: HashList,
-                    target_meta_list: list[dict]):
+                    target_meta_list: list):
 
         if not isinstance(item, item_class):
             raise TypeError(f"{item.name} must be of type {item_class}!")
@@ -740,7 +763,7 @@ class Controller(
         self,
         item: plc_meta.PlcObject,
         target_list: HashList,
-        target_meta_list: list[dict]
+        target_meta_list: list
     ) -> None:
         """Remove an item from the controller's collection."""
         if not isinstance(item, plc_meta.PlcObject):
@@ -759,15 +782,15 @@ class Controller(
     ) -> None:
         """Invalidate the cached list."""
         if target_list is self.aois:
-            self._aois = None
+            self._aois.clear()
         elif target_list is self.datatypes:
-            self._datatypes = None
+            self._datatypes.clear()
         elif target_list is self.modules:
-            self._modules = None
+            self._modules.clear()
         elif target_list is self.programs:
-            self._programs = None
+            self._programs.clear()
         elif target_list is self.tags:
-            self._tags = None
+            self._tags.clear()
         else:
             raise ValueError('Unknown target list!')
 
@@ -813,6 +836,10 @@ class Controller(
             return
         if 'Controller' not in l5x_dict['RSLogix5000Content']:
             self.log().warning('No Controller found in RSLogix5000Content in provided L5X dictionary.')
+            return
+
+        if not asset_types:
+            self.log().warning('No asset types provided to import!')
             return
 
         controller_data = l5x_dict['RSLogix5000Content']['Controller']

@@ -2,7 +2,7 @@
     """
 import importlib
 from pyrox.applications import AppTask
-from pyrox.services import checklist, emu
+from pyrox.services import checklist, emu, env
 from tkinter import Menu
 
 
@@ -21,7 +21,21 @@ class ControllerGenerateTask(AppTask):
 
     def _gen_checklist(self):
         importlib.reload(checklist)
-        raise NotImplementedError('Checklist generation not implemented yet.')
+        importlib.reload(env)
+
+        if not self.controller:
+            self.log().warning('No controller loaded, cannot generate any checklists!')
+            return
+
+        checklist_template_path = env.get_env('CHECKLIST_TEMPLATE_FILE')
+        if not checklist_template_path:
+            self.log().error('No checklist path found in .env file. Please refer to symbol -> CHECKLIST_TEMPLATE_FILE')
+            return
+
+        self.log().info(f'Generating checklist for controller {self.controller.name}')
+        controls_checklist = checklist.compile_checklist_from_md_file(checklist_template_path)
+        if controls_checklist is None:
+            self.log().error('Error generating checklist... Cannot continue.')
 
     def _inject(self):
         importlib.reload(emu)

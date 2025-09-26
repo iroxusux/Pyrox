@@ -341,7 +341,7 @@ class PlcObject(EnforcesNaming, SupportsMetaData, Generic[CTRL], PyroxObject):
         return []
 
     @property
-    def config(self) -> Optional['ControllerConfiguration']:
+    def config(self) -> 'ControllerConfiguration':
         """Get the controller configuration for this object.
 
         Returns:
@@ -464,6 +464,24 @@ class PlcObject(EnforcesNaming, SupportsMetaData, Generic[CTRL], PyroxObject):
                 raise ValueError(f"Default meta data from file location {file_location} is invalid!")
         return meta_data
 
+    def _get_raw_l5x_asset_list(
+        self,
+        asset_type: str
+    ) -> list[dict]:
+        if asset_type not in L5X_ASSETS:
+            raise ValueError(f'Invalid asset type: {asset_type}')
+
+        asset_dict = self[asset_type]
+
+        if not asset_dict or not isinstance(asset_dict, dict):
+            asset_dict = {asset_type[:-1]: []}
+
+        asset_list = asset_dict.get(asset_type[:-1], [])
+        if not isinstance(asset_list, list):
+            asset_list = [asset_list]
+
+        return asset_list
+
     def _init_dict_order(self):
         """Initialize the dict order for this object.
 
@@ -585,7 +603,7 @@ class NamedPlcObject(NamedPyroxObject, PlcObject):
 
     def __init__(
         self,
-        meta_data=None,
+        meta_data: Optional[Union[dict, str]] = defaultdict(None),
         controller: Optional[CTRL] = None,
         name: Optional[str] = None,
         description: Optional[str] = None

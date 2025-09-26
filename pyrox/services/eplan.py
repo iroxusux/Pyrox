@@ -6,9 +6,11 @@ power structures, network configurations, and I/O mappings.
 """
 
 from __future__ import annotations
-from typing import TYPE_CHECKING
+from typing import Optional, TYPE_CHECKING
 import os
-from pyrox.models import eplan
+from pyrox.services.env import get_env
+from pyrox.services.file import get_open_file
+from pyrox.models.eplan import project as proj
 
 if TYPE_CHECKING:
     from pyrox.models import plc
@@ -18,8 +20,25 @@ SECTION_LETTER_RE: str = r"(?:SECTION\nLETTER:\n)(.*)"
 SHEET_NUMBER_RE: str = r"(?:SHEET\nNUMBER:\n)(.*) (.*)(?:\nOF)"
 
 
+def _debug_get_project_save_file(project: proj.EplanProject) -> str:
+    controller = project.controller
+    name = controller.name if controller else 'unknown_controller'
+
+    save_dir = get_env('EPLAN_DUMP_PROJECT_DIR', './artifacts')
+    if not os.path.isdir(save_dir):
+        os.makedirs(save_dir, exist_ok=True)
+    if not os.path.isdir(save_dir):
+        raise NotADirectoryError(f'Could not create directory: {save_dir}')
+    return save_dir + f'/{name}_eplan_project.json'
+
+
+def _debug_export_project_dict(project: proj.EplanProject) -> None:
+    if not get_env('EPLAN_DUMP_PROJECT_DICT', False, cast_type=bool):
+        return
+    project.save_project_dict_to_file(_debug_get_project_save_file(project))
+
+
 def _get_epj_file() -> str:
-    from .file import get_open_file
     return get_open_file(
         title='Select EPlan Project',
         filetypes=[('.epj Files', '*.epj'), ('All Files', '*.*')],
@@ -29,31 +48,32 @@ def _get_epj_file() -> str:
 def _get_project(
     controller: plc.Controller,
     file_location: str
-) -> eplan.EplanProject:
-    project: eplan.EplanProject = eplan.EplanProjectFactory.get_registered_type_by_supporting_class(controller)
+) -> proj.EplanProject:
+    project: Optional[type[proj.EplanProject]] = proj.EplanProjectFactory.get_registered_type_by_supporting_class(controller)
     if not project:
-        project = eplan.EplanProjectFactory.get_registered_type_by_supporting_class('Controller')
-    if not isinstance(project, type(eplan.EplanProject)):
+        project = proj.EplanProjectFactory.get_registered_type_by_supporting_class('Controller')
+    if not isinstance(project, type(proj.EplanProject)):
         raise ValueError('No valid project found for this controller type!')
     return project(file_location=file_location)
 
 
 def _get_validator(
     controller: plc.Controller,
-    project: eplan.EplanProject
-) -> eplan.EplanControllerValidator:
-    validator: eplan.EplanControllerValidator = eplan.EplanControllerValidatorFactory.get_registered_type_by_supporting_class(controller)
+    project: proj.EplanProject
+) -> proj.EplanControllerValidator:
+    validator: Optional[type[proj.EplanControllerValidator]
+                        ] = proj.EplanControllerValidatorFactory.get_registered_type_by_supporting_class(controller)
     if not validator:
-        validator = eplan.EplanControllerValidatorFactory.get_registered_type_by_supporting_class('Controller')
-    if not isinstance(validator, type(eplan.EplanControllerValidator)):
+        validator = proj.EplanControllerValidatorFactory.get_registered_type_by_supporting_class('Controller')
+    if not isinstance(validator, type(proj.EplanControllerValidator)):
         raise ValueError('No valid validator found for this controller type!')
     return validator(controller=controller, project=project)
 
 
 def _work_precheck(
     controller: plc.Controller,
-    project: eplan.EplanProject,
-    validator: eplan.EplanControllerValidator,
+    project: proj.EplanProject,
+    validator: proj.EplanControllerValidator,
 ) -> None:
     if not controller:
         raise ValueError('No controller provided for eplan import operation.')
@@ -75,8 +95,9 @@ def import_eplan(
     if not file_location or not os.path.isfile(file_location):
         raise FileNotFoundError('No valid EPlan project file selected!')
 
-    project: eplan.EplanProject = _get_project(controller, file_location)
-    validator: eplan.EplanControllerValidator = _get_validator(controller, project)
+    project: proj.EplanProject = _get_project(controller, file_location)
+    validator: proj.EplanControllerValidator = _get_validator(controller, project)
     _work_precheck(controller, project, validator)
     project.parse()
+    _debug_export_project_dict(project)
     validator.validate()

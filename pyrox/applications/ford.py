@@ -4,6 +4,7 @@ from typing import Optional, TypeVar
 
 from pyrox.models import HashList, plc, SupportsMetaData
 from pyrox.models import eplan
+from pyrox.services.logging import log
 from .generator import BaseEmulationGenerator
 from .indicon import BaseControllerValidator, BaseEplanProject
 
@@ -197,7 +198,7 @@ class FordEmulationGenerator(BaseEmulationGenerator):
         for program in self.controller.programs:
             comm_edit = program.comm_edit_routine
             if not comm_edit:
-                self.log().debug(f"No Comm Edit routine found in program {program.name}, skipping.")
+                log().debug(f"No Comm Edit routine found in program {program.name}, skipping.")
                 continue
             for instruction in comm_edit.instructions:
                 if 'CommOk' in instruction.meta_data and instruction.instruction_name in ['OTE', 'OTL']:
@@ -207,7 +208,7 @@ class FordEmulationGenerator(BaseEmulationGenerator):
     def _generate_custom_logic(self):
         comm_ok_bits = self._scrape_all_comm_ok_bits()
         if not comm_ok_bits:
-            self.log().warning("No Comm OK bits found in Comm Edit routines.")
+            log().warning("No Comm OK bits found in Comm Edit routines.")
 
         for bit in comm_ok_bits:
             device_name = bit.operands[0].meta_data.split('.')[0]
@@ -269,7 +270,7 @@ class FordEplanProject(BaseEplanProject):
                 return None
 
             if len(meta_data) != 3:
-                self.log().warning(f"Unexpected metadata format in sheet object: {meta_data}")
+                log().warning(f"Unexpected metadata format in sheet object: {meta_data}")
                 return None
 
             interest_key = '@A511'
@@ -294,19 +295,19 @@ class FordEplanProject(BaseEplanProject):
                 data=meta_data
             )
 
-        def get_project_devices(self) -> list[eplan.project.EplanNetworkDevice]:
+        def get_project_devices(self) -> list[eplan.project.EplanProjectDevice]:
             if self._devices:
                 return self._devices
 
             for obj in self.sheet_objects:
                 device = self._parse_sheet_object(obj)
                 if device is None:
-                    self.log().debug(f"Skipping invalid or incomplete sheet object: {obj}")
+                    log().debug(f"Skipping invalid or incomplete sheet object: {obj}")
                     continue
                 self._devices.append(device)
 
             if len(self._devices) == 0:
-                self.log().warning("No valid devices found in the IP Address sheet.")
+                log().warning("No valid devices found in the IP Address sheet.")
 
             return self._devices
 
@@ -322,7 +323,12 @@ class FordEplanProject(BaseEplanProject):
     def _gather_project_ethernet_devices(self):
         ip_sheet = self.ip_address_sheet
         if not ip_sheet:
-            self.log().warning("No 'Device IP / Network Address List' sheet found in the project.")
+            log().warning("No 'Device IP / Network Address List' sheet found in the project.")
+            return
 
         devices = ip_sheet.get_project_devices()
+        if not devices:
+            log().warning("No devices found on the 'Device IP / Network Address List' sheet.")
+            return
+
         self.devices.extend(devices)

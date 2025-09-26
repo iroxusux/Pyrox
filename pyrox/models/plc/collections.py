@@ -1,7 +1,7 @@
 """Collections of PLC objects.
 """
 from collections import defaultdict
-from typing import List, Optional, Union, TYPE_CHECKING
+from typing import List, Optional, TYPE_CHECKING
 from pyrox.models.abc.list import HashList
 from pyrox.models.plc import meta as plc_meta
 from pyrox.models.plc.instruction import LogixInstruction
@@ -15,14 +15,14 @@ if TYPE_CHECKING:
 class ContainsTags(plc_meta.NamedPlcObject):
     def __init__(
         self,
-        meta_data=defaultdict(None),
+        meta_data: Optional[dict] = defaultdict(None),
         controller=None
     ) -> None:
         super().__init__(
             meta_data=meta_data,
             controller=controller
         )
-        self._tags: HashList = None
+        self._tags = None
 
     @property
     def raw_tags(self) -> list[dict]:
@@ -33,10 +33,25 @@ class ContainsTags(plc_meta.NamedPlcObject):
         return self['Tags']['Tag']
 
     @property
-    def tags(self) -> HashList:
+    def tags(self) -> HashList['Tag']:
         if self._tags is None:
             self._compile_tags()
+        if self._tags is None:
+            raise RuntimeError("tags could not be compiled")
         return self._tags
+
+    @tags.setter
+    def tags(self, value: Optional[HashList['Tag']]) -> None:
+        if not isinstance(value, HashList) and value is not None:
+            raise TypeError("tags must be a HashList")
+        if value is None:
+            value = HashList['Tag']('name')
+        for tag in value:
+            self._type_check(tag)
+        self._redefine_raw_asset_list_from_asset_list(
+            value,
+            self.raw_tags
+        )
 
     def _compile_from_meta_data(self):
         """compile this object from its meta data
@@ -46,9 +61,11 @@ class ContainsTags(plc_meta.NamedPlcObject):
     def _compile_tags(self):
         """compile the tags in this container
         """
-        self._tags = HashList('name')
+        if self._tags is None:
+            self._tags = HashList('name')
+        self._tags.clear()
         for tag in self.raw_tags:
-            self._tags.append(
+            self.tags.append(
                 self.config.tag_type(
                     meta_data=tag, controller=self.controller
                 )
@@ -59,8 +76,7 @@ class ContainsTags(plc_meta.NamedPlcObject):
 
     def _type_check(
         self,
-        tag: Union['Tag', str],
-        check_str: bool = True
+        tag: 'Tag'
     ) -> None:
         """Helper method to type check a tag
 
@@ -70,8 +86,6 @@ class ContainsTags(plc_meta.NamedPlcObject):
         Raises:
             TypeError: if the tag is not a Tag object
         """
-        if isinstance(tag, str) and check_str:
-            return
         from pyrox.models.plc import Tag  # avoid circular import
         if not isinstance(tag, Tag):
             raise TypeError("tag must be a Tag object")
@@ -87,7 +101,7 @@ class ContainsTags(plc_meta.NamedPlcObject):
         Args:
             routine (Tag): tag to add
         """
-        self._type_check(tag, False)
+        self._type_check(tag)
         self._add_asset_to_meta_data(
             tag,
             self.tags,
@@ -111,7 +125,7 @@ class ContainsTags(plc_meta.NamedPlcObject):
 
     def remove_tag(
         self,
-        tag: Union['Tag', str],
+        tag: 'Tag',
         _inhibit_invalidate: bool = False
     ) -> None:
         """remove a tag from this container
@@ -120,7 +134,7 @@ class ContainsTags(plc_meta.NamedPlcObject):
             tag (Union[Tag, str]): tag to remove
             _inhibit_invalidate (bool): inhibit invalidation of the tag list. This is used when removing multiple tags at once.
         """
-        self._type_check(tag, True)
+        self._type_check(tag)
         self._remove_asset_from_meta_data(
             tag,
             self.tags,
@@ -130,7 +144,7 @@ class ContainsTags(plc_meta.NamedPlcObject):
 
     def remove_tags(
         self,
-        tags: List[Union['Tag', str]]
+        tags: List['Tag']
     ) -> None:
         """remove multiple tags from this container
 
@@ -156,10 +170,10 @@ class ContainsRoutines(ContainsTags):
             controller
         )
 
-        self._input_instructions: list[LogixInstruction] = None
-        self._output_instructions: list[LogixInstruction] = None
-        self._instructions: list[LogixInstruction] = None
-        self._routines: HashList[Routine] = None
+        self._input_instructions = None
+        self._output_instructions = None
+        self._instructions = None
+        self._routines = None
 
     @property
     def class_(self) -> str:
@@ -169,6 +183,8 @@ class ContainsRoutines(ContainsTags):
     def input_instructions(self) -> list[LogixInstruction]:
         if not self._input_instructions:
             self._compile_instructions()
+        if self._input_instructions is None:
+            raise RuntimeError("input_instructions could not be compiled")
         return self._input_instructions
 
     @property
@@ -180,18 +196,24 @@ class ContainsRoutines(ContainsTags):
         """
         if not self._instructions:
             self._compile_instructions()
+        if self._instructions is None:
+            raise RuntimeError("instructions could not be compiled")
         return self._instructions
 
     @property
     def output_instructions(self) -> list[LogixInstruction]:
         if not self._output_instructions:
             self._compile_instructions()
+        if self._output_instructions is None:
+            raise RuntimeError("output_instructions could not be compiled")
         return self._output_instructions
 
     @property
     def routines(self) -> HashList['Routine']:
         if not self._routines:
             self._compile_routines()
+        if self._routines is None:
+            raise RuntimeError("routines could not be compiled")
         return self._routines
 
     @routines.setter
@@ -258,7 +280,7 @@ class ContainsRoutines(ContainsTags):
         self._instructions = []
         self._routines = HashList('name')
 
-    def _type_check(
+    def _type_check(  # type: ignore[override]
         self,
         routine: 'Routine'
     ) -> None:
@@ -309,7 +331,7 @@ class ContainsRoutines(ContainsTags):
 
     def remove_routine(
         self,
-        routine: Union['Routine', str]
+        routine: 'Routine'
     ) -> None:
         """remove a routine from this container
 
@@ -325,7 +347,7 @@ class ContainsRoutines(ContainsTags):
 
     def remove_routines(
         self,
-        routines: List[Union['Routine', str]]
+        routines: List['Routine']
     ) -> None:
         """remove multiple routines from this container
 
@@ -333,5 +355,5 @@ class ContainsRoutines(ContainsTags):
             routines (List[Union[Routine, str]]): routines to remove
         """
         for routine in routines:
-            self.remove_routine(routine, True)
+            self.remove_routine(routine)
         self._invalidate()

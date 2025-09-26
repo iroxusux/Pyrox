@@ -2,13 +2,14 @@
 """
 
 from __future__ import annotations
-from typing import Any, Dict, List, Optional, Self
+from typing import Any, Dict, List, Optional
 from pyrox.models.abc.meta import NamedPyroxObject, PyroxObject, SupportsMetaData
 from pyrox.models.abc.factory import FactoryTypeMeta, MetaFactory
 from pyrox.models.abc.list import HashList
 from pyrox.models.abc.save import SupportsFileLocation
 from pyrox.models.plc import Controller, Module
 from pyrox.services.dict import rename_keys
+from pyrox.services.logging import log
 from pyrox.services.xml import dict_from_xml_file
 
 from . import meta
@@ -60,7 +61,7 @@ class EplanProjectFactory(MetaFactory):
 class EplanProject(
     SupportsFileLocation,
     SupportsMetaData,
-    metaclass=FactoryTypeMeta[Self, EplanProjectFactory]
+    metaclass=FactoryTypeMeta['EplanProject', EplanProjectFactory]
 ):
     """EPLAN project model.
 
@@ -72,21 +73,21 @@ class EplanProject(
 
     def __init__(
         self,
-        file_location: str = None,
+        file_location: Optional[str] = None,
         meta_data: Optional[Dict[str, Any]] = None,
         controller: Optional[Any] = None,
     ) -> None:
         SupportsFileLocation.__init__(self, file_location)
         SupportsMetaData.__init__(self, meta_data)
         # re-assign file location to trigger meta_data load if provided
-        self.file_location: str = file_location
+        self.file_location = file_location
         self.controller: Optional[Any] = controller
         self.devices: HashList[EplanProjectDevice] = HashList('name')
 
-        self.project_name: str = []
-        self.groups: Dict[str, Any] = []
-        self.connections: List[Dict] = []
-        self.properties: Dict[str, str] = []
+        self.project_name: str = ''
+        self.control_groups: List[Dict[str, Any]] = []
+        self.connections: List[Dict[str, Any]] = []
+        self.properties: Dict[str, str] = {}
         self.sheet_details: List[Dict] = []
         self.bom_details: List[Dict] = []
 
@@ -98,7 +99,7 @@ class EplanProject(
         return super().__init_subclass__(**kwargs)
 
     @SupportsFileLocation.file_location.setter
-    def file_location(self, value: str) -> None:
+    def file_location(self, value: Optional[str]) -> None:
         if not isinstance(value, str):
             raise ValueError('file_location must be a string!')
         if not value.endswith('.epj'):
@@ -252,7 +253,7 @@ class EplanProject(
 
     def _gather_project_device_io_details(self) -> None:
         """Gather all device IO details from the project."""
-        raise NotImplementedError("Subclasses should override this method to gather device IO details.")
+        log().warning("EPLAN device IO gathering not yet implemented.")
 
     def _gather_project_ethernet_devices(self) -> None:
         """Gather all ethernet devices from the project."""
@@ -287,7 +288,7 @@ class EplanProject(
     def _process_bom_item(
         self,
         item: dict,
-    ) -> dict:
+    ) -> Optional[dict[str, Any]]:
         """Process a single BOM item from the project.
 
         Args:
@@ -319,7 +320,7 @@ class EplanProject(
     def _process_group_data(
         self,
         group: dict,
-    ) -> dict:
+    ) -> Optional[dict[str, Any]]:
         """Process a single group from the project.
 
         Args:
@@ -395,14 +396,41 @@ class EplanProject(
         self._gather_project_ethernet_devices()
         self._gather_project_device_io_details()
 
-        self.logger.info('Done!')
+        log().info('Done!')
+
+    def save_project_dict_to_file(
+        self,
+        file_path: Optional[str] = None
+    ) -> None:
+        """Save the project data dictionary to a file.
+
+        Args:
+            file_path (str): The file path to save the project data dictionary.
+        """
+        if not file_path and not self.file_location:
+            raise ValueError("No file path provided to save the project data dictionary.")
+        if not self.file_location:
+            raise ValueError("File location is not set for the EPLAN project.")
+        if not file_path:
+            file_path = self.file_location + '.json'
+
+        from pyrox.services.file import save_dict_to_json_file
+        if save_dict_to_json_file(file_path, self.project_data):
+            log().info(f'Project data dictionary saved to {file_path}')
+        else:
+            log().error(f'Failed to save project data dictionary to {file_path}')
 
 
 class EplanControllerValidatorFactory(MetaFactory):
     """Eplan Controller Validator factory."""
 
 
-class EplanControllerValidator(PyroxObject, metaclass=FactoryTypeMeta[Self, EplanControllerValidatorFactory]):
+class EplanControllerValidator(
+        PyroxObject,
+        metaclass=FactoryTypeMeta[
+            'EplanControllerValidator',
+            EplanControllerValidatorFactory
+        ]):
     """EPLAN controller validator model.
 
     Attributes:
@@ -413,8 +441,8 @@ class EplanControllerValidator(PyroxObject, metaclass=FactoryTypeMeta[Self, Epla
 
     def __init__(
         self,
-        controller: Controller = None,
-        project: EplanProject = None,
+        controller: Optional[Controller] = None,
+        project: Optional[EplanProject] = None,
     ) -> None:
         self.controller: Optional[Controller] = controller
         self.project: Optional[EplanProject] = project
@@ -515,7 +543,7 @@ class EplanControllerValidator(PyroxObject, metaclass=FactoryTypeMeta[Self, Epla
         if not self.project:
             raise ValueError("EPLAN project is not set for validation.")
 
-        self.logger.info('Validating controller...')
+        log().info('Validating controller...')
         self._validate_controller_properties()
         self._validate_modules()
-        self.logger.info('Validation complete!')
+        log().info('Validation complete!')

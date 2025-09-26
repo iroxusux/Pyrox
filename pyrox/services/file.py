@@ -132,6 +132,32 @@ def remove_all_files(directory: str):
             shutil.rmtree(file_path)
 
 
+def save_dict_to_json_file(
+    file_path: str,
+    data: dict,
+    encoding: Optional[str] = 'utf-8'
+) -> bool:
+    """save a dictionary to a json file
+
+    Args:
+        file_path (str): file path to save to
+        data (dict): dictionary to save
+        encoding (str, optional): encoding to use when saving. Defaults to 'utf-8'.
+
+    Returns:
+        bool: bool of success
+    """
+    import json
+    try:
+        with open(file_path, 'w', encoding=encoding) as f:
+            json.dump(data, f, indent=4)
+            f.close()
+    except FileNotFoundError:
+        print('file not found error thrown!')
+        return False
+    return True
+
+
 def save_file(
     file_path: str,
     file_extension: str,
