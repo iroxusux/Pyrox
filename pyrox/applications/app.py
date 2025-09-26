@@ -401,7 +401,8 @@ class App(models.Application):
         for stream in [LoggingManager._captured_stdout, LoggingManager._captured_stderr]:
             if stream:
                 for line in stream.get_lines():
-                    self._log_window.log(line)
+                    if 'WARNING' in line or 'ERROR' in line or 'CRITICAL' in line:
+                        self._log_window.log(line)
 
     def _build_organizer(self) -> None:
         self._organizer: AppOrganizer = AppOrganizer(application=self)

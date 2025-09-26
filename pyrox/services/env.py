@@ -14,71 +14,65 @@ from .logging import log
 
 
 class EnvManager:
-    """Manager for environment variables and .env files."""
+    """Static manager for environment variables and .env files."""
 
-    def __getitem__(self, key: str) -> Any:
-        return self.get(key)
+    # Class-level storage for environment variables
+    _env_vars: Dict[str, str] = {}
+    _env_file: Optional[str] = None
+    _loaded: bool = False
 
-    def __init__(
-        self,
-        env_file: Optional[str] = None,
-        auto_load: bool = True
-    ) -> None:
-        """Initialize the environment manager.
+    def __init__(self):
+        """Prevent instantiation of static class."""
+        raise TypeError("EnvManager is a static class and cannot be instantiated")
 
-        Args:
-            env_file: Path to .env file. If None, searches for .env in common locations
-            auto_load: Whether to automatically load the .env file on initialization
-        """
-        super().__init__()
-        self._env_vars: Dict[str, str] = {}
-        self._env_file = env_file
-        self._loaded = False
+    @classmethod
+    def __getitem__(cls, key: str) -> Any:
+        return cls.get(key)
 
-        if auto_load:
-            self.load()
+    @classmethod
+    def __setitem__(cls, key: str, value: Any) -> None:
+        cls.set(key, value)
 
-    def __setitem__(self, key: str, value: Any) -> None:
-        self.set(key, value)
-
+    @classmethod
     def load(
-        self,
+        cls,
         env_file: Optional[str] = None
     ) -> bool:
         """Load environment variables from .env file.
 
         Args:
-            env_file: Path to .env file. If None, uses instance default or searches
+            env_file: Path to .env file. If None, uses class default or searches
 
         Returns:
             True if file was loaded successfully
         """
         if env_file:
-            self._env_file = env_file
+            cls._env_file = env_file
 
         # Find .env file if not specified
-        if not self._env_file:
-            self._env_file = self._find_env_file()
+        if not cls._env_file:
+            cls._env_file = cls._find_env_file()
 
-        if not self._env_file:
-            log(self).warning("No .env file found")
+        if not cls._env_file:
+            log(cls).warning("No .env file found")
             return False
 
         # Check if file exists and is readable
-        if not self._is_file_readable(self._env_file):
-            log(self).warning(f"File is not readable: {self._env_file}")
+        if not cls._is_file_readable(cls._env_file):
+            log(cls).warning(f"File is not readable: {cls._env_file}")
             return False
 
         try:
-            self._load_from_file(self._env_file)
-            log(self).info(f"Loaded environment variables from: {self._env_file}")
-            self._loaded = True
+            cls._load_from_file(cls._env_file)
+            log(cls).info(f"Loaded environment variables from: {cls._env_file}")
+            cls._loaded = True
             return True
         except Exception as e:
-            log(self).error(f"Failed to load .env file {self._env_file}: {e}")
+            log(cls).error(f"Failed to load .env file {cls._env_file}: {e}")
             return False
 
-    def _is_file_readable(self, file_path: str) -> bool:
+    @classmethod
+    def _is_file_readable(cls, file_path: str) -> bool:
         """Check if file exists and is readable.
 
         Args:
@@ -90,17 +84,17 @@ class EnvManager:
         try:
             # Check if file exists
             if not os.path.exists(file_path):
-                log(self).debug(f"File does not exist: {file_path}")
+                log(cls).debug(f"File does not exist: {file_path}")
                 return False
 
             # Check if it's actually a file (not a directory)
             if not os.path.isfile(file_path):
-                log(self).debug(f"Path is not a file: {file_path}")
+                log(cls).debug(f"Path is not a file: {file_path}")
                 return False
 
             # Check read permissions using os.access
             if not os.access(file_path, os.R_OK):
-                log(self).debug(f"File is not readable (permissions): {file_path}")
+                log(cls).debug(f"File is not readable (permissions): {file_path}")
                 return False
 
             # Try to actually open and read a small portion to verify readability
@@ -109,14 +103,15 @@ class EnvManager:
                     f.read(1)  # Try to read just one character
                 return True
             except (IOError, OSError, PermissionError, UnicodeDecodeError) as e:
-                log(self).debug(f"File cannot be read: {file_path}, error: {e}")
+                log(cls).debug(f"File cannot be read: {file_path}, error: {e}")
                 return False
 
         except Exception as e:
-            log(self).debug(f"Error checking file readability for {file_path}: {e}")
+            log(cls).debug(f"Error checking file readability for {file_path}: {e}")
             return False
 
-    def _find_env_file(self) -> Optional[str]:
+    @classmethod
+    def _find_env_file(cls) -> Optional[str]:
         """Search for .env file in common locations."""
         search_paths = [
             os.getcwd(),  # Current working directory
@@ -126,13 +121,14 @@ class EnvManager:
 
         for search_path in search_paths:
             env_path = os.path.join(search_path, '.env')
-            if self._is_file_readable(env_path):
-                log(self).debug(f"Found readable .env file at: {env_path}")
+            if cls._is_file_readable(env_path):
+                log(cls).debug(f"Found readable .env file at: {env_path}")
                 return env_path
 
         return None
 
-    def _load_from_file(self, file_path: str) -> None:
+    @classmethod
+    def _load_from_file(cls, file_path: str) -> None:
         """Load variables from .env file."""
         try:
             with open(file_path, 'r', encoding='utf-8') as f:
@@ -145,27 +141,28 @@ class EnvManager:
 
                     # Parse key=value pairs
                     if '=' not in line:
-                        log(self).warning(f"Invalid line {line_num} in {file_path}: {line}")
+                        log(cls).warning(f"Invalid line {line_num} in {file_path}: {line}")
                         continue
 
-                    key, value = self._parse_line(line, line_num, file_path)
+                    key, value = cls._parse_line(line, line_num, file_path)
                     if key:
-                        self._env_vars[key] = value
+                        cls._env_vars[key] = value
                         # Also set in os.environ if not already set
                         if key not in os.environ:
                             os.environ[key] = value
         except (IOError, OSError, PermissionError) as e:
-            log(self).error(f"IO error reading file {file_path}: {e}")
+            log(cls).error(f"IO error reading file {file_path}: {e}")
             raise
         except UnicodeDecodeError as e:
-            log(self).error(f"Encoding error reading file {file_path}: {e}")
+            log(cls).error(f"Encoding error reading file {file_path}: {e}")
             raise
         except Exception as e:
-            log(self).error(f"Unexpected error reading file {file_path}: {e}")
+            log(cls).error(f"Unexpected error reading file {file_path}: {e}")
             raise
 
+    @classmethod
     def _parse_line(
-        self,
+        cls,
         line: str,
         line_num: int,
         file_path: str
@@ -175,21 +172,22 @@ class EnvManager:
             # Handle different quote styles and escaping
             match = re.match(r'^([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(.*)$', line)
             if not match:
-                log(self).warning(f"Invalid format at line {line_num} in {file_path}")
+                log(cls).warning(f"Invalid format at line {line_num} in {file_path}")
                 return "", ""
 
             key, value = match.groups()
 
             # Handle quoted values
-            value = self._process_value(value)
+            value = cls._process_value(value)
 
             return key, value
 
         except Exception as e:
-            log(self).error(f"Error parsing line {line_num} in {file_path}: {e}")
+            log(cls).error(f"Error parsing line {line_num} in {file_path}: {e}")
             return "", ""
 
-    def _process_value(self, value: str) -> str:
+    @classmethod
+    def _process_value(cls, value: str) -> str:
         """Process and clean up the value from .env file."""
         value = value.strip()
 
@@ -208,29 +206,31 @@ class EnvManager:
         value = value.replace('\\\\', '\\')
 
         # Handle variable substitution ${VAR} or $VAR
-        value = self._substitute_variables(value)
+        value = cls._substitute_variables(value)
 
         return value
 
-    def _substitute_variables(self, value: str) -> str:
+    @classmethod
+    def _substitute_variables(cls, value: str) -> str:
         """Substitute environment variables in the value."""
         # Handle ${VAR} format
         def replace_braced(match):
             var_name = match.group(1)
-            return self.get(var_name, os.environ.get(var_name, match.group(0)))
+            return cls.get(var_name, os.environ.get(var_name, match.group(0)))
 
         value = re.sub(r'\$\{([A-Za-z_][A-Za-z0-9_]*)\}', replace_braced, value)
 
         # Handle $VAR format
         def replace_simple(match):
             var_name = match.group(1)
-            return self.get(var_name, os.environ.get(var_name, match.group(0)))
+            return cls.get(var_name, os.environ.get(var_name, match.group(0)))
 
         value = re.sub(r'\$([A-Za-z_][A-Za-z0-9_]*)', replace_simple, value)
 
         return value
 
-    def get(self, key: str, default: Any = None, cast_type: type = str) -> Any:
+    @classmethod
+    def get(cls, key: str, default: Any = None, cast_type: type = str) -> Any:
         """Get environment variable value with type casting.
 
         Args:
@@ -242,7 +242,7 @@ class EnvManager:
             Environment variable value cast to specified type
         """
         # Check .env vars first, then os.environ
-        value = self._env_vars.get(key, os.environ.get(key))
+        value = cls._env_vars.get(key, os.environ.get(key))
 
         if value is None:
             return default
@@ -261,10 +261,11 @@ class EnvManager:
             else:
                 return cast_type(value)
         except (ValueError, TypeError) as e:
-            log(self).warning(f"Failed to cast {key}={value} to {cast_type.__name__}: {e}")
+            log(cls).warning(f"Failed to cast {key}={value} to {cast_type.__name__}: {e}")
             return default
 
-    def set(self, key: str, value: str, update_os_environ: bool = True) -> None:
+    @classmethod
+    def set(cls, key: str, value: str, update_os_environ: bool = True) -> None:
         """Set environment variable.
 
         Args:
@@ -272,12 +273,13 @@ class EnvManager:
             value: Environment variable value
             update_os_environ: Whether to also update os.environ
         """
-        self._env_vars[key] = str(value)
+        cls._env_vars[key] = str(value)
         if update_os_environ:
             os.environ[key] = str(value)
-        log(self).debug(f"Set environment variable: {key}={value}")
+        log(cls).debug(f"Set environment variable: {key}={value}")
 
-    def get_all(self, prefix: Optional[str] = None) -> Dict[str, str]:
+    @classmethod
+    def get_all(cls, prefix: Optional[str] = None) -> Dict[str, str]:
         """Get all environment variables, optionally filtered by prefix.
 
         Args:
@@ -286,14 +288,15 @@ class EnvManager:
         Returns:
             Dictionary of environment variables
         """
-        all_vars = {**self._env_vars, **dict(os.environ)}
+        all_vars = {**cls._env_vars, **dict(os.environ)}
 
         if prefix:
             return {k: v for k, v in all_vars.items() if k.startswith(prefix)}
 
         return all_vars
 
-    def create_env_template(self, file_path: str = '.env.template') -> None:
+    @classmethod
+    def create_env_template(cls, file_path: str = '.env.template') -> None:
         """Create a template .env file with common Pyrox variables.
 
         Args:
@@ -344,32 +347,32 @@ ENCRYPTION_ALGORITHM=AES256
         try:
             with open(file_path, 'w', encoding='utf-8') as f:
                 f.write(template_content)
-            log(self).info(f"Created .env template at: {file_path}")
+            log(cls).info(f"Created .env template at: {file_path}")
         except (IOError, OSError, PermissionError) as e:
-            log(self).error(f"Failed to create template file {file_path}: {e}")
+            log(cls).error(f"Failed to create template file {file_path}: {e}")
             raise
 
-    def is_loaded(self) -> bool:
+    @classmethod
+    def is_loaded(cls) -> bool:
         """Check if .env file has been loaded."""
-        return self._loaded
+        return cls._loaded
 
-    def reload(self) -> bool:
+    @classmethod
+    def reload(cls) -> bool:
         """Reload the .env file."""
-        self._env_vars.clear()
-        self._loaded = False
-        return self.load()
+        cls._env_vars.clear()
+        cls._loaded = False
+        return cls.load()
 
 
-# Global instance for easy access
-_env_manager: Optional[EnvManager] = None
-
-
-def get_env_manager() -> EnvManager:
-    """Get the global environment manager instance."""
-    global _env_manager
-    if _env_manager is None:
-        _env_manager = EnvManager()
-    return _env_manager
+# Initialize the static EnvManager on module import
+# This ensures the .env file is loaded once when the project initializes
+try:
+    EnvManager.load()
+except Exception as e:
+    # Log error but don't crash the import
+    import logging
+    logging.warning(f"Failed to auto-load .env file during module import: {e}")
 
 
 def load_env(env_file: Optional[str] = None) -> bool:
@@ -381,7 +384,7 @@ def load_env(env_file: Optional[str] = None) -> bool:
     Returns:
         True if loaded successfully
     """
-    return get_env_manager().load(env_file)
+    return EnvManager.load(env_file)
 
 
 def get_env(key: str, default: Any = None, cast_type: type = str) -> Any:
@@ -395,7 +398,7 @@ def get_env(key: str, default: Any = None, cast_type: type = str) -> Any:
     Returns:
         Environment variable value
     """
-    return get_env_manager().get(key, default, cast_type)
+    return EnvManager.get(key, default, cast_type)
 
 
 def set_env(key: str, value: str) -> None:
@@ -405,25 +408,25 @@ def set_env(key: str, value: str) -> None:
         key: Environment variable name
         value: Environment variable value
     """
-    get_env_manager().set(key, value)
+    EnvManager.set(key, value)
 
 
 # Convenience functions for common configurations
 def get_debug_mode() -> bool:
     """Get debug mode setting."""
-    return get_env('PYROX_DEBUG', False, bool)
+    return EnvManager.get('PYROX_DEBUG', False, bool)
 
 
 def get_log_level() -> str:
     """Get log level setting."""
-    return get_env('PYROX_LOG_LEVEL', 'INFO', str)
+    return EnvManager.get('PYROX_LOG_LEVEL', 'INFO', str)
 
 
 def get_data_dir() -> str:
     """Get data directory path."""
-    return get_env('PYROX_DATA_DIR', './data', str)
+    return EnvManager.get('PYROX_DATA_DIR', './data', str)
 
 
 def get_database_url() -> str:
     """Get database URL."""
-    return get_env('DATABASE_URL', 'sqlite:///pyrox.db', str)
+    return EnvManager.get('DATABASE_URL', 'sqlite:///pyrox.db', str)

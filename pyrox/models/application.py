@@ -755,11 +755,7 @@ class Application(Runnable):
             self._multi_stream = stream.MultiStream(
                 self._directory_service.get_log_file_stream(),
                 stream.SimpleStream(self.application_log))
-
-            LoggingManager.register_callback_to_captured_streams(
-                self._multi_stream.write
-            )
-
+            LoggingManager.register_callback_to_captured_streams(self._multi_stream.write)
             self.log().info(f'Logging to file: {self._directory_service.user_log_file}')
         except Exception as e:
             raise RuntimeError(f'Failed to set up MultiStream: {e}') from e

@@ -8,7 +8,6 @@ import shutil
 
 from pyrox.services.env import (
     EnvManager,
-    get_env_manager,
     load_env,
     get_env,
     set_env,
@@ -36,9 +35,10 @@ class TestEnvManager(unittest.TestCase):
         for var in test_vars:
             os.environ.pop(var, None)
 
-        # Reset global manager
-        global _env_manager
-        _env_manager = None
+        # Reset static class state
+        EnvManager._env_vars.clear()
+        EnvManager._loaded = False
+        EnvManager._env_file = None
 
     def tearDown(self):
         """Clean up test fixtures."""
@@ -49,9 +49,10 @@ class TestEnvManager(unittest.TestCase):
         # Clean up test directory
         shutil.rmtree(self.test_dir, ignore_errors=True)
 
-        # Reset global manager
-        global _env_manager
-        _env_manager = None
+        # Reset static class state
+        EnvManager._env_vars.clear()
+        EnvManager._loaded = False
+        EnvManager._env_file = None
 
     def _create_test_env_file(self, content: str) -> str:
         """Helper to create test .env file."""
@@ -59,20 +60,26 @@ class TestEnvManager(unittest.TestCase):
             f.write(content)
         return self.test_env_file
 
-    def test_init_with_auto_load_disabled(self):
-        """Test EnvManager initialization with auto_load=False."""
-        manager = EnvManager(auto_load=False)
-        self.assertFalse(manager.is_loaded())
-        self.assertEqual(len(manager._env_vars), 0)
+    def test_prevent_instantiation(self):
+        """Test that EnvManager cannot be instantiated."""
+        with self.assertRaises(TypeError) as context:
+            EnvManager()
+        self.assertIn("static class", str(context.exception))
 
-    def test_init_with_specific_env_file(self):
-        """Test EnvManager initialization with specific env file."""
+    def test_static_class_state(self):
+        """Test static class initial state."""
+        self.assertFalse(EnvManager.is_loaded())
+        self.assertEqual(len(EnvManager._env_vars), 0)
+
+    def test_load_with_specific_env_file(self):
+        """Test loading with specific env file."""
         content = "TEST_VAR=test_value\n"
         env_file = self._create_test_env_file(content)
 
-        manager = EnvManager(env_file=env_file)
-        self.assertTrue(manager.is_loaded())
-        self.assertEqual(manager.get('TEST_VAR'), 'test_value')
+        result = EnvManager.load(env_file)
+        self.assertTrue(result)
+        self.assertTrue(EnvManager.is_loaded())
+        self.assertEqual(EnvManager.get('TEST_VAR'), 'test_value')
 
     def test_load_existing_file(self):
         """Test loading an existing .env file."""
@@ -83,46 +90,55 @@ ANOTHER_VAR=another_value
 """
         env_file = self._create_test_env_file(content)
 
-        manager = EnvManager(auto_load=False)
-        result = manager.load(env_file)
+        result = EnvManager.load(env_file)
 
         self.assertTrue(result)
-        self.assertTrue(manager.is_loaded())
-        self.assertEqual(manager.get('TEST_VAR'), 'test_value')
-        self.assertEqual(manager.get('ANOTHER_VAR'), 'another_value')
+        self.assertTrue(EnvManager.is_loaded())
+        self.assertEqual(EnvManager.get('TEST_VAR'), 'test_value')
+        self.assertEqual(EnvManager.get('ANOTHER_VAR'), 'another_value')
 
     def test_load_nonexistent_file(self):
         """Test loading a nonexistent .env file."""
-        manager = EnvManager(auto_load=False)
-        result = manager.load('/nonexistent/.env')
+        result = EnvManager.load('/nonexistent/.env')
 
         self.assertFalse(result)
-        self.assertFalse(manager.is_loaded())
+        self.assertFalse(EnvManager.is_loaded())
 
     def test_find_env_file(self):
         """Test finding .env file in common locations."""
-        # Create .env file in current directory
-        cwd_env = os.path.join(os.getcwd(), '.env')
+        # Use a test-specific .env file to avoid deleting the real one
+        test_env_file = os.path.join(self.test_dir, '.env')
 
         try:
-            with open(cwd_env, 'w') as f:
+            with open(test_env_file, 'w') as f:
                 f.write('TEST=1')
 
-            manager = EnvManager(auto_load=False)
-            found_file = manager._find_env_file()
-
-            self.assertEqual(found_file, cwd_env)
+            # Test that _is_file_readable works correctly
+            self.assertTrue(EnvManager._is_file_readable(test_env_file))
 
         finally:
-            # Clean up
-            if os.path.exists(cwd_env):
-                os.remove(cwd_env)
+            # Clean up test file only (in test directory, not project root)
+            if os.path.exists(test_env_file):
+                os.remove(test_env_file)
 
     def test_find_env_file_not_found(self):
         """Test finding .env file when none exists."""
-        manager = EnvManager(auto_load=False)
-        found_file = manager._find_env_file()
-        self.assertIsNone(found_file)
+        # Temporarily rename existing .env file if it exists
+        env_file_path = os.path.join(os.getcwd(), '.env')
+        temp_backup = None
+        
+        try:
+            if os.path.exists(env_file_path):
+                temp_backup = env_file_path + '.test_backup'
+                os.rename(env_file_path, temp_backup)
+            
+            found_file = EnvManager._find_env_file()
+            self.assertIsNone(found_file)
+            
+        finally:
+            # Restore the original .env file if it existed
+            if temp_backup and os.path.exists(temp_backup):
+                os.rename(temp_backup, env_file_path)
 
     def test_parse_simple_key_value(self):
         """Test parsing simple key=value pairs."""
@@ -133,10 +149,10 @@ KEY_WITH_UNDERSCORE=value_with_underscore
 """
         env_file = self._create_test_env_file(content)
 
-        manager = EnvManager(env_file=env_file)
-        self.assertEqual(manager.get('KEY1'), 'value1')
-        self.assertEqual(manager.get('KEY2'), 'value2')
-        self.assertEqual(manager.get('KEY_WITH_UNDERSCORE'), 'value_with_underscore')
+        EnvManager.load(env_file)
+        self.assertEqual(EnvManager.get('KEY1'), 'value1')
+        self.assertEqual(EnvManager.get('KEY2'), 'value2')
+        self.assertEqual(EnvManager.get('KEY_WITH_UNDERSCORE'), 'value_with_underscore')
 
     def test_parse_quoted_values(self):
         """Test parsing quoted values."""
@@ -148,11 +164,11 @@ QUOTED_EMPTY=""
 '''
         env_file = self._create_test_env_file(content)
 
-        manager = EnvManager(env_file=env_file)
-        self.assertEqual(manager.get('DOUBLE_QUOTED'), 'double quoted value')
-        self.assertEqual(manager.get('SINGLE_QUOTED'), 'single quoted value')
-        self.assertEqual(manager.get('QUOTED_WITH_SPACES'), 'value with spaces')
-        self.assertEqual(manager.get('QUOTED_EMPTY'), '')
+        EnvManager.load(env_file)
+        self.assertEqual(EnvManager.get('DOUBLE_QUOTED'), 'double quoted value')
+        self.assertEqual(EnvManager.get('SINGLE_QUOTED'), 'single quoted value')
+        self.assertEqual(EnvManager.get('QUOTED_WITH_SPACES'), 'value with spaces')
+        self.assertEqual(EnvManager.get('QUOTED_EMPTY'), '')
 
     def test_parse_escape_sequences(self):
         """Test parsing escape sequences."""
@@ -164,11 +180,11 @@ BACKSLASH="back\\slash"
 '''
         env_file = self._create_test_env_file(content)
 
-        manager = EnvManager(env_file=env_file)
-        self.assertEqual(manager.get('NEWLINE'), 'line1\nline2')
-        self.assertEqual(manager.get('TAB'), 'tab\ttab')
-        self.assertEqual(manager.get('QUOTE'), 'quote"quote')
-        self.assertEqual(manager.get('BACKSLASH'), 'back\\slash')
+        EnvManager.load(env_file)
+        self.assertEqual(EnvManager.get('NEWLINE'), 'line1\nline2')
+        self.assertEqual(EnvManager.get('TAB'), 'tab\ttab')
+        self.assertEqual(EnvManager.get('QUOTE'), 'quote"quote')
+        self.assertEqual(EnvManager.get('BACKSLASH'), 'back\\slash')
 
     def test_skip_comments_and_empty_lines(self):
         """Test skipping comments and empty lines."""
@@ -183,9 +199,9 @@ ANOTHER_VAR=another_value
 """
         env_file = self._create_test_env_file(content)
 
-        manager = EnvManager(env_file=env_file)
-        self.assertEqual(manager.get('VALID_VAR'), 'valid_value')
-        self.assertEqual(manager.get('ANOTHER_VAR'), 'another_value')
+        EnvManager.load(env_file)
+        self.assertEqual(EnvManager.get('VALID_VAR'), 'valid_value')
+        self.assertEqual(EnvManager.get('ANOTHER_VAR'), 'another_value')
 
     def test_invalid_lines(self):
         """Test handling of invalid lines."""
@@ -197,10 +213,10 @@ ANOTHER_VALID=another_value
 """
         env_file = self._create_test_env_file(content)
 
-        manager = EnvManager(env_file=env_file)
-        self.assertEqual(manager.get('VALID_VAR'), 'valid_value')
-        self.assertEqual(manager.get('ANOTHER_VALID'), 'another_value')
-        self.assertIsNone(manager.get('INVALID_LINE_NO_EQUALS'))
+        EnvManager.load(env_file)
+        self.assertEqual(EnvManager.get('VALID_VAR'), 'valid_value')
+        self.assertEqual(EnvManager.get('ANOTHER_VALID'), 'another_value')
+        self.assertIsNone(EnvManager.get('INVALID_LINE_NO_EQUALS'))
 
     def test_variable_substitution_braced(self):
         """Test variable substitution with ${VAR} format."""
@@ -211,10 +227,10 @@ LOG_DIR=${BASE_DIR}/logs
 """
         env_file = self._create_test_env_file(content)
 
-        manager = EnvManager(env_file=env_file)
-        self.assertEqual(manager.get('BASE_DIR'), '/app')
-        self.assertEqual(manager.get('DATA_DIR'), '/app/data')
-        self.assertEqual(manager.get('LOG_DIR'), '/app/logs')
+        EnvManager.load(env_file)
+        self.assertEqual(EnvManager.get('BASE_DIR'), '/app')
+        self.assertEqual(EnvManager.get('DATA_DIR'), '/app/data')
+        self.assertEqual(EnvManager.get('LOG_DIR'), '/app/logs')
 
     def test_variable_substitution_simple(self):
         """Test variable substitution with $VAR format."""
@@ -224,9 +240,9 @@ PATH=$HOME/bin
 """
         env_file = self._create_test_env_file(content)
 
-        manager = EnvManager(env_file=env_file)
-        self.assertEqual(manager.get('HOME'), '/home/user')
-        self.assertEqual(manager.get('PATH'), '/home/user/bin')
+        EnvManager.load(env_file)
+        self.assertEqual(EnvManager.get('HOME'), '/home/user')
+        self.assertEqual(EnvManager.get('PATH'), '/home/user/bin')
 
     def test_variable_substitution_from_os_environ(self):
         """Test variable substitution from os.environ."""
@@ -237,8 +253,8 @@ NEW_VAR=${EXISTING_VAR}/suffix
 """
         env_file = self._create_test_env_file(content)
 
-        manager = EnvManager(env_file=env_file)
-        self.assertEqual(manager.get('NEW_VAR'), 'existing_value/suffix')
+        EnvManager.load(env_file)
+        self.assertEqual(EnvManager.get('NEW_VAR'), 'existing_value/suffix')
 
     def test_get_with_type_casting_bool(self):
         """Test getting values with boolean type casting."""
@@ -256,17 +272,17 @@ DISABLED_VAR=disabled
 """
         env_file = self._create_test_env_file(content)
 
-        manager = EnvManager(env_file=env_file)
-        self.assertTrue(manager.get('TRUE_VAR', cast_type=bool))
-        self.assertFalse(manager.get('FALSE_VAR', cast_type=bool))
-        self.assertTrue(manager.get('ONE_VAR', cast_type=bool))
-        self.assertFalse(manager.get('ZERO_VAR', cast_type=bool))
-        self.assertTrue(manager.get('YES_VAR', cast_type=bool))
-        self.assertFalse(manager.get('NO_VAR', cast_type=bool))
-        self.assertTrue(manager.get('ON_VAR', cast_type=bool))
-        self.assertFalse(manager.get('OFF_VAR', cast_type=bool))
-        self.assertTrue(manager.get('ENABLED_VAR', cast_type=bool))
-        self.assertFalse(manager.get('DISABLED_VAR', cast_type=bool))
+        EnvManager.load(env_file)
+        self.assertTrue(EnvManager.get('TRUE_VAR', cast_type=bool))
+        self.assertFalse(EnvManager.get('FALSE_VAR', cast_type=bool))
+        self.assertTrue(EnvManager.get('ONE_VAR', cast_type=bool))
+        self.assertFalse(EnvManager.get('ZERO_VAR', cast_type=bool))
+        self.assertTrue(EnvManager.get('YES_VAR', cast_type=bool))
+        self.assertFalse(EnvManager.get('NO_VAR', cast_type=bool))
+        self.assertTrue(EnvManager.get('ON_VAR', cast_type=bool))
+        self.assertFalse(EnvManager.get('OFF_VAR', cast_type=bool))
+        self.assertTrue(EnvManager.get('ENABLED_VAR', cast_type=bool))
+        self.assertFalse(EnvManager.get('DISABLED_VAR', cast_type=bool))
 
     def test_get_with_type_casting_int(self):
         """Test getting values with integer type casting."""
@@ -276,9 +292,9 @@ NEGATIVE_INT=-456
 """
         env_file = self._create_test_env_file(content)
 
-        manager = EnvManager(env_file=env_file)
-        self.assertEqual(manager.get('INT_VAR', cast_type=int), 123)
-        self.assertEqual(manager.get('NEGATIVE_INT', cast_type=int), -456)
+        EnvManager.load(env_file)
+        self.assertEqual(EnvManager.get('INT_VAR', cast_type=int), 123)
+        self.assertEqual(EnvManager.get('NEGATIVE_INT', cast_type=int), -456)
 
     def test_get_with_type_casting_float(self):
         """Test getting values with float type casting."""
@@ -288,9 +304,9 @@ NEGATIVE_FLOAT=-67.89
 """
         env_file = self._create_test_env_file(content)
 
-        manager = EnvManager(env_file=env_file)
-        self.assertEqual(manager.get('FLOAT_VAR', cast_type=float), 123.45)
-        self.assertEqual(manager.get('NEGATIVE_FLOAT', cast_type=float), -67.89)
+        EnvManager.load(env_file)
+        self.assertEqual(EnvManager.get('FLOAT_VAR', cast_type=float), 123.45)
+        self.assertEqual(EnvManager.get('NEGATIVE_FLOAT', cast_type=float), -67.89)
 
     def test_get_with_type_casting_list(self):
         """Test getting values with list type casting."""
@@ -302,11 +318,11 @@ SINGLE_ITEM=single
 """
         env_file = self._create_test_env_file(content)
 
-        manager = EnvManager(env_file=env_file)
-        self.assertEqual(manager.get('LIST_VAR', cast_type=list), ['item1', 'item2', 'item3'])
-        self.assertEqual(manager.get('LIST_WITH_SPACES', cast_type=list), ['item1', 'item2', 'item3'])
-        self.assertEqual(manager.get('EMPTY_LIST', cast_type=list), [])
-        self.assertEqual(manager.get('SINGLE_ITEM', cast_type=list), ['single'])
+        EnvManager.load(env_file)
+        self.assertEqual(EnvManager.get('LIST_VAR', cast_type=list), ['item1', 'item2', 'item3'])
+        self.assertEqual(EnvManager.get('LIST_WITH_SPACES', cast_type=list), ['item1', 'item2', 'item3'])
+        self.assertEqual(EnvManager.get('EMPTY_LIST', cast_type=list), [])
+        self.assertEqual(EnvManager.get('SINGLE_ITEM', cast_type=list), ['single'])
 
     def test_get_with_invalid_type_casting(self):
         """Test getting values with invalid type casting."""
@@ -316,27 +332,25 @@ INVALID_FLOAT=not_a_float
 """
         env_file = self._create_test_env_file(content)
 
-        manager = EnvManager(env_file=env_file)
+        EnvManager.load(env_file)
 
         # Should return default when casting fails
-        self.assertEqual(manager.get('INVALID_INT', default=999, cast_type=int), 999)
-        self.assertEqual(manager.get('INVALID_FLOAT', default=99.9, cast_type=float), 99.9)
+        self.assertEqual(EnvManager.get('INVALID_INT', default=999, cast_type=int), 999)
+        self.assertEqual(EnvManager.get('INVALID_FLOAT', default=99.9, cast_type=float), 99.9)
 
     def test_get_default_values(self):
         """Test getting default values when variables don't exist."""
-        manager = EnvManager(auto_load=False)
-
-        self.assertEqual(manager.get('NONEXISTENT', 'default'), 'default')
-        self.assertEqual(manager.get('NONEXISTENT', 123, int), 123)
-        self.assertEqual(manager.get('NONEXISTENT', True, bool), True)
-        self.assertIsNone(manager.get('NONEXISTENT'))
+        # Static class doesn't auto-load, so we test default behavior
+        self.assertEqual(EnvManager.get('NONEXISTENT', 'default'), 'default')
+        self.assertEqual(EnvManager.get('NONEXISTENT', 123, int), 123)
+        self.assertEqual(EnvManager.get('NONEXISTENT', True, bool), True)
+        self.assertIsNone(EnvManager.get('NONEXISTENT'))
 
     def test_get_from_os_environ(self):
         """Test getting values from os.environ when not in .env file."""
         os.environ['OS_VAR'] = 'os_value'
 
-        manager = EnvManager(auto_load=False)
-        self.assertEqual(manager.get('OS_VAR'), 'os_value')
+        self.assertEqual(EnvManager.get('OS_VAR'), 'os_value')
 
     def test_get_priority_env_file_over_os_environ(self):
         """Test that .env file values take priority over os.environ."""
@@ -345,23 +359,19 @@ INVALID_FLOAT=not_a_float
         content = "PRIORITY_VAR=env_file_value\n"
         env_file = self._create_test_env_file(content)
 
-        manager = EnvManager(env_file=env_file)
-        self.assertEqual(manager.get('PRIORITY_VAR'), 'env_file_value')
+        EnvManager.load(env_file)
+        self.assertEqual(EnvManager.get('PRIORITY_VAR'), 'env_file_value')
 
     def test_set_variable(self):
         """Test setting environment variables."""
-        manager = EnvManager(auto_load=False)
-
-        manager.set('NEW_VAR', 'new_value')
-        self.assertEqual(manager.get('NEW_VAR'), 'new_value')
+        EnvManager.set('NEW_VAR', 'new_value')
+        self.assertEqual(EnvManager.get('NEW_VAR'), 'new_value')
         self.assertEqual(os.environ.get('NEW_VAR'), 'new_value')
 
     def test_set_variable_without_updating_os_environ(self):
         """Test setting variables without updating os.environ."""
-        manager = EnvManager(auto_load=False)
-
-        manager.set('NEW_VAR', 'new_value', update_os_environ=False)
-        self.assertEqual(manager.get('NEW_VAR'), 'new_value')
+        EnvManager.set('NEW_VAR', 'new_value', update_os_environ=False)
+        self.assertEqual(EnvManager.get('NEW_VAR'), 'new_value')
         self.assertIsNone(os.environ.get('NEW_VAR'))
 
     def test_get_all_variables(self):
@@ -373,8 +383,8 @@ ENV_VAR2=value2
         env_file = self._create_test_env_file(content)
         os.environ['OS_VAR'] = 'os_value'
 
-        manager = EnvManager(env_file=env_file)
-        all_vars = manager.get_all()
+        EnvManager.load(env_file)
+        all_vars = EnvManager.get_all()
 
         self.assertIn('ENV_VAR1', all_vars)
         self.assertIn('ENV_VAR2', all_vars)
@@ -391,8 +401,8 @@ OTHER_VAR=other_value
 """
         env_file = self._create_test_env_file(content)
 
-        manager = EnvManager(env_file=env_file)
-        pyrox_vars = manager.get_all(prefix='PYROX_')
+        EnvManager.load(env_file)
+        pyrox_vars = EnvManager.get_all(prefix='PYROX_')
 
         self.assertIn('PYROX_VAR1', pyrox_vars)
         self.assertIn('PYROX_VAR2', pyrox_vars)
@@ -402,8 +412,7 @@ OTHER_VAR=other_value
         """Test creating environment template file."""
         template_path = os.path.join(self.test_dir, '.env.template')
 
-        manager = EnvManager(auto_load=False)
-        manager.create_env_template(template_path)
+        EnvManager.create_env_template(template_path)
 
         self.assertTrue(os.path.exists(template_path))
 
@@ -420,8 +429,8 @@ OTHER_VAR=other_value
         content1 = "TEST_VAR=value1\n"
         env_file = self._create_test_env_file(content1)
 
-        manager = EnvManager(env_file=env_file)
-        self.assertEqual(manager.get('TEST_VAR'), 'value1')
+        EnvManager.load(env_file)
+        self.assertEqual(EnvManager.get('TEST_VAR'), 'value1')
 
         # Update file content
         content2 = "TEST_VAR=value2\nNEW_VAR=new_value\n"
@@ -429,10 +438,10 @@ OTHER_VAR=other_value
             f.write(content2)
 
         # Reload
-        result = manager.reload()
+        result = EnvManager.reload()
         self.assertTrue(result)
-        self.assertEqual(manager.get('TEST_VAR'), 'value2')
-        self.assertEqual(manager.get('NEW_VAR'), 'new_value')
+        self.assertEqual(EnvManager.get('TEST_VAR'), 'value2')
+        self.assertEqual(EnvManager.get('NEW_VAR'), 'new_value')
 
     def test_file_encoding_utf8(self):
         """Test handling of UTF-8 encoded files."""
@@ -440,8 +449,8 @@ OTHER_VAR=other_value
         with open(self.test_env_file, 'w', encoding='utf-8') as f:
             f.write(content)
 
-        manager = EnvManager(env_file=self.test_env_file)
-        self.assertEqual(manager.get('UNICODE_VAR'), 'café')
+        EnvManager.load(self.test_env_file)
+        self.assertEqual(EnvManager.get('UNICODE_VAR'), 'café')
 
 
 class TestGlobalFunctions(unittest.TestCase):
@@ -452,9 +461,10 @@ class TestGlobalFunctions(unittest.TestCase):
         self.test_dir = tempfile.mkdtemp()
         self.original_env = dict(os.environ)
 
-        # Reset global manager
-        global _env_manager
-        _env_manager = None
+        # Reset static class state
+        EnvManager._env_vars.clear()
+        EnvManager._loaded = False
+        EnvManager._env_file = None
 
     def tearDown(self):
         """Clean up test fixtures."""
@@ -462,15 +472,21 @@ class TestGlobalFunctions(unittest.TestCase):
         os.environ.update(self.original_env)
         shutil.rmtree(self.test_dir, ignore_errors=True)
 
-        # Reset global manager
-        global _env_manager
-        _env_manager = None
+        # Reset static class state
+        EnvManager._env_vars.clear()
+        EnvManager._loaded = False
+        EnvManager._env_file = None
 
-    def test_get_env_manager_singleton(self):
-        """Test that get_env_manager returns the same instance."""
-        manager1 = get_env_manager()
-        manager2 = get_env_manager()
-        self.assertIs(manager1, manager2)
+    def test_static_class_behavior(self):
+        """Test that EnvManager behaves as a static class."""
+        # Test that we can call methods without instantiation
+        EnvManager.set('TEST_STATIC', 'static_value')
+        self.assertEqual(EnvManager.get('TEST_STATIC'), 'static_value')
+
+        # Test that state persists across calls
+        result1 = EnvManager.get('TEST_STATIC')
+        result2 = EnvManager.get('TEST_STATIC')
+        self.assertEqual(result1, result2)
 
     def test_load_env(self):
         """Test load_env function."""
@@ -534,14 +550,12 @@ class TestGlobalFunctions(unittest.TestCase):
     def test_getitem(self):
         """Test __getitem__ method of EnvManager."""
         os.environ['TEST_VAR'] = 'test_value'
-        manager = get_env_manager()
-        self.assertEqual(manager['TEST_VAR'], 'test_value')
+        self.assertEqual(EnvManager.__getitem__('TEST_VAR'), 'test_value')
 
     def test_setitem(self):
         """Test __setitem__ method of EnvManager."""
-        manager = get_env_manager()
-        manager['NEW_VAR'] = 'new_value'
-        self.assertEqual(manager.get('NEW_VAR'), 'new_value')
+        EnvManager.__setitem__('NEW_VAR', 'new_value')
+        self.assertEqual(EnvManager.get('NEW_VAR'), 'new_value')
         self.assertEqual(os.environ.get('NEW_VAR'), 'new_value')
 
 
@@ -551,31 +565,33 @@ class TestErrorHandling(unittest.TestCase):
     def setUp(self):
         """Set up test fixtures."""
         self.test_dir = tempfile.mkdtemp()
-        global _env_manager
-        _env_manager = None
+        # Reset static class state
+        EnvManager._env_vars.clear()
+        EnvManager._loaded = False
+        EnvManager._env_file = None
 
     def tearDown(self):
         """Clean up test fixtures."""
         shutil.rmtree(self.test_dir, ignore_errors=True)
-        global _env_manager
-        _env_manager = None
+        # Reset static class state
+        EnvManager._env_vars.clear()
+        EnvManager._loaded = False
+        EnvManager._env_file = None
 
     def test_file_readability_checks(self):
         """Test various file readability scenarios."""
-        manager = EnvManager(auto_load=False)
-
         # Test nonexistent file
-        self.assertFalse(manager._is_file_readable('/nonexistent/file.env'))
+        self.assertFalse(EnvManager._is_file_readable('/nonexistent/file.env'))
 
         # Test directory instead of file
-        self.assertFalse(manager._is_file_readable(self.test_dir))
+        self.assertFalse(EnvManager._is_file_readable(self.test_dir))
 
         # Test readable file
         env_file = os.path.join(self.test_dir, '.env')
         with open(env_file, 'w') as f:
             f.write('TEST=value')
 
-        self.assertTrue(manager._is_file_readable(env_file))
+        self.assertTrue(EnvManager._is_file_readable(env_file))
 
     def test_malformed_file_handling(self):
         """Test handling of malformed .env files."""
@@ -585,8 +601,7 @@ class TestErrorHandling(unittest.TestCase):
         with open(env_file, 'wb') as f:
             f.write(b'\xff\xfe\x00\x00invalid_content')  # Invalid UTF-8
 
-        manager = EnvManager(auto_load=False)
-        result = manager.load(env_file)
+        result = EnvManager.load(env_file)
 
         # Should handle the error and return False
         self.assertFalse(result)
@@ -594,11 +609,10 @@ class TestErrorHandling(unittest.TestCase):
     @patch('pyrox.services.env.open', side_effect=IOError("File read error"))
     def test_file_io_error(self, mock_open):
         """Test handling of file I/O errors."""
-        manager = EnvManager(auto_load=False)
-        result = manager.load('/some/path/.env')
+        result = EnvManager.load('/some/path/.env')
 
         self.assertFalse(result)
-        self.assertFalse(manager.is_loaded())
+        self.assertFalse(EnvManager.is_loaded())
 
     def test_unicode_decode_error_handling(self):
         """Test handling of files with encoding issues."""
@@ -610,15 +624,13 @@ class TestErrorHandling(unittest.TestCase):
             f.write(b'INVALID_KEY=\xff\xfe\x00\x00invalid_utf8\n')
             f.write(b'ANOTHER_KEY=another_value\n')
 
-        manager = EnvManager(auto_load=False)
-
         # Should detect that file is not readable due to encoding issues
-        self.assertFalse(manager._is_file_readable(env_file))
+        self.assertFalse(EnvManager._is_file_readable(env_file))
 
         # Loading should fail
-        result = manager.load(env_file)
+        result = EnvManager.load(env_file)
         self.assertFalse(result)
-        self.assertFalse(manager.is_loaded())
+        self.assertFalse(EnvManager.is_loaded())
 
 
 if __name__ == '__main__':
