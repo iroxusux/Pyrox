@@ -89,7 +89,7 @@ class TestEmulationGenerator(unittest.TestCase):
         self.mock_schema = Mock(spec=controller.ControllerModificationSchema)
 
         # Create concrete generator instance
-        with patch('pyrox.models.emu.controller.ControllerModificationSchema') as mock_schema_class:
+        with patch('pyrox.models.plc.controller.ControllerModificationSchema') as mock_schema_class:
             mock_schema_class.return_value = self.mock_schema
             self.generator = ConcreteEmulationGenerator(self.mock_controller)
 
@@ -218,7 +218,7 @@ class TestEmulationGenerator(unittest.TestCase):
         if hasattr(self.generator, 'controller'):
             self.assertEqual(self.generator.generator_object, self.mock_controller)
 
-    @patch('pyrox.models.emu.imodule.ModuleWarehouseFactory.filter_modules_by_type')
+    @patch('pyrox.models.plc.imodule.ModuleWarehouseFactory.filter_modules_by_type')
     def test_generate_builtin_common_with_modules(self, mock_filter):
         """Test _generate_builtin_common with mock modules."""
         # Setup mock introspective module
@@ -243,7 +243,7 @@ class TestEmulationGenerator(unittest.TestCase):
 
     def test_generate_builtin_common_with_no_module(self):
         """Test _generate_builtin_common handles None module gracefully."""
-        with patch('pyrox.models.emu.imodule.ModuleWarehouseFactory.filter_modules_by_type') as mock_filter:
+        with patch('pyrox.models.plc.imodule.ModuleWarehouseFactory.filter_modules_by_type') as mock_filter:
             mock_filter.return_value = [None]
 
             # Should not raise exception
@@ -251,7 +251,7 @@ class TestEmulationGenerator(unittest.TestCase):
 
     def test_generate_builtin_common_with_no_introspective_module(self):
         """Test _generate_builtin_common handles missing introspective_module."""
-        with patch('pyrox.models.emu.imodule.ModuleWarehouseFactory.filter_modules_by_type') as mock_filter:
+        with patch('pyrox.models.plc.imodule.ModuleWarehouseFactory.filter_modules_by_type') as mock_filter:
             mock_introspective_module = Mock()
             mock_introspective_module.module = None
             mock_filter.return_value = [mock_introspective_module]
@@ -272,7 +272,7 @@ class TestEmulationGenerator(unittest.TestCase):
         ]
         self.mock_schema.add_import_from_file.assert_has_calls(expected_calls)
 
-    @patch('pyrox.models.emu.controller.Tag')
+    @patch('pyrox.models.plc.tag.Tag')
     def test_add_controller_tag(self, mock_tag_class):
         """Test add_controller_tag method."""
         mock_tag = Mock()
@@ -315,7 +315,7 @@ class TestEmulationGenerator(unittest.TestCase):
             ]
             mock_add_tag.assert_has_calls(expected_calls)
 
-    @patch('pyrox.models.emu.controller.Tag')
+    @patch('pyrox.models.plc.tag.Tag')
     def test_add_program_tag(self, mock_tag_class):
         """Test add_program_tag method."""
         mock_tag = Mock()
@@ -355,7 +355,7 @@ class TestEmulationGenerator(unittest.TestCase):
         self.mock_controller.programs.get.return_value = mock_program
         self.mock_controller.config.routine_type.return_value = Mock(spec=controller.Routine)
 
-        with patch('pyrox.models.emu.controller.Rung') as mock_rung_class:
+        with patch('pyrox.models.plc.rung.Rung') as mock_rung_class:
             result = self.generator.add_routine(
                 program_name="TestProgram",
                 routine_name="TestRoutine",
@@ -384,7 +384,7 @@ class TestEmulationGenerator(unittest.TestCase):
         self.mock_controller.programs.get.return_value = mock_program
         self.mock_controller.config.routine_type.return_value = Mock(spec=controller.Routine)
 
-        with patch('pyrox.models.emu.controller.Rung') as mock_rung_class:
+        with patch('pyrox.models.plc.rung.Rung') as mock_rung_class:
             self.generator.add_routine(
                 program_name="TestProgram",
                 routine_name="TestRoutine",
@@ -680,7 +680,7 @@ class TestEmulationGenerator(unittest.TestCase):
             )
             self.assertEqual(self.generator.emulation_safety_routine, mock_routine)
 
-    @patch('pyrox.models.emu.controller.Rung')
+    @patch('pyrox.models.plc.rung.Rung')
     def test_generate_base_standard_rungs(self, mock_rung_class):
         """Test _generate_base_standard_rungs method."""
         # Setup mock routine
@@ -709,7 +709,7 @@ class TestEmulationGenerator(unittest.TestCase):
 
         self.assertIn("Emulation routine has not been created yet", str(context.exception))
 
-    @patch('pyrox.models.emu.controller.Rung')
+    @patch('pyrox.models.plc.rung.Rung')
     def test_generate_base_safety_rungs(self, mock_rung_class):
         """Test _generate_base_safety_rungs method."""
         # Setup mock routine
@@ -800,7 +800,7 @@ class TestEmulationGenerator(unittest.TestCase):
     @patch.object(ConcreteEmulationGenerator, '_generate_builtin_common')
     def test_generate_base_module_emulation(self, mock_builtin_common):
         """Test _generate_base_module_emulation method."""
-        with patch('pyrox.models.emu.module.ModuleControlsType') as mock_module_types:
+        with patch('pyrox.models.plc.module.ModuleControlsType') as mock_module_types:
             mock_module_types.__iter__ = Mock(return_value=iter([
                 module.ModuleControlsType.IO,
                 module.ModuleControlsType.COMMUNICATION
@@ -819,7 +819,7 @@ class TestEmulationGenerator(unittest.TestCase):
     def test_abstract_properties_raise_not_implemented(self):
         """Test that abstract properties raise NotImplementedError."""
         # Create a direct instance of EmulationGenerator (bypassing abstract check for testing)
-        with patch('pyrox.models.emu.controller.ControllerModificationSchema'):
+        with patch('pyrox.models.plc.controller.ControllerModificationSchema'):
             # Need to create a class that doesn't override abstract methods
             class IncompleteGenerator(EmulationGenerator):
                 supporting_class = "TestController"
@@ -865,7 +865,7 @@ class TestEmulationGeneratorIntegration(unittest.TestCase):
         self.mock_controller.programs = Mock()
         self.mock_controller.config = Mock()
 
-        with patch('pyrox.models.emu.controller.ControllerModificationSchema'):
+        with patch('pyrox.models.plc.controller.ControllerModificationSchema'):
             self.generator = ConcreteEmulationGenerator(self.mock_controller)
 
     def test_full_emulation_generation_workflow(self):

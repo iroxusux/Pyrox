@@ -2,7 +2,7 @@
 """
 from typing import Optional, List
 
-from .plc import controller, imodule, module, routine
+from .plc import controller, imodule, module, routine, rung, tag
 from .abc import meta, factory
 
 
@@ -436,10 +436,9 @@ class EmulationGenerator(
             Tag: The created tag
         """
         self.log().debug(f"Adding program tag: {tag_name} with datatype {datatype} to program {program_name}")
-
         return self.schema.add_program_tag(
             program_name=program_name,
-            tag=controller.Tag(
+            tag=tag.Tag(
                 controller=self.generator_object,
                 name=tag_name,
                 datatype=datatype,
@@ -468,7 +467,7 @@ class EmulationGenerator(
         """
         self.log().debug(f"Scheduling controller tag: {tag_name} with datatype {datatype}.")
         return self.schema.add_controller_tag(
-            controller.Tag(
+            tag.Tag(
                 controller=self.generator_object,
                 name=tag_name,
                 datatype=datatype,
@@ -498,7 +497,7 @@ class EmulationGenerator(
         routine_description: str,
         call_from_main: bool = True,
         rung_position: int = -1
-    ) -> controller.Routine:
+    ) -> routine.Routine:
         """Helper method to add an emulation routine to a program.
 
         Args:
@@ -516,15 +515,15 @@ class EmulationGenerator(
             raise ValueError("Controller configuration is not set.")
 
         # Create the routine
-        routine: controller.Routine = self.generator_object.config.routine_type(controller=self.generator_object)
-        routine.name = routine_name
-        routine.description = routine_description
-        routine.clear_rungs()
+        rout: routine.Routine = self.generator_object.config.routine_type(controller=self.generator_object)
+        rout.name = routine_name
+        rout.description = routine_description
+        rout.clear_rungs()
 
         # Add routine to program
         self.schema.add_routine(
             program_name=program_name,
-            routine=routine
+            routine=rout
         )
 
         # Add JSR call if requested
@@ -535,7 +534,7 @@ class EmulationGenerator(
                     self.log().debug(f"JSR to '{routine_name}' already exists in main routine of program '{program_name}'")
                 else:
                     self.log().debug(f"Adding JSR call to '{routine_name}' in main routine of program '{program_name}'")
-                    jsr_rung = controller.Rung(
+                    jsr_rung = rung.Rung(
                         controller=self.generator_object,
                         text=f'JSR({routine_name},0);',
                         comment=f'Call the {routine_name} routine.'
@@ -547,7 +546,7 @@ class EmulationGenerator(
                         rung=jsr_rung
                     )
 
-        return routine
+        return rout
 
     def add_rung(
         self,
@@ -609,12 +608,12 @@ class EmulationGenerator(
             new_rungs: List of rungs to add
             rung_number: Position to insert the first rung (-1 for end)
         """
-        for i, rung in enumerate(new_rungs):
+        for i, r in enumerate(new_rungs):
             position = rung_number + i if rung_number is not None and rung_number >= 0 else -1
             self.add_rung(
                 program_name=program_name,
                 routine_name=routine_name,
-                new_rung=rung,
+                new_rung=r,
                 rung_number=position
             )
 
