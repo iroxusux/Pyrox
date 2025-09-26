@@ -3,17 +3,31 @@
 # Pyrox Build Script
 # This script sets up the development environment and installs dependencies
 
+# Create logs directory if it doesn't exist
+mkdir -p logs
+
+# Set log file with timestamp
+LOG_FILE="logs/build_$(date +%Y%m%d_%H%M%S).log"
+
+# Function to log and display messages
+log_and_echo() {
+    echo "$1" | tee -a "$LOG_FILE"
+}
+
+# Redirect all output to log file and console
+exec > >(tee -a "$LOG_FILE") 2>&1
+
 set -e  # Exit on any error
 
 # Change to script directory
 cd "$(dirname "$0")"
 
-echo "=== Pyrox Build Script ==="
-echo "Starting build process..."
+log_and_echo "=== Pyrox Build Script ==="
+log_and_echo "Starting build process..."
 
 # Check if Python is available
 if ! command -v python &> /dev/null; then
-    echo "Error: Python is not installed or not in PATH"
+    log_and_echo "Error: Python is not installed or not in PATH"
     exit 1
 fi
 
@@ -22,23 +36,23 @@ python_version=$(python -c "import sys; print(f'{sys.version_info.major}.{sys.ve
 required_version="3.13"
 
 if ! python -c "import sys; exit(0 if sys.version_info >= (3, 13) else 1)" 2>/dev/null; then
-    echo "Error: Python $required_version or higher is required. Found: $python_version"
+    log_and_echo "Error: Python $required_version or higher is required. Found: $python_version"
     exit 1
 fi
 
-echo "✓ Python $python_version detected"
+log_and_echo "✓ Python $python_version detected"
 
 # Create virtual environment if it doesn't exist
 if [ ! -d ".venv" ]; then
-    echo "Creating virtual environment..."
+    log_and_echo "Creating virtual environment..."
     python -m venv .venv
-    echo "✓ Virtual environment created"
+    log_and_echo "✓ Virtual environment created"
 else
-    echo "✓ Virtual environment exists"
+    log_and_echo "✓ Virtual environment exists"
 fi
 
 # Activate virtual environment
-echo "Activating virtual environment..."
+log_and_echo "Activating virtual environment..."
 if [[ "$OSTYPE" == "msys" || "$OSTYPE" == "win32" ]]; then
     # Windows/Git Bash
     source .venv/Scripts/activate
@@ -48,48 +62,48 @@ else
 fi
 
 if [[ "$VIRTUAL_ENV" == "" ]]; then
-    echo "Error: Failed to activate virtual environment"
+    log_and_echo "Error: Failed to activate virtual environment"
     exit 1
 fi
 
-echo "✓ Virtual environment activated: $VIRTUAL_ENV"
+log_and_echo "✓ Virtual environment activated: $VIRTUAL_ENV"
 
 # Upgrade pip first
-echo "Upgrading pip..."
+log_and_echo "Upgrading pip..."
 python -m pip install --upgrade pip
 
 # Install/upgrade requirements
 if [ -f "requirements.txt" ]; then
-    echo "Installing requirements from requirements.txt..."
+    log_and_echo "Installing requirements from requirements.txt..."
     python -m pip install -r requirements.txt --upgrade
-    echo "✓ Requirements installed"
+    log_and_echo "✓ Requirements installed"
 else
-    echo "Warning: requirements.txt not found"
+    log_and_echo "Warning: requirements.txt not found"
 fi
 
 # Install the package in development mode
-echo "Installing Pyrox package in development mode..."
+log_and_echo "Installing Pyrox package in development mode..."
 if [ -f "pyproject.toml" ]; then
     python -m pip install -e . --upgrade
-    echo "✓ Pyrox package installed in development mode"
+    log_and_echo "✓ Pyrox package installed in development mode"
 else
-    echo "Warning: pyproject.toml not found, skipping package installation"
+    log_and_echo "Warning: pyproject.toml not found, skipping package installation"
 fi
 
 # Verify installation
-echo "Verifying installation..."
+log_and_echo "Verifying installation..."
 if python -c "import pyrox; print(f'✓ Pyrox module imported successfully')" 2>/dev/null; then
-    echo "✓ Build completed successfully!"
+    log_and_echo "✓ Build completed successfully!"
 else
-    echo "Warning: Could not import pyrox module"
+    log_and_echo "Warning: Could not import pyrox module"
 fi
 
-echo "=== Build Summary ==="
-echo "Python version: $python_version"
-echo "Virtual environment: $VIRTUAL_ENV"
-echo "Installed packages:"
+log_and_echo "=== Build Summary ==="
+log_and_echo "Python version: $python_version"
+log_and_echo "Virtual environment: $VIRTUAL_ENV"
+log_and_echo "Installed packages:"
 python -m pip list --format=columns | head -20
 
-echo ""
-echo "Build process completed!"
-echo "You can now run the deployment script."
+log_and_echo ""
+log_and_echo "Build process completed!"
+log_and_echo "You can now run the deployment script."
