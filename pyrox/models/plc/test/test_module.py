@@ -475,7 +475,7 @@ class TestModule:
         """Test initialization with provided meta data."""
         with patch('pyrox.models.plc.module.Module._compile_from_meta_data'):
             module = Module(
-                l5x_meta_data=self.sample_module_data,
+                meta_data=self.sample_module_data,
                 controller=self.mock_controller
             )
 
@@ -486,7 +486,7 @@ class TestModule:
         """Test dict_key_order property."""
         with patch('pyrox.models.plc.module.Module._compile_from_meta_data'):
             module = Module(
-                l5x_meta_data=self.sample_module_data,
+                meta_data=self.sample_module_data,
                 controller=self.mock_controller
             )
 
@@ -514,7 +514,7 @@ class TestModule:
         """Test catalog_number property getter."""
         with patch('pyrox.models.plc.module.Module._compile_from_meta_data'):
             module = Module(
-                l5x_meta_data=self.sample_module_data,
+                meta_data=self.sample_module_data,
                 controller=self.mock_controller
             )
 
@@ -524,7 +524,7 @@ class TestModule:
         """Test catalog_number property setter with valid value."""
         with patch('pyrox.models.plc.module.Module._compile_from_meta_data'):
             module = Module(
-                l5x_meta_data=self.sample_module_data,
+                meta_data=self.sample_module_data,
                 controller=self.mock_controller
             )
 
@@ -536,7 +536,7 @@ class TestModule:
         """Test catalog_number property setter with invalid value."""
         with patch('pyrox.models.plc.module.Module._compile_from_meta_data'):
             module = Module(
-                l5x_meta_data=self.sample_module_data,
+                meta_data=self.sample_module_data,
                 controller=self.mock_controller
             )
 
@@ -548,7 +548,7 @@ class TestModule:
         """Test communications property getter."""
         with patch('pyrox.models.plc.module.Module._compile_from_meta_data'):
             module = Module(
-                l5x_meta_data=self.sample_module_data,
+                meta_data=self.sample_module_data,
                 controller=self.mock_controller
             )
 
@@ -561,7 +561,7 @@ class TestModule:
         """Test communications property setter with valid dictionary."""
         with patch('pyrox.models.plc.module.Module._compile_from_meta_data'):
             module = Module(
-                l5x_meta_data=self.sample_module_data,
+                meta_data=self.sample_module_data,
                 controller=self.mock_controller
             )
 
@@ -573,7 +573,7 @@ class TestModule:
         """Test communications property setter with invalid type."""
         with patch('pyrox.models.plc.module.Module._compile_from_meta_data'):
             module = Module(
-                l5x_meta_data=self.sample_module_data,
+                meta_data=self.sample_module_data,
                 controller=self.mock_controller
             )
 
@@ -584,7 +584,7 @@ class TestModule:
         """Test connection property returns first connection."""
         with patch('pyrox.models.plc.module.Module._compile_from_meta_data'):
             module = Module(
-                l5x_meta_data=self.sample_module_data,
+                meta_data=self.sample_module_data,
                 controller=self.mock_controller
             )
 
@@ -598,7 +598,7 @@ class TestModule:
 
         with patch('pyrox.models.plc.module.Module._compile_from_meta_data'):
             module = Module(
-                l5x_meta_data=module_data,
+                meta_data=module_data,
                 controller=self.mock_controller
             )
 
@@ -609,7 +609,7 @@ class TestModule:
         """Test connections property when Connections contains a list."""
         with patch('pyrox.models.plc.module.Module._compile_from_meta_data'):
             module = Module(
-                l5x_meta_data=self.sample_module_data,
+                meta_data=self.sample_module_data,
                 controller=self.mock_controller
             )
 
@@ -627,7 +627,7 @@ class TestModule:
 
         with patch('pyrox.models.plc.module.Module._compile_from_meta_data'):
             module = Module(
-                l5x_meta_data=module_data,
+                meta_data=module_data,
                 controller=self.mock_controller
             )
 
@@ -643,7 +643,7 @@ class TestModule:
 
         with patch('pyrox.models.plc.module.Module._compile_from_meta_data'):
             module = Module(
-                l5x_meta_data=module_data,
+                meta_data=module_data,
                 controller=self.mock_controller
             )
 
@@ -657,7 +657,7 @@ class TestModule:
 
         with patch('pyrox.models.plc.module.Module._compile_from_meta_data'):
             module = Module(
-                l5x_meta_data=module_data,
+                meta_data=module_data,
                 controller=self.mock_controller
             )
 
@@ -668,7 +668,7 @@ class TestModule:
         """Test config_connection_point property."""
         with patch('pyrox.models.plc.module.Module._compile_from_meta_data'):
             module = Module(
-                l5x_meta_data=self.sample_module_data,
+                meta_data=self.sample_module_data,
                 controller=self.mock_controller
             )
 
@@ -682,7 +682,7 @@ class TestModule:
 
         with patch('pyrox.models.plc.module.Module._compile_from_meta_data'):
             module = Module(
-                l5x_meta_data=module_data,
+                meta_data=module_data,
                 controller=self.mock_controller
             )
 
@@ -693,7 +693,7 @@ class TestModule:
         """Test input_connection_point property."""
         with patch('pyrox.models.plc.module.Module._compile_from_meta_data'):
             module = Module(
-                l5x_meta_data=self.sample_module_data,
+                meta_data=self.sample_module_data,
                 controller=self.mock_controller
             )
 
@@ -704,7 +704,7 @@ class TestModule:
         """Test output_connection_point property."""
         with patch('pyrox.models.plc.module.Module._compile_from_meta_data'):
             module = Module(
-                l5x_meta_data=self.sample_module_data,
+                meta_data=self.sample_module_data,
                 controller=self.mock_controller
             )
 
@@ -715,7 +715,7 @@ class TestModule:
         """Test config_connection_size property."""
         with patch('pyrox.models.plc.module.Module._compile_from_meta_data'):
             module = Module(
-                l5x_meta_data=self.sample_module_data,
+                meta_data=self.sample_module_data,
                 controller=self.mock_controller
             )
 
@@ -731,7 +731,7 @@ class TestModule:
         """Test config_connection_size property when no config tag."""
         with patch('pyrox.models.plc.module.Module._compile_from_meta_data'):
             module = Module(
-                l5x_meta_data=self.sample_module_data,
+                meta_data=self.sample_module_data,
                 controller=self.mock_controller
             )
 
@@ -744,7 +744,7 @@ class TestModule:
         """Test input_connection_size property."""
         with patch('pyrox.models.plc.module.Module._compile_from_meta_data'):
             module = Module(
-                l5x_meta_data=self.sample_module_data,
+                meta_data=self.sample_module_data,
                 controller=self.mock_controller
             )
 
@@ -755,7 +755,7 @@ class TestModule:
         """Test output_connection_size property."""
         with patch('pyrox.models.plc.module.Module._compile_from_meta_data'):
             module = Module(
-                l5x_meta_data=self.sample_module_data,
+                meta_data=self.sample_module_data,
                 controller=self.mock_controller
             )
 
@@ -766,7 +766,7 @@ class TestModule:
         """Test vendor property getter."""
         with patch('pyrox.models.plc.module.Module._compile_from_meta_data'):
             module = Module(
-                l5x_meta_data=self.sample_module_data,
+                meta_data=self.sample_module_data,
                 controller=self.mock_controller
             )
 
@@ -776,7 +776,7 @@ class TestModule:
         """Test vendor property setter with valid integer string."""
         with patch('pyrox.models.plc.module.Module._compile_from_meta_data'):
             module = Module(
-                l5x_meta_data=self.sample_module_data,
+                meta_data=self.sample_module_data,
                 controller=self.mock_controller
             )
 
@@ -788,7 +788,7 @@ class TestModule:
         """Test vendor property setter with non-integer string."""
         with patch('pyrox.models.plc.module.Module._compile_from_meta_data'):
             module = Module(
-                l5x_meta_data=self.sample_module_data,
+                meta_data=self.sample_module_data,
                 controller=self.mock_controller
             )
 
@@ -799,7 +799,7 @@ class TestModule:
         """Test product_type property getter."""
         with patch('pyrox.models.plc.module.Module._compile_from_meta_data'):
             module = Module(
-                l5x_meta_data=self.sample_module_data,
+                meta_data=self.sample_module_data,
                 controller=self.mock_controller
             )
 
@@ -809,7 +809,7 @@ class TestModule:
         """Test product_type property setter with valid integer string."""
         with patch('pyrox.models.plc.module.Module._compile_from_meta_data'):
             module = Module(
-                l5x_meta_data=self.sample_module_data,
+                meta_data=self.sample_module_data,
                 controller=self.mock_controller
             )
 
@@ -820,7 +820,7 @@ class TestModule:
         """Test product_type property setter with non-integer string."""
         with patch('pyrox.models.plc.module.Module._compile_from_meta_data'):
             module = Module(
-                l5x_meta_data=self.sample_module_data,
+                meta_data=self.sample_module_data,
                 controller=self.mock_controller
             )
 
@@ -831,7 +831,7 @@ class TestModule:
         """Test product_code property getter."""
         with patch('pyrox.models.plc.module.Module._compile_from_meta_data'):
             module = Module(
-                l5x_meta_data=self.sample_module_data,
+                meta_data=self.sample_module_data,
                 controller=self.mock_controller
             )
 
@@ -841,7 +841,7 @@ class TestModule:
         """Test product_code property setter with valid integer string."""
         with patch('pyrox.models.plc.module.Module._compile_from_meta_data'):
             module = Module(
-                l5x_meta_data=self.sample_module_data,
+                meta_data=self.sample_module_data,
                 controller=self.mock_controller
             )
 
@@ -852,7 +852,7 @@ class TestModule:
         """Test product_code property setter with non-integer string."""
         with patch('pyrox.models.plc.module.Module._compile_from_meta_data'):
             module = Module(
-                l5x_meta_data=self.sample_module_data,
+                meta_data=self.sample_module_data,
                 controller=self.mock_controller
             )
 
@@ -863,7 +863,7 @@ class TestModule:
         """Test major property getter."""
         with patch('pyrox.models.plc.module.Module._compile_from_meta_data'):
             module = Module(
-                l5x_meta_data=self.sample_module_data,
+                meta_data=self.sample_module_data,
                 controller=self.mock_controller
             )
 
@@ -873,7 +873,7 @@ class TestModule:
         """Test major property setter with valid integer string."""
         with patch('pyrox.models.plc.module.Module._compile_from_meta_data'):
             module = Module(
-                l5x_meta_data=self.sample_module_data,
+                meta_data=self.sample_module_data,
                 controller=self.mock_controller
             )
 
@@ -884,7 +884,7 @@ class TestModule:
         """Test major property setter with non-integer string."""
         with patch('pyrox.models.plc.module.Module._compile_from_meta_data'):
             module = Module(
-                l5x_meta_data=self.sample_module_data,
+                meta_data=self.sample_module_data,
                 controller=self.mock_controller
             )
 
@@ -895,7 +895,7 @@ class TestModule:
         """Test minor property getter."""
         with patch('pyrox.models.plc.module.Module._compile_from_meta_data'):
             module = Module(
-                l5x_meta_data=self.sample_module_data,
+                meta_data=self.sample_module_data,
                 controller=self.mock_controller
             )
 
@@ -905,7 +905,7 @@ class TestModule:
         """Test minor property setter with valid integer string."""
         with patch('pyrox.models.plc.module.Module._compile_from_meta_data'):
             module = Module(
-                l5x_meta_data=self.sample_module_data,
+                meta_data=self.sample_module_data,
                 controller=self.mock_controller
             )
 
@@ -916,7 +916,7 @@ class TestModule:
         """Test minor property setter with non-integer string."""
         with patch('pyrox.models.plc.module.Module._compile_from_meta_data'):
             module = Module(
-                l5x_meta_data=self.sample_module_data,
+                meta_data=self.sample_module_data,
                 controller=self.mock_controller
             )
 
@@ -927,7 +927,7 @@ class TestModule:
         """Test parent_module property getter."""
         with patch('pyrox.models.plc.module.Module._compile_from_meta_data'):
             module = Module(
-                l5x_meta_data=self.sample_module_data,
+                meta_data=self.sample_module_data,
                 controller=self.mock_controller
             )
 
@@ -937,7 +937,7 @@ class TestModule:
         """Test parent_mod_port_id property getter."""
         with patch('pyrox.models.plc.module.Module._compile_from_meta_data'):
             module = Module(
-                l5x_meta_data=self.sample_module_data,
+                meta_data=self.sample_module_data,
                 controller=self.mock_controller
             )
 
@@ -947,7 +947,7 @@ class TestModule:
         """Test inhibited property getter."""
         with patch('pyrox.models.plc.module.Module._compile_from_meta_data'):
             module = Module(
-                l5x_meta_data=self.sample_module_data,
+                meta_data=self.sample_module_data,
                 controller=self.mock_controller
             )
 
@@ -957,7 +957,7 @@ class TestModule:
         """Test inhibited property setter with string values."""
         with patch('pyrox.models.plc.module.Module._compile_from_meta_data'):
             module = Module(
-                l5x_meta_data=self.sample_module_data,
+                meta_data=self.sample_module_data,
                 controller=self.mock_controller
             )
 
@@ -971,7 +971,7 @@ class TestModule:
         """Test inhibited property setter with boolean values."""
         with patch('pyrox.models.plc.module.Module._compile_from_meta_data'):
             module = Module(
-                l5x_meta_data=self.sample_module_data,
+                meta_data=self.sample_module_data,
                 controller=self.mock_controller
             )
 
@@ -985,7 +985,7 @@ class TestModule:
         """Test inhibited property setter with invalid values."""
         with patch('pyrox.models.plc.module.Module._compile_from_meta_data'):
             module = Module(
-                l5x_meta_data=self.sample_module_data,
+                meta_data=self.sample_module_data,
                 controller=self.mock_controller
             )
 
@@ -997,7 +997,7 @@ class TestModule:
         """Test major_fault property getter."""
         with patch('pyrox.models.plc.module.Module._compile_from_meta_data'):
             module = Module(
-                l5x_meta_data=self.sample_module_data,
+                meta_data=self.sample_module_data,
                 controller=self.mock_controller
             )
 
@@ -1007,7 +1007,7 @@ class TestModule:
         """Test major_fault property setter with string values."""
         with patch('pyrox.models.plc.module.Module._compile_from_meta_data'):
             module = Module(
-                l5x_meta_data=self.sample_module_data,
+                meta_data=self.sample_module_data,
                 controller=self.mock_controller
             )
 
@@ -1018,7 +1018,7 @@ class TestModule:
         """Test major_fault property setter with boolean values."""
         with patch('pyrox.models.plc.module.Module._compile_from_meta_data'):
             module = Module(
-                l5x_meta_data=self.sample_module_data,
+                meta_data=self.sample_module_data,
                 controller=self.mock_controller
             )
 
@@ -1032,7 +1032,7 @@ class TestModule:
         """Test major_fault property setter with invalid values."""
         with patch('pyrox.models.plc.module.Module._compile_from_meta_data'):
             module = Module(
-                l5x_meta_data=self.sample_module_data,
+                meta_data=self.sample_module_data,
                 controller=self.mock_controller
             )
 
@@ -1044,7 +1044,7 @@ class TestModule:
         """Test ekey property getter."""
         with patch('pyrox.models.plc.module.Module._compile_from_meta_data'):
             module = Module(
-                l5x_meta_data=self.sample_module_data,
+                meta_data=self.sample_module_data,
                 controller=self.mock_controller
             )
 
@@ -1055,7 +1055,7 @@ class TestModule:
         """Test ports property when Ports contains a list."""
         with patch('pyrox.models.plc.module.Module._compile_from_meta_data'):
             module = Module(
-                l5x_meta_data=self.sample_module_data,
+                meta_data=self.sample_module_data,
                 controller=self.mock_controller
             )
 
@@ -1071,7 +1071,7 @@ class TestModule:
 
         with patch('pyrox.models.plc.module.Module._compile_from_meta_data'):
             module = Module(
-                l5x_meta_data=module_data,
+                meta_data=module_data,
                 controller=self.mock_controller
             )
 
@@ -1087,7 +1087,7 @@ class TestModule:
 
         with patch('pyrox.models.plc.module.Module._compile_from_meta_data'):
             module = Module(
-                l5x_meta_data=module_data,
+                meta_data=module_data,
                 controller=self.mock_controller
             )
 
@@ -1098,7 +1098,7 @@ class TestModule:
         """Test type_ property when introspective module exists."""
         with patch('pyrox.models.plc.module.Module._compile_from_meta_data'):
             module = Module(
-                l5x_meta_data=self.sample_module_data,
+                meta_data=self.sample_module_data,
                 controller=self.mock_controller
             )
 
@@ -1112,7 +1112,7 @@ class TestModule:
         """Test type_ property when no introspective module."""
         with patch('pyrox.models.plc.module.Module._compile_from_meta_data'):
             module = Module(
-                l5x_meta_data=self.sample_module_data,
+                meta_data=self.sample_module_data,
                 controller=self.mock_controller
             )
 
@@ -1124,7 +1124,7 @@ class TestModule:
         """Test introspective_module property getter."""
         with patch('pyrox.models.plc.module.Module._compile_from_meta_data'):
             module = Module(
-                l5x_meta_data=self.sample_module_data,
+                meta_data=self.sample_module_data,
                 controller=self.mock_controller
             )
 
@@ -1137,7 +1137,7 @@ class TestModule:
         """Test config_tag property getter."""
         with patch('pyrox.models.plc.module.Module._compile_from_meta_data'):
             module = Module(
-                l5x_meta_data=self.sample_module_data,
+                meta_data=self.sample_module_data,
                 controller=self.mock_controller
             )
 
@@ -1150,7 +1150,7 @@ class TestModule:
         """Test input_tag property getter."""
         with patch('pyrox.models.plc.module.Module._compile_from_meta_data'):
             module = Module(
-                l5x_meta_data=self.sample_module_data,
+                meta_data=self.sample_module_data,
                 controller=self.mock_controller
             )
 
@@ -1163,7 +1163,7 @@ class TestModule:
         """Test output_tag property getter."""
         with patch('pyrox.models.plc.module.Module._compile_from_meta_data'):
             module = Module(
-                l5x_meta_data=self.sample_module_data,
+                meta_data=self.sample_module_data,
                 controller=self.mock_controller
             )
 
@@ -1176,7 +1176,7 @@ class TestModule:
         """Test that Module inherits from NamedPlcObject."""
         with patch('pyrox.models.plc.module.Module._compile_from_meta_data'):
             module = Module(
-                l5x_meta_data=self.sample_module_data,
+                meta_data=self.sample_module_data,
                 controller=self.mock_controller
             )
 
@@ -1235,7 +1235,7 @@ class TestModulePrivateMethods:
         mock_introspective_module_class.from_meta_data.return_value = mock_introspective_instance
 
         module = Module(
-            l5x_meta_data=self.sample_module_data,
+            meta_data=self.sample_module_data,
             controller=self.mock_controller
         )
 
@@ -1257,7 +1257,7 @@ class TestModulePrivateMethods:
 
         with patch('pyrox.models.plc.imodule.IntrospectiveModule'):
             module = Module(
-                l5x_meta_data=module_data,
+                meta_data=module_data,
                 controller=self.mock_controller
             )
 
@@ -1273,7 +1273,7 @@ class TestModulePrivateMethods:
 
         with patch('pyrox.models.plc.imodule.IntrospectiveModule'):
             module = Module(
-                l5x_meta_data=module_data,
+                meta_data=module_data,
                 controller=self.mock_controller
             )
 
@@ -1292,7 +1292,7 @@ class TestModulePrivateMethods:
 
         with patch('pyrox.models.plc.imodule.IntrospectiveModule'):
             module = Module(
-                l5x_meta_data=module_data,
+                meta_data=module_data,
                 controller=self.mock_controller
             )
 
@@ -1327,7 +1327,7 @@ class TestModuleEdgeCases:
         """Test module with missing optional fields."""
         with patch('pyrox.models.plc.module.Module._compile_from_meta_data'):
             module = Module(
-                l5x_meta_data=self.minimal_module_data,
+                meta_data=self.minimal_module_data,
                 controller=self.mock_controller
             )
 
@@ -1342,7 +1342,7 @@ class TestModuleEdgeCases:
         """Test integer string validation for various properties."""
         with patch('pyrox.models.plc.module.Module._compile_from_meta_data'):
             module = Module(
-                l5x_meta_data=self.minimal_module_data,
+                meta_data=self.minimal_module_data,
                 controller=self.mock_controller
             )
 
@@ -1369,7 +1369,7 @@ class TestModuleEdgeCases:
 
         with patch('pyrox.models.plc.module.Module._compile_from_meta_data'):
             module = Module(
-                l5x_meta_data=module_data,
+                meta_data=module_data,
                 controller=self.mock_controller
             )
 
@@ -1386,7 +1386,7 @@ class TestModuleEdgeCases:
 
         with patch('pyrox.models.plc.module.Module._compile_from_meta_data'):
             module = Module(
-                l5x_meta_data=module_data,
+                meta_data=module_data,
                 controller=self.mock_controller
             )
 
@@ -1486,7 +1486,7 @@ class TestModuleIntegration:
         mock_introspective_module_class.from_meta_data.return_value = mock_introspective
 
         module = Module(
-            l5x_meta_data=self.complex_module_data,
+            meta_data=self.complex_module_data,
             controller=self.mock_controller
         )
 
@@ -1534,7 +1534,7 @@ class TestModuleIntegration:
         mock_introspective_module_class.from_meta_data.return_value = Mock()
 
         module = Module(
-            l5x_meta_data=self.complex_module_data,
+            meta_data=self.complex_module_data,
             controller=self.mock_controller
         )
 
