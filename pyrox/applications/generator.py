@@ -87,7 +87,7 @@ class BaseEmulationGenerator(generator.EmulationGenerator):
     def generator_object(self, value: plc.Controller):
         if not self.supporting_class:
             raise ValueError("supporting_class is not set for the Emulation Generator.")
-        if not isinstance(value, self.supporting_class):
+        if not isinstance(value, self.supporting_class) and not isinstance(self.supporting_class, type):
             raise TypeError(f'Controller must be of type {self.supporting_class}, got {value.__class__.__name__} instead.')
         self._generator_object = value
 

@@ -1,7 +1,7 @@
 """Pyrox emulation services module.
 """
 from pyrox.models.plc import controller
-from pyrox.models import generator
+from pyrox.models import generator as gen
 
 __all__ = (
     'inject_emulation_routine',
@@ -11,16 +11,16 @@ __all__ = (
 
 def _get_generator(
     controller: controller.Controller
-) -> generator.EmulationGenerator:
-    generator = generator.EmulationGeneratorFactory.get_registered_type_by_supporting_class(controller)
-    if not isinstance(generator, type(generator.EmulationGenerator)):
+) -> gen.EmulationGenerator:
+    generator = gen.EmulationGeneratorFactory.get_registered_type_by_supporting_class(controller)
+    if not isinstance(generator, type(gen.EmulationGenerator)):
         raise ValueError('No valid generator found for this controller type!')
     return generator(controller)
 
 
 def _work_precheck(
     controller: controller.Controller,
-    generator: generator.EmulationGenerator,
+    generator: gen.EmulationGenerator,
 ) -> None:
     if not controller:
         raise ValueError('No controller provided for emulation routine operation.')

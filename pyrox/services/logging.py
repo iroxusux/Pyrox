@@ -330,6 +330,8 @@ class LoggingManager:
             return cls.get_or_create_logger(name=__name__)
         elif isinstance(caller, str):
             return cls.get_or_create_logger(name=caller)
+        elif isinstance(caller, type):
+            return cls.get_or_create_logger(name=caller.__name__)
         else:
             return cls.get_or_create_logger(name=caller.__class__.__name__)
 

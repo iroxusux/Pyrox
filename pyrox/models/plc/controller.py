@@ -12,7 +12,7 @@ from typing import (
     Union
 )
 from pyrox.models.abc.factory import MetaFactory, FactoryTypeMeta
-from pyrox.services.logging import Loggable
+from pyrox.services.logging import log
 from pyrox.models.abc.list import HashList
 
 from . import meta as plc_meta
@@ -206,7 +206,7 @@ class ControllerFactory(MetaFactory):
     ) -> Optional[Type]:
         """Get the best matching controller type based on scoring."""
         if not controller_data:
-            cls.log().warning("No controller data provided")
+            log(cls).warning("No controller data provided")
             return None
 
         scored_matches: List[Tuple[float, Type]] = []
@@ -217,23 +217,23 @@ class ControllerFactory(MetaFactory):
             ctrl_class = matcher.get_controller_constructor()
             if score >= min_score:
                 scored_matches.append((score, matcher.get_controller_constructor()))
-                cls.log().info(
+                log(cls).info(
                     f"Matched {ctrl_class.__name__} with score {score:.2f}"
                 )
             else:
-                cls.log().info(
+                log(cls).info(
                     f"{ctrl_class.__name__} score {score:.2f} below min score {min_score}"
                 )
 
         if not scored_matches:
-            cls.log().info(f"No matches found above min score {min_score}")
+            log(cls).info(f"No matches found above min score {min_score}")
             return None
 
         # Sort by score (highest first) and return the best match
         scored_matches.sort(key=lambda x: x[0], reverse=True)
         best_score, best_class = scored_matches[0]
 
-        cls.log().info(f"Best match: {best_class} with score {best_score:.2f}")
+        log(cls).info(f"Best match: {best_class} with score {best_score:.2f}")
         return best_class
 
     @classmethod
@@ -272,7 +272,7 @@ class Controller(
     def __setitem__(self, key, value):
         self.controller_meta_data[key] = value
         if key == '@MajorRev' or key == '@MinorRev':
-            self.log().info('Changing revisions of processor...')
+            log(self).info('Changing revisions of processor...')
             self.content_meta_data['@SoftwareRevision'] = f'{self.major_revision}.{self.minor_revision}'
             if not self.plc_module:
                 raise RuntimeError('No PLC module found in controller!')
@@ -562,7 +562,7 @@ class Controller(
 
         ctrl = ControllerFactory.create_controller(meta_data)
         if not ctrl:
-            cls.log().warning('Could not determine controller type from file! Creating generic controller')
+            log(cls).warning('Could not determine controller type from file! Creating generic controller')
             ctrl = cls(
                 meta_data=meta_data,
                 file_location=file_location
@@ -660,11 +660,11 @@ class Controller(
                         **kwargs
                     ))
             else:
-                self.log().warning(f'Invalid item data: {item}. Skipping...')
+                log(self).warning(f'Invalid item data: {item}. Skipping...')
 
     def _compile_from_meta_data(self):
         """Compile this controller from its meta data."""
-        self.log().info('Compiling controller from meta data...')
+        log(self).info('Compiling controller from meta data...')
         self._aois.clear()
         self._compile_common_hashlist_from_meta_data(
             target_list=self._aois,
@@ -707,7 +707,7 @@ class Controller(
 
     def _compile_safety_info(self) -> None:
         """Compile safety information from the controller's safety info."""
-        self.log().debug('Compiling safety info from controller...')
+        log(self).debug('Compiling safety info from controller...')
         if self._safety_info is None:
             safety_info_data = self.content_meta_data['Controller'].get('SafetyInfo', None)
             if safety_info_data:
@@ -716,7 +716,7 @@ class Controller(
                     controller=self
                 )
             else:
-                self.log().warning('No SafetyInfo found in controller metadata.')
+                log(self).warning('No SafetyInfo found in controller metadata.')
 
     def _assign_address(self,
                         address: str):
@@ -740,7 +740,7 @@ class Controller(
             raise TypeError(f"{item.name} must be of type {item_class}!")
 
         if item.name in target_list:
-            self.log().debug(f'{item.name} already exists in this collection. Updating...')
+            log(self).debug(f'{item.name} already exists in this collection. Updating...')
             meta_item = next((x for x in target_meta_list if x['@Name'] == item.name), None)
             if not meta_item:
                 raise ValueError(f'{item.name} not found in target meta list!')
@@ -760,7 +760,7 @@ class Controller(
             raise TypeError(f"{item.name} must be of type PlcObject!")
 
         if item.name not in target_list:
-            self.log().warning(f'{item.name} does not exist in this collection. Cannot remove.')
+            log(self).warning(f'{item.name} does not exist in this collection. Cannot remove.')
             return
 
         target_meta_list.remove(next((x for x in target_meta_list if x['@Name'] == item.name), None))
@@ -799,7 +799,7 @@ class Controller(
             """
         l5x_dict = l5x_dict_from_file(file_location)
         if not l5x_dict:
-            self.log().warning(f'No L5X dictionary could be read from file: {file_location}')
+            log(self).warning(f'No L5X dictionary could be read from file: {file_location}')
             return
 
         self.import_assets_from_l5x_dict(l5x_dict, asset_types=asset_types)
@@ -818,25 +818,25 @@ class Controller(
                 the types of assets to import (e.g., ['DataTypes', 'Tags'])
             """
         if not l5x_dict:
-            self.log().warning('No L5X dictionary provided for import.')
+            log(self).warning('No L5X dictionary provided for import.')
             return
 
         if 'RSLogix5000Content' not in l5x_dict:
-            self.log().warning('No RSLogix5000Content found in provided L5X dictionary.')
+            log(self).warning('No RSLogix5000Content found in provided L5X dictionary.')
             return
         if 'Controller' not in l5x_dict['RSLogix5000Content']:
-            self.log().warning('No Controller found in RSLogix5000Content in provided L5X dictionary.')
+            log(self).warning('No Controller found in RSLogix5000Content in provided L5X dictionary.')
             return
 
         if not asset_types:
-            self.log().warning('No asset types provided to import!')
+            log(self).warning('No asset types provided to import!')
             return
 
         controller_data = l5x_dict['RSLogix5000Content']['Controller']
 
         for asset_type in asset_types:
             if asset_type not in controller_data:
-                self.log().warning(f'No {asset_type} found in Controller in provided L5X dictionary.')
+                log(self).warning(f'No {asset_type} found in Controller in provided L5X dictionary.')
                 continue
 
             items = controller_data[asset_type]
@@ -851,27 +851,27 @@ class Controller(
                         case 'DataTypes':
                             datatype = self.config.datatype_type(controller=self, meta_data=item)
                             self.add_datatype(datatype)
-                            self.log().info(f'Datatype {datatype.name} imported successfully.')
+                            log(self).info(f'Datatype {datatype.name} imported successfully.')
                         case 'Tags':
                             tag = self.config.tag_type(controller=self, meta_data=item, container=self)
                             self.add_tag(tag)
-                            self.log().info(f'Tag {tag.name} imported successfully.')
+                            log(self).info(f'Tag {tag.name} imported successfully.')
                         case 'Programs':
                             program = self.config.program_type(controller=self, meta_data=item)
                             self.add_program(program)
-                            self.log().info(f'Program {program.name} imported successfully.')
+                            log(self).info(f'Program {program.name} imported successfully.')
                         case 'AddOnInstructionDefinitions':
                             aoi = self.config.aoi_type(controller=self, meta_data=item)
                             self.add_aoi(aoi)
-                            self.log().info(f'AOI {aoi.name} imported successfully.')
+                            log(self).info(f'AOI {aoi.name} imported successfully.')
                         case 'Modules':
                             module = self.config.module_type(controller=self, l5x_meta_data=item)
                             self.add_module(module)
-                            self.log().info(f'Module {module.name} imported successfully.')
+                            log(self).info(f'Module {module.name} imported successfully.')
                         case _:
-                            self.log().warning(f'Unknown asset type: {asset_type}. Skipping...')
+                            log(self).warning(f'Unknown asset type: {asset_type}. Skipping...')
                 except ValueError as e:
-                    self.log().warning(f'Failed to add {asset_type[:-1]}:\n{e}')
+                    log(self).warning(f'Failed to add {asset_type[:-1]}:\n{e}')
                     continue
 
     def add_aoi(
@@ -968,7 +968,7 @@ class Controller(
         return diagnostic_rungs
 
     def find_unpaired_controller_inputs(self):
-        self.log().info('Finding unpaired controller inputs...')
+        log(self).info('Finding unpaired controller inputs...')
         inputs = defaultdict(list)
         outputs = set()
 
@@ -996,7 +996,7 @@ class Controller(
         return unpaired_inputs
 
     def find_redundant_otes(self):
-        self.log().info('Finding redundant OTEs...')
+        log(self).info('Finding redundant OTEs...')
         outputs = defaultdict(list)
 
         for inst in [x for x in self.output_instructions if x.instruction_name == 'OTE']:
@@ -1057,7 +1057,7 @@ class ControllerConfiguration:
     tag_type: type = Tag
 
 
-class ControllerModificationSchema(Loggable):
+class ControllerModificationSchema:
     """
     Defines a schema for modifying a controller, such as migrating assets between controllers,
     or importing assets from an L5X dictionary.
@@ -1068,7 +1068,6 @@ class ControllerModificationSchema(Loggable):
         source: Optional[Controller],
         destination: Optional[Controller]
     ) -> None:
-        super().__init__()
         self.source = source
         self.destination = destination
         self.actions: list[dict] = []  # List of migration actions
@@ -1079,7 +1078,7 @@ class ControllerModificationSchema(Loggable):
     ) -> None:
         tag_data = action.get('asset')
         if not tag_data:
-            self.log().warning('No tag data provided for add_controller_tag action.')
+            log(self).warning('No tag data provided for add_controller_tag action.')
             return
 
         destination = self._safe_get_destination_controller()
@@ -1093,9 +1092,9 @@ class ControllerModificationSchema(Loggable):
 
         try:
             destination.add_tag(tag)
-            self.log().info(f'Added tag {tag.name} to destination controller.')
+            log(self).info(f'Added tag {tag.name} to destination controller.')
         except ValueError as e:
-            self.log().warning(f'Failed to add tag {tag.name}:\n{e}')
+            log(self).warning(f'Failed to add tag {tag.name}:\n{e}')
 
     def _execute_add_datatype(
         self,
@@ -1103,7 +1102,7 @@ class ControllerModificationSchema(Loggable):
     ) -> None:
         datatype_data = action.get('asset')
         if not datatype_data:
-            self.log().warning('No datatype data provided for add_datatype action.')
+            log(self).warning('No datatype data provided for add_datatype action.')
             return
 
         config = self.destination.config
@@ -1115,9 +1114,9 @@ class ControllerModificationSchema(Loggable):
 
         try:
             self.destination.add_datatype(datatype)
-            self.log().info(f'Added datatype {datatype.name} to destination controller.')
+            log(self).info(f'Added datatype {datatype.name} to destination controller.')
         except ValueError as e:
-            self.log().warning(f'Failed to add datatype {datatype.name}:\n{e}')
+            log(self).warning(f'Failed to add datatype {datatype.name}:\n{e}')
 
     def _execute_add_program_tag(
         self,
@@ -1126,12 +1125,12 @@ class ControllerModificationSchema(Loggable):
         program_name = action.get('program')
         tag_data = action.get('asset')
         if not program_name or not tag_data:
-            self.log().warning('Program name or tag data missing for add_program_tag action.')
+            log(self).warning('Program name or tag data missing for add_program_tag action.')
             return
 
         program: Program = self.destination.programs.get(program_name)
         if not program:
-            self.log().warning(f'Program {program_name} not found in destination controller.')
+            log(self).warning(f'Program {program_name} not found in destination controller.')
             return
 
         config = self.destination.config
@@ -1144,9 +1143,9 @@ class ControllerModificationSchema(Loggable):
 
         try:
             program.add_tag(tag)
-            self.log().info(f'Added tag {tag.name} to program {program_name}.')
+            log(self).info(f'Added tag {tag.name} to program {program_name}.')
         except ValueError as e:
-            self.log().warning(f'Failed to add tag {tag.name} to program {program_name}:\n{e}')
+            log(self).warning(f'Failed to add tag {tag.name} to program {program_name}:\n{e}')
 
     def _execute_add_routine(
         self,
@@ -1155,12 +1154,12 @@ class ControllerModificationSchema(Loggable):
         program_name = action.get('program')
         routine_data = action.get('routine')
         if not program_name or not routine_data:
-            self.log().warning('Program name or routine data missing for add_routine action.')
+            log(self).warning('Program name or routine data missing for add_routine action.')
             return
 
         program: Program = self.destination.programs.get(program_name)
         if not program:
-            self.log().warning(f'Program {program_name} not found in destination controller.')
+            log(self).warning(f'Program {program_name} not found in destination controller.')
             return
 
         config = self.destination.config
@@ -1172,9 +1171,9 @@ class ControllerModificationSchema(Loggable):
 
         try:
             program.add_routine(routine)
-            self.log().info(f'Added routine {routine.name} to program {program_name}.')
+            log(self).info(f'Added routine {routine.name} to program {program_name}.')
         except ValueError as e:
-            self.log().warning(f'Failed to add routine {routine.name} to program {program_name}:\n{e}')
+            log(self).warning(f'Failed to add routine {routine.name} to program {program_name}:\n{e}')
 
     def _execute_add_rung(
         self,
@@ -1185,17 +1184,17 @@ class ControllerModificationSchema(Loggable):
         rung_data = action.get('new_rung')
         rung_number = action.get('rung_number')
         if not program_name or not routine_name or not rung_data:
-            self.log().warning('Program name, routine name, or rung data missing for add_rung action.')
+            log(self).warning('Program name, routine name, or rung data missing for add_rung action.')
             return
 
         program: Program = self.destination.programs.get(program_name)
         if not program:
-            self.log().warning(f'Program {program_name} not found in destination controller.')
+            log(self).warning(f'Program {program_name} not found in destination controller.')
             return
 
         routine: Routine = program.routines.get(routine_name)
         if not routine:
-            self.log().warning(f'Routine {routine_name} not found in program {program_name}.')
+            log(self).warning(f'Routine {routine_name} not found in program {program_name}.')
             return
 
         config = self.destination.config
@@ -1208,9 +1207,9 @@ class ControllerModificationSchema(Loggable):
 
         try:
             routine.add_rung(rung, index=rung_number)
-            self.log().info(f'Added rung {rung.number} to routine {routine_name} in program {program_name}.')
+            log(self).info(f'Added rung {rung.number} to routine {routine_name} in program {program_name}.')
         except ValueError as e:
-            self.log().warning(f'Failed to add rung {rung.number} to routine {routine_name} in program {program_name}:\n{e}')
+            log(self).warning(f'Failed to add rung {rung.number} to routine {routine_name} in program {program_name}:\n{e}')
 
     def _execute_add_safety_tag_mapping(
         self,
@@ -1219,14 +1218,14 @@ class ControllerModificationSchema(Loggable):
         std_tag = action.get('standard')
         sfty_tag = action.get('safety')
         if not std_tag or not sfty_tag:
-            self.log().warning('Standard or safety tag missing for add_safety_tag_mapping action.')
+            log(self).warning('Standard or safety tag missing for add_safety_tag_mapping action.')
             return
 
         try:
             self.destination.safety_info.add_safety_tag_mapping(std_tag, sfty_tag)
-            self.log().info(f'Added safety tag mapping: {std_tag} -> {sfty_tag}')
+            log(self).info(f'Added safety tag mapping: {std_tag} -> {sfty_tag}')
         except ValueError as e:
-            self.log().warning(f'Failed to add safety tag mapping {std_tag} -> {sfty_tag}:\n{e}')
+            log(self).warning(f'Failed to add safety tag mapping {std_tag} -> {sfty_tag}:\n{e}')
 
     def _execute_controller_tag_migration(
         self,
@@ -1235,14 +1234,14 @@ class ControllerModificationSchema(Loggable):
         tag_name = action.get('name')
         tag: Tag = self.source.tags.get(tag_name)
         if not tag:
-            self.log().warning(f'Tag {tag_name} not found in source controller.')
+            log(self).warning(f'Tag {tag_name} not found in source controller.')
             return
 
         try:
             self.destination.add_tag(tag)
-            self.log().info(f'Migrated tag {tag_name} to destination controller.')
+            log(self).info(f'Migrated tag {tag_name} to destination controller.')
         except ValueError as e:
-            self.log().warning(f'Failed to migrate tag {tag_name}:\n{e}')
+            log(self).warning(f'Failed to migrate tag {tag_name}:\n{e}')
 
     def _execute_datatype_migration(
         self,
@@ -1251,14 +1250,14 @@ class ControllerModificationSchema(Loggable):
         datatype_name = action.get('name')
         datatype: Datatype = self.source.datatypes.get(datatype_name)
         if not datatype:
-            self.log().warning(f'Datatype {datatype_name} not found in source controller.')
+            log(self).warning(f'Datatype {datatype_name} not found in source controller.')
             return
 
         try:
             self.destination.add_datatype(datatype)
-            self.log().info(f'Migrated datatype {datatype_name} to destination controller.')
+            log(self).info(f'Migrated datatype {datatype_name} to destination controller.')
         except ValueError as e:
-            self.log().warning(f'Failed to migrate datatype {datatype_name}:\n{e}')
+            log(self).warning(f'Failed to migrate datatype {datatype_name}:\n{e}')
 
     def _execute_import_assets_from_file(
         self,
@@ -1267,14 +1266,14 @@ class ControllerModificationSchema(Loggable):
         file_location = action.get('file')
         asset_types = action.get('asset_types', plc_meta.L5X_ASSETS)
         if not file_location:
-            self.log().warning('No file location provided for import_datatypes_from_file action.')
+            log(self).warning('No file location provided for import_datatypes_from_file action.')
             return
 
         try:
             self.destination.import_assets_from_file(file_location, asset_types)
-            self.log().info(f'Imported assets from file {file_location} to destination controller.')
+            log(self).info(f'Imported assets from file {file_location} to destination controller.')
         except Exception as e:
-            self.log().warning(f'Failed to import assets from file {file_location}:\n{e}')
+            log(self).warning(f'Failed to import assets from file {file_location}:\n{e}')
             raise e
 
     def _execute_import_assets_from_l5x_dict(
@@ -1284,14 +1283,14 @@ class ControllerModificationSchema(Loggable):
         l5x_dict = action.get('l5x_dict')
         asset_types = action.get('asset_types', plc_meta.L5X_ASSETS)
         if not l5x_dict:
-            self.log().warning('No L5X dictionary provided for import_assets_from_l5x_dict action.')
+            log(self).warning('No L5X dictionary provided for import_assets_from_l5x_dict action.')
             return
 
         try:
             self.destination.import_assets_from_l5x_dict(l5x_dict, asset_types)
-            self.log().info('Imported assets from L5X dictionary to destination controller.')
+            log(self).info('Imported assets from L5X dictionary to destination controller.')
         except Exception as e:
-            self.log().warning(f'Failed to import assets from L5X dictionary:\n{e}')
+            log(self).warning(f'Failed to import assets from L5X dictionary:\n{e}')
             raise e
 
     def _execute_remove_controller_tag(
@@ -1301,11 +1300,11 @@ class ControllerModificationSchema(Loggable):
         tag_name = action.get('name')
         tag: Tag = self.destination.tags.get(tag_name)
         if not tag:
-            self.log().warning(f'Tag {tag_name} not found in destination controller.')
+            log(self).warning(f'Tag {tag_name} not found in destination controller.')
             return
 
         self.destination.remove_tag(tag)
-        self.log().info(f'Removed tag {tag_name} from destination controller.')
+        log(self).info(f'Removed tag {tag_name} from destination controller.')
 
     def _execute_remove_datatype(
         self,
@@ -1314,11 +1313,11 @@ class ControllerModificationSchema(Loggable):
         datatype_name = action.get('name')
         datatype: Datatype = self.destination.datatypes.get(datatype_name)
         if not datatype:
-            self.log().warning(f'Datatype {datatype_name} not found in destination controller.')
+            log(self).warning(f'Datatype {datatype_name} not found in destination controller.')
             return
 
         self.destination.remove_datatype(datatype)
-        self.log().info(f'Removed datatype {datatype_name} from destination controller.')
+        log(self).info(f'Removed datatype {datatype_name} from destination controller.')
 
     def _execute_remove_program_tag(
         self,
@@ -1329,16 +1328,16 @@ class ControllerModificationSchema(Loggable):
 
         program: Program = self.destination.programs.get(program_name)
         if not program:
-            self.log().warning(f'Program {program_name} not found in destination controller.')
+            log(self).warning(f'Program {program_name} not found in destination controller.')
             return
 
         tag: Tag = program.tags.get(tag_name)
         if not tag:
-            self.log().warning(f'Tag {tag_name} not found in program {program_name}.')
+            log(self).warning(f'Tag {tag_name} not found in program {program_name}.')
             return
 
         program.remove_tag(tag)
-        self.log().info(f'Removed tag {tag_name} from program {program_name}.')
+        log(self).info(f'Removed tag {tag_name} from program {program_name}.')
 
     def _execute_remove_routine(
         self,
@@ -1349,17 +1348,17 @@ class ControllerModificationSchema(Loggable):
 
         program: Program = self.destination.programs.get(program_name)
         if not program:
-            self.log().warning(f'Program {program_name} not found in destination controller.')
+            log(self).warning(f'Program {program_name} not found in destination controller.')
             return
 
         routine: Routine = program.routines.get(routine_name)
         if not routine:
-            self.log().warning(f'Routine {routine_name} not found in program {program_name}.')
+            log(self).warning(f'Routine {routine_name} not found in program {program_name}.')
             return
 
         program.remove_routine(routine)
-        self.log().info(f'Removed routine {routine_name} from program {program_name}.')
-        self.log().debug('Searching for JSR instructions to %s...', routine_name)
+        log(self).info(f'Removed routine {routine_name} from program {program_name}.')
+        log(self).debug('Searching for JSR instructions to %s...', routine_name)
         jsr = program.get_instructions('JSR', routine_name)
         if jsr:
             for op in jsr:
@@ -1367,7 +1366,7 @@ class ControllerModificationSchema(Loggable):
                 if not rung:
                     raise ValueError('JSR instruction has no parent rung!')
                 jsr_routine: Routine = program.routines.get(rung.routine.name)
-                self.log().debug('Found JSR in rung %s of routine %s. Removing rung...', rung.number, jsr_routine.name)
+                log(self).debug('Found JSR in rung %s of routine %s. Removing rung...', rung.number, jsr_routine.name)
                 jsr_routine.remove_rung(rung)
 
     def _execute_remove_safety_tag_mapping(
@@ -1376,7 +1375,7 @@ class ControllerModificationSchema(Loggable):
     ) -> None:
         std_tag = action.get('standard')
         sfty_tag = action.get('safety')
-        self.log().debug(f'Removing safety tag mapping: {std_tag} -> {sfty_tag}')
+        log(self).debug(f'Removing safety tag mapping: {std_tag} -> {sfty_tag}')
         self.destination.safety_info.remove_safety_tag_mapping(std_tag, sfty_tag)
 
     def _execute_routine_migration(
@@ -1390,26 +1389,26 @@ class ControllerModificationSchema(Loggable):
 
         source_program: Program = self.source.programs.get(source_program_name)
         if not source_program:
-            self.log().warning(f'Program {source_program_name} not found in source controller.')
+            log(self).warning(f'Program {source_program_name} not found in source controller.')
             return
 
         source_routine: Routine = source_program.routines.get(routine_name)
         if not source_routine:
-            self.log().warning(f'Routine {routine_name} not found in program {source_program_name}.')
+            log(self).warning(f'Routine {routine_name} not found in program {source_program_name}.')
             return
 
         destination_program: Program = self.destination.programs.get(destination_program_name)
         if not destination_program:
-            self.log().warning(f'Program {destination_program_name} not found in destination controller.')
+            log(self).warning(f'Program {destination_program_name} not found in destination controller.')
             return
 
         destination_program.add_routine(source_routine)
-        self.log().info(f'Migrated routine {routine_name} from program {source_program_name} to program {destination_program_name}.')
+        log(self).info(f'Migrated routine {routine_name} from program {source_program_name} to program {destination_program_name}.')
 
         dest_routine = self.destination.programs.get(destination_program_name).routines.get(routine_name)
         for rung_num, new_rung in rung_updates.items():
             dest_routine.rungs[rung_num] = new_rung
-            self.log().info(f'Updated rung {rung_num} in routine {routine_name} of program {destination_program_name}.')
+            log(self).info(f'Updated rung {rung_num} in routine {routine_name} of program {destination_program_name}.')
 
     def _safe_get_controller_config(self) -> ControllerConfiguration:
         destination = self._safe_get_destination_controller()
@@ -1432,7 +1431,7 @@ class ControllerModificationSchema(Loggable):
         if action not in self.actions:
             self.actions.append(action)
         else:
-            self.log().debug('Action already registered, skipping duplicate.')
+            log(self).debug('Action already registered, skipping duplicate.')
 
     def add_controller_tag(
         self,
@@ -1750,7 +1749,7 @@ class ControllerModificationSchema(Loggable):
 
     def execute(self):
         """Perform all migration and import actions."""
-        self.log().info('Executing controller modification schema...')
+        log(self).info('Executing controller modification schema...')
 
         if not self.destination:
             raise ValueError('Destination controller is not set.')
@@ -1761,7 +1760,7 @@ class ControllerModificationSchema(Loggable):
             if callable(method):
                 method(action)
             else:
-                self.log().warning(f"No method defined for action type: {action['type']}. Skipping...")
+                log(self).warning(f"No method defined for action type: {action['type']}. Skipping...")
 
         # Compile after all imports
         self.destination.compile()

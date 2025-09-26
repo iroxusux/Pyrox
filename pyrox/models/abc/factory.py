@@ -5,7 +5,7 @@ import importlib
 import sys
 from typing import Any, Dict, Generic, List, Optional, Type, TypeVar, Union
 
-from pyrox.services.logging import Loggable
+from pyrox.services.logging import log
 
 
 __all__ = (
@@ -17,7 +17,7 @@ __all__ = (
 T = TypeVar('T')
 
 
-class MetaFactory(ABCMeta, Loggable):
+class MetaFactory(ABCMeta):
     """Meta class for factory patterns.
 
     This meta class is used to create factories that can register and retrieve types.
@@ -35,13 +35,19 @@ class MetaFactory(ABCMeta, Loggable):
             return getattr(module, class_name)
         return None
 
-    @staticmethod
-    def _get_class_register_name(type_class) -> str:
+    @classmethod
+    def _get_class_from_module_safe(cls, module, class_name: str) -> Type:
+        """Get a class from a module by name, raising if not found."""
+        klass = cls._get_class_from_module(module, class_name)
+        if not klass:
+            raise ImportError(f'Class {class_name} not found in module {module.__name__}.')
+        return klass
+
+    @classmethod
+    def _get_class_register_name(cls, type_class) -> str:
         """Get the name used for registering the class in the factory."""
-        type_name = getattr(type_class, 'supporting_class', type_class.__name__)
-        if not type_name:
-            type_name = type_class.__name__
-        return type_name
+        # Use the same logic as register_type to get the correct key
+        return type_class.__name__
 
     @classmethod
     def _reload_class_module(
@@ -56,23 +62,28 @@ class MetaFactory(ABCMeta, Loggable):
         if class_type is None:
             raise ValueError("class_type cannot be None")
 
+        if not isinstance(class_type, type):
+            raise TypeError("class_type must be a class type")
+
         module_name = class_type.__module__
         class_name = class_type.__name__
 
-        if module_name in sys.modules:
-            try:
-                importlib.reload(sys.modules[module_name])
-                class_type = cls._get_class_from_module(sys.modules[module_name], class_name)
-                if not class_type:
-                    raise ImportError(f'Class {class_name} not found in module {module_name} after reload.')
-                cls.register_type(class_type)
-                cls.log().debug(f'Reloaded module {module_name} for class {class_name}.')
-            except Exception as e:
-                raise ImportError(f'Failed to reload module {module_name}: {e}') from e
-        else:
+        if module_name not in sys.modules:
             raise ImportError(f'Module {module_name} not found in sys.modules.')
 
-        return cls._registered_types[cls._get_class_register_name(class_type)]
+        try:
+            importlib.reload(sys.modules[module_name])
+            class_type = cls._get_class_from_module_safe(sys.modules[module_name], class_name)
+            cls.register_type(class_type)
+            log(cls).debug(f'Reloaded module {module_name} for class {class_name}.')
+        except Exception as e:
+            raise ImportError(f'Failed to reload module {module_name}: {e}') from e
+
+        klass_type = cls.get_registered_type(class_name)
+        if not klass_type:
+            raise ImportError(f'Class {class_name} not found after reloading module {module_name}.')
+
+        return klass_type
 
     @classmethod
     def create_instance(
@@ -85,7 +96,7 @@ class MetaFactory(ABCMeta, Loggable):
         type_class = cls.get_registered_types().get(type_name)
         if type_class:
             return type_class(*args, **kwargs)
-        cls.log().warning(f'Type {type_name} not found in {cls.__name__}')
+        log(cls).warning(f'Type {type_name} not found in {cls.__name__}')
         return None
 
     @classmethod
@@ -112,12 +123,13 @@ class MetaFactory(ABCMeta, Loggable):
             type_search = type_name.__class__.__name__
         else:
             raise ValueError('type_name must be a string or an object instance.')
-        return cls.get_registered_types().get(type_search, None)
+        registered_types = cls.get_registered_types()
+        return registered_types.get(type_search, None)
 
     @classmethod
     def get_registered_type_by_supporting_class(
         cls,
-        supporting_class: Union[object, str, Type]
+        supporting_class: Union[object, str, type]
     ) -> Optional[type]:
         """Get the registered type class that supports the given class.
 
@@ -151,7 +163,7 @@ class MetaFactory(ABCMeta, Loggable):
 
             if str(type_class.supporting_class) == compare:
                 return cls._reload_class_module(type_class)
-            if type_class.supporting_class.__name__ == compare:
+            if str(type_class.supporting_class.__name__) == compare:
                 return cls._reload_class_module(type_class)
         return None
 
@@ -178,13 +190,16 @@ class MetaFactory(ABCMeta, Loggable):
             raise RuntimeError(f'Factory {cls.__name__} is not properly initialized.')
 
         type_name = cls._get_class_register_name(type_class)
+        if not type_name:
+            raise ValueError(f'Cannot register type {type_class} without a valid name.')
+        log(cls).debug(f'Registering type {type_name} with factory {cls.__name__}')
         cls._registered_types[type_name] = type_class
 
 
 F = TypeVar('F', bound=MetaFactory)
 
 
-class FactoryTypeMeta(ABCMeta, Loggable, Generic[T, F]):
+class FactoryTypeMeta(ABCMeta, Generic[T, F]):
     """Meta class for types that are used in factory patterns.
     """
     supporting_class: Optional[Type] = None  # The class that this type supports, if any. i.e., 'Controller'
@@ -208,19 +223,19 @@ class FactoryTypeMeta(ABCMeta, Loggable, Generic[T, F]):
     ) -> Type:
         new_cls = super().__new__(cls, name, bases, attrs)
         if new_cls.supports_registering is False:
-            cls.log().debug(f'FactoryTypeMeta: Class {name} does not support registering with a factory.')
+            log(cls).debug(f'FactoryTypeMeta: Class {name} does not support registering with a factory.')
             return new_cls
 
         factory = new_cls.get_factory()
         if factory is None:
-            cls.log().warning(f'FactoryTypeMeta: No factory found for class {name}.')
+            log(cls).warning(f'FactoryTypeMeta: No factory found for class {name}.')
             return new_cls
 
         if (new_cls.__name__ != 'FactoryTypeMeta'):
-            cls.log().debug(f'FactoryTypeMeta: Registering class {name} with factory {factory.__name__}.')
+            log(cls).debug(f'FactoryTypeMeta: Registering class {name} with factory {factory.__name__}.')
             factory.register_type(new_cls)
         else:
-            cls.log().warning(
+            log(cls).warning(
                 f'FactoryTypeMeta: Class {name} is the factory class itself or does not subclass it.'
             )
 

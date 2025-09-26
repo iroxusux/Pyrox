@@ -155,7 +155,7 @@ class FordControllerMatcher(plc.ControllerMatcher):
 
 class FordEmulationGenerator(BaseEmulationGenerator):
     """Ford specific emulation logic generator."""
-    supporting_class = 'FordController'
+    supporting_class = FordController
 
     @property
     def controller(self) -> FordController:

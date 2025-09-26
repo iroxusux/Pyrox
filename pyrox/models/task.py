@@ -4,6 +4,7 @@ Tasks are used to add additional functionality to the application via the toolba
 from .abc import FactoryTypeMeta, MetaFactory, Runnable
 from .application import Application
 from typing import Self
+from pyrox.services.logging import log
 
 
 class ApplicationTaskFactory(MetaFactory):
@@ -16,12 +17,12 @@ class ApplicationTaskFactory(MetaFactory):
     ) -> None:
         """Build and register all available ApplicationTask types."""
         tasks = cls.get_registered_types().values()
-        cls.log().info(f'Building {len(tasks)} tasks for application {application.name}')
+        log(cls).info(f'Building {len(tasks)} tasks for application {application.name}')
         for task in tasks:
             if issubclass(task, ApplicationTask):
-                cls.log().debug(f'Registering task: {task.__name__}')
+                log(cls).debug(f'Registering task: {task.__name__}')
             else:
-                cls.logger.warning(f'Task {task.__name__} is not a subclass of ApplicationTask and will be ignored.')
+                log(cls).warning(f'Task {task.__name__} is not a subclass of ApplicationTask and will be ignored.')
             task(application=application).inject()  # Instantiate to ensure registration
 
 

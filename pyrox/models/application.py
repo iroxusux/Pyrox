@@ -554,7 +554,7 @@ class ApplicationRuntimeInfo(SupportsJsonSaving, SupportsJsonLoading):
             TypeError: If loaded data is not a dictionary.
         """
         if data is None:
-            self.application.logger.warning(
+            self.application.log().warning(
                 'No data loaded from the runtime info file, initializing with empty RuntimeDict.'
             )
             self._data = runtime.RuntimeDict(self.save_to_json)

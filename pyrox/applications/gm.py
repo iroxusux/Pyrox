@@ -606,7 +606,7 @@ class GmControllerMatcher(plc.ControllerMatcher):
 class GmEmulationGenerator(BaseEmulationGenerator):
     """General Motors specific emulation logic generator."""
 
-    supporting_class = "GmController"
+    supporting_class = GmController
 
     @property
     def controller(self) -> GmController:
