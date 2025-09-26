@@ -133,21 +133,23 @@ class MetaFactory(ABCMeta, Loggable):
         if isinstance(supporting_class, (int, float, bool, list, dict, set, tuple)):
             raise ValueError('supporting_class must be a string, type, or an object instance.')
         if isinstance(supporting_class, type):
-            supporting_class = supporting_class.__name__
+            compare = supporting_class.__name__
         elif isinstance(supporting_class, object) and not isinstance(supporting_class, str):
-            supporting_class = supporting_class.__class__.__name__
+            compare = supporting_class.__class__.__name__
         elif isinstance(supporting_class, type):
-            supporting_class = supporting_class.__name__
+            compare = supporting_class.__name__
+        else:
+            raise RuntimeError('Unreachable code reached in get_registered_type_by_supporting_class.')
 
         if isinstance(supporting_class, str):
             for type_class in cls.get_registered_types().values():
                 if not hasattr(type_class, 'supporting_class'):
                     continue
-                if str(type_class.supporting_class) == supporting_class:
+                if str(type_class.supporting_class) == compare:
                     return cls._reload_class_module(type_class)
                 if not isinstance(type_class.supporting_class, type):
                     continue
-                if type_class.supporting_class.__name__ == supporting_class:
+                if type_class.supporting_class.__name__ == compare:
                     return cls._reload_class_module(type_class)
             return None
         else:

@@ -3,7 +3,7 @@ import unittest
 from unittest.mock import Mock, patch, call
 from typing import Optional
 
-from pyrox.models.emu import EmulationGenerator, EmulationGeneratorFactory
+from pyrox.models.generator import EmulationGenerator, EmulationGeneratorFactory
 from pyrox.models.plc import controller, module, routine
 from pyrox.models.abc import meta, factory
 

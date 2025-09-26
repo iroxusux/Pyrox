@@ -22,7 +22,7 @@ from .application import (
     ApplicationConfiguration,
 )
 
-from .emu import (
+from .generator import (
     EmulationGenerator,
     EmulationGeneratorFactory,
 )

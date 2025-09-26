@@ -2,10 +2,10 @@
 """
 from typing import Optional
 from pyrox.models import plc
-from pyrox.models import emu
+from pyrox.models import generator
 
 
-class BaseEmulationGenerator(emu.EmulationGenerator):
+class BaseEmulationGenerator(generator.EmulationGenerator):
     """Base class for emulation logic generators."""
     supporting_class = plc.Controller
 
