@@ -79,7 +79,6 @@ class EplanProject(
     ) -> None:
         SupportsFileLocation.__init__(self, file_location)
         SupportsMetaDataAsDict.__init__(self, meta_data or {})
-        # re-assign file location to trigger meta_data load if provided
         self.file_location = file_location
         self.controller: Optional[Any] = controller
         self.devices: HashList[EplanProjectDevice] = HashList('name')
@@ -98,43 +97,69 @@ class EplanProject(
         cls.supports_registering = True
         return super().__init_subclass__(**kwargs)
 
-    @SupportsFileLocation.file_location.setter
-    def file_location(self, value: Optional[str]) -> None:
-        if value is None:
-            self._file_location = None
-            self.meta_data = {}
-            return
-        if not isinstance(value, str):
-            raise ValueError('file_location must be a string!')
-        if not value.endswith('.epj'):
-            raise ValueError('file_location must be an EPLAN .epj file!')
-        self._file_location = value
-        meta_data = dict_from_xml_file(value)
+    def _load_meta_data_from_file_location(
+        self,
+        file_location: str
+    ) -> None:
+        meta_data = dict_from_xml_file(file_location)
+        if not meta_data:
+            raise ValueError(f'Failed to load meta data from file location: {file_location}')
         rename_keys(meta_data, meta.EPLAN_DICT_MAP)
         self.meta_data = meta_data
+
+    @SupportsFileLocation.file_location.setter
+    def file_location(self, value: Optional[str]) -> None:
+        if not isinstance(value, str) and value is not None:
+            raise ValueError('file_location must be a string!')
+        if value and isinstance(value, str) and not value.endswith('.epj'):
+            raise ValueError('file_location must be an EPLAN .epj file!')
+        self._file_location = value
+        if value:
+            self._load_meta_data_from_file_location(value)
 
     @property
     def indexed_attribute(self) -> dict:
         """Return the key from eplan root that looks like the most promising for project data.
         """
-        return self.meta_data.get(
-            meta.EPLAN_PROJECT_ROOT,
-            {}
-        )
+        if self.meta_data is None:
+            self.meta_data = {}
+        if meta.EPLAN_PROJECT_ROOT not in self.meta_data:
+            self.meta_data[meta.EPLAN_PROJECT_ROOT] = {}
+        return self.meta_data[meta.EPLAN_PROJECT_ROOT]
 
     @property
     def project_data(self) -> dict:
         """Get the Eplan project data dictionary.
         """
+        if not self[meta.EPLAN_DICT_MAP[meta.EPLAN_PROJECT_DATA_KEY]]:
+            self[meta.EPLAN_DICT_MAP[meta.EPLAN_PROJECT_DATA_KEY]] = {}
         return self[meta.EPLAN_DICT_MAP[meta.EPLAN_PROJECT_DATA_KEY]]
+
+    @project_data.setter
+    def project_data(self, value: dict) -> None:
+        if not isinstance(value, dict) and value is not None:
+            raise ValueError(f'project_data must be a dictionary! Got {type(value)}')
+        self[meta.EPLAN_DICT_MAP[meta.EPLAN_PROJECT_DATA_KEY]] = value
 
     @property
     def project_bom(self) -> list[dict]:
         """Get the project BOM dictionary."""
-        return self.project_data.get(
-            meta.EPLAN_DICT_MAP[meta.EPLAN_PROJECT_BOM_KEY],
-            [{}]
-        )
+        if meta.EPLAN_DICT_MAP[meta.EPLAN_PROJECT_BOM_KEY] not in self.project_data:
+            self.project_data[meta.EPLAN_DICT_MAP[meta.EPLAN_PROJECT_BOM_KEY]] = [{}]
+        return self.project_data[meta.EPLAN_DICT_MAP[meta.EPLAN_PROJECT_BOM_KEY]]
+
+    @project_bom.setter
+    def project_bom(self, value: list[dict]) -> None:
+        if isinstance(value, dict):
+            value = [value]
+        if not isinstance(value, list) and value is not None:
+            raise ValueError(f'project_bom must be a list, dict or None! Got {type(value)}')
+        self.project_data[meta.EPLAN_DICT_MAP[meta.EPLAN_PROJECT_BOM_KEY]] = value
+
+    @project_bom.deleter
+    def project_bom(self) -> None:
+        if meta.EPLAN_DICT_MAP[meta.EPLAN_PROJECT_BOM_KEY] in self.project_data:
+            del self.project_data[meta.EPLAN_DICT_MAP[meta.EPLAN_PROJECT_BOM_KEY]]
 
     @property
     def design_source(self) -> Optional[str]:
@@ -203,13 +228,36 @@ class EplanProject(
             {}
         )
 
+    @project_properties.setter
+    def project_properties(self, value: dict) -> None:
+        if not isinstance(value, dict) and value is not None:
+            raise ValueError(f'project_properties must be a dictionary! Got {type(value)}')
+        self.project_data[meta.EPLAN_DICT_MAP[meta.EPLAN_PROPERTY_KEY]] = value
+
+    @project_properties.deleter
+    def project_properties(self) -> None:
+        if meta.EPLAN_DICT_MAP[meta.EPLAN_PROPERTY_KEY] in self.project_data:
+            del self.project_data[meta.EPLAN_DICT_MAP[meta.EPLAN_PROPERTY_KEY]]
+
     @property
     def sheets(self) -> list[dict]:
         """Get the project sheets dictionary."""
-        return self.project_data.get(
-            meta.EPLAN_DICT_MAP[meta.EPLAN_PROJECT_SHEET_KEY],
-            [{}]
-        )
+        if meta.EPLAN_DICT_MAP[meta.EPLAN_PROJECT_SHEET_KEY] not in self.project_data:
+            self.project_data[meta.EPLAN_DICT_MAP[meta.EPLAN_PROJECT_SHEET_KEY]] = [{}]
+        return self.project_data[meta.EPLAN_DICT_MAP[meta.EPLAN_PROJECT_SHEET_KEY]]
+
+    @sheets.setter
+    def sheets(self, value: list[dict]) -> None:
+        if isinstance(value, dict):
+            value = [value]
+        if not isinstance(value, list) and value is not None:
+            raise ValueError(f'sheets must be a list, dict or None! Got {type(value)}')
+        self.project_data[meta.EPLAN_DICT_MAP[meta.EPLAN_PROJECT_SHEET_KEY]] = value
+
+    @sheets.deleter
+    def sheets(self) -> None:
+        if meta.EPLAN_DICT_MAP[meta.EPLAN_PROJECT_SHEET_KEY] in self.project_data:
+            del self.project_data[meta.EPLAN_DICT_MAP[meta.EPLAN_PROJECT_SHEET_KEY]]
 
     @property
     def pxf_root(self) -> dict:
@@ -391,8 +439,6 @@ class EplanProject(
         This is a placeholder method. Actual implementation will depend on
         the EPLAN file format and parsing logic.
         """
-        if not self.file_location:
-            raise ValueError("File location is not set for the EPLAN project.")
         if not self.meta_data:
             raise ValueError("Meta data is not set for the EPLAN project.")
 

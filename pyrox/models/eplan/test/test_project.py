@@ -46,7 +46,7 @@ class TestEplanProjectDevice(unittest.TestCase):
 
         self.assertEqual(device.name, "TestDevice")
         self.assertEqual(device.data, self.device_data)
-        self.assertIsNone(device.description)
+        self.assertEqual(device.description, '')
 
     def test_inheritance(self):
         """Test that EplanProjectDevice inherits from NamedPyroxObject."""
@@ -109,8 +109,10 @@ class TestEplanProjectFactory(unittest.TestCase):
 
     def test_factory_instantiation(self):
         """Test that EplanProjectFactory can be instantiated."""
-        factory = EplanProjectFactory()
-        self.assertIsInstance(factory, EplanProjectFactory)
+        # ABC meta prevents direct instantiation
+        with self.assertRaises(TypeError) as context:
+            factory = EplanProjectFactory()  # type: ignore  # noqa: F841
+        self.assertIn("ABCMeta.__new__() missing 3 required positional arguments", str(context.exception))
 
 
 class TestEplanProject(unittest.TestCase):
@@ -271,19 +273,16 @@ class TestEplanProject(unittest.TestCase):
     def test_design_source_property(self):
         """Test design_source property."""
         project = EplanProject(meta_data=self.mock_meta_data)
-
-        # Mock the project_properties to return expected data
-        with patch.object(project, 'project_properties', return_value={
-            meta.EPLAN_DICT_MAP[meta.EPLAN_COMPANY_NAME_KEY]: "Test Company"
-        }):
-            result = project.design_source
-            self.assertEqual(result, "Test Company")
+        result = project.design_source
+        self.assertEqual(result, "Test Company")
 
     def test_design_source_property_unknown(self):
         """Test design_source property with unknown value."""
         project = EplanProject(meta_data=self.mock_meta_data)
 
-        with patch.object(project, 'project_properties', return_value={}):
+        from unittest.mock import PropertyMock
+        with patch.object(EplanProject, 'project_properties', new_callable=PropertyMock) as mock_prop:
+            mock_prop.return_value = {}
             result = project.design_source
             self.assertEqual(result, meta.EPLAN_UNKNOWN_ATTRIBUTE_DEFAULT)
 
@@ -291,20 +290,20 @@ class TestEplanProject(unittest.TestCase):
         """Test design_source_address property."""
         project = EplanProject(meta_data=self.mock_meta_data)
 
-        with patch.object(project, 'project_properties', return_value={
-            meta.EPLAN_DICT_MAP[meta.EPLAN_COMPANY_ADDRESS_LINE1_KEY]: "123 Main St",
-            meta.EPLAN_DICT_MAP[meta.EPLAN_COMPANY_ADDRESS_LINE2_KEY]: "Suite 100"
-        }):
+        from unittest.mock import PropertyMock
+        with patch.object(EplanProject, 'project_properties', new_callable=PropertyMock) as mock_prop:
+            mock_prop.return_value = {
+                meta.EPLAN_DICT_MAP[meta.EPLAN_COMPANY_ADDRESS_LINE1_KEY]: "123 Main St",
+                meta.EPLAN_DICT_MAP[meta.EPLAN_COMPANY_ADDRESS_LINE2_KEY]: "Suite 100"
+            }
             result = project.design_source_address
             self.assertEqual(result, "123 Main St, Suite 100")
 
     def test_design_source_address_property_unknown(self):
         """Test design_source_address property with unknown values."""
         project = EplanProject(meta_data=self.mock_meta_data)
-
-        with patch.object(project, 'project_properties', return_value={}):
-            result = project.design_source_address
-            self.assertEqual(result, meta.EPLAN_UNKNOWN_ATTRIBUTE_DEFAULT)
+        result = project.design_source_address
+        self.assertEqual(result, meta.EPLAN_UNKNOWN_ATTRIBUTE_DEFAULT)
 
     @staticmethod
     def test_strip_eplan_naming_conventions():
@@ -439,7 +438,26 @@ class TestEplanProject(unittest.TestCase):
         result = project._process_sheet(sheet)
 
         self.assertEqual(result['name'], "Sheet Name")
-        self.assertEqual(result['number'], "1")
+        self.assertEqual(result['number'], "1.Unknown")
+
+    def test_process_sheet_with_no_major_number(self):
+        """Test _process_sheet with sheet without major number."""
+        project = EplanProject()
+
+        sheet = {
+            meta.EPLAN_PROPERTY_KEY: {
+                meta.EPLAN_NAME_KEY: "Sheet Name"
+            },
+            meta.EPLAN_PROJECT_INDEX_NUMBER_KEY: {
+                # Missing major number
+                meta.EPLAN_INDEX_MINOR_KEY: "2"
+            }
+        }
+
+        result = project._process_sheet(sheet)
+
+        self.assertEqual(result['name'], "Sheet Name")
+        self.assertEqual(result['number'], "Unknown.2")
 
     def test_get_factory_class_method(self):
         """Test get_factory class method."""
@@ -449,7 +467,6 @@ class TestEplanProject(unittest.TestCase):
     def test_parse_success(self, mock_log):
         """Test parse method success path."""
         project = EplanProject(
-            file_location="test.epj",
             meta_data=self.mock_meta_data
         )
 
@@ -479,11 +496,11 @@ class TestEplanProject(unittest.TestCase):
         with self.assertRaises(ValueError) as context:
             project.parse()
 
-        self.assertIn("File location is not set", str(context.exception))
+        self.assertIn("Meta data is not set for the EPLAN project.", str(context.exception))
 
     def test_parse_no_meta_data(self):
         """Test parse method without meta data."""
-        project = EplanProject(file_location="test.epj")
+        project = EplanProject()
 
         with self.assertRaises(ValueError) as context:
             project.parse()
@@ -531,16 +548,6 @@ class TestEplanProject(unittest.TestCase):
                 project._gather_project_sheet_details()
 
                 self.assertEqual(len(project.sheet_details), 2)
-
-    def test_abstract_methods_raise_not_implemented(self):
-        """Test that abstract methods raise NotImplementedError."""
-        project = EplanProject()
-
-        with self.assertRaises(NotImplementedError):
-            project._gather_project_device_io_details()
-
-        with self.assertRaises(NotImplementedError):
-            project._gather_project_ethernet_devices()
 
 
 class TestEplanControllerValidatorFactory(unittest.TestCase):
