@@ -432,7 +432,7 @@ EPLAN_DICT_MAP = {
 
     # Field Definitions
     EPLAN_GRAPHICS_FIELD_DEF_KEY: 'Graphics Field Definition',
-    
+
     # Critical Live Data Keys
     EPLAN_PROJECT_ID_KEY: 'Project Identifier',
     EPLAN_OBJECT_ID_KEY: 'Object Reference ID',
@@ -441,7 +441,7 @@ EPLAN_DICT_MAP = {
     EPLAN_OBJECT_STATE_SECONDARY_KEY: 'Object Secondary State',
     EPLAN_EPLAN_VERSION_KEY: 'EPLAN Version',
     EPLAN_PROJECT_VERSION_KEY: 'Project Version',
-    
+
     # Project Configuration
     EPLAN_PROJECT_CONFIG_FLAGS_KEY: 'Project Configuration Flags',
     EPLAN_PROJECT_CONFIG_BINARY_KEY: 'Project Binary Configuration',
@@ -457,19 +457,19 @@ EPLAN_DICT_MAP = {
     EPLAN_PROJECT_STRUCTURE_L9_KEY: 'Project Structure Level 9',
     EPLAN_PROJECT_STRUCTURE_L10_KEY: 'Project Structure Level 10',
     EPLAN_PROJECT_STRUCTURE_L11_KEY: 'Project Structure Level 11',
-    
+
     # Additional Object Types
     EPLAN_OBJECT_TYPE_116_KEY: 'Object Type 116 Container',
     EPLAN_OBJECT_TYPE_155_KEY: 'Object Type 155 Container',
     EPLAN_OBJECT_TYPE_219_KEY: 'Object Type 219 Container',
     EPLAN_OBJECT_TYPE_256_KEY: 'Object Type 256 Container',
-    
+
     # Section Definitions
     EPLAN_SECTION_167_FIELD_KEY: 'Section 167 Field Definition',
     EPLAN_SECTION_39_DEFINITION_KEY: 'Section 39 Object Definition',
     EPLAN_SECTION_40_DEFINITION_KEY: 'Section 40 Object Definition',
     EPLAN_SECTION_54_PROPERTIES_KEY: 'Section 54 Properties',
-    
+
     # Form Attributes
     EPLAN_FORM_ATTRIBUTE_1402_KEY: 'Form Mounting Location',
     EPLAN_FORM_ATTRIBUTE_1403_KEY: 'Form Position Data',
@@ -485,7 +485,7 @@ EPLAN_DICT_MAP = {
     EPLAN_FORM_ATTRIBUTE_1416_KEY: 'Form Attribute 1416',
     EPLAN_FORM_ATTRIBUTE_1417_KEY: 'Form Structure References',
     EPLAN_FORM_ATTRIBUTE_1418_KEY: 'Form Scale Factor',
-    
+
     # High-priority missing attribute mappings
     EPLAN_ATTRIBUTE_1001_KEY: 'Attribute 1001',
     EPLAN_ATTRIBUTE_1101_KEY: 'Attribute 1101',
@@ -512,7 +512,7 @@ EPLAN_DICT_MAP = {
     EPLAN_ATTRIBUTE_1380_KEY: 'Device Attribute',
     EPLAN_ATTRIBUTE_1381_KEY: 'Device State',
     EPLAN_ATTRIBUTE_1383_KEY: 'Device Property',
-    
+
     # Additional property mappings
     EPLAN_PROPERTY_10002_KEY: 'Project Configuration 2',
     EPLAN_PROPERTY_10003_KEY: 'Project Setting 3',

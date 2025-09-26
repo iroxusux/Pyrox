@@ -423,17 +423,17 @@ class TestSupportsMetaData:
         assert obj.meta_data == test_string
 
         # Test None
-        obj.meta_data = None
-        assert obj.meta_data is None
+        obj.meta_data = ''
+        assert not obj.meta_data
 
     def test_meta_data_setter_invalid(self):
         """Test setting invalid meta data types."""
         obj = SupportsMetaData()
 
-        with pytest.raises(TypeError, match="Meta data must be a dictionary, string, or None"):
+        with pytest.raises(TypeError, match="Meta data must be a dictionary or string."):
             obj.meta_data = 42  # type: ignore
 
-        with pytest.raises(TypeError, match="Meta data must be a dictionary, string, or None"):
+        with pytest.raises(TypeError, match="Meta data must be a dictionary or string."):
             obj.meta_data = ['list', 'not', 'allowed']  # type: ignore
 
     def test_item_access_inheritance(self):

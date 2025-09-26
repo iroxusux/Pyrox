@@ -125,6 +125,9 @@ class HashList(Subscribable, Generic[T]):
 
     __slots__ = ('_hash_key', '_hashes')
 
+    def __bool__(self) -> bool:
+        return len(self._hashes) > 0
+
     def __init__(self,
                  hash_key: str):
         super().__init__()

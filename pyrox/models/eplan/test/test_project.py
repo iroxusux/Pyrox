@@ -164,7 +164,7 @@ class TestEplanProject(unittest.TestCase):
         project = EplanProject()
 
         self.assertIsNone(project.file_location)
-        self.assertIsNone(project.meta_data)
+        self.assertIsNotNone(project.meta_data)
         self.assertIsNone(project.controller)
         self.assertIsInstance(project.devices, HashList)
         self.assertEqual(project.project_name, '')
@@ -174,9 +174,13 @@ class TestEplanProject(unittest.TestCase):
         self.assertEqual(project.sheet_details, [])
         self.assertEqual(project.bom_details, [])
 
-    def test_init_with_params(self):
+    @patch('pyrox.models.eplan.project.dict_from_xml_file')
+    def test_init_with_params(self, mock_dict_from_xml):
         """Test EplanProject initialization with parameters."""
         mock_controller = Mock()
+
+        with patch('pyrox.models.eplan.project.rename_keys'):
+            mock_dict_from_xml.return_value = self.mock_meta_data
 
         project = EplanProject(
             file_location="test.epj",

@@ -100,12 +100,12 @@ class ModuleConnectionTag(plc_meta.PlcObject):
 class Module(plc_meta.NamedPlcObject):
     def __init__(
         self,
-        l5x_meta_data: dict = None,
+        meta_data: dict = None,
         controller: 'Controller' = None
     ) -> None:
 
         super().__init__(
-            meta_data=l5x_meta_data or l5x_dict_from_file(
+            meta_data=meta_data or l5x_dict_from_file(
                 plc_meta.PLC_MOD_FILE)['Module'],
             controller=controller
         )

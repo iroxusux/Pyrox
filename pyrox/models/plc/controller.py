@@ -299,7 +299,11 @@ class Controller(
     @property
     def aois(self) -> HashList[AddOnInstruction]:
         if not self._aois:
-            self._compile_aois()
+            self._compile_common_hashlist_from_meta_data(
+                target_list=self._aois,
+                target_meta_list=self.raw_aois,
+                item_class=self.config.aoi_type,
+            )
         return self._aois
 
     @property
@@ -333,7 +337,11 @@ class Controller(
     @property
     def datatypes(self) -> HashList[Datatype]:
         if not self._datatypes:
-            self._compile_datatypes()
+            self._compile_common_hashlist_from_meta_data(
+                target_list=self._datatypes,
+                target_meta_list=self.raw_datatypes,
+                item_class=self.config.datatype_type,
+            )
         return self._datatypes
 
     @property
@@ -422,7 +430,11 @@ class Controller(
     @property
     def modules(self) -> HashList[Module]:
         if not self._modules:
-            self._compile_modules()
+            self._compile_common_hashlist_from_meta_data(
+                target_list=self._modules,
+                target_meta_list=self.raw_modules,
+                item_class=self.config.module_type,
+            )
         return self._modules
 
     @property
@@ -463,7 +475,11 @@ class Controller(
     @property
     def programs(self) -> HashList[Program]:
         if not self._programs:
-            self._compile_programs()
+            self._compile_common_hashlist_from_meta_data(
+                target_list=self._programs,
+                target_meta_list=self.raw_programs,
+                item_class=self.config.program_type,
+            )
         return self._programs
 
     @property
@@ -502,7 +518,12 @@ class Controller(
     @property
     def tags(self) -> HashList[Tag]:
         if not self._tags:
-            self._compile_tags()
+            self._compile_common_hashlist_from_meta_data(
+                target_list=self._tags,
+                target_meta_list=self.raw_tags,
+                item_class=self.config.tag_type,
+                container=self
+            )
         return self._tags
 
     @property
@@ -589,23 +610,6 @@ class Controller(
     def get_factory(cls):
         return ControllerFactory
 
-    def _compile_aois(self) -> None:
-        """Compile Add-On Instructions from the controller's AOIs.
-        """
-        self.log().debug('Compiling AOIs from controller...')
-        if self._aois is None:
-            self._aois = HashList('name')
-            for aoi in self.raw_aois:
-                if isinstance(aoi, dict):
-                    self._aois.append(
-                        self.config.aoi_type(
-                            meta_data=aoi,
-                            controller=self
-                        )
-                    )
-                else:
-                    self.log().warning(f'Invalid AOI data: {aoi}. Skipping...')
-
     def _compile_atomic_datatypes(self) -> None:
         """Compile atomic datatypes from the controller's datatypes."""
         self._datatypes.append(Datatype(meta_data={'@Name': 'BOOL'}, controller=self))
@@ -630,90 +634,76 @@ class Controller(
                                                        {'@Name': 'DN'}
                                                    ]}}, controller=self))
 
-    def _compile_datatypes(self) -> None:
-        """Compile datatypes from the controller's datatypes."""
-        self.log().debug('Compiling datatypes from controller...')
-        if self._datatypes is None:
-            self._datatypes = HashList('name')
-            self._compile_atomic_datatypes()
-            for datatype in self.raw_datatypes:
-                if isinstance(datatype, dict):
-                    self._datatypes.append(
-                        self.config.datatype_type(
-                            meta_data=datatype,
-                            controller=self
-                        ))
-                else:
-                    self.log().warning(
-                        f'Invalid datatype data: {datatype}. Skipping...'
-                    )
+    def _compile_common_hashlist_from_meta_data(
+        self,
+        target_list: HashList,
+        target_meta_list: list,
+        item_class: type,
+        **kwargs
+    ) -> None:
+        """Compile a common HashList from meta data.
+
+        Args:
+            target_list (HashList): The target HashList to populate.
+            target_meta_list (list): The list of meta data dictionaries.
+            item_class (type): The class type of the items to create.
+        """
+        if target_list is None:
+            target_list = HashList('name')
+        target_list.clear()
+        for item in target_meta_list:
+            if isinstance(item, dict):
+                target_list.append(
+                    item_class(
+                        meta_data=item,
+                        controller=self,
+                        **kwargs
+                    ))
+            else:
+                self.log().warning(f'Invalid item data: {item}. Skipping...')
 
     def _compile_from_meta_data(self):
         """Compile this controller from its meta data."""
         self.log().info('Compiling controller from meta data...')
         self._aois.clear()
-        self._compile_aois()
+        self._compile_common_hashlist_from_meta_data(
+            target_list=self._aois,
+            target_meta_list=self.raw_aois,
+            item_class=self.config.aoi_type
+        )
 
         self._datatypes.clear()
-        self._compile_datatypes()
+        self._compile_common_hashlist_from_meta_data(
+            target_list=self._datatypes,
+            target_meta_list=self.raw_datatypes,
+            item_class=self.config.datatype_type
+        )
+        self._compile_atomic_datatypes()
 
         self._modules.clear()
-        self._compile_modules()
+        self._compile_common_hashlist_from_meta_data(
+            target_list=self._modules,
+            target_meta_list=self.raw_modules,
+            item_class=self.config.module_type
+        )
 
         self._programs.clear()
-        self._compile_programs()
+        self._compile_common_hashlist_from_meta_data(
+            target_list=self._programs,
+            target_meta_list=self.raw_programs,
+            item_class=self.config.program_type
+        )
 
         self._tags.clear()
-        self._compile_tags()
+        self._compile_common_hashlist_from_meta_data(
+            target_list=self._tags,
+            target_meta_list=self.raw_tags,
+            item_class=self.config.tag_type,
+            container=self
+        )
 
         self._safety_info = None
         self._compile_safety_info()
-
-    def _compile_modules(self) -> None:
-        """Compile modules from the controller's modules."""
-        self.log().debug('Compiling modules from controller...')
-        if self._modules is None:
-            self._modules = HashList('name')
-            for module in self.raw_modules:
-                if isinstance(module, dict):
-                    self._modules.append(
-                        self.config.module_type(
-                            l5x_meta_data=module,
-                            controller=self
-                        ))
-                else:
-                    self.log().warning(f'Invalid module data: {module}. Skipping...')
-
-    def _compile_programs(self) -> None:
-        """Compile programs from the controller's programs."""
-        self.log().debug('Compiling programs from controller...')
-        if self._programs is None:
-            self._programs = HashList('name')
-            for program in self.raw_programs:
-                if isinstance(program, dict):
-                    self._programs.append(
-                        self.config.program_type(
-                            meta_data=program,
-                            controller=self
-                        ))
-                else:
-                    self.log().warning(f'Invalid program data: {program}. Skipping...')
-
-    def _compile_tags(self) -> None:
-        """Compile tags from the controller's tags."""
-        self.log().debug('Compiling tags from controller...')
-        if self._tags is None:
-            self._tags = HashList('name')
-            for tag in self.raw_tags:
-                if isinstance(tag, dict):
-                    self._tags.append(
-                        self.config.tag_type(
-                            meta_data=tag,
-                            controller=self,
-                            container=self
-                        ))
-                else:
-                    self.log().warning(f'Invalid tag data: {tag}. Skipping...')
 
     def _compile_safety_info(self) -> None:
         """Compile safety information from the controller's safety info."""

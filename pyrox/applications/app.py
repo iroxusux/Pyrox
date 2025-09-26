@@ -320,7 +320,7 @@ class App(models.Application):
     def __init__(self, config: models.ApplicationConfiguration) -> None:
         super().__init__(config=config)
 
-        self._controller: Optional[models.plc.Controller] = None
+        self._controller = None
         self._organizer: Optional[AppOrganizer] = None
         self._log_window: Optional[models.LogFrame] = None
         self._main_paned_window: Optional[tk.PanedWindow] = None
@@ -344,8 +344,10 @@ class App(models.Application):
         return self._controller
 
     @controller.setter
-    def controller(self,
-                   value: models.plc.Controller):
+    def controller(
+        self,
+        value: Optional[models.plc.Controller]
+    ) -> None:
         if not isinstance(value, models.plc.Controller) and value is not None:
             raise TypeError(f'Expected Controller, got {type(value)}')
         self._controller = value
@@ -354,7 +356,7 @@ class App(models.Application):
                 self._controller.on_compiled.append(self.refresh)
             if self.set_app_state_busy not in self._controller.on_compiling:
                 self._controller.on_compiling.append(self.set_app_state_busy)
-        self._runtime_info.data['last_plc_file_location'] = value.file_location if value else None
+        self.runtime_info.data['last_plc_file_location'] = value.file_location if value else None
         self.refresh()
 
     @property

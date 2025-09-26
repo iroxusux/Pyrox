@@ -371,7 +371,7 @@ class SupportsMetaData(SupportsItemAccess):
     """
 
     @property
-    def indexed_attribute(self) -> Optional[Union[str, dict]]:
+    def indexed_attribute(self) -> Union[str, dict]:
         return self.meta_data
 
     def __init__(
@@ -383,7 +383,7 @@ class SupportsMetaData(SupportsItemAccess):
         super().__init__(**kwargs)
 
     @property
-    def meta_data(self) -> Optional[Union[str, dict]]:
+    def meta_data(self) -> Union[str, dict]:
         """Meta data for this object.
 
         Returns:
@@ -392,7 +392,7 @@ class SupportsMetaData(SupportsItemAccess):
         return self._meta_data
 
     @meta_data.setter
-    def meta_data(self, value: Optional[Union[str, dict]]):
+    def meta_data(self, value: Any):
         """Set the meta data for this object.
 
         Args:
@@ -400,8 +400,92 @@ class SupportsMetaData(SupportsItemAccess):
         Raises:
             TypeError: If the provided value is not a dictionary or string.
         """
-        if value is not None and not isinstance(value, (dict, str)):
-            raise TypeError('Meta data must be a dictionary, string, or None.')
+        if not isinstance(value, (dict, str)):
+            raise TypeError('Meta data must be a dictionary or string.')
+        self._meta_data = value
+
+
+class SupportsMetaDataAsString(SupportsMetaData):
+    """A meta class for all classes to derive from to obtain meta data capabilities as a string.
+    This class allows for storing arbitrary meta data as a string.
+    """
+
+    @property
+    def indexed_attribute(self) -> str:
+        return self.meta_data
+
+    def __init__(
+        self,
+        meta_data: Optional[str] = None,
+        **kwargs
+    ) -> None:
+        self.meta_data = meta_data if meta_data is not None else ''
+        super().__init__(**kwargs)
+
+    @property
+    def meta_data(self) -> str:
+        """Meta data for this object.
+
+        Returns:
+            str: The meta data string if set, empty string otherwise.
+        """
+        return self._meta_data
+
+    @meta_data.setter
+    def meta_data(self, value: str):
+        """Set the meta data for this object.
+
+        Args:
+            value: The string to set as meta data.
+
+        Raises:
+            TypeError: If the provided value is not a string.
+        """
+        if not isinstance(value, str):
+            raise TypeError('Meta data must be a string.')
+        self._meta_data = value
+
+
+class SupportsMetaDataAsDict(SupportsMetaData):
+    """A meta class for all classes to derive from to obtain meta data capabilities as a dictionary.
+    This class allows for storing arbitrary meta data as a dictionary.
+    """
+
+    @property
+    def indexed_attribute(self) -> dict:
+        return self.meta_data
+
+    def __init__(
+        self,
+        meta_data: Optional[dict] = None,
+        **kwargs
+    ) -> None:
+        super().__init__(
+            meta_data=meta_data if meta_data is not None else {},
+            **kwargs
+        )
+
+    @property
+    def meta_data(self) -> dict:
+        """Meta data for this object.
+
+        Returns:
+            dict: The meta data dictionary if set, empty dictionary otherwise.
+        """
+        return self._meta_data
+
+    @meta_data.setter
+    def meta_data(self, value: dict):
+        """Set the meta data for this object.
+
+        Args:
+            value: The dictionary to set as meta data.
+
+        Raises:
+            TypeError: If the provided value is not a dictionary.
+        """
+        if not isinstance(value, dict):
+            raise TypeError('Meta data must be a dictionary.')
         self._meta_data = value
 
 

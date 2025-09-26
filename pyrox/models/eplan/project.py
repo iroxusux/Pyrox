@@ -3,7 +3,7 @@
 
 from __future__ import annotations
 from typing import Any, Dict, List, Optional
-from pyrox.models.abc.meta import NamedPyroxObject, PyroxObject, SupportsMetaData
+from pyrox.models.abc.meta import NamedPyroxObject, PyroxObject, SupportsMetaDataAsDict
 from pyrox.models.abc.factory import FactoryTypeMeta, MetaFactory
 from pyrox.models.abc.list import HashList
 from pyrox.models.abc.save import SupportsFileLocation
@@ -60,7 +60,7 @@ class EplanProjectFactory(MetaFactory):
 
 class EplanProject(
     SupportsFileLocation,
-    SupportsMetaData,
+    SupportsMetaDataAsDict,
     metaclass=FactoryTypeMeta['EplanProject', EplanProjectFactory]
 ):
     """EPLAN project model.
@@ -78,7 +78,7 @@ class EplanProject(
         controller: Optional[Any] = None,
     ) -> None:
         SupportsFileLocation.__init__(self, file_location)
-        SupportsMetaData.__init__(self, meta_data)
+        SupportsMetaDataAsDict.__init__(self, meta_data or {})
         # re-assign file location to trigger meta_data load if provided
         self.file_location = file_location
         self.controller: Optional[Any] = controller
@@ -100,6 +100,10 @@ class EplanProject(
 
     @SupportsFileLocation.file_location.setter
     def file_location(self, value: Optional[str]) -> None:
+        if value is None:
+            self._file_location = None
+            self.meta_data = {}
+            return
         if not isinstance(value, str):
             raise ValueError('file_location must be a string!')
         if not value.endswith('.epj'):
@@ -160,6 +164,8 @@ class EplanProject(
     @property
     def groups(self) -> list[dict]:
         """Get the project devices dictionary list."""
+        if not self.project_data:
+            return []
         return self.project_data.get(
             meta.EPLAN_DICT_MAP[meta.EPLAN_PROJECT_GROUP_KEY],
             [{}]
