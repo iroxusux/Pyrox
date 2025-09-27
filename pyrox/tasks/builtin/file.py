@@ -9,6 +9,7 @@ import sys
 
 
 from pyrox.services.file import get_open_file, get_save_file
+from pyrox.services.logging import log
 from pyrox.applications import AppTask
 
 
@@ -44,19 +45,17 @@ class FileTask(AppTask):
                 "A controller is currently loaded. Do you want to continue and open a new file?"
             )
             if not proceed:
-                self.logger.debug('User cancelled file operation.')
+                log(self).debug('User cancelled file operation.')
                 return False
         return True
 
     def _on_file_close(self):
         """Close the current controller instance."""
         if not self.application.controller:
-            self.logger.warning('No controller loaded, cannot close...')
+            log(self).warning('No controller loaded, cannot close...')
             return
-
-        self.logger.info('Closing current controller instance...')
         self.application.controller = None
-        self.logger.info('Controller instance closed successfully.')
+        log(self).info('Controller instance closed successfully.')
 
     def _on_file_new(self):
         """Create a new controller instance."""
@@ -73,7 +72,7 @@ class FileTask(AppTask):
             file_location = get_open_file([("L5X XML Files", ".L5X")])
 
         if not file_location:
-            self.logger.warning('No file selected...')
+            log(self).warning('No file selected...')
             return
 
         self.application.load_controller(file_location)
@@ -82,7 +81,7 @@ class FileTask(AppTask):
                       file_location: Optional[str] = None,
                       save_as: bool = False):
         if not self.application.controller:
-            self.logger.warning('No controller loaded, cannot save...')
+            log(self).warning('No controller loaded, cannot save...')
             return
 
         if not save_as and self.application.controller.file_location:
@@ -94,7 +93,7 @@ class FileTask(AppTask):
             file_location = get_save_file([("L5X XML Files", ".L5X")])
 
         if not file_location:
-            self.logger.warning('No save location selected...')
+            log(self).warning('No save location selected...')
             return
 
         self.application.save_controller(file_location)

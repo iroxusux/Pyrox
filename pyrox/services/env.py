@@ -8,7 +8,9 @@ from __future__ import annotations
 import os
 import re
 from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional, Union
+
+from dotenv import load_dotenv, set_key
 
 from .logging import log
 
@@ -36,7 +38,7 @@ class EnvManager:
     @classmethod
     def load(
         cls,
-        env_file: Optional[str] = None
+        env_file: Optional[Union[Path, str]] = None
     ) -> bool:
         """Load environment variables from .env file.
 
@@ -46,6 +48,9 @@ class EnvManager:
         Returns:
             True if file was loaded successfully
         """
+        if isinstance(env_file, Path):
+            env_file = str(env_file)
+
         if env_file:
             cls._env_file = env_file
 
@@ -230,53 +235,25 @@ class EnvManager:
         return value
 
     @classmethod
-    def get(cls, key: str, default: Any = None, cast_type: type = str) -> Any:
-        """Get environment variable value with type casting.
-
-        Args:
-            key: Environment variable name
-            default: Default value if not found
-            cast_type: Type to cast the value to
-
-        Returns:
-            Environment variable value cast to specified type
-        """
-        # Check .env vars first, then os.environ
-        value = cls._env_vars.get(key, os.environ.get(key))
-
-        if value is None:
-            return default
-
-        # Type casting
-        try:
-            if cast_type == bool:
-                return value.lower() in ('true', '1', 'yes', 'on', 'enabled')
-            elif cast_type == int:
-                return int(value)
-            elif cast_type == float:
-                return float(value)
-            elif cast_type == list:
-                # Split by comma and strip whitespace
-                return [item.strip() for item in value.split(',') if item.strip()]
-            else:
+    def get(cls, key: str, default=None, cast_type=str):
+        """Get environment variable with optional type casting."""
+        load_dotenv()  # Load from .env file
+        value = os.environ.get(key, default)
+        if value is not None and cast_type != str:
+            try:
                 return cast_type(value)
-        except (ValueError, TypeError) as e:
-            log(cls).warning(f"Failed to cast {key}={value} to {cast_type.__name__}: {e}")
-            return default
+            except (ValueError, TypeError):
+                return default
+        return value
 
     @classmethod
-    def set(cls, key: str, value: str, update_os_environ: bool = True) -> None:
-        """Set environment variable.
+    def set(cls, key: str, value: str, env_file: str = '.env') -> None:
+        """Set environment variable both in memory and in .env file."""
+        # Update in-memory environment
+        os.environ[key] = value
 
-        Args:
-            key: Environment variable name
-            value: Environment variable value
-            update_os_environ: Whether to also update os.environ
-        """
-        cls._env_vars[key] = str(value)
-        if update_os_environ:
-            os.environ[key] = str(value)
-        log(cls).debug(f"Set environment variable: {key}={value}")
+        # Update .env file using python-dotenv
+        set_key(env_file, key, value)
 
     @classmethod
     def get_all(cls, prefix: Optional[str] = None) -> Dict[str, str]:

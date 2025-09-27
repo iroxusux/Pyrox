@@ -41,6 +41,7 @@ dependencies = [
   "py7zr",
   "PyMuPDF",
   "pytest",
+  "python-dotenv",
   "pywin32",
   "xmltodict",
 ]

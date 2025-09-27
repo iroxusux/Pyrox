@@ -21,7 +21,8 @@ from typing import Any, Callable, Optional, Self, Union
 from .abc import Buildable, Runnable, SupportsJsonLoading, SupportsJsonSaving
 from .abc import meta, runtime, stream
 from ..services.logging import LoggingManager
-from ..services.file import remove_all_files
+from pyrox.services.file import remove_all_files
+from pyrox.services.env import EnvManager
 
 __all__ = (
     'BaseMenu',
@@ -741,6 +742,10 @@ class Application(Runnable):
         else:
             self.log().warning(f'Icon file not found: {self.config.icon}.')
 
+    def _build_env(self) -> None:
+        if not EnvManager.is_loaded():
+            raise RuntimeError('Environment variables have not been loaded. Please call EnvManager.load() before building the application.')
+
     def _build_frame(self) -> None:
         self._frame: Frame = Frame(master=self._tk_app, background='#2b2b2b')
         self._frame.pack(fill='both', expand=True)
@@ -829,6 +834,7 @@ class Application(Runnable):
             self._tk_app.state('normal')
 
     def build(self) -> None:
+        self._build_env()
         self._build_multi_stream()
         self._build_runtime_info()
         self._build_tk_app_instance()

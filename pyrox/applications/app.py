@@ -7,11 +7,15 @@ from typing import Any, Callable, Optional, Union
 import tkinter as tk
 from tkinter import ttk
 
+from pyrox.services.env import get_env, set_env
 from pyrox.services.logging import LoggingManager, log
 
 from .. import models
 from ..services.dict import remove_none_values_inplace
 from ..services.plc import dict_to_xml_file, l5x_dict_from_file
+
+
+ENV_LAST_OPEN_L5X = 'PLC_LAST_OPEN_L5X'
 
 
 __all__ = [
@@ -263,16 +267,16 @@ class AppOrganizer(models.PyroxObject):
 
     def _populate_prog_tab(self, controller: models.plc.Controller) -> None:
         if not controller:
-            self.log().debug('No controller provided to populate programs tab.')
+            log(self).debug('No controller provided to populate programs tab.')
             return
-        self.log().debug('Populating programs tab with controller data.')
+        log(self).debug('Populating programs tab with controller data.')
         self._program_frame.tree.populate_tree('', {
             'Standard': [self._build_standard_program_dict(program) for program in controller.standard_programs],
             'Safety': [self._build_standard_program_dict(program) for program in controller.safety_programs]}
         )
 
     def _populate_raw_tab(self, controller: models.plc.Controller) -> None:
-        self.log().debug('Populating raw tab with controller data.')
+        log(self).debug('Populating raw tab with controller data.')
         self._raw_l5x_frame.tree.populate_tree('', controller)
 
     def build(
@@ -290,7 +294,7 @@ class AppOrganizer(models.PyroxObject):
 
         This method will remove all children from the organizer window, if it exists.
         """
-        self.log().debug('Clearing organizer of all children.')
+        log(self).debug('Clearing organizer of all children.')
         self._raw_l5x_frame.tree.delete(*self._raw_l5x_frame.tree.get_children())
         self._program_frame.tree.delete(*self._program_frame.tree.get_children())
 
@@ -351,12 +355,13 @@ class App(models.Application):
         if not isinstance(value, models.plc.Controller) and value is not None:
             raise TypeError(f'Expected Controller, got {type(value)}')
         self._controller = value
-        if self._controller:
-            if self.refresh not in self._controller.on_compiled:
-                self._controller.on_compiled.append(self.refresh)
-            if self.set_app_state_busy not in self._controller.on_compiling:
-                self._controller.on_compiling.append(self.set_app_state_busy)
-        self.runtime_info.data['last_plc_file_location'] = value.file_location if value else None
+        if value:
+            if self.refresh not in value.on_compiled:
+                value.on_compiled.append(self.refresh)
+            if self.set_app_state_busy not in value.on_compiling:
+                value.on_compiling.append(self.set_app_state_busy)
+            if value.file_location is not None:
+                set_env(ENV_LAST_OPEN_L5X, value.file_location)
         self.refresh()
 
     @property
@@ -422,7 +427,7 @@ class App(models.Application):
 
     def _config_menu_file_entries(self) -> None:
         """Configure the file menu entries based on the controller state."""
-        self.log().debug('Configuring file menu entries based on controller state.')
+        log(self).debug('Configuring file menu entries based on controller state.')
         self._menu.file.entryconfig('Save L5X', state='disabled' if not self.controller else 'normal')
         self._menu.file.entryconfig('Save L5X As...', state='disabled' if not self.controller else 'normal')
         self._menu.file.entryconfig('Close L5X', state='disabled' if not self.controller else 'normal')
@@ -431,28 +436,29 @@ class App(models.Application):
         self,
         file_location: str
     ) -> models.plc.Controller:
-        """Load a controller from a file location.
-        This private method also manages the ux of loading a controller.
-        .. ------------------------------------------------------------
-        .. arguments::
-        :class:`str` file_location:
-            The file location to load the controller from.
-        .. -------------------------------------------------------------
-        .. returns::
-        :class:`Controller`:
-            The loaded controller instance.
+        """ Attempt to load a :class:`Controller` from a provided .L5X Allen Bradley PLC File.
+
+        Args:
+            file_location (str): Location to open :class:`Controller
+
+        Returns:
+            :class:`Controller`: Loaded controller instance.
+
+        Raises:
+            ValueError: If the controller fails to load from the file.
         """
 
-        try:
-            return models.plc.Controller.from_file(file_location)
-        except (KeyError, ValueError, TypeError) as e:
-            self.log().error('error parsing controller from file %s: %s', file_location, e)
-            raise e
+        ctrl = models.plc.Controller.from_file(file_location)
+        if not ctrl:
+            raise ValueError(f'Failed to load controller from file: {file_location}')
+        return ctrl
 
     def _load_last_opened_controller(self) -> None:
-        last_plc_file_location = self._runtime_info.data.get('last_plc_file_location', None)
-        if last_plc_file_location and os.path.isfile(last_plc_file_location):
-            self.load_controller(last_plc_file_location)
+        file = get_env(ENV_LAST_OPEN_L5X, default=None, cast_type=str)
+        if file and os.path.isfile(file):
+            self.load_controller(file)
+        else:
+            set_env(ENV_LAST_OPEN_L5X, '')
 
     def _raise_frame(self,
                      frame: models.TaskFrame) -> None:
@@ -460,10 +466,10 @@ class App(models.Application):
         self.clear_workspace()
         if not frame or not frame.winfo_exists():
             self.unregister_frame(frame)
-            self.log().error('Frame does not exist or is not provided.')
+            log(self).error('Frame does not exist or is not provided.')
             return
         if frame.name not in self._registered_frames:
-            self.log().error(f'Frame {frame.name} is not registered in this application.')
+            log(self).error(f'Frame {frame.name} is not registered in this application.')
             self.register_frame(frame, raise_=False)
         frame.master = self.workspace
         frame.pack(fill='both', expand=True, side='top')
@@ -526,10 +532,6 @@ class App(models.Application):
         [frame.shown_var.set(False) for frame in self._registered_frames]
 
     def build(self):
-        """Build this :class:`Application`.
-
-        This method will build the main menu, organizer window, log window and workspace if they are enabled in the configuration.
-        """
         super().build()
         self._main_paned_window = ttk.PanedWindow(self.frame, orient='horizontal')
         self._sub_paned_window = ttk.PanedWindow(self._main_paned_window, orient='vertical')
@@ -558,7 +560,7 @@ class App(models.Application):
         """
         if not self.workspace:
             return
-        self.log().debug('Clearing workspace of all children.')
+        log(self).debug('Clearing workspace of all children.')
 
         for child in self.workspace.winfo_children():
             child.pack_forget()
@@ -580,14 +582,13 @@ class App(models.Application):
         """
         self.set_app_state_busy()
         try:
-            self.log().info('Loading ctrl from file: %s', file_location)
+            log(self).info('Loading ctrl from file: %s', file_location)
             ctrl = self._load_controller(file_location)
             if ctrl is None:
-                self.log().error('Failed to load controller from file: %s', file_location)
+                log(self).error('Failed to load controller from file: %s', file_location)
                 return
 
-            self.log().info('new ctrl loaded -> %s', ctrl.name)
-            ctrl.file_location = file_location
+            log(self).info('new ctrl loaded -> %s', ctrl.name)
             self.controller = ctrl
         finally:
             self.set_app_state_normal()
@@ -611,17 +612,17 @@ class App(models.Application):
 
     def new_controller(self) -> None:
         """Create a new controller instance."""
-        self.log().info('Creating new controller instance...')
+        log(self).info('Creating new controller instance...')
         ctrl = models.plc.Controller(l5x_dict_from_file(models.plc.BASE_FILES[0]))
-        self.log().info('New controller instance created: %s', ctrl.name)
+        log(self).info('New controller instance created: %s', ctrl.name)
         self.controller = ctrl
-        self.log().info('Controller instance set successfully.')
+        log(self).info('Controller instance set successfully.')
 
     def refresh(self) -> None:
         if not self.organizer:
             return
 
-        self.log().info('Refreshing application gui...')
+        log(self).info('Refreshing application gui...')
         self.set_app_state_busy()
         self.clear_organizer()
         self.clear_workspace()
@@ -629,7 +630,7 @@ class App(models.Application):
         self._organizer.populate_organizer(self.controller)
         self._config_menu_file_entries()
         self.set_app_state_normal()
-        self.log().info('Done!')
+        log(self).info('Done!')
 
     def register_frame(self,
                        frame: models.TaskFrame,
@@ -686,7 +687,7 @@ class App(models.Application):
         try:
             self.set_app_state_busy()
             self.controller.file_location = file_location
-            self.log().info('Saving controller to file: %s', file_location)
+            log(self).info('Saving controller to file: %s', file_location)
             # create a copy of the controller's metadata
             # because we don't want to modify the original controller's metadata
             write_dict = copy.deepcopy(self.controller.meta_data)
@@ -694,7 +695,7 @@ class App(models.Application):
             dict_to_xml_file(write_dict,
                              file_location)
             self.controller = self.controller  # reassign to update gui and other references
-            self.log().info('Controller saved successfully to: %s', file_location)
+            log(self).info('Controller saved successfully to: %s', file_location)
         finally:
             self.set_app_state_normal()
 
@@ -727,14 +728,14 @@ class App(models.Application):
             self._organizer_width = self._organizer.winfo_width()  # Store current width
             self._main_paned_window.forget(self._organizer)  # Remove from paned window
             self._organizer_visible = False
-            self.log().info('Organizer hidden')
+            log(self).info('Organizer hidden')
         else:
             # Show organizer
             self._main_paned_window.add(self._organizer, before=self._main_paned_window.panes()[0] if self._main_paned_window.panes() else None)
             # Restore the saved width
             self._main_paned_window.paneconfigure(self._organizer, width=self._organizer_width)
             self._organizer_visible = True
-            self.log().info('Organizer shown')
+            log(self).info('Organizer shown')
 
     def unregister_frame(self,
                          frame: models.TaskFrame) -> None:
@@ -757,7 +758,7 @@ class App(models.Application):
         self.menu.view.delete(frame.name)
 
         if frame.name not in self._registered_frames:
-            self.log().warning(f'Frame {frame.name} is not registered in this application.')
+            log(self).warning(f'Frame {frame.name} is not registered in this application.')
             return
 
         self._registered_frames.remove(frame)
