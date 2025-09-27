@@ -309,11 +309,12 @@ class EplanProject(
 
     def _gather_project_device_io_details(self) -> None:
         """Gather all device IO details from the project."""
-        log().warning("EPLAN device IO gathering not yet implemented.")
+        log(self).warning("EPLAN device IO gathering not yet implemented.")
 
     def _gather_project_ethernet_devices(self) -> None:
         """Gather all ethernet devices from the project."""
-        raise NotImplementedError("Subclasses should override this method to gather ethernet devices.")
+        log(self).warning("EPLAN ethernet device gathering not yet implemented.")
+        return  # Not yet implemented
 
     def _gather_project_group_details(self) -> None:
         """Gather all groups from the project."""
@@ -451,7 +452,7 @@ class EplanProject(
         self._gather_project_ethernet_devices()
         self._gather_project_device_io_details()
 
-        log().info('Done!')
+        log(self).info('Done!')
 
     def save_project_dict_to_file(
         self,
@@ -471,9 +472,9 @@ class EplanProject(
 
         from pyrox.services.file import save_dict_to_json_file
         if save_dict_to_json_file(file_path, self.project_data):
-            log().info(f'Project data dictionary saved to {file_path}')
+            log(self).info(f'Project data dictionary saved to {file_path}')
         else:
-            log().error(f'Failed to save project data dictionary to {file_path}')
+            log(self).error(f'Failed to save project data dictionary to {file_path}')
 
 
 class EplanControllerValidatorFactory(MetaFactory):
@@ -606,7 +607,7 @@ class EplanControllerValidator(
         if not self.project:
             raise ValueError("EPLAN project is not set for validation.")
 
-        log().info('Validating controller...')
+        log(self).info('Validating controller...')
         self._validate_controller_properties()
         self._validate_modules()
-        log().info('Validation complete!')
+        log(self).info('Validation complete!')

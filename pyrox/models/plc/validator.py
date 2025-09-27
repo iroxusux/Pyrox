@@ -1,8 +1,9 @@
-from typing import Self
+from typing import Optional, Self
 
 from pyrox.models.abc.meta import PyroxObject
 from pyrox.models.abc.factory import FactoryTypeMeta, MetaFactory
 from pyrox.models.abc.list import HashList
+from pyrox.services.logging import log
 from .meta import PlcObject
 from .controller import Controller
 
@@ -11,15 +12,89 @@ class ControllerValidatorFactory(MetaFactory):
     """Controller validator factory."""
 
 
-class ControllerValidator(PyroxObject, metaclass=FactoryTypeMeta[Self, ControllerValidatorFactory]):
+class ControllerValidator(
+        PyroxObject,
+        metaclass=FactoryTypeMeta['ControllerValidator', ControllerValidatorFactory]):
     """Abstract base class for controller validation strategies."""
 
-    supporting_class = 'Controller'
+    supporting_class = Controller
     supports_registering = False  # This class can't be used to match anything
 
     def __init_subclass__(cls, **kwargs):
         super().__init_subclass__(**kwargs)
         cls.supports_registering = True  # Subclasses can be used to match
+
+    @classmethod
+    def _check_comms_path(
+        cls,
+        controller: Controller
+    ) -> bool:
+        """Check if the controller has a valid comms path.
+
+        Args:
+            controller: The controller to check.
+        Returns:
+            True if the controller has a valid comms path, False otherwise.
+        """
+        message = 'Comms path...'
+        if controller.comm_path != '':
+            message += f' ok... -> {str(controller.comm_path)}'
+        else:
+            message += ' error!'
+        if 'error' in message:
+            log(cls).error(message)
+            return False
+        else:
+            log(cls).info(message)
+            return True
+
+    @classmethod
+    def _check_internal_plc_module(
+        cls,
+        controller: Controller
+    ) -> bool:
+        """Check if the controller has a valid internal PLC module.
+
+        Args:
+            controller: The controller to check.
+        Returns:
+            True if the controller has a valid internal PLC module, False otherwise.
+        """
+        message = 'Internal PLC module...'
+        if controller.plc_module is not None:
+            message += f' ok... -> {str(controller.plc_module["@Name"])}'
+        else:
+            message += ' error!'
+        if 'error' in message:
+            log(cls).error(message)
+            return False
+        else:
+            log(cls).info(message)
+            return True
+
+    @classmethod
+    def _check_slot(
+        cls,
+        controller: Controller
+    ) -> bool:
+        """Check if the controller has a valid slot.
+
+        Args:
+            controller: The controller to check.
+        Returns:
+            True if the controller has a valid slot, False otherwise.
+        """
+        message = 'Slot...'
+        if controller.slot is not None:
+            message += f' ok... -> {str(controller.slot)}'
+        else:
+            message += ' error!'
+        if 'error' in message:
+            log(cls).error(message)
+            return False
+        else:
+            log(cls).info(message)
+            return True
 
     @classmethod
     def get_factory(cls):
@@ -29,65 +104,70 @@ class ControllerValidator(PyroxObject, metaclass=FactoryTypeMeta[Self, Controlle
     def validate_all(
         cls,
         controller: Controller
-    ) -> Self:
-        cls.logger.info('Starting report...')
+    ) -> None:
+        log(cls).info('Starting report...')
         cls.validate_properties(controller)
         cls.validate_modules(controller)
         cls.validate_datatypes(controller)
         cls.validate_aois(controller)
         cls.validate_tags(controller)
         cls.validate_programs(controller)
-        return cls
 
     @classmethod
     def validate_properties(
         cls,
         controller: Controller
-    ) -> Self:
-        cls.logger.info('Validating controller properties...')
+    ) -> None:
+        log(cls).info('Validating controller properties...')
+
+        cls._check_comms_path(controller)
+        cls._check_slot(controller)
+        cls._check_internal_plc_module(controller)
 
     @classmethod
     def validate_datatypes(
         cls,
         controller: Controller
-    ) -> Self:
-        cls.logger.info('Validating datatypes...')
+    ) -> None:
+        log(cls).info('Validating datatypes...')
 
     @classmethod
     def validate_aois(
         cls,
         controller: Controller
-    ) -> Self:
-        cls.logger.info('Validating add on instructions...')
+    ) -> None:
+        log(cls).info('Validating add on instructions...')
 
     @classmethod
     def validate_modules(
         cls,
         controller: Controller
-    ) -> Self:
-        cls.logger.info('Validating modules...')
+    ) -> None:
+        log(cls).info('Validating modules...')
 
     @classmethod
     def validate_tags(
         cls,
         controller: Controller
-    ) -> Self:
-        cls.logger.info('Validating tags...')
+    ) -> None:
+        log(cls).info('Validating tags...')
 
     @classmethod
     def validate_programs(
         cls,
         controller: Controller
-    ) -> Self:
-        cls.logger.info('Validating programs...')
+    ) -> None:
+        log(cls).info('Validating programs...')
 
 
 class ControllerReportItem:
-    def __init__(self,
-                 plc_object: PlcObject,
-                 test_description: str,
-                 pass_fail: bool = True,
-                 test_notes: list[str] = None):
+    def __init__(
+        self,
+        plc_object: PlcObject,
+        test_description: str,
+        pass_fail: bool = True,
+        test_notes: Optional[list[str]] = None
+    ):
         if plc_object is None or test_description is None:
             raise ValueError('Cannot leave any fields empty/None!')
         self._plc_object: PlcObject = plc_object
@@ -166,6 +246,12 @@ class ControllerReport(PyroxObject):
     Get detailed information about a controller, showing problem areas, etc.
     """
 
+    def __init__(self, controller: Controller):
+        if not isinstance(controller, Controller):
+            raise ValueError('Controller must be a Controller instance!')
+        self._controller: Controller = controller
+        self._report_items: list[ControllerReportItem] = []
+
     @property
     def report_items(self) -> list[ControllerReportItem]:
         return self._report_items
@@ -174,30 +260,33 @@ class ControllerReport(PyroxObject):
     def categorized_items(self) -> dict[list[ControllerReportItem]]:
         return self._as_categorized()
 
+    @property
+    def controller(self) -> Controller:
+        return self._controller
+
     def _check_controller(self):
         self.log().info('Checking controller...')
 
         # comm path
         self.log().info('Comms path...')
-        good = True if self._controller.comm_path != '' else False
+        good = True if self.controller.comm_path != '' else False
         if good:
-            self.log().info('ok... -> %s' % str(self._controller.comm_path))
+            self.log().info('ok... -> %s' % str(self.controller.comm_path))
         else:
             self.log().error('error!')
 
         # slot
         self.log().info('Slot...')
-        good = True if self._controller.slot is not None else False
+        good = True if self.controller.slot is not None else False
         if good:
-            self.log().info('ok... -> %s' % str(self._controller.slot))
+            self.log().info('ok... -> %s' % str(self.controller.slot))
         else:
             self.log().error('error!')
 
         # plc module
         self.log().info('PLC Module...')
-        good = True if self._controller.plc_module else False
-        if good:
-            self.log().info('ok... -> %s' % str(self._controller.plc_module['@Name']))
+        if self.controller.plc_module is not None:
+            self.log().info('ok... -> %s' % str(self.controller.plc_module['@Name']))
         else:
             self.log().error('error!')
 
@@ -206,12 +295,16 @@ class ControllerReport(PyroxObject):
         cls,
         plc_objects: list[PlcObject]
     ) -> list[ControllerReportItem]:
-        cls.logger.info(f'Checking {plc_objects.__class__.__name__} objects...')
+        log(cls).info(f'Checking {plc_objects.__class__.__name__} objects...')
 
         if not isinstance(plc_objects, list) and not isinstance(plc_objects, HashList):
             raise ValueError
 
-        items = [plc_object.validate() for plc_object in plc_objects]
+        items = plc_objects if isinstance(plc_objects, list) else list(plc_objects)
+
+        for obj in items:
+            if not isinstance(obj, PlcObject):
+                raise ValueError('All items must be PlcObject instances!')
 
         return items
 

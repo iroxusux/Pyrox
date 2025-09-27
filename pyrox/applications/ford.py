@@ -244,11 +244,11 @@ class FordEmulationGenerator(BaseEmulationGenerator):
 class FordControllerValidator(BaseControllerValidator):
     """Validator for Ford controllers.
     """
-    supporting_class = 'FordController'
+    supporting_class = FordController
 
 
 class FordEplanProject(BaseEplanProject):
-    supporting_class = 'FordController'
+    supporting_class = FordController
 
     class IpAddressSheet(SupportsMetaData):
         def __init__(self, sheet: dict):

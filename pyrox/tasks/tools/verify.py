@@ -3,12 +3,13 @@
 from __future__ import annotations
 
 from tkinter import Menu, Scrollbar, VERTICAL, Y, RIGHT
-from typing import Optional, Union
+from typing import Optional
 
 from pyrox.applications.app import App, AppTask
 from pyrox.models.gui import TaskFrame
 from pyrox.models.gui.treeview import LazyLoadingTreeView
 from pyrox.models.plc import Controller, ControllerValidator, ControllerValidatorFactory
+from pyrox.services.logging import log
 
 
 class ControllerVerifyFrame(TaskFrame):
@@ -21,7 +22,7 @@ class ControllerVerifyFrame(TaskFrame):
                          name='Controller Verification',)
 
         self._tree = LazyLoadingTreeView(master=self.content_frame,
-                                         columns=('Value',))
+                                         columns=['Value',])
         self._tree.heading('#0', text='Name')
         self._tree.heading('Value', text='Value')
 
@@ -47,22 +48,23 @@ class ControllerVerifyTask(AppTask):
         super().__init__(application=application)
         self._frame: Optional[ControllerVerifyFrame] = None
 
-    def _precheck(self) -> Union[Controller, None]:
-        controller = self.application.controller
-
-        if not controller:
-            self.logger.error('No controller set in the application.')
+    def _precheck(self) -> Optional[Controller]:
+        if not self.application:
+            log(self).error('No application set for this task.')
+            return None
+        if not self.application.controller:
+            log(self).error('No controller set in the application.')
             return None
 
-        return controller
+        return self.application.controller
 
     def _get_validator(
         self,
         controller: Controller
-    ) -> ControllerValidator:
-        validator: ControllerValidator = ControllerValidatorFactory.get_registered_type_by_supporting_class(controller.__class__.__name__)
+    ) -> Optional[ControllerValidator]:
+        validator = ControllerValidatorFactory.get_registered_type_by_supporting_class(controller)
         if not isinstance(validator, type(ControllerValidator)):
-            self.logger.error(f'No validator found for controller type {controller.__class__.__name__}.')
+            log(self).error(f'No validator found for controller type {controller.__class__.__name__}.')
             return None
         return validator()
 
@@ -76,7 +78,7 @@ class ControllerVerifyTask(AppTask):
         validator = self._get_validator(controller)
         if not validator:
             return
-        self.logger.info(f'Running {verify_type} verification using {validator.__class__.__name__}...')
+        log(self).info(f'Running {verify_type} verification using {validator.__class__.__name__}...')
 
         match verify_type:
             case 'full':
@@ -94,7 +96,7 @@ class ControllerVerifyTask(AppTask):
             case 'programs':
                 validator.validate_programs(controller)
             case _:
-                self.logger.error(f'Unknown verification type: {verify_type}')
+                log(self).error(f'Unknown verification type: {verify_type}')
 
     def inject(self) -> None:
         drop_down = Menu(self.application.menu.tools, tearoff=0)

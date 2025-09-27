@@ -4,20 +4,11 @@ for Indicon PLCs.
 """
 from pyrox.models import eplan, plc
 from pyrox.services.logging import log
-from typing import Self
 
 
 class BaseControllerValidator(plc.ControllerValidator):
     """Validator for controllers."""
     supporting_class = plc.Controller
-
-    @classmethod
-    def validate_all(
-        cls,
-        controller: plc.Controller
-    ) -> Self:
-        log(cls).info('Starting Indicon controller validation...')
-        return super().validate_all(controller)
 
 
 class BaseEplanProject(eplan.project.EplanProject):

@@ -663,4 +663,4 @@ class GmEmulationGenerator(BaseEmulationGenerator):
 
 class GmControllerValidator(plc.ControllerValidator):
     """Validator for GM controllers."""
-    supporting_class = 'GmController'
+    supporting_class = GmController

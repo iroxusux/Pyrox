@@ -10,6 +10,7 @@ from typing import Optional, TYPE_CHECKING
 import os
 from pyrox.services.env import get_env
 from pyrox.services.file import get_open_file
+from pyrox.services.logging import log
 from pyrox.models.eplan import project as proj
 
 if TYPE_CHECKING:
@@ -93,7 +94,8 @@ def import_eplan(
     """
     file_location = _get_epj_file()
     if not file_location or not os.path.isfile(file_location):
-        raise FileNotFoundError('No valid EPlan project file selected!')
+        log(__name__).error('No valid EPlan project file selected!')
+        return
 
     project: proj.EplanProject = _get_project(controller, file_location)
     validator: proj.EplanControllerValidator = _get_validator(controller, project)
