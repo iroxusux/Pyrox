@@ -5,18 +5,45 @@ import logging
 import sys
 import io
 from typing import Optional, TextIO
-import os
+
+from pyrox.services.env import EnvManager
 
 from .decorate import deprecated
 
-DEF_FORMATTER = os.getenv('PYROX_LOG_FORMAT', default='%(asctime)s | %(name)s | %(levelname)s | %(message)s')
-DEF_DATE_FMT = os.getenv('PYROX_LOG_DATE_FORMAT', default='%Y-%m-%d %H:%M:%S')
+###
+# Custom Logging Configuration
+###
 
+LOGGING_LEVEL_SUCCESS_TUPLE = EnvManager.get(
+    'LOGGING_LEVEL_SUCCESS_TUPLE',
+    default=(100, 'SUCCESS'),
+    cast_type=tuple
+)
+LOGGING_LEVEL_FAILURE_TUPLE = EnvManager.get(
+    'LOGGING_LEVEL_FAILURE_TUPLE',
+    default=(101, 'FAILURE'),
+    cast_type=tuple
+)
+LOGGING_LEVEL_NOTICE_TUPLE = EnvManager.get(
+    'LOGGING_LEVEL_NOTICE_TUPLE',
+    default=(102, 'NOTICE'),
+    cast_type=tuple
+)
+if not (isinstance(LOGGING_LEVEL_SUCCESS_TUPLE, tuple)):
+    raise RuntimeError("Environment variable LOGGING_LEVEL_SUCCESS_TUPLE must be a tuple.")
+if not (isinstance(LOGGING_LEVEL_FAILURE_TUPLE, tuple)):
+    raise RuntimeError("Environment variable LOGGING_LEVEL_FAILURE_TUPLE must be a tuple.")
+if not (isinstance(LOGGING_LEVEL_NOTICE_TUPLE, tuple)):
+    raise RuntimeError("Environment variable LOGGING_LEVEL_NOTICE_TUPLE must be a tuple.")
 
-LOGGING_LEVEL_SUCCESS_TUPLE = (15, 'SUCCESS')
-LOGGING_LEVEL_FAILURE_TUPLE = (5, 'FAILURE')
 LOG_LEVEL_SUCCESS = LOGGING_LEVEL_SUCCESS_TUPLE[0]
 LOG_LEVEL_FAILURE = LOGGING_LEVEL_FAILURE_TUPLE[0]
+LOG_LEVEL_NOTICE = LOGGING_LEVEL_NOTICE_TUPLE[0]
+CUSTOM_LOGGING_LEVELS = [
+    LOGGING_LEVEL_SUCCESS_TUPLE,
+    LOGGING_LEVEL_FAILURE_TUPLE,
+    LOGGING_LEVEL_NOTICE_TUPLE,
+]
 
 
 __all__ = (
@@ -26,6 +53,7 @@ __all__ = (
     'StreamCapture',
     'LOG_LEVEL_SUCCESS',
     'LOG_LEVEL_FAILURE',
+    'LOG_LEVEL_NOTICE',
 )
 
 
@@ -225,8 +253,14 @@ class LoggingManager:
         # Example: Add a custom logging level if required
         from logging import addLevelName
         # addLevelName(25, 'NOTICE')  # Example of adding a NOTICE level
-        addLevelName(LOGGING_LEVEL_SUCCESS_TUPLE[0], LOGGING_LEVEL_SUCCESS_TUPLE[1])  # Example of adding a SUCCESS level
-        addLevelName(LOGGING_LEVEL_FAILURE_TUPLE[0], LOGGING_LEVEL_FAILURE_TUPLE[1])  # Example of adding a FAILURE level
+        for level, name in CUSTOM_LOGGING_LEVELS:
+            level = int(level)
+            if not isinstance(level, int) or not isinstance(name, str):
+                raise ValueError("Custom logging levels must be tuples of (int, str).")
+            if not hasattr(logging, name):
+                addLevelName(level, name)
+            else:
+                log(cls).warning(f"Logging level {name} already exists.")
 
     @classmethod
     def register_callback_to_captured_streams(
@@ -248,6 +282,27 @@ class LoggingManager:
         """Create a logger that outputs to the captured stderr."""
         cls._curr_loggers[name] = cls._setup_standard_logger(name=name)
         return cls._curr_loggers[name]
+
+    @staticmethod
+    def _get_default_formatter() -> logging.Formatter:
+        """Get the default logging formatter."""
+        default_formatter = EnvManager.get(
+            'PYROX_LOG_FORMAT',
+            default='%(asctime)s | %(name)s | %(levelname)s | %(message)s',
+            cast_type=str
+        )
+        default_datefmt = EnvManager.get(
+            'PYROX_LOG_DATE_FORMAT',
+            default='%Y-%m-%d %H:%M:%S',
+            cast_type=str
+        )
+
+        if not isinstance(default_formatter, str):
+            raise RuntimeError("Environment variable PYROX_LOG_FORMAT must be a string.")
+        if not isinstance(default_datefmt, str):
+            raise RuntimeError("Environment variable PYROX_LOG_DATE_FORMAT must be a string.")
+
+        return logging.Formatter(fmt=default_formatter, datefmt=default_datefmt)
 
     @classmethod
     def _get_or_create_logger(cls, name: str = __name__) -> logging.Logger:
@@ -276,7 +331,7 @@ class LoggingManager:
             stream = cls._captured_stderr if cls._captured_stderr else sys.stderr
 
         handler = logging.StreamHandler(stream)
-        formatter = logging.Formatter(fmt=DEF_FORMATTER, datefmt=DEF_DATE_FMT)
+        formatter = cls._get_default_formatter()
         handler.setFormatter(formatter)
         handler.setLevel(cls.curr_logging_level)
         return handler

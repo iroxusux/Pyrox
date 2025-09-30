@@ -147,3 +147,45 @@ class Datatype(DataTypeMeta):
                 controller=self.controller,
                 parent_datatype=self,
             ))
+
+
+BOOL = Datatype(meta_data={'@Name': 'BOOL'})
+BIT = Datatype(meta_data={'@Name': 'BIT'})
+SINT = Datatype(meta_data={'@Name': 'SINT'})
+INT = Datatype(meta_data={'@Name': 'INT'})
+DINT = Datatype(meta_data={'@Name': 'DINT'})
+LINT = Datatype(meta_data={'@Name': 'LINT'})
+USINT = Datatype(meta_data={'@Name': 'USINT'})
+UINT = Datatype(meta_data={'@Name': 'UINT'})
+UDINT = Datatype(meta_data={'@Name': 'UDINT'})
+ULINT = Datatype(meta_data={'@Name': 'ULINT'})
+REAL = Datatype(meta_data={'@Name': 'REAL'})
+LREAL = Datatype(meta_data={'@Name': 'LREAL'})
+STRING = Datatype(meta_data={'@Name': 'STRING'})
+TIMER = Datatype(meta_data={
+    '@Name': 'TIMER',
+    'Members': {
+        'Member': [
+            {'@Name': 'PRE', '@DataType': 'DINT', '@Dimension': '1', '@Hidden': 'false'},
+            {'@Name': 'ACC', '@DataType': 'DINT', '@Dimension': '1', '@Hidden': 'false'},
+            {'@Name': 'EN', '@DataType': 'BOOL', '@Dimension': '1', '@Hidden': 'false'},
+            {'@Name': 'TT', '@DataType': 'BOOL', '@Dimension': '1', '@Hidden': 'false'},
+            {'@Name': 'DN', '@DataType': 'BOOL', '@Dimension': '1', '@Hidden': 'false'},
+        ]}})
+
+BUILTINS = [
+    BOOL,
+    BIT,
+    SINT,
+    INT,
+    DINT,
+    LINT,
+    USINT,
+    UINT,
+    UDINT,
+    ULINT,
+    REAL,
+    LREAL,
+    STRING,
+    TIMER,
+]

@@ -342,6 +342,7 @@ class Controller(
                 target_meta_list=self.raw_datatypes,
                 item_class=self.config.datatype_type,
             )
+            self._compile_atomic_datatypes()
         return self._datatypes
 
     @property
@@ -615,27 +616,9 @@ class Controller(
 
     def _compile_atomic_datatypes(self) -> None:
         """Compile atomic datatypes from the controller's datatypes."""
-        self._datatypes.append(Datatype(meta_data={'@Name': 'BOOL'}, controller=self))
-        self._datatypes.append(Datatype(meta_data={'@Name': 'BIT'}, controller=self))
-        self._datatypes.append(Datatype(meta_data={'@Name': 'SINT'}, controller=self))
-        self._datatypes.append(Datatype(meta_data={'@Name': 'INT'}, controller=self))
-        self._datatypes.append(Datatype(meta_data={'@Name': 'DINT'}, controller=self))
-        self._datatypes.append(Datatype(meta_data={'@Name': 'LINT'}, controller=self))
-        self._datatypes.append(Datatype(meta_data={'@Name': 'USINT'}, controller=self))
-        self._datatypes.append(Datatype(meta_data={'@Name': 'UINT'}, controller=self))
-        self._datatypes.append(Datatype(meta_data={'@Name': 'UDINT'}, controller=self))
-        self._datatypes.append(Datatype(meta_data={'@Name': 'ULINT'}, controller=self))
-        self._datatypes.append(Datatype(meta_data={'@Name': 'REAL'}, controller=self))
-        self._datatypes.append(Datatype(meta_data={'@Name': 'LREAL'}, controller=self))
-        self._datatypes.append(Datatype(meta_data={'@Name': 'STRING'}, controller=self))
-        self._datatypes.append(Datatype(meta_data={'@Name': 'TIMER',
-                                                   'Members': {'Member': [
-                                                       {'@Name': 'PRE'},
-                                                       {'@Name': 'ACC'},
-                                                       {'@Name': 'EN'},
-                                                       {'@Name': 'TT'},
-                                                       {'@Name': 'DN'}
-                                                   ]}}, controller=self))
+        from .datatype import BUILTINS
+        for dt in BUILTINS:
+            self._datatypes.append(dt)
 
     def _compile_common_hashlist_from_meta_data(
         self,

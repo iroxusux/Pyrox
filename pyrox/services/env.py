@@ -12,8 +12,6 @@ from typing import Any, Dict, Optional, Union
 
 from dotenv import load_dotenv, set_key
 
-from .logging import log
-
 
 LOG_LEVEL = 'PYROX_LOG_LEVEL'
 
@@ -62,21 +60,21 @@ class EnvManager:
             cls._env_file = cls._find_env_file()
 
         if not cls._env_file:
-            log(cls).warning("No .env file found")
+            print("No .env file found")
             return False
 
         # Check if file exists and is readable
         if not cls._is_file_readable(cls._env_file):
-            log(cls).warning(f"File is not readable: {cls._env_file}")
+            print(f"File is not readable: {cls._env_file}")
             return False
 
         try:
             cls._load_from_file(cls._env_file)
-            log(cls).info(f"Loaded environment variables from: {cls._env_file}")
+            print(f"Loaded environment variables from: {cls._env_file}")
             cls._loaded = True
             return True
         except Exception as e:
-            log(cls).error(f"Failed to load .env file {cls._env_file}: {e}")
+            print(f"Failed to load .env file {cls._env_file}: {e}")
             return False
 
     @classmethod
@@ -92,17 +90,17 @@ class EnvManager:
         try:
             # Check if file exists
             if not os.path.exists(file_path):
-                log(cls).debug(f"File does not exist: {file_path}")
+                print(f"File does not exist: {file_path}")
                 return False
 
             # Check if it's actually a file (not a directory)
             if not os.path.isfile(file_path):
-                log(cls).debug(f"Path is not a file: {file_path}")
+                print(f"Path is not a file: {file_path}")
                 return False
 
             # Check read permissions using os.access
             if not os.access(file_path, os.R_OK):
-                log(cls).debug(f"File is not readable (permissions): {file_path}")
+                print(f"File is not readable (permissions): {file_path}")
                 return False
 
             # Try to actually open and read a small portion to verify readability
@@ -111,11 +109,11 @@ class EnvManager:
                     f.read(1)  # Try to read just one character
                 return True
             except (IOError, OSError, PermissionError, UnicodeDecodeError) as e:
-                log(cls).debug(f"File cannot be read: {file_path}, error: {e}")
+                print(f"File cannot be read: {file_path}, error: {e}")
                 return False
 
         except Exception as e:
-            log(cls).debug(f"Error checking file readability for {file_path}: {e}")
+            print(f"Error checking file readability for {file_path}: {e}")
             return False
 
     @classmethod
@@ -130,7 +128,7 @@ class EnvManager:
         for search_path in search_paths:
             env_path = os.path.join(search_path, '.env')
             if cls._is_file_readable(env_path):
-                log(cls).debug(f"Found readable .env file at: {env_path}")
+                print(f"Found readable .env file at: {env_path}")
                 return env_path
 
         return None
@@ -149,7 +147,7 @@ class EnvManager:
 
                     # Parse key=value pairs
                     if '=' not in line:
-                        log(cls).warning(f"Invalid line {line_num} in {file_path}: {line}")
+                        print(f"Invalid line {line_num} in {file_path}: {line}")
                         continue
 
                     key, value = cls._parse_line(line, line_num, file_path)
@@ -159,13 +157,13 @@ class EnvManager:
                         if key not in os.environ:
                             os.environ[key] = value
         except (IOError, OSError, PermissionError) as e:
-            log(cls).error(f"IO error reading file {file_path}: {e}")
+            print(f"IO error reading file {file_path}: {e}")
             raise
         except UnicodeDecodeError as e:
-            log(cls).error(f"Encoding error reading file {file_path}: {e}")
+            print(f"Encoding error reading file {file_path}: {e}")
             raise
         except Exception as e:
-            log(cls).error(f"Unexpected error reading file {file_path}: {e}")
+            print(f"Unexpected error reading file {file_path}: {e}")
             raise
 
     @classmethod
@@ -180,7 +178,7 @@ class EnvManager:
             # Handle different quote styles and escaping
             match = re.match(r'^([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(.*)$', line)
             if not match:
-                log(cls).warning(f"Invalid format at line {line_num} in {file_path}")
+                print(f"Invalid format at line {line_num} in {file_path}")
                 return "", ""
 
             key, value = match.groups()
@@ -191,7 +189,7 @@ class EnvManager:
             return key, value
 
         except Exception as e:
-            log(cls).error(f"Error parsing line {line_num} in {file_path}: {e}")
+            print(f"Error parsing line {line_num} in {file_path}: {e}")
             return "", ""
 
     @classmethod
@@ -345,9 +343,9 @@ ENCRYPTION_ALGORITHM=AES256
         try:
             with open(file_path, 'w', encoding='utf-8') as f:
                 f.write(template_content)
-            log(cls).info(f"Created .env template at: {file_path}")
+            print(f"Created .env template at: {file_path}")
         except (IOError, OSError, PermissionError) as e:
-            log(cls).error(f"Failed to create template file {file_path}: {e}")
+            print(f"Failed to create template file {file_path}: {e}")
             raise
 
     @classmethod
@@ -428,3 +426,19 @@ def get_data_dir() -> str:
 def get_database_url() -> str:
     """Get database URL."""
     return EnvManager.get('DATABASE_URL', 'sqlite:///pyrox.db', str)
+
+
+def get_default_date_format() -> str:
+    """Get default log date format string."""
+    date_format = EnvManager.get('PYROX_LOG_DATE_FORMAT', '%Y-%m-%d %H:%M:%S', str)
+    if not isinstance(date_format, str) or not date_format.strip():
+        raise ValueError("Invalid log date format string from .env file!")
+    return date_format
+
+
+def get_default_formatter() -> str:
+    """Get default log formatter string."""
+    formatter = EnvManager.get('PYROX_LOG_FORMATTER', '%(asctime)s | %(name)s | %(levelname)s | %(message)s', str)
+    if not isinstance(formatter, str) or not formatter.strip():
+        raise ValueError("Invalid log formatter string from .env file!")
+    return formatter

@@ -7,8 +7,6 @@ import unittest
 from unittest.mock import patch
 
 from pyrox.services.logging import (
-    DEF_FORMATTER,
-    DEF_DATE_FMT,
     LoggingManager,
     Loggable,
 )
@@ -19,21 +17,24 @@ class TestConstants(unittest.TestCase):
 
     def test_default_formatter(self):
         """Test default formatter string."""
+        from pyrox.services.env import get_default_formatter
         expected = '%(asctime)s | %(name)s | %(levelname)s | %(message)s'
-        self.assertEqual(DEF_FORMATTER, expected)
+        self.assertEqual(get_default_formatter(), expected)
 
     def test_default_date_format(self):
         """Test default date format string."""
+        from pyrox.services.env import get_default_date_format
         expected = "%Y-%m-%d %H:%M:%S"
-        self.assertEqual(DEF_DATE_FMT, expected)
+        self.assertEqual(get_default_date_format(), expected)
 
     def test_formatter_contains_required_fields(self):
         """Test that formatter contains all required logging fields."""
+        from pyrox.services.env import get_default_formatter
         required_fields = ['%(asctime)s', '%(name)s', '%(levelname)s', '%(message)s']
 
         for field in required_fields:
             with self.subTest(field=field):
-                self.assertIn(field, DEF_FORMATTER)
+                self.assertIn(field, get_default_formatter())
 
 
 class TestLoggingManager(unittest.TestCase):
@@ -136,11 +137,13 @@ class TestLoggingManager(unittest.TestCase):
         self.assertEqual(handler.stream, sys.stderr)
         self.assertEqual(handler.level, LoggingManager.curr_logging_level)
 
+        from pyrox.services.env import get_default_formatter, get_default_date_format
+
         # Test formatter
         formatter = handler.formatter
         self.assertIsInstance(formatter, logging.Formatter)
-        self.assertEqual(formatter._fmt, DEF_FORMATTER)
-        self.assertEqual(formatter.datefmt, DEF_DATE_FMT)
+        self.assertEqual(formatter._fmt, get_default_formatter())  # type: ignore
+        self.assertEqual(formatter.datefmt, get_default_date_format())  # type: ignore
 
     def test_get_standard_handler_custom_stream(self):
         """Test getting standard handler with custom stream."""
@@ -692,10 +695,12 @@ class TestIntegration(unittest.TestCase):
         formatted_handler = FormattedLoggable.log().handlers[0]
         manual_handler = manual_logger.handlers[0]
 
-        self.assertEqual(formatted_handler.formatter._fmt, DEF_FORMATTER)  # type: ignore
-        self.assertEqual(manual_handler.formatter._fmt, DEF_FORMATTER)  # type: ignore
-        self.assertEqual(formatted_handler.formatter.datefmt, DEF_DATE_FMT)  # type: ignore
-        self.assertEqual(manual_handler.formatter.datefmt, DEF_DATE_FMT)  # type: ignore
+        from pyrox.services.env import get_default_formatter, get_default_date_format
+
+        self.assertEqual(formatted_handler.formatter._fmt, get_default_formatter())  # type: ignore
+        self.assertEqual(manual_handler.formatter._fmt, get_default_formatter())  # type: ignore
+        self.assertEqual(formatted_handler.formatter.datefmt, get_default_date_format())  # type: ignore
+        self.assertEqual(manual_handler.formatter.datefmt, get_default_date_format())  # type: ignore
 
     def test_complex_inheritance_with_logging(self):
         """Test complex inheritance scenarios with logging."""
@@ -729,6 +734,21 @@ class TestIntegration(unittest.TestCase):
         # Should see initialization and specific operations
         self.assertIn("Web server starting", output)
         self.assertIn("Database connection established", output)
+
+
+class TestCustomLoggingLevels(unittest.TestCase):
+    """Test custom logging levels if any are defined."""
+
+    def test_custom_logging_levels_exist(self):
+        """Test that custom logging levels are defined."""
+        # Assuming custom levels are defined in LoggingManager
+        from pyrox.services import logging as pyrox_logging
+        pyrox_logging.LoggingManager.initialize_additional_logging_levels()
+
+        for level_value, level_name in pyrox_logging.CUSTOM_LOGGING_LEVELS:
+            level_value = int(level_value)
+            self.assertTrue(hasattr(logging, level_name))
+            self.assertEqual(getattr(logging, level_name), level_value)
 
 
 if __name__ == '__main__':

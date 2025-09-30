@@ -9,14 +9,12 @@ from pyrox.models.plc import meta as plc_meta
 from pyrox.services.plc import l5x_dict_from_file
 
 if TYPE_CHECKING:
-    from .controller import (
-        AddOnInstruction,
-        Controller,
-        ContainsRoutines,
-        LogixInstruction,
-        Program,
-        Rung
-    )
+    from .aoi import AddOnInstruction
+    from .collections import ContainsRoutines
+    from .controller import Controller
+    from .instruction import LogixInstruction
+    from .program import Program
+    from .rung import Rung
 
 
 class Routine(plc_meta.NamedPlcObject):

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import copy
+import importlib
 import os
 
 from typing import Any, Callable, Optional, Union
@@ -447,7 +448,7 @@ class App(models.Application):
         Raises:
             ValueError: If the controller fails to load from the file.
         """
-
+        importlib.reload(models.plc)
         ctrl = models.plc.Controller.from_file(file_location)
         if not ctrl:
             raise ValueError(f'Failed to load controller from file: {file_location}')

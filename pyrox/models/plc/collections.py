@@ -1,14 +1,14 @@
 """Collections of PLC objects.
 """
 from collections import defaultdict
-from typing import List, Optional, TYPE_CHECKING
+from typing import List, Optional, TYPE_CHECKING, Union
 from pyrox.models.abc.list import HashList
 from pyrox.models.plc import meta as plc_meta
 from pyrox.models.plc.instruction import LogixInstruction
+from pyrox.models.plc.routine import Routine
 
 if TYPE_CHECKING:
     from .controller import Controller
-    from .routine import Routine
     from .tag import Tag
 
 
@@ -209,7 +209,7 @@ class ContainsRoutines(ContainsTags):
         return self._output_instructions
 
     @property
-    def routines(self) -> HashList['Routine']:
+    def routines(self) -> HashList[Routine]:
         if not self._routines:
             self._compile_routines()
         if self._routines is None:
@@ -217,7 +217,7 @@ class ContainsRoutines(ContainsTags):
         return self._routines
 
     @routines.setter
-    def routines(self, value: HashList['Routine']) -> None:
+    def routines(self, value: HashList[Routine]) -> None:
         if not isinstance(value, HashList):
             raise TypeError("routines must be a HashList")
         for routine in value:
@@ -292,13 +292,12 @@ class ContainsRoutines(ContainsTags):
         Raises:
             TypeError: if the routine is not a Routine object
         """
-        from pyrox.models.plc import Routine  # avoid circular import
         if not isinstance(routine, Routine):
             raise TypeError("routine must be a Routine object")
 
     def add_routine(
         self,
-        routine: 'Routine',
+        routine: Routine,
         index: Optional[int] = None,
         _inhibit_invalidate: bool = False
     ) -> None:
@@ -318,7 +317,7 @@ class ContainsRoutines(ContainsTags):
 
     def add_routines(
         self,
-        routines: List['Routine']
+        routines: List[Routine]
     ) -> None:
         """add multiple routines to this container
 
@@ -329,9 +328,30 @@ class ContainsRoutines(ContainsTags):
             self.add_routine(routine, True)
         self._invalidate()
 
+    def check_routine_has_jsr(
+        self,
+        r: Union[str, Routine],
+    ) -> bool:
+        """Check if a routine contains a JSR to a specific routine.
+
+        Args:
+            r (str): The name of the routine to check for.
+        Returns:
+            bool: True if the routine contains a JSR to the specified routine, False otherwise.
+        """
+        if isinstance(r, Routine):
+            r = r.name
+
+        for routine in self.routines:
+            if routine.name == r:
+                continue  # Routines that call themselves are not considered
+            if routine.check_for_jsr(r):
+                return True
+        return False
+
     def remove_routine(
         self,
-        routine: 'Routine'
+        routine: Routine
     ) -> None:
         """remove a routine from this container
 
@@ -347,7 +367,7 @@ class ContainsRoutines(ContainsTags):
 
     def remove_routines(
         self,
-        routines: List['Routine']
+        routines: List[Routine]
     ) -> None:
         """remove multiple routines from this container
 
