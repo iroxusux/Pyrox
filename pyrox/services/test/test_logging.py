@@ -744,11 +744,13 @@ class TestCustomLoggingLevels(unittest.TestCase):
         # Assuming custom levels are defined in LoggingManager
         from pyrox.services import logging as pyrox_logging
         pyrox_logging.LoggingManager.initialize_additional_logging_levels()
+        from logging import getLevelNamesMapping
+        logging_levels = getLevelNamesMapping()
 
         for level_value, level_name in pyrox_logging.CUSTOM_LOGGING_LEVELS:
             level_value = int(level_value)
-            self.assertTrue(hasattr(logging, level_name))
-            self.assertEqual(getattr(logging, level_name), level_value)
+            self.assertTrue(level_name in logging_levels)
+            self.assertEqual(logging_levels.get(level_name), level_value)
 
 
 if __name__ == '__main__':

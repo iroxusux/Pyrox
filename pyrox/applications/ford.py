@@ -10,20 +10,21 @@ from pyrox.models import HashList, plc, SupportsMetaData
 from pyrox.models import eplan
 from pyrox.services.logging import log
 from .generator import BaseEmulationGenerator
-from .indicon import BaseControllerValidator, BaseEplanProject
+from .indicon import BaseEplanProject
+from .validator import BaseControllerValidator
 
 try:
-    if 'pyrox.applications.indicon' not in sys.modules:
+    if 'pyrox.applications.validator' not in sys.modules:
         raise ImportError('Module not loaded yet')
     if not __package__:
         raise ImportError('This is not a reloadable package!')
     importlib.reload(sys.modules[__package__])
     log(__file__).info(f'{__package__} reloaded.')
-    importlib.reload(sys.modules['pyrox.applications.indicon'])
-    log(__file__).info('pyrox.applications.indicon reloaded.')
-        
+    importlib.reload(sys.modules['pyrox.applications.validator'])
+    log(__file__).info('pyrox.applications.validator reloaded.')
+
 except Exception as e:
-    log(__file__).error(f'Error reloading pyrox.applications.indicon: {e}')
+    log(__file__).error(f'Error reloading pyrox.applications.validator: {e}')
 
 
 FORD_CTRL = TypeVar('FORD_CTRL', bound='FordController')

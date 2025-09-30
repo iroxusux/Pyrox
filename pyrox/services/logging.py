@@ -36,9 +36,9 @@ if not (isinstance(LOGGING_LEVEL_FAILURE_TUPLE, tuple)):
 if not (isinstance(LOGGING_LEVEL_NOTICE_TUPLE, tuple)):
     raise RuntimeError("Environment variable LOGGING_LEVEL_NOTICE_TUPLE must be a tuple.")
 
-LOG_LEVEL_SUCCESS = LOGGING_LEVEL_SUCCESS_TUPLE[0]
-LOG_LEVEL_FAILURE = LOGGING_LEVEL_FAILURE_TUPLE[0]
-LOG_LEVEL_NOTICE = LOGGING_LEVEL_NOTICE_TUPLE[0]
+LOG_LEVEL_SUCCESS = int(LOGGING_LEVEL_SUCCESS_TUPLE[0])
+LOG_LEVEL_FAILURE = int(LOGGING_LEVEL_FAILURE_TUPLE[0])
+LOG_LEVEL_NOTICE = int(LOGGING_LEVEL_NOTICE_TUPLE[0])
 CUSTOM_LOGGING_LEVELS = [
     LOGGING_LEVEL_SUCCESS_TUPLE,
     LOGGING_LEVEL_FAILURE_TUPLE,
@@ -251,16 +251,16 @@ class LoggingManager:
     def initialize_additional_logging_levels(cls):
         """Initialize any additional logging levels if needed."""
         # Example: Add a custom logging level if required
-        from logging import addLevelName
-        # addLevelName(25, 'NOTICE')  # Example of adding a NOTICE level
+        from logging import addLevelName, getLevelNamesMapping
+        logging_levels = getLevelNamesMapping()
         for level, name in CUSTOM_LOGGING_LEVELS:
             level = int(level)
             if not isinstance(level, int) or not isinstance(name, str):
                 raise ValueError("Custom logging levels must be tuples of (int, str).")
-            if not hasattr(logging, name):
-                addLevelName(level, name)
-            else:
-                log(cls).warning(f"Logging level {name} already exists.")
+            if level in logging_levels:
+                log(cls).warning(f"Logging level {level} already exists.")
+                continue
+            addLevelName(level, name)
 
     @classmethod
     def register_callback_to_captured_streams(
