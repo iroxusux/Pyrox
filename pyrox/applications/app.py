@@ -777,20 +777,11 @@ class App(models.Application):
 
 class AppTask(models.ApplicationTask):
 
-    def __init__(self, application):
+    def __init__(
+        self,
+        application
+    ) -> None:
         super().__init__(application)
-
-    @property
-    def application(self) -> App:
-        """Application instance associated with this task.
-
-        .. ------------------------------------------------------------
-
-        Returns
-        -----------
-            application: :class:`App`
-        """
-        return super().application
 
     @property
     def controller(self) -> Optional[models.plc.Controller]:
@@ -802,7 +793,9 @@ class AppTask(models.ApplicationTask):
         -----------
             controller: Optional[:class:`Controller]
         """
-        return self.application.controller if self.application else None
+        return getattr(self.application, 'controller', None)
 
     def inject(self) -> None:
-        return None
+        """Inject this task into the application.
+        """
+        ...
