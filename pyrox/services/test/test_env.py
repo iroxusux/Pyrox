@@ -329,11 +329,13 @@ SINGLE_ITEM=single
         content = """
 TUPLE_VAR=item1,item2,item3
 TUPLE_WITH_SPACES=item1, item2 , item3
+TUPLE_WITH_PARENS=(item1,item2,item3)
 """
         env_file = self._create_test_env_file(content)
         EnvManager.load(env_file)
         self.assertEqual(EnvManager.get('TUPLE_VAR', cast_type=tuple), ('item1', 'item2', 'item3'))
         self.assertEqual(EnvManager.get('TUPLE_WITH_SPACES', cast_type=tuple), ('item1', 'item2', 'item3'))
+        self.assertEqual(EnvManager.get('TUPLE_WITH_PARENS', cast_type=tuple), ('item1', 'item2', 'item3'))
 
     def test_get_with_invalid_type_casting(self):
         """Test getting values with invalid type casting."""

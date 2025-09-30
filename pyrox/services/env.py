@@ -259,6 +259,7 @@ class EnvManager:
             return [item.strip() for item in value.split(',') if item.strip()]
 
         if cast_type == tuple:
+            value = value.replace('(', '').replace(')', '')  # Remove parentheses if present from tuple-like strings
             return tuple(item.strip() for item in value.split(',') if item.strip())
 
         try:
