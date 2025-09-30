@@ -116,6 +116,10 @@ class Module(plc_meta.NamedPlcObject):
         self._compile_from_meta_data()
 
     @property
+    def address(self) -> str:
+        return self.ports[0]['@Address'] if self.ports and len(self.ports) > 0 else ''
+
+    @property
     def dict_key_order(self) -> list[str]:
         return [
             '@Name',
@@ -370,6 +374,10 @@ class Module(plc_meta.NamedPlcObject):
             return [self['Ports']['Port']]
 
         return self['Ports']['Port']
+
+    @property
+    def rpi(self) -> str:
+        return self.connection.get('@RPI', '')
 
     @property
     def type_(self) -> str:

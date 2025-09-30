@@ -31,12 +31,16 @@ class PyroxDefaultTheme:
     button_hover: str = '#6e6e6e'
     button_active: str = '#2b2b2b'
     debug_text: str = '#00FFFF'
+    error_background: str = "#be3232"
     font_family: str = 'Consolas'
     font_size: int = 10
     foreground: str = '#aaaaaa'
     foreground_selected: str = '#FFFFFF'
     foreground_hover: str = "#DDDDDD"
     relief: str = 'solid'
+    stderr_text: str = '#FF4500'
+    stdout_text: str = '#00FF00'
+    warning_background: str = "#f7e822"
     widget_background: str = '#101010'
 
 

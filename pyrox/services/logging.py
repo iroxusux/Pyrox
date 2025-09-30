@@ -13,6 +13,22 @@ DEF_FORMATTER = os.getenv('PYROX_LOG_FORMAT', default='%(asctime)s | %(name)s | 
 DEF_DATE_FMT = os.getenv('PYROX_LOG_DATE_FORMAT', default='%Y-%m-%d %H:%M:%S')
 
 
+LOGGING_LEVEL_SUCCESS_TUPLE = (15, 'SUCCESS')
+LOGGING_LEVEL_FAILURE_TUPLE = (5, 'FAILURE')
+LOG_LEVEL_SUCCESS = LOGGING_LEVEL_SUCCESS_TUPLE[0]
+LOG_LEVEL_FAILURE = LOGGING_LEVEL_FAILURE_TUPLE[0]
+
+
+__all__ = (
+    'LoggingManager',
+    'Loggable',
+    'log',
+    'StreamCapture',
+    'LOG_LEVEL_SUCCESS',
+    'LOG_LEVEL_FAILURE',
+)
+
+
 class StreamCapture(io.StringIO):
     """A StringIO subclass that captures stream output and maintains readability."""
 
@@ -204,6 +220,15 @@ class LoggingManager:
             print()
 
     @classmethod
+    def initialize_additional_logging_levels(cls):
+        """Initialize any additional logging levels if needed."""
+        # Example: Add a custom logging level if required
+        from logging import addLevelName
+        # addLevelName(25, 'NOTICE')  # Example of adding a NOTICE level
+        addLevelName(LOGGING_LEVEL_SUCCESS_TUPLE[0], LOGGING_LEVEL_SUCCESS_TUPLE[1])  # Example of adding a SUCCESS level
+        addLevelName(LOGGING_LEVEL_FAILURE_TUPLE[0], LOGGING_LEVEL_FAILURE_TUPLE[1])  # Example of adding a FAILURE level
+
+    @classmethod
     def register_callback_to_captured_streams(
         cls,
         callback
@@ -382,4 +407,5 @@ def log(caller: Optional[object] = None) -> logging.Logger:
 
 
 # Auto-capture streams when module is imported
+LoggingManager.initialize_additional_logging_levels()
 LoggingManager.capture_system_streams()

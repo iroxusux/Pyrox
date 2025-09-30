@@ -755,7 +755,12 @@ class App(models.Application):
         if not isinstance(frame, models.TaskFrame):
             raise TypeError(f'Expected TaskFrame, got {type(frame)}')
 
-        self.menu.view.delete(frame.name)
+        # Safely remove from menu (menu might be destroyed during app shutdown)
+        try:
+            if hasattr(self, 'menu') and self.menu and hasattr(self.menu, 'view'):
+                self.menu.view.delete(frame.name)
+        except (tk.TclError, AttributeError) as e:
+            log(self).debug(f'Could not remove menu item for {frame.name}: {e}')
 
         if frame.name not in self._registered_frames:
             log(self).warning(f'Frame {frame.name} is not registered in this application.')
@@ -763,7 +768,10 @@ class App(models.Application):
 
         self._registered_frames.remove(frame)
         if len(self._registered_frames) != 0:
-            self._raise_frame(self._registered_frames[0])
+            try:
+                self._raise_frame(self._registered_frames[0])
+            except (tk.TclError, AttributeError) as e:
+                log(self).debug(f'Could not raise frame during unregistration: {e}')
 
 
 class AppTask(models.ApplicationTask):

@@ -3,12 +3,180 @@ This package contains the default controller, validator, and emulation generator
 for Indicon PLCs.
 """
 from pyrox.models import eplan, plc
-from pyrox.services.logging import log
+from pyrox.services.logging import log, LOG_LEVEL_FAILURE, LOG_LEVEL_SUCCESS
 
 
 class BaseControllerValidator(plc.ControllerValidator):
     """Validator for controllers."""
     supporting_class = plc.Controller
+
+    @classmethod
+    def _check_comms_path(
+        cls,
+        controller: plc.Controller
+    ) -> bool:
+        """Check if the controller has a valid comms path.
+
+        Args:
+            controller: The controller to check.
+        Returns:
+            True if the controller has a valid comms path, False otherwise.
+        """
+        message = 'Comms path...'
+        if controller.comm_path != '':
+            message += f' ok... -> {str(controller.comm_path)}'
+        else:
+            message += ' error!'
+        if 'error' in message:
+            log(cls).log(LOG_LEVEL_FAILURE, message)
+            return False
+        else:
+            log(cls).log(LOG_LEVEL_SUCCESS, message)
+            return True
+
+    @classmethod
+    def _check_internal_plc_module(
+        cls,
+        controller: plc.Controller
+    ) -> bool:
+        """Check if the controller has a valid internal PLC module.
+
+        Args:
+            controller: The controller to check.
+        Returns:
+            True if the controller has a valid internal PLC module, False otherwise.
+        """
+        message = 'Internal PLC module...'
+        if controller.plc_module is not None:
+            message += f' ok... -> {str(controller.plc_module["@Name"])}'
+        else:
+            message += ' error!'
+        if 'error' in message:
+            log(cls).log(LOG_LEVEL_FAILURE, message)
+            return False
+        else:
+            log(cls).log(LOG_LEVEL_SUCCESS, message)
+            return True
+
+    @classmethod
+    def _check_slot(
+        cls,
+        controller: plc.Controller
+    ) -> bool:
+        """Check if the controller has a valid slot.
+
+        Args:
+            controller: The controller to check.
+        Returns:
+            True if the controller has a valid slot, False otherwise.
+        """
+        message = 'Slot...'
+        if controller.slot is not None:
+            message += f' ok... -> {str(controller.slot)}'
+        else:
+            message += ' error!'
+        if 'error' in message:
+            log(cls).log(LOG_LEVEL_FAILURE, message)
+            return False
+        else:
+            log(cls).log(LOG_LEVEL_SUCCESS, message)
+            return True
+
+    @classmethod
+    def validate_all(
+        cls,
+        controller: plc.Controller
+    ) -> None:
+        log(cls).info('Starting report...')
+        cls.validate_properties(controller)
+        cls.validate_modules(controller)
+        cls.validate_datatypes(controller)
+        cls.validate_aois(controller)
+        cls.validate_tags(controller)
+        cls.validate_programs(controller)
+
+    @classmethod
+    def validate_properties(
+        cls,
+        controller: plc.Controller
+    ) -> None:
+        log(cls).info('Validating controller properties...')
+
+        cls._check_comms_path(controller)
+        cls._check_slot(controller)
+        cls._check_internal_plc_module(controller)
+
+    @classmethod
+    def validate_datatypes(
+        cls,
+        controller: plc.Controller
+    ) -> None:
+        log(cls).info('Validating datatypes...')
+
+    @classmethod
+    def validate_aois(
+        cls,
+        controller: plc.Controller
+    ) -> None:
+        log(cls).info('Validating add on instructions...')
+
+    @classmethod
+    def validate_module(
+        cls,
+        controller: plc.Controller,
+        module: plc.Module
+    ) -> None:
+        if not module.name or module.name == '':
+            log(cls).log(LOG_LEVEL_FAILURE, f'Module {module.name} has no name!')
+        else:
+            log(cls).info(f'Validating module {module.name}...')
+
+        if not module.catalog_number or module.catalog_number == '':
+            log(cls).log(LOG_LEVEL_FAILURE, f'Module {module.name} has no catalog number!')
+        else:
+            log(cls).log(LOG_LEVEL_SUCCESS, f'Module {module.name} catalog number: {module.catalog_number}')
+
+        if not module.address or module.address == '':
+            log(cls).log(LOG_LEVEL_FAILURE, f'Module {module.name} has no address!')
+        else:
+            log(cls).log(LOG_LEVEL_SUCCESS, f'Module {module.name} address: {module.address}')
+
+        if not module.rpi or module.rpi == '':
+            log(cls).log(LOG_LEVEL_FAILURE, f'Module {module.name} has no RPI!')
+        else:
+            log(cls).log(LOG_LEVEL_SUCCESS, f'Module {module.name} RPI: {module.rpi}')
+
+        if not module.ekey or module.ekey == '':
+            log(cls).log(LOG_LEVEL_FAILURE, f'Module {module.name} has no EKey!')
+        else:
+            state = module.ekey['@State']
+            if not state or state == '':
+                log(cls).log(LOG_LEVEL_FAILURE, f'Module {module.name} EKey has no state!')
+            else:
+                log(cls).log(LOG_LEVEL_SUCCESS, f'Module {module.name} EKey state: {state}')
+
+    @classmethod
+    def validate_modules(
+        cls,
+        controller: plc.Controller
+    ) -> None:
+        log(cls).info('Validating modules...')
+        for module in controller.modules:
+            cls.validate_module(controller, module)
+
+    @classmethod
+    def validate_tags(
+        cls,
+        controller: plc.Controller
+    ) -> None:
+        log(cls).info('Validating tags...')
+
+    @classmethod
+    def validate_programs(
+        cls,
+        controller: plc.Controller
+    ) -> None:
+        log(cls).info('Validating programs...')
 
 
 class BaseEplanProject(eplan.project.EplanProject):

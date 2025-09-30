@@ -560,7 +560,10 @@ class Controller(
         if meta_data is None:
             return None
 
-        ctrl = ControllerFactory.create_controller(meta_data)
+        ctrl = ControllerFactory.create_controller(
+            meta_data,
+            file_location=file_location
+        )
         if not ctrl:
             log(cls).warning('Could not determine controller type from file! Creating generic controller')
             ctrl = cls(

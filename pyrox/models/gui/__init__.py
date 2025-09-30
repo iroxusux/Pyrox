@@ -1,7 +1,6 @@
 from . import ladder, meta, plc
 from .frames import (
     FrameWithTreeViewAndScrollbar,
-    LogFrame,
     ObjectEditField,
     ObjectEditTaskFrame,
     OrganizerWindow,
@@ -10,6 +9,7 @@ from .frames import (
 )
 from .ladder import LadderEditorTaskFrame
 from .listbox import UserListbox
+from .logger import LogFrame
 from .menu import ContextMenu, MenuItem
 from .meta import PyroxFrame
 from .plc import PlcGuiObject

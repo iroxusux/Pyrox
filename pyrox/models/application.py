@@ -5,6 +5,7 @@ from dataclasses import dataclass
 import datetime
 from enum import Enum
 import gc
+from logging import getLevelNamesMapping, getLevelName
 import os
 from pathlib import Path
 import platformdirs
@@ -31,6 +32,12 @@ __all__ = (
     'ApplicationRuntimeInfo',
     'Application',
 )
+
+LOG_LEVEL = 'PYROX_LOG_LEVEL'
+UI_FULLSCREEN = 'UI_WINDOW_FULLSCREEN'
+UI_WINDOW_POSITION = 'UI_WINDOW_POSITION'
+UI_WINDOW_SIZE = 'UI_WINDOW_SIZE'
+UI_WINDOW_STATE = 'UI_WINDOW_STATE'
 
 
 class BaseMenu(Buildable):
@@ -624,12 +631,14 @@ class Application(Runnable):
         self.multi_stream = None
 
     @property
-    def tk_app(self) -> Union[Tk, Toplevel]:
+    def tk_app(self) -> Tk:
         """The tk application instance for this Application.
 
         Returns:
             Union[Tk, ThemedTk]: The tkinter application instance.
         """
+        if not isinstance(self._tk_app, Tk):
+            raise RuntimeError('Applications only support Tk class functionality.')
         return self._tk_app
 
     @property
@@ -723,17 +732,6 @@ class Application(Runnable):
             raise TypeError('MultiStream must be an instance of stream.MultiStream.')
         self._multi_stream = value
 
-    @property
-    def runtime_info(self) -> ApplicationRuntimeInfo:
-        """Runtime information for this Application.
-
-        This property provides access to the runtime information of the application.
-
-        Returns:
-            ApplicationRuntimeInfo: The runtime information instance.
-        """
-        return self._runtime_info
-
     def _build_app_icon(self) -> None:
         icon_path = Path(str(self.config.icon))
         if icon_path.exists():
@@ -745,6 +743,9 @@ class Application(Runnable):
     def _build_env(self) -> None:
         if not EnvManager.is_loaded():
             raise RuntimeError('Environment variables have not been loaded. Please call EnvManager.load() before building the application.')
+        logging_level = EnvManager.get(LOG_LEVEL, 'INFO')
+        if logging_level is not None and isinstance(logging_level, (str, int)):
+            self.set_logging_level(logging_level)
 
     def _build_frame(self) -> None:
         self._frame: Frame = Frame(master=self._tk_app, background='#2b2b2b')
@@ -764,11 +765,6 @@ class Application(Runnable):
             self.log().info(f'Logging to file: {self._directory_service.user_log_file}')
         except Exception as e:
             raise RuntimeError(f'Failed to set up MultiStream: {e}') from e
-
-    def _build_runtime_info(self) -> None:
-        self._runtime_info = ApplicationRuntimeInfo(self)
-        if self.runtime_info.get('logging_level') is not None:
-            self.set_logging_level(self.runtime_info.get('logging_level'))
 
     def _build_tk_app_instance(self) -> None:
         if self.config.type_ == ApplicationTkType.ROOT:
@@ -816,34 +812,116 @@ class Application(Runnable):
         if event.widget != self.tk_app:
             return
 
-        self._runtime_info.data.inhibit()
-        self._runtime_info.data['window_size'] = f'{root.winfo_width()}x{root.winfo_height()}'
-        self._runtime_info.data['window_position'] = (root.winfo_x(), root.winfo_y())
-        self._runtime_info.data['full_screen'] = bool(root.attributes('-fullscreen'))
-        self._runtime_info.data['window_state'] = root.state()
-        self._runtime_info.data.uninhibit()
+        self._set_geometry_env(
+            window_size=f'{root.winfo_width()}x{root.winfo_height()}',
+            window_position=(root.winfo_x(), root.winfo_y()),
+            window_state=root.state(),
+            fullscreen_bool=bool(root.attributes('-fullscreen'))
+        )
 
-    def _restore_geometry_from_runtime_info(self) -> None:
+    def _restore_fullscreen(self) -> None:
+        full_screen = EnvManager.get(UI_FULLSCREEN, 'False', bool)
+        if not isinstance(full_screen, bool):
+            raise ValueError('UI_WINDOW_FULLSCREEN must be a boolean value.')
+        if full_screen:
+            self.toggle_fullscreen(full_screen)
+
+    def _restore_window_position(self) -> None:
+        window_position = EnvManager.get(UI_WINDOW_POSITION, None, tuple)
+        if window_position is None:
+            return
+        if not isinstance(window_position, tuple) or len(window_position) != 2:
+            raise ValueError('UI_WINDOW_POSITION must be a tuple of (x, y) coordinates.')
         try:
-            self.toggle_fullscreen(self._runtime_info.get('full_screen', False))
-            self._tk_app.geometry(self._runtime_info.get('window_size', self.config.size_))
-            self._tk_app.state(self._runtime_info.get('window_state', 'normal'))
+            self.tk_app.geometry(f'+{window_position[0]}+{window_position[1]}')
         except TclError as e:
-            self.log().error(f'TclError: Could not set geometry or state for the application: {e}')
-            self._tk_app.geometry(self.config.size_)
-            self._tk_app.state('normal')
+            self.log().error(f'TclError: Could not set window position: {e}')
+
+    def _restore_window_size(self) -> None:
+        window_size = EnvManager.get(UI_WINDOW_SIZE, self.config.size_, str)
+        if not isinstance(window_size, str):
+            raise ValueError('UI_WINDOW_SIZE must be a string value.')
+        try:
+            self.tk_app.geometry(window_size)
+        except TclError as e:
+            self.log().error(f'TclError: Could not set window size: {e}')
+            self.tk_app.geometry(self.config.size_)
+
+    def _restore_window_state(self) -> None:
+        window_state = EnvManager.get(UI_WINDOW_STATE, 'normal', str)
+        if not isinstance(window_state, str):
+            raise ValueError('UI_WINDOW_STATE must be a string value.')
+        try:
+            self.tk_app.state(window_state)
+        except TclError as e:
+            self.log().error(f'TclError: Could not set window state: {e}')
+            self.tk_app.state('normal')
+
+    def _restore_geometry_env(self) -> None:
+        self._restore_fullscreen()
+        self._restore_window_size()
+        self._restore_window_state()
+        self._restore_window_position()
+
+    def _set_fullscreen_env(self, fullscreen: bool) -> None:
+        if not isinstance(fullscreen, bool):
+            raise TypeError('Fullscreen must be a boolean value.')
+        EnvManager.set(UI_FULLSCREEN, str(fullscreen))
+
+    def _set_window_position_env(self, position: tuple) -> None:
+        if not isinstance(position, tuple) or len(position) != 2:
+            raise ValueError('Position must be a tuple of (x, y) coordinates.')
+        EnvManager.set(UI_WINDOW_POSITION, str(position))
+
+    def _set_window_size_env(self, size: str) -> None:
+        if not isinstance(size, str):
+            raise TypeError('Size must be a string value.')
+        EnvManager.set(UI_WINDOW_SIZE, size)
+
+    def _set_window_state_env(self, state: str) -> None:
+        if not isinstance(state, str):
+            raise TypeError('State must be a string value.')
+        EnvManager.set(UI_WINDOW_STATE, state)
+
+    def _set_geometry_env(
+        self,
+        window_size: str,
+        window_position: tuple,
+        window_state: str,
+        fullscreen_bool,
+    ) -> None:
+        if window_size is not None:
+            self._set_window_size_env(window_size)
+
+        if window_position is not None:
+            self._set_window_position_env(window_position)
+
+        if window_state is not None:
+            self._set_window_state_env(window_state)
+
+        if fullscreen_bool is not None:
+            self._set_fullscreen_env(fullscreen_bool)
+
+    def application_log(self, message: str) -> None:
+        """Post a message.
+
+        This method should be overridden to implement custom logging functionality.
+
+        Args:
+            message: Message to be sent to this Application's log file.
+        """
+        ...
 
     def build(self) -> None:
         self._build_env()
         self._build_multi_stream()
-        self._build_runtime_info()
         self._build_tk_app_instance()
         self._connect_tk_attributes()
         self._build_app_icon()
         self._build_frame()
         self._build_menu()
         self._directory_service.build_directory()
-        self._restore_geometry_from_runtime_info()
+        self._restore_geometry_env()
         super().build()
 
     def center(self) -> None:
@@ -878,16 +956,6 @@ class Application(Runnable):
         finally:
             gc.collect()  # Process garbage collection for tk/tcl elements
 
-    def application_log(self, message: str) -> None:
-        """Post a message.
-
-        This method should be overridden to implement custom logging functionality.
-
-        Args:
-            message: Message to be sent to this Application's log file.
-        """
-        ...
-
     def on_pre_run(self) -> None:
         """Method that is called directly before calling parent Tk mainloop.
 
@@ -913,16 +981,29 @@ class Application(Runnable):
         """
         self.update_cursor(meta.TK_CURSORS.DEFAULT)
 
-    def set_logging_level(self, level: int) -> None:
+    def set_logging_level(self, level: Union[int, str]) -> None:
         """Set the logging level for this Application.
 
         Args:
             level: The logging level to set. Should be one of the logging module's levels.
         """
+        level_mapping = getLevelNamesMapping()
+
+        if isinstance(level, str):
+            if level.upper() in level_mapping:
+                level = level_mapping[level.upper()]
+            else:
+                raise ValueError(f'Invalid logging level string: {level}')
+
         if not isinstance(level, int):
             raise TypeError('Logging level must be an integer.')
+
+        level_name = getLevelName(level)
+        if level_name == 'Level %s' % level:
+            raise ValueError(f'Invalid logging level integer: {level}')
+        self.log().info(f'Logging level set to {level_name} ({level}).')
         LoggingManager.set_logging_level(level)
-        self.runtime_info.set('logging_level', level)
+        EnvManager.set(LOG_LEVEL, level_name)
 
     def start(self) -> None:
         """Start the application."""

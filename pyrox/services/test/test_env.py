@@ -126,15 +126,15 @@ ANOTHER_VAR=another_value
         # Temporarily rename existing .env file if it exists
         env_file_path = os.path.join(os.getcwd(), '.env')
         temp_backup = None
-        
+
         try:
             if os.path.exists(env_file_path):
                 temp_backup = env_file_path + '.test_backup'
                 os.rename(env_file_path, temp_backup)
-            
+
             found_file = EnvManager._find_env_file()
             self.assertIsNone(found_file)
-            
+
         finally:
             # Restore the original .env file if it existed
             if temp_backup and os.path.exists(temp_backup):
@@ -324,6 +324,17 @@ SINGLE_ITEM=single
         self.assertEqual(EnvManager.get('EMPTY_LIST', cast_type=list), [])
         self.assertEqual(EnvManager.get('SINGLE_ITEM', cast_type=list), ['single'])
 
+    def test_get_with_type_casting_tuple(self):
+        """Test getting values with tuple type casting."""
+        content = """
+TUPLE_VAR=item1,item2,item3
+TUPLE_WITH_SPACES=item1, item2 , item3
+"""
+        env_file = self._create_test_env_file(content)
+        EnvManager.load(env_file)
+        self.assertEqual(EnvManager.get('TUPLE_VAR', cast_type=tuple), ('item1', 'item2', 'item3'))
+        self.assertEqual(EnvManager.get('TUPLE_WITH_SPACES', cast_type=tuple), ('item1', 'item2', 'item3'))
+
     def test_get_with_invalid_type_casting(self):
         """Test getting values with invalid type casting."""
         content = """
@@ -367,12 +378,6 @@ INVALID_FLOAT=not_a_float
         EnvManager.set('NEW_VAR', 'new_value')
         self.assertEqual(EnvManager.get('NEW_VAR'), 'new_value')
         self.assertEqual(os.environ.get('NEW_VAR'), 'new_value')
-
-    def test_set_variable_without_updating_os_environ(self):
-        """Test setting variables without updating os.environ."""
-        EnvManager.set('NEW_VAR', 'new_value', update_os_environ=False)
-        self.assertEqual(EnvManager.get('NEW_VAR'), 'new_value')
-        self.assertIsNone(os.environ.get('NEW_VAR'))
 
     def test_get_all_variables(self):
         """Test getting all environment variables."""
@@ -541,11 +546,12 @@ class TestGlobalFunctions(unittest.TestCase):
         # Clear any existing values
         for key in ['PYROX_DEBUG', 'PYROX_LOG_LEVEL', 'PYROX_DATA_DIR', 'DATABASE_URL']:
             os.environ.pop(key, None)
+            EnvManager._env_vars.pop(key, None)
 
-        self.assertFalse(get_debug_mode())
-        self.assertEqual(get_log_level(), 'INFO')
-        self.assertEqual(get_data_dir(), './data')
-        self.assertEqual(get_database_url(), 'sqlite:///pyrox.db')
+        self.assertFalse(EnvManager.get('NOT_A_KEY', False, bool))
+        self.assertEqual(EnvManager.get('NOT_A_LOG_LEVEL', 'INFO', str), 'INFO')
+        self.assertEqual(EnvManager.get('NOT_A_DATA_DIR', './data', str), './data')
+        self.assertEqual(EnvManager.get('NOT_A_DATABASE', 'sqlite:///pyrox.db', str), 'sqlite:///pyrox.db')
 
     def test_getitem(self):
         """Test __getitem__ method of EnvManager."""

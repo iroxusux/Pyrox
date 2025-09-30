@@ -36,17 +36,7 @@ class ControllerValidator(
         Returns:
             True if the controller has a valid comms path, False otherwise.
         """
-        message = 'Comms path...'
-        if controller.comm_path != '':
-            message += f' ok... -> {str(controller.comm_path)}'
-        else:
-            message += ' error!'
-        if 'error' in message:
-            log(cls).error(message)
-            return False
-        else:
-            log(cls).info(message)
-            return True
+        raise NotImplementedError("Subclass must implement abstract method")
 
     @classmethod
     def _check_internal_plc_module(
@@ -60,17 +50,7 @@ class ControllerValidator(
         Returns:
             True if the controller has a valid internal PLC module, False otherwise.
         """
-        message = 'Internal PLC module...'
-        if controller.plc_module is not None:
-            message += f' ok... -> {str(controller.plc_module["@Name"])}'
-        else:
-            message += ' error!'
-        if 'error' in message:
-            log(cls).error(message)
-            return False
-        else:
-            log(cls).info(message)
-            return True
+        raise NotImplementedError("Subclass must implement abstract method")
 
     @classmethod
     def _check_slot(
@@ -84,17 +64,7 @@ class ControllerValidator(
         Returns:
             True if the controller has a valid slot, False otherwise.
         """
-        message = 'Slot...'
-        if controller.slot is not None:
-            message += f' ok... -> {str(controller.slot)}'
-        else:
-            message += ' error!'
-        if 'error' in message:
-            log(cls).error(message)
-            return False
-        else:
-            log(cls).info(message)
-            return True
+        raise NotImplementedError("Subclass must implement abstract method")
 
     @classmethod
     def get_factory(cls):
@@ -105,13 +75,7 @@ class ControllerValidator(
         cls,
         controller: Controller
     ) -> None:
-        log(cls).info('Starting report...')
-        cls.validate_properties(controller)
-        cls.validate_modules(controller)
-        cls.validate_datatypes(controller)
-        cls.validate_aois(controller)
-        cls.validate_tags(controller)
-        cls.validate_programs(controller)
+        raise NotImplementedError("Subclass must implement abstract method")
 
     @classmethod
     def validate_properties(
@@ -120,44 +84,42 @@ class ControllerValidator(
     ) -> None:
         log(cls).info('Validating controller properties...')
 
-        cls._check_comms_path(controller)
-        cls._check_slot(controller)
-        cls._check_internal_plc_module(controller)
+        raise NotImplementedError("Subclass must implement abstract method")
 
     @classmethod
     def validate_datatypes(
         cls,
         controller: Controller
     ) -> None:
-        log(cls).info('Validating datatypes...')
+        raise NotImplementedError("Subclass must implement abstract method")
 
     @classmethod
     def validate_aois(
         cls,
         controller: Controller
     ) -> None:
-        log(cls).info('Validating add on instructions...')
+        raise NotImplementedError("Subclass must implement abstract method")
 
     @classmethod
     def validate_modules(
         cls,
         controller: Controller
     ) -> None:
-        log(cls).info('Validating modules...')
+        raise NotImplementedError("Subclass must implement abstract method")
 
     @classmethod
     def validate_tags(
         cls,
         controller: Controller
     ) -> None:
-        log(cls).info('Validating tags...')
+        raise NotImplementedError("Subclass must implement abstract method")
 
     @classmethod
     def validate_programs(
         cls,
         controller: Controller
     ) -> None:
-        log(cls).info('Validating programs...')
+        raise NotImplementedError("Subclass must implement abstract method")
 
 
 class ControllerReportItem:

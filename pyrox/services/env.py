@@ -15,6 +15,9 @@ from dotenv import load_dotenv, set_key
 from .logging import log
 
 
+LOG_LEVEL = 'PYROX_LOG_LEVEL'
+
+
 class EnvManager:
     """Static manager for environment variables and .env files."""
 
@@ -235,16 +238,33 @@ class EnvManager:
         return value
 
     @classmethod
-    def get(cls, key: str, default=None, cast_type=str):
+    def get(cls, key: str, default=None, cast_type: type = str):
         """Get environment variable with optional type casting."""
-        load_dotenv()  # Load from .env file
-        value = os.environ.get(key, default)
-        if value is not None and cast_type != str:
-            try:
-                return cast_type(value)
-            except (ValueError, TypeError):
-                return default
-        return value
+        load_dotenv(cls._env_file)  # Load from .env file
+        if key in cls._env_vars:
+            value = cls._env_vars[key]
+        else:
+            value = os.environ.get(key, None)
+
+        if value is None:
+            return default
+
+        if cast_type == str:
+            return value
+
+        if cast_type == bool:
+            return value.lower() in ('true', '1', 'yes', 'on', 'enabled')
+
+        if cast_type == list:
+            return [item.strip() for item in value.split(',') if item.strip()]
+
+        if cast_type == tuple:
+            return tuple(item.strip() for item in value.split(',') if item.strip())
+
+        try:
+            return cast_type(value)
+        except (ValueError, TypeError):
+            return default
 
     @classmethod
     def set(cls, key: str, value: str, env_file: str = '.env') -> None:
@@ -396,7 +416,7 @@ def get_debug_mode() -> bool:
 
 def get_log_level() -> str:
     """Get log level setting."""
-    return EnvManager.get('PYROX_LOG_LEVEL', 'INFO', str)
+    return EnvManager.get(LOG_LEVEL, 'INFO', str)
 
 
 def get_data_dir() -> str:
