@@ -820,7 +820,7 @@ class Application(Runnable):
         )
 
     def _restore_fullscreen(self) -> None:
-        full_screen = EnvManager.get(UI_FULLSCREEN, 'False', bool)
+        full_screen = EnvManager.get(UI_FULLSCREEN, False, bool)
         if not isinstance(full_screen, bool):
             raise ValueError('UI_WINDOW_FULLSCREEN must be a boolean value.')
         if full_screen:
@@ -831,7 +831,7 @@ class Application(Runnable):
         if window_position is None:
             return
         if not isinstance(window_position, tuple) or len(window_position) != 2:
-            raise ValueError('UI_WINDOW_POSITION must be a tuple of (x, y) coordinates.')
+            return  # Invalid format, skip setting position
         try:
             self.tk_app.geometry(f'+{window_position[0]}+{window_position[1]}')
         except TclError as e:
@@ -840,22 +840,20 @@ class Application(Runnable):
     def _restore_window_size(self) -> None:
         window_size = EnvManager.get(UI_WINDOW_SIZE, self.config.size_, str)
         if not isinstance(window_size, str):
-            raise ValueError('UI_WINDOW_SIZE must be a string value.')
+            return  # Invalid format, skip setting size
         try:
             self.tk_app.geometry(window_size)
         except TclError as e:
             self.log().error(f'TclError: Could not set window size: {e}')
-            self.tk_app.geometry(self.config.size_)
 
     def _restore_window_state(self) -> None:
         window_state = EnvManager.get(UI_WINDOW_STATE, 'normal', str)
         if not isinstance(window_state, str):
-            raise ValueError('UI_WINDOW_STATE must be a string value.')
+            return  # Invalid format, skip setting state
         try:
             self.tk_app.state(window_state)
         except TclError as e:
             self.log().error(f'TclError: Could not set window state: {e}')
-            self.tk_app.state('normal')
 
     def _restore_geometry_env(self) -> None:
         self._restore_fullscreen()
