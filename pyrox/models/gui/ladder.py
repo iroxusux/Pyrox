@@ -9,6 +9,7 @@ from tkinter import ttk, Canvas
 from typing import Any, Optional, Dict, List, Literal, Union
 
 from pyrox.models import plc
+from pyrox.services.logging import log
 from .frames import TaskFrame
 from ..plc import controller
 from ..abc.meta import Loggable
@@ -1355,10 +1356,10 @@ class LadderCanvas(Canvas, Loggable):
         # Remove from rung meta data
         rung_number = int(element.instruction.rung.number)
         if rung_number is None or rung_number < 0:
-            self.logger.debug(f"No rung found for element at Y={element.y}")
+            log(self).debug(f"No rung found for element at Y={element.y}")
             return
         if element.position is None:
-            self.logger.debug(f"No position found for element at Y={element.y}")
+            log(self).debug(f"No position found for element at Y={element.y}")
             return
         element.instruction.rung.remove_instruction(element.position)
 
@@ -2085,7 +2086,7 @@ class LadderCanvas(Canvas, Loggable):
         else:
             # Draw wire from left power rail to this element
             if element.position != 0:
-                self.logger.error(
+                log(self).error(
                     f"Element {element.rung_number} at position {element.position} has no previous element, "
                     "but position is not 0. This should not happen.",
                 )
@@ -2939,7 +2940,7 @@ class LadderCanvas(Canvas, Loggable):
         rung_elements = self._get_rung_ladder_elements(rung_number, branch_level, branch_id)
 
         if not rung_elements:
-            self.logger.debug(f"No elements found for rung {rung_number} at branch level {branch_level}")
+            log(self).debug(f"No elements found for rung {rung_number} at branch level {branch_level}")
             return 0
 
         # Find the element closest to the click position
@@ -3874,7 +3875,7 @@ class LadderCanvas(Canvas, Loggable):
                 try:
                     drop_rung_number = int(coord_info['rung_number'])
                 except ValueError:
-                    self.logger.debug(f"Invalid rung number: {coord_info['rung_number']}")
+                    log(self).debug(f"Invalid rung number: {coord_info['rung_number']}")
                     self._show_status("Invalid drop position")
                     return
 
@@ -4136,7 +4137,7 @@ class LadderCanvas(Canvas, Loggable):
         """Show status message with debug prefix if in debug mode."""
         debug_prefix = "[DEBUG] " if self._debug_mode else ""
         full_message = f"{debug_prefix}{message}"
-        self.logger.info(full_message)
+        log(self).info(full_message)
 
         # Also show in status bar if available
         if hasattr(self, '_status_label'):
@@ -4589,7 +4590,7 @@ class LadderCanvas(Canvas, Loggable):
         # Redraw routine
         self._draw_routine()
 
-        self.logger.info(f"Deleted rung {rung_number}")
+        log(self).info(f"Deleted rung {rung_number}")
 
     def scroll_to_rung(self, rung_number: int, margin: int = 50):
         """Scroll to a specific rung.
