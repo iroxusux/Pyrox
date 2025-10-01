@@ -1,5 +1,6 @@
 """Controller Validate Task
 """
+from datetime import datetime
 from tkinter import Menu
 
 from pyrox.applications.app import App, AppTask
@@ -24,8 +25,11 @@ class ControllerValidatorTask(AppTask):
             return
         ctrl_validator = validator.ControllerValidatorFactory.get_validator(self.controller)
 
-        try:
-            self.application.multi_stream.add_stream(ctrl_validator.log_file_stream)
+        with self.application.multi_stream.temporary_stream(ctrl_validator.log_file_stream):
+            ctrl_validator.log().info(f'--- Starting Controller Validation: {validate_type} ---')
+            ctrl_validator.log().info(f'Timestamp: {datetime.now().isoformat()}')
+            ctrl_validator.log().info(f'Controller: {self.controller.name} (ID: {self.controller.id})')
+            ctrl_validator.log().info('')
             match validate_type:
                 case 'full':
                     ctrl_validator.validate_all(self.controller)
@@ -43,8 +47,7 @@ class ControllerValidatorTask(AppTask):
                     ctrl_validator.validate_programs(self.controller)
                 case _:
                     raise ValueError(f'Unknown Validate type: {validate_type}')
-        finally:
-            self.application.multi_stream.remove_stream(ctrl_validator.log_file_stream)
+            ctrl_validator.log().info(f'--- Controller Validation Complete ---')
 
     def inject(self) -> None:
         drop_down = Menu(self.application.menu.tools, tearoff=0)
