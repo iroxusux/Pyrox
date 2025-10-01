@@ -133,8 +133,8 @@ class Module(plc_meta.NamedPlcObject):
 
     def __init__(
         self,
-        meta_data: Optional[dict] = None,
-        controller: Optional['Controller'] = None
+        meta_data=None,
+        controller=None
     ) -> None:
 
         super().__init__(meta_data=meta_data, controller=controller)
@@ -253,6 +253,36 @@ class Module(plc_meta.NamedPlcObject):
         return self._input_tag
 
     @property
+    def inhibited(self) -> str:
+        return self['@Inhibited']
+
+    @inhibited.setter
+    def inhibited(self, value: Union[str, bool]):
+        if isinstance(value, bool):
+            value = 'true' if value else 'false'
+
+        if not self.is_valid_rockwell_bool(value):
+            raise self.InvalidNamingException
+
+        self['@Inhibited'] = value
+
+    @property
+    def introspective_module(self) -> 'IntrospectiveModule':
+        """get the introspective module for this module
+
+        Returns:
+            :class:`IntrospectiveModule`: introspective module
+        """
+        return self._introspective_module
+
+    @introspective_module.setter
+    def introspective_module(self, value: 'IntrospectiveModule'):
+        from pyrox.models.plc.imodule import IntrospectiveModule
+        if not isinstance(value, IntrospectiveModule):
+            raise ValueError("IntrospectiveModule must be an instance of IntrospectiveModule!")
+        self._introspective_module = value
+
+    @property
     def output_connection_point(self) -> str:
         """get the output connection point for this module
 
@@ -352,36 +382,6 @@ class Module(plc_meta.NamedPlcObject):
     @property
     def parent_mod_port_id(self) -> str:
         return self['@ParentModPortId']
-
-    @property
-    def inhibited(self) -> str:
-        return self['@Inhibited']
-
-    @inhibited.setter
-    def inhibited(self, value: Union[str, bool]):
-        if isinstance(value, bool):
-            value = 'true' if value else 'false'
-
-        if not self.is_valid_rockwell_bool(value):
-            raise self.InvalidNamingException
-
-        self['@Inhibited'] = value
-
-    @property
-    def introspective_module(self) -> 'IntrospectiveModule':
-        """get the introspective module for this module
-
-        Returns:
-            :class:`IntrospectiveModule`: introspective module
-        """
-        return self._introspective_module
-
-    @introspective_module.setter
-    def introspective_module(self, value: 'IntrospectiveModule'):
-        from pyrox.models.plc.imodule import IntrospectiveModule
-        if not isinstance(value, IntrospectiveModule):
-            raise ValueError("IntrospectiveModule must be an instance of IntrospectiveModule!")
-        self._introspective_module = value
 
     @property
     def major_fault(self) -> str:
