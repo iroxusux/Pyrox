@@ -9,7 +9,7 @@ import unittest
 from unittest.mock import patch
 import types
 
-from pyrox.services.factory import reload_factory_while_preserving_registered_types
+from pyrox.services.factory import reload_factory_module_while_preserving_registered_types
 from pyrox.models.abc.factory import MetaFactory
 
 
@@ -51,7 +51,7 @@ class TestReloadFactoryWhilePreservingRegisteredTypes(unittest.TestCase):
             mock_reload.return_value = mock_module
 
             # Call the function
-            reload_factory_while_preserving_registered_types(self.MockFactory)
+            reload_factory_module_while_preserving_registered_types(self.MockFactory)
 
             # Verify importlib.reload was called
             mock_reload.assert_called_once_with(mock_module)
@@ -69,7 +69,7 @@ class TestReloadFactoryWhilePreservingRegisteredTypes(unittest.TestCase):
             del sys.modules[module_name]
 
         with self.assertRaises(ImportError) as context:
-            reload_factory_while_preserving_registered_types(self.MockFactory)
+            reload_factory_module_while_preserving_registered_types(self.MockFactory)
 
         self.assertIn(f"Module {module_name} not found in sys.modules", str(context.exception))
 
@@ -83,7 +83,7 @@ class TestReloadFactoryWhilePreservingRegisteredTypes(unittest.TestCase):
             mock_reload.side_effect = ImportError("Reload failed")
 
             with self.assertRaises(ImportError) as context:
-                reload_factory_while_preserving_registered_types(self.MockFactory)
+                reload_factory_module_while_preserving_registered_types(self.MockFactory)
 
             self.assertIn("Reload failed", str(context.exception))
 
@@ -108,7 +108,7 @@ class TestReloadFactoryWhilePreservingRegisteredTypes(unittest.TestCase):
             mock_reload.side_effect = side_effect
 
             # Call the function
-            reload_factory_while_preserving_registered_types(self.MockFactory)
+            reload_factory_module_while_preserving_registered_types(self.MockFactory)
 
             # Verify that types were restored (not the same object, but same content)
             self.assertEqual(self.MockFactory._registered_types, self.mock_types)
@@ -127,7 +127,7 @@ class TestReloadFactoryWhilePreservingRegisteredTypes(unittest.TestCase):
             mock_reload.return_value = mock_module
 
             # Call the function
-            reload_factory_while_preserving_registered_types(self.MockFactory)
+            reload_factory_module_while_preserving_registered_types(self.MockFactory)
 
             # Verify empty dict was preserved
             self.assertEqual(self.MockFactory._registered_types, {})
@@ -139,7 +139,7 @@ class TestReloadFactoryWhilePreservingRegisteredTypes(unittest.TestCase):
 
         # This should trigger an ImportError since None won't be in sys.modules
         with self.assertRaises(ImportError) as context:
-            reload_factory_while_preserving_registered_types(self.MockFactory)
+            reload_factory_module_while_preserving_registered_types(self.MockFactory)
 
         self.assertIn("Module None not found in sys.modules", str(context.exception))
 
@@ -152,7 +152,7 @@ class TestReloadFactoryWhilePreservingRegisteredTypes(unittest.TestCase):
         mock_reload.return_value = mock_module
 
         # First call
-        reload_factory_while_preserving_registered_types(self.MockFactory)
+        reload_factory_module_while_preserving_registered_types(self.MockFactory)
         self.assertEqual(self.MockFactory._registered_types, self.mock_types)
 
         # Modify registered types
@@ -160,7 +160,7 @@ class TestReloadFactoryWhilePreservingRegisteredTypes(unittest.TestCase):
         self.MockFactory._registered_types = new_types
 
         # Second call
-        reload_factory_while_preserving_registered_types(self.MockFactory)
+        reload_factory_module_while_preserving_registered_types(self.MockFactory)
         self.assertEqual(self.MockFactory._registered_types, new_types)
 
         # Verify reload was called twice
@@ -182,7 +182,7 @@ class TestReloadFactoryWhilePreservingRegisteredTypes(unittest.TestCase):
         with patch('importlib.reload') as mock_reload:
             mock_reload.return_value = mock_module
 
-            reload_factory_while_preserving_registered_types(CustomFactory)
+            reload_factory_module_while_preserving_registered_types(CustomFactory)
 
             self.assertEqual(CustomFactory._registered_types, custom_types)
 
@@ -201,7 +201,7 @@ class TestReloadFactoryWhilePreservingRegisteredTypes(unittest.TestCase):
             return module
 
         with patch('importlib.reload', side_effect=reload_side_effect):
-            reload_factory_while_preserving_registered_types(self.MockFactory)
+            reload_factory_module_while_preserving_registered_types(self.MockFactory)
 
             # Original types should be restored, overwriting modifications
             self.assertEqual(self.MockFactory._registered_types, self.mock_types)
@@ -219,7 +219,7 @@ class TestReloadFactoryWhilePreservingRegisteredTypes(unittest.TestCase):
 
         with patch('importlib.reload', side_effect=reload_side_effect):
             # Should still work as we already have the module reference
-            reload_factory_while_preserving_registered_types(self.MockFactory)
+            reload_factory_module_while_preserving_registered_types(self.MockFactory)
 
             self.assertEqual(self.MockFactory._registered_types, self.mock_types)
 
@@ -251,7 +251,7 @@ class TestFactoryServicesEdgeCases(unittest.TestCase):
 
         # Should raise AttributeError when trying to access _registered_types
         with self.assertRaises(AttributeError):
-            reload_factory_while_preserving_registered_types(TestFactory)
+            reload_factory_module_while_preserving_registered_types(TestFactory)
 
         # Restore for cleanup
         if 'original_types' in locals():
@@ -273,21 +273,21 @@ class TestFactoryServicesEdgeCases(unittest.TestCase):
 
         # Should raise AttributeError when trying to access _registered_types
         with self.assertRaises(AttributeError):
-            reload_factory_while_preserving_registered_types(FactoryWithoutTypes)
+            reload_factory_module_while_preserving_registered_types(FactoryWithoutTypes)
 
     def test_invalid_factory_parameters(self):
         """Test behavior with invalid factory parameter types."""
         # Test with None - should raise AttributeError when accessing __module__
         with self.assertRaises(AttributeError):
-            reload_factory_while_preserving_registered_types(None)  # type: ignore
+            reload_factory_module_while_preserving_registered_types(None)  # type: ignore
 
         # Test with string - should raise AttributeError when accessing __module__
         with self.assertRaises(AttributeError):
-            reload_factory_while_preserving_registered_types("not a factory")  # type: ignore
+            reload_factory_module_while_preserving_registered_types("not a factory")  # type: ignore
 
         # Test with int - should raise AttributeError when accessing __module__
         with self.assertRaises(AttributeError):
-            reload_factory_while_preserving_registered_types(42)  # type: ignore
+            reload_factory_module_while_preserving_registered_types(42)  # type: ignore
 
     def test_large_registered_types_dict(self):
         """Test performance with large registered types dictionary."""
@@ -306,7 +306,7 @@ class TestFactoryServicesEdgeCases(unittest.TestCase):
             mock_reload.return_value = mock_module
 
             # Should handle large dictionaries efficiently
-            reload_factory_while_preserving_registered_types(LargeFactory)
+            reload_factory_module_while_preserving_registered_types(LargeFactory)
 
             # Verify all types were preserved
             self.assertEqual(len(LargeFactory._registered_types), 100)
@@ -337,7 +337,7 @@ class TestFactoryServicesEdgeCases(unittest.TestCase):
         with patch('importlib.reload') as mock_reload:
             mock_reload.return_value = mock_module
 
-            reload_factory_while_preserving_registered_types(ComplexFactory)
+            reload_factory_module_while_preserving_registered_types(ComplexFactory)
 
             # Verify complex types were preserved correctly
             self.assertEqual(ComplexFactory._registered_types, complex_types)

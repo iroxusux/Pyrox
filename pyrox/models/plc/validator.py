@@ -22,7 +22,7 @@ class ControllerValidatorFactory(MetaFactory):
             A ControllerValidator instance if a matching validator is found, None otherwise.
         """
         validator_cls = ControllerValidatorFactory.get_registered_type_by_supporting_class(controller)
-        if validator_cls and issubclass(validator_cls, ControllerValidator):
+        if validator_cls:
             return validator_cls(controller)
         raise ValueError(f'No validator found for controller type {controller.__class__.__name__}.')
 

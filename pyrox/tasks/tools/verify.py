@@ -29,6 +29,7 @@ class ControllerValidatorTask(AppTask):
             ctrl_validator.log().info(f'--- Starting Controller Validation: {validate_type} ---')
             ctrl_validator.log().info(f'Timestamp: {datetime.now().isoformat()}')
             ctrl_validator.log().info(f'Controller: {self.controller.name} (ID: {self.controller.id})')
+            ctrl_validator.log().info(f'File: {self.controller.file_location}')
             ctrl_validator.log().info('')
             match validate_type:
                 case 'full':

@@ -1,14 +1,15 @@
 """Base PLC Controller Validator
 """
-import importlib
-
 from pyrox.models import plc
+from pyrox.models.plc import validator as plc_validator
+from pyrox.services.factory import reload_factory_module_while_preserving_registered_types
 from pyrox.services.logging import log, LOG_LEVEL_FAILURE, LOG_LEVEL_SUCCESS
 
-importlib.reload(plc)
+reload_factory_module_while_preserving_registered_types(plc_validator.ControllerValidatorFactory)
+print(f'Registered Controller Validators: {list(plc_validator.ControllerValidatorFactory._registered_types.keys())}')
 
 
-class BaseControllerValidator(plc.ControllerValidator):
+class BaseControllerValidator(plc_validator.ControllerValidator):
     """Validator for controllers.
     """
     supporting_class = plc.Controller
@@ -18,30 +19,40 @@ class BaseControllerValidator(plc.ControllerValidator):
         cls,
         controller: plc.Controller,
         common_plc_object: plc.NamedPlcObject
-    ) -> None:
+    ) -> bool:
         """Check if a common PLC object has a description.
 
         Args:
             controller: The controller to check.
             common_plc_object: The common PLC object to check.
+
+        Returns:
+            True if the common PLC object has a description, False otherwise.
         """
         if not common_plc_object.description or common_plc_object.description == '':
-            log(cls).warning(f'{common_plc_object.__class__.__name__} {common_plc_object.name} has no description!')
+            log(cls).log(LOG_LEVEL_FAILURE, f'{common_plc_object.__class__.__name__} {common_plc_object.name} has no description!')
+            return False
+        return True
 
     @classmethod
     def _check_common_has_name(
         cls,
         controller: plc.Controller,
         common_plc_object: plc.NamedPlcObject
-    ) -> None:
+    ) -> bool:
         """Check if a common PLC object has a name.
 
         Args:
             controller: The controller to check.
             common_plc_object: The common PLC object to check.
+
+        Returns:
+            True if the common PLC object has a name, False otherwise.
         """
         if not common_plc_object.name or common_plc_object.name == '':
             log(cls).log(LOG_LEVEL_FAILURE, f'{common_plc_object.__class__.__name__} has no name!')
+            return False
+        return True
 
     @classmethod
     def _check_comms_path(
@@ -84,9 +95,6 @@ class BaseControllerValidator(plc.ControllerValidator):
         if not member.datatype or member.datatype == '':
             log(cls).log(LOG_LEVEL_FAILURE,
                          f'Datatype member {member.name} in datatype {datatype.name} has no datatype!')
-        elif member.datatype not in controller.datatypes:
-            log(cls).log(LOG_LEVEL_FAILURE,
-                         f'Datatype member {member.name} in datatype {datatype.name} has invalid datatype: {member.datatype}!')
 
     @classmethod
     def _check_internal_plc_module(
@@ -240,22 +248,29 @@ class BaseControllerValidator(plc.ControllerValidator):
         cls,
         controller: plc.Controller,
         module: plc.Module
-    ) -> None:
-        cls._check_common_has_name(controller, module)
-        cls._check_common_has_description(controller, module)
+    ) -> bool:
+        any_failures = False
+        any_failures = any_failures or not (cls._check_common_has_name(controller, module))
+        any_failures = any_failures or not (cls._check_common_has_description(controller, module))
 
         if not module.catalog_number or module.catalog_number == '':
+            any_failures = True
             log(cls).log(LOG_LEVEL_FAILURE, f'Module {module.name} has no catalog number!')
 
         if not module.address or module.address == '':
+            any_failures = True
             log(cls).log(LOG_LEVEL_FAILURE, f'Module {module.name} has no address!')
 
         if not module.rpi or module.rpi == '':
             if module.name != 'Local':
+                any_failures = True
                 log(cls).log(LOG_LEVEL_FAILURE, f'Module {module.name} has no RPI!')
 
         if not module.ekey or module.ekey == '':
+            any_failures = True
             log(cls).log(LOG_LEVEL_FAILURE, f'Module {module.name} has no EKey!')
+
+        return not any_failures
 
     @classmethod
     def validate_modules(
@@ -264,7 +279,10 @@ class BaseControllerValidator(plc.ControllerValidator):
     ) -> None:
         log(cls).info('Validating modules...')
         for module in controller.modules:
-            cls.validate_module(controller, module)
+            if not cls.validate_module(controller, module):
+                log(cls).log(LOG_LEVEL_FAILURE, f'Module validation failed! -> {module.name}')
+            else:
+                log(cls).log(LOG_LEVEL_SUCCESS, f'Module validation passed! -> {module.name}')
 
     @classmethod
     def validate_program(
