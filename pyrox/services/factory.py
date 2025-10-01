@@ -39,10 +39,10 @@ def reload_factory_module_while_preserving_registered_types(
     if hasattr(reloaded_module, factory_class_name):
         reloaded_factory = getattr(reloaded_module, factory_class_name)
     else:
-        raise ImportError(f'Factory class {factory_class_name} not found in reloaded module {module_name}.')
+        raise ImportError(f'Factory class {factory_class_name} attribute not found in reloaded module {module_name}.')
 
-    if not reloaded_factory:
-        raise ImportError(f'Factory class {factory_class_name} not found in reloaded module {module_name}.')
+    if reloaded_factory is None:
+        raise ImportError(f'Factory class {factory_class_name} returned as None from reloaded module {module_name}.')
 
     if not issubclass(reloaded_factory, MetaFactory):
         raise TypeError(f'Reloaded class {factory_class_name} is not a subclass of MetaFactory.')

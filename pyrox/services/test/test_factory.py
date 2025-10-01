@@ -19,7 +19,7 @@ class TestReloadFactoryWhilePreservingRegisteredTypes(unittest.TestCase):
     def setUp(self):
         """Set up test environment."""
         # Create a mock factory class using MetaFactory
-        class MockFactory(metaclass=MetaFactory):
+        class MockFactory(MetaFactory):
             pass
 
         self.MockFactory = MockFactory
@@ -45,19 +45,21 @@ class TestReloadFactoryWhilePreservingRegisteredTypes(unittest.TestCase):
         """Test that successful reload preserves registered types."""
         # Create a mock module and add it to sys.modules
         mock_module = types.ModuleType('test_module')
+        # Add the MockFactory to the module so it can be found after reload
+        setattr(mock_module, 'MockFactory', self.MockFactory)
         sys.modules['test_module'] = mock_module
 
         with patch('importlib.reload') as mock_reload:
             mock_reload.return_value = mock_module
 
             # Call the function
-            reload_factory_module_while_preserving_registered_types(self.MockFactory)
+            reloaded_factory = reload_factory_module_while_preserving_registered_types(self.MockFactory)
 
             # Verify importlib.reload was called
             mock_reload.assert_called_once_with(mock_module)
 
             # Verify registered types were preserved
-            self.assertEqual(self.MockFactory._registered_types, self.mock_types)
+            self.assertEqual(reloaded_factory._registered_types, self.mock_types)
 
     def test_module_not_in_sys_modules_raises_import_error(self):
         """Test that missing module in sys.modules raises ImportError."""
@@ -91,6 +93,8 @@ class TestReloadFactoryWhilePreservingRegisteredTypes(unittest.TestCase):
         """Test that registered types are properly copied before reload."""
         # Create a mock module and add it to sys.modules
         mock_module = types.ModuleType('test_module')
+        # Add the MockFactory to the module so it can be found after reload
+        setattr(mock_module, 'MockFactory', self.MockFactory)
         sys.modules['test_module'] = mock_module
 
         original_types = self.MockFactory._registered_types
@@ -108,11 +112,11 @@ class TestReloadFactoryWhilePreservingRegisteredTypes(unittest.TestCase):
             mock_reload.side_effect = side_effect
 
             # Call the function
-            reload_factory_module_while_preserving_registered_types(self.MockFactory)
+            reloaded_factory = reload_factory_module_while_preserving_registered_types(self.MockFactory)
 
             # Verify that types were restored (not the same object, but same content)
-            self.assertEqual(self.MockFactory._registered_types, self.mock_types)
-            self.assertNotEqual(id(self.MockFactory._registered_types), original_id)
+            self.assertEqual(reloaded_factory._registered_types, self.mock_types)
+            self.assertNotEqual(id(reloaded_factory._registered_types), original_id)
 
     def test_empty_registered_types_handled_correctly(self):
         """Test that empty registered types dictionary is handled correctly."""
@@ -121,16 +125,18 @@ class TestReloadFactoryWhilePreservingRegisteredTypes(unittest.TestCase):
 
         # Create a mock module and add it to sys.modules
         mock_module = types.ModuleType('test_module')
+        # Add the MockFactory to the module so it can be found after reload
+        setattr(mock_module, 'MockFactory', self.MockFactory)
         sys.modules['test_module'] = mock_module
 
         with patch('importlib.reload') as mock_reload:
             mock_reload.return_value = mock_module
 
             # Call the function
-            reload_factory_module_while_preserving_registered_types(self.MockFactory)
+            reloaded_factory = reload_factory_module_while_preserving_registered_types(self.MockFactory)
 
             # Verify empty dict was preserved
-            self.assertEqual(self.MockFactory._registered_types, {})
+            self.assertEqual(reloaded_factory._registered_types, {})
             mock_reload.assert_called_once()
 
     def test_factory_with_none_module_name(self):
@@ -148,47 +154,52 @@ class TestReloadFactoryWhilePreservingRegisteredTypes(unittest.TestCase):
         """Test that multiple calls preserve the latest registered types."""
         # Setup mock module
         mock_module = types.ModuleType('test_module')
+        # Add the MockFactory to the module so it can be found after reload
+        setattr(mock_module, 'MockFactory', self.MockFactory)
         sys.modules['test_module'] = mock_module
         mock_reload.return_value = mock_module
 
         # First call
-        reload_factory_module_while_preserving_registered_types(self.MockFactory)
-        self.assertEqual(self.MockFactory._registered_types, self.mock_types)
+        reloaded_factory = reload_factory_module_while_preserving_registered_types(self.MockFactory)
+        self.assertEqual(reloaded_factory._registered_types, self.mock_types)
 
         # Modify registered types
         new_types = {'NewType': type('NewType', (), {})}
-        self.MockFactory._registered_types = new_types
+        reloaded_factory._registered_types = new_types
 
         # Second call
-        reload_factory_module_while_preserving_registered_types(self.MockFactory)
-        self.assertEqual(self.MockFactory._registered_types, new_types)
+        reloaded_factory2 = reload_factory_module_while_preserving_registered_types(reloaded_factory)
+        self.assertEqual(reloaded_factory2._registered_types, new_types)
 
         # Verify reload was called twice
         self.assertEqual(mock_reload.call_count, 2)
 
     def test_factory_subclass_behavior(self):
         """Test behavior with factory subclasses."""
-        class CustomFactory(metaclass=MetaFactory):
-            pass
-
-        CustomFactory.__module__ = 'custom_module'
+        # Use the existing MockFactory but rename it for this test
+        SubclassFactory = self.MockFactory
+        SubclassFactory.__module__ = 'custom_module'
         custom_types = {'CustomType': type('CustomType', (), {})}
-        CustomFactory._registered_types = custom_types
+        SubclassFactory._registered_types = custom_types
 
         # Create mock module
         mock_module = types.ModuleType('custom_module')
+        # Add the SubclassFactory to the module so it can be found after reload
+        setattr(mock_module, 'MockFactory', SubclassFactory)  # Use the same class name as setUp
         sys.modules['custom_module'] = mock_module
 
         with patch('importlib.reload') as mock_reload:
             mock_reload.return_value = mock_module
 
-            reload_factory_module_while_preserving_registered_types(CustomFactory)
+            reloaded_factory = reload_factory_module_while_preserving_registered_types(SubclassFactory)
 
-            self.assertEqual(CustomFactory._registered_types, custom_types)
+            self.assertEqual(reloaded_factory._registered_types, custom_types)
 
     def test_registered_types_mutation_during_reload(self):
         """Test that modifications to registered types during reload are handled."""
         mock_module = types.ModuleType('test_module')
+        # Add the MockFactory to the module so it can be found after reload
+        setattr(mock_module, 'MockFactory', self.MockFactory)
         sys.modules['test_module'] = mock_module
 
         # Store reference to original types
@@ -201,14 +212,16 @@ class TestReloadFactoryWhilePreservingRegisteredTypes(unittest.TestCase):
             return module
 
         with patch('importlib.reload', side_effect=reload_side_effect):
-            reload_factory_module_while_preserving_registered_types(self.MockFactory)
+            reloaded_factory = reload_factory_module_while_preserving_registered_types(self.MockFactory)
 
             # Original types should be restored, overwriting modifications
-            self.assertEqual(self.MockFactory._registered_types, self.mock_types)
+            self.assertEqual(reloaded_factory._registered_types, self.mock_types)
 
     def test_sys_modules_modification_during_execution(self):
         """Test behavior when sys.modules is modified during execution."""
         mock_module = types.ModuleType('test_module')
+        # Add the MockFactory to the module so it can be found after reload
+        setattr(mock_module, 'MockFactory', self.MockFactory)
         sys.modules['test_module'] = mock_module
 
         def reload_side_effect(module):
@@ -219,9 +232,9 @@ class TestReloadFactoryWhilePreservingRegisteredTypes(unittest.TestCase):
 
         with patch('importlib.reload', side_effect=reload_side_effect):
             # Should still work as we already have the module reference
-            reload_factory_module_while_preserving_registered_types(self.MockFactory)
+            reloaded_factory = reload_factory_module_while_preserving_registered_types(self.MockFactory)
 
-            self.assertEqual(self.MockFactory._registered_types, self.mock_types)
+            self.assertEqual(reloaded_factory._registered_types, self.mock_types)
 
 
 class TestFactoryServicesEdgeCases(unittest.TestCase):
@@ -291,30 +304,35 @@ class TestFactoryServicesEdgeCases(unittest.TestCase):
 
     def test_large_registered_types_dict(self):
         """Test performance with large registered types dictionary."""
-        class LargeFactory(metaclass=MetaFactory):
+        class LargeFactory(MetaFactory):
             pass
 
         # Create a large dictionary of types
         large_types = {f'Type{i}': type(f'Type{i}', (), {}) for i in range(100)}
-        LargeFactory._registered_types = large_types
+        LargeFactory._registered_types = large_types.copy()
         LargeFactory.__module__ = self.test_module_name
 
+        # Create mock module and add the factory class to it
         mock_module = types.ModuleType(self.test_module_name)
+        setattr(mock_module, 'LargeFactory', LargeFactory)  # Add factory to mock module
         sys.modules[self.test_module_name] = mock_module
 
         with patch('importlib.reload') as mock_reload:
             mock_reload.return_value = mock_module
 
             # Should handle large dictionaries efficiently
-            reload_factory_module_while_preserving_registered_types(LargeFactory)
+            reloaded_factory = reload_factory_module_while_preserving_registered_types(LargeFactory)
 
             # Verify all types were preserved
-            self.assertEqual(len(LargeFactory._registered_types), 100)
-            self.assertEqual(LargeFactory._registered_types, large_types)
+            self.assertEqual(len(reloaded_factory._registered_types), 100)
+            self.assertEqual(reloaded_factory._registered_types, large_types)
+            # Ensure every class object is the same as before reload
+            for key in large_types:
+                self.assertIs(reloaded_factory._registered_types[key], large_types[key], f"Type {key} was not preserved after reload")
 
     def test_nested_type_objects(self):
         """Test with complex nested type objects."""
-        class ComplexFactory(metaclass=MetaFactory):
+        class ComplexFactory(MetaFactory):
             pass
 
         # Create nested complex types
@@ -332,17 +350,18 @@ class TestFactoryServicesEdgeCases(unittest.TestCase):
         ComplexFactory.__module__ = self.test_module_name
 
         mock_module = types.ModuleType(self.test_module_name)
+        setattr(mock_module, 'ComplexFactory', ComplexFactory)  # Add factory to mock module
         sys.modules[self.test_module_name] = mock_module
 
         with patch('importlib.reload') as mock_reload:
             mock_reload.return_value = mock_module
 
-            reload_factory_module_while_preserving_registered_types(ComplexFactory)
+            reloaded_factory = reload_factory_module_while_preserving_registered_types(ComplexFactory)
 
             # Verify complex types were preserved correctly
-            self.assertEqual(ComplexFactory._registered_types, complex_types)
-            self.assertIs(ComplexFactory._registered_types['OuterClass'], OuterClass)
-            self.assertIs(ComplexFactory._registered_types['InnerClass'], OuterClass.InnerClass)
+            self.assertEqual(reloaded_factory._registered_types, complex_types)
+            self.assertIs(reloaded_factory._registered_types['OuterClass'], OuterClass)
+            self.assertIs(reloaded_factory._registered_types['InnerClass'], OuterClass.InnerClass)
 
 
 if __name__ == '__main__':
