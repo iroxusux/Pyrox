@@ -1,7 +1,7 @@
 """Module model for pyrox Controller applications
 """
 from enum import Enum
-from typing import TYPE_CHECKING, Union
+from typing import Optional, TYPE_CHECKING, Union
 from pyrox.models.plc import meta as plc_meta
 from pyrox.services.plc import l5x_dict_from_file
 
@@ -100,8 +100,8 @@ class ModuleConnectionTag(plc_meta.PlcObject):
 class Module(plc_meta.NamedPlcObject):
     def __init__(
         self,
-        meta_data: dict = None,
-        controller: 'Controller' = None
+        meta_data: Optional[dict] = None,
+        controller: Optional['Controller'] = None
     ) -> None:
 
         super().__init__(

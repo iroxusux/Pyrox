@@ -2,29 +2,11 @@
 """
 from typing import Optional, TypeVar
 
-import sys
-import importlib
-
-
 from pyrox.models import HashList, plc, SupportsMetaData
 from pyrox.models import eplan
 from pyrox.services.logging import log
 from ..generator import BaseEmulationGenerator
 from ..indicon import BaseEplanProject
-from ..validator import BaseControllerValidator
-
-try:
-    if 'pyrox.applications.validator' not in sys.modules:
-        raise ImportError('Module not loaded yet')
-    if not __package__:
-        raise ImportError('This is not a reloadable package!')
-    importlib.reload(sys.modules[__package__])
-    log(__file__).info(f'{__package__} reloaded.')
-    importlib.reload(sys.modules['pyrox.applications.validator'])
-    log(__file__).info('pyrox.applications.validator reloaded.')
-
-except Exception as e:
-    log(__file__).error(f'Error reloading pyrox.applications.validator: {e}')
 
 
 FORD_CTRL = TypeVar('FORD_CTRL', bound='FordController')
@@ -257,12 +239,6 @@ class FordEmulationGenerator(BaseEmulationGenerator):
             self.add_rung_to_standard_routine(rung)
 
         self.disable_all_comm_edit_routines()
-
-
-class FordControllerValidator(BaseControllerValidator):
-    """Validator for Ford controllers.
-    """
-    supporting_class = FordController
 
 
 class FordEplanProject(BaseEplanProject):

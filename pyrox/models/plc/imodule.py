@@ -1,9 +1,9 @@
 """Warehouse module for pyrox module applications.
 """
 from __future__ import annotations
-from typing import List, Optional, Self, TYPE_CHECKING, Union
-from pyrox.models.abc import FactoryTypeMeta, HashList, MetaFactory
-from pyrox.services.logging import Loggable
+from typing import List, Optional, TYPE_CHECKING, Union
+from pyrox.models.abc import FactoryTypeMeta, HashList, MetaFactory, PyroxObject
+from pyrox.services.logging import log
 
 
 if TYPE_CHECKING:
@@ -32,7 +32,7 @@ class ModuleWarehouseFactory(MetaFactory):
             if warehouse_cls:
                 module_classes.extend(warehouse_cls.get_known_module_classes())
             else:
-                cls.get_logger().warning(f'Warehouse class for {warehouse_name} is None')
+                log(cls).warning(f'Warehouse class for {warehouse_name} is None')
 
         return module_classes
 
@@ -86,7 +86,7 @@ class ModuleWarehouseFactory(MetaFactory):
         return filtered
 
 
-class ModuleWarehouse(MetaFactory, metaclass=FactoryTypeMeta[Self, ModuleWarehouseFactory]):
+class ModuleWarehouse(MetaFactory, metaclass=FactoryTypeMeta['ModuleWarehouse', ModuleWarehouseFactory]):
     """Class used to manage a collection of IntrospectiveModules.
 
     Can filter types, catalog numbers, etc.
@@ -145,7 +145,7 @@ class ModuleWarehouse(MetaFactory, metaclass=FactoryTypeMeta[Self, ModuleWarehou
         ]
 
 
-class IntrospectiveModule(Loggable):
+class IntrospectiveModule(PyroxObject):
     """Introspective Module for a rockwell plc.
     This is a wrapper around the Module class to provide introspection capabilities.
     Such as, a Siemens G115Drive, or a Rockwell 1756-L85E controller.
@@ -176,7 +176,7 @@ class IntrospectiveModule(Loggable):
     @property
     def controls_type(cls) -> ModuleControlsType:
         """The controls type of the module."""
-        return 'ModuleControlsType.UNKNOWN'
+        return ModuleControlsType.UNKNOWN
 
     @property
     def input_cxn_point(self) -> str:

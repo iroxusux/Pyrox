@@ -959,6 +959,23 @@ class Controller(
 
         return diagnostic_rungs
 
+    def find_instruction(
+        self,
+        instruction_type: str,
+        required_operand: Optional[str] = None
+    ) -> list[LogixInstruction]:
+        found_instructions = []
+
+        for instr in self.instructions:
+            if instr.instruction_name == instruction_type:
+                if required_operand:
+                    if any(required_operand in op.as_qualified for op in instr.operands):
+                        found_instructions.append(instr)
+                else:
+                    found_instructions.append(instr)
+
+        return found_instructions
+
     def find_unpaired_controller_inputs(self):
         log(self).info('Finding unpaired controller inputs...')
         inputs = defaultdict(list)
