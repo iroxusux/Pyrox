@@ -628,7 +628,6 @@ class Application(Runnable):
             author_name=self.config.author_name,
             app_name=self.config.application_name
         )
-        self.multi_stream = None
 
     @property
     def tk_app(self) -> Tk:
@@ -708,7 +707,7 @@ class Application(Runnable):
         return self._menu
 
     @property
-    def multi_stream(self) -> Optional[stream.MultiStream]:
+    def multi_stream(self) -> stream.MultiStream:
         """The MultiStream for this Application.
 
         This stream captures stdout and stderr and redirects them to multiple destinations.
@@ -719,7 +718,7 @@ class Application(Runnable):
         return self._multi_stream
 
     @multi_stream.setter
-    def multi_stream(self, value: Optional[stream.MultiStream]) -> None:
+    def multi_stream(self, value: stream.MultiStream) -> None:
         """Set the MultiStream for this Application.
 
         Args:
@@ -728,7 +727,7 @@ class Application(Runnable):
         Raises:
             TypeError: If the value is not an instance of stream.MultiStream.
         """
-        if not isinstance(value, stream.MultiStream) and value is not None:
+        if not isinstance(value, stream.MultiStream):
             raise TypeError('MultiStream must be an instance of stream.MultiStream.')
         self._multi_stream = value
 
@@ -755,7 +754,7 @@ class Application(Runnable):
         self._menu = MainApplicationMenu(self.tk_app)
 
     def _build_multi_stream(self) -> None:
-        if self._multi_stream is not None:
+        if hasattr(self, '_multi_stream'):
             raise RuntimeError('MultiStream has already been set up for this application.')
         try:
             self._multi_stream = stream.MultiStream(

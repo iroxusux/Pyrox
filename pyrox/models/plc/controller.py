@@ -25,6 +25,7 @@ from .routine import Routine
 from .rung import Rung
 from .tag import Tag
 
+from pyrox.services.file import get_save_file
 from pyrox.services.plc import l5x_dict_from_file
 from pyrox.utils import replace_strings_in_dict
 
@@ -350,7 +351,12 @@ class Controller(
         return self._get_raw_l5x_asset_list(plc_meta.L5X_ASSET_DATATYPES)
 
     @property
-    def file_location(self) -> Optional[str]:
+    def file_location(self) -> str:
+        if self._file_location is None:
+            file_location = get_save_file(filetypes=[('.L5x', 'L5X Files')])
+            if not file_location:
+                raise RuntimeError('File location is not set!')
+            self._file_location = file_location
         return self._file_location
 
     @file_location.setter
@@ -358,8 +364,8 @@ class Controller(
         self,
         value: str
     ):
-        if not isinstance(value, str) and value is not None:
-            raise ValueError('File location must be a string or None!')
+        if not isinstance(value, str):
+            raise ValueError('File location must be a string!')
         self._file_location = value
 
     @property

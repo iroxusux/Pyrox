@@ -3,6 +3,7 @@
 from pyrox.models.abc.meta import PyroxObject
 from pyrox.models.abc.factory import FactoryTypeMeta, MetaFactory
 from pyrox.services.logging import log
+from pyrox.services.stream import create_stream_to_file, FileStream
 from .controller import Controller
 
 
@@ -45,6 +46,10 @@ class ControllerValidator(
             controller: The controller to validate.
         """
         self.controller = controller
+        file_stream = create_stream_to_file(self.controller.file_location + '.validation.log')
+        if not file_stream:
+            raise ValueError(f'Could not create log file stream for {self.controller.file_location}.')
+        self.log_file_stream = file_stream
 
     def __init_subclass__(cls, **kwargs):
         super().__init_subclass__(**kwargs)
@@ -60,6 +65,17 @@ class ControllerValidator(
         if not isinstance(value, Controller):
             raise TypeError("controller must be a Controller instance")
         self._controller = value
+
+    @property
+    def log_file_stream(self) -> FileStream:
+        """The log file stream."""
+        return self._log_file_stream
+
+    @log_file_stream.setter
+    def log_file_stream(self, value: FileStream) -> None:
+        if not isinstance(value, FileStream):
+            raise TypeError("log_file_stream must be a FileStream instance")
+        self._log_file_stream = value
 
     @classmethod
     def _check_comms_path(
