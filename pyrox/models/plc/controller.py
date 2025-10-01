@@ -266,6 +266,8 @@ class Controller(
     """
 
     generator_type = 'EmulationGenerator'
+    default_l5x_file_path = None
+    default_l5x_asset_key = None
 
     def __getitem__(self, key):
         return self.controller_meta_data.get(key, None)

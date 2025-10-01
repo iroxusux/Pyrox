@@ -301,8 +301,8 @@ class PlcObject(EnforcesNaming, SupportsMetaData, Generic[CTRL], PyroxObject):
         on_compiling: List of functions to call when object is compiling.
     """
 
-    _default_l5x_file_path: Optional[Union[Path, str]] = None
-    _default_l5x_asset_key: Optional[str] = None
+    default_l5x_file_path: Optional[Union[Path, str]] = None
+    default_l5x_asset_key: Optional[str] = None
 
     def __init__(
         self,
@@ -310,10 +310,10 @@ class PlcObject(EnforcesNaming, SupportsMetaData, Generic[CTRL], PyroxObject):
         meta_data: Optional[Union[dict, str]] = defaultdict(None),
         **kwargs
     ) -> None:
-        self._get_default_meta_data(
+        meta_data = self._get_default_meta_data(
             meta_data=meta_data,
-            file_location=self._default_l5x_file_path,
-            l5x_dict_key=self._default_l5x_asset_key
+            file_location=self.default_l5x_file_path,
+            l5x_dict_key=self.default_l5x_asset_key
         )
         super().__init__(meta_data=meta_data)
         self.controller = controller
@@ -444,8 +444,9 @@ class PlcObject(EnforcesNaming, SupportsMetaData, Generic[CTRL], PyroxObject):
         """
         if isinstance(meta_data, str):
             return meta_data  # Assume it's an attribute string and let the caller handle it
-        file_location = file_location or cls._default_l5x_file_path
-        l5x_dict_key = l5x_dict_key or cls._default_l5x_asset_key
+
+        file_location = file_location or cls.default_l5x_file_path
+        l5x_dict_key = l5x_dict_key or cls.default_l5x_asset_key
 
         if not isinstance(meta_data, dict) and meta_data is not None:
             raise ValueError(f"meta_data must be of type dict or None! Got {type(meta_data)}")

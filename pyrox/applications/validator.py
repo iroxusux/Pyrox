@@ -2,17 +2,99 @@
 """
 from pyrox.models import plc
 from pyrox.models.plc import validator as plc_validator
-from pyrox.models.plc.module import ModuleControlsType
+from pyrox.models.plc import module as plc_module
 from pyrox.services.factory import reload_factory_module_while_preserving_registered_types
 from pyrox.services.logging import log, LOG_LEVEL_FAILURE, LOG_LEVEL_SUCCESS
 
 reload_factory_module_while_preserving_registered_types(plc_validator.ControllerValidatorFactory)
 
 
+def success(message: str) -> bool:
+    log(BaseControllerValidator).log(LOG_LEVEL_SUCCESS, message)
+    return True
+
+
+def fail(message: str) -> bool:
+    log(BaseControllerValidator).log(LOG_LEVEL_FAILURE, message)
+    return False
+
+
+def warning(message: str) -> bool:
+    log(BaseControllerValidator).warning(message)
+    return False
+
+
 class BaseControllerValidator(plc_validator.ControllerValidator):
     """Validator for controllers.
     """
     supporting_class = plc.Controller
+
+    @classmethod
+    def _check_module_has_catalog_number(
+        cls,
+        controller: plc.Controller,
+        module_object: plc_module.Module
+    ) -> bool:
+        """Check if a common PLC object has a catalog number.
+
+        Args:
+            controller: The controller to check.
+            common_plc_object: The common PLC object to check.
+        Returns:
+            True if the common PLC object has a catalog number, False otherwise.
+        """
+        if not hasattr(module_object, 'catalog_number'):
+            return True
+        if not module_object.catalog_number or module_object.catalog_number == '':
+            return warning(f'{module_object.__class__.__name__} {module_object.name} has no catalog number!')
+        return True
+
+    @classmethod
+    def _check_module_has_network_address(
+        cls,
+        controller: plc.Controller,
+        module_object: plc_module.Module
+    ) -> bool:
+        """Check if a common PLC object has a Network address.
+
+        Args:
+            controller: The controller to check.
+            common_plc_object: The common PLC object to check.
+        Returns:
+            True if the common PLC object has a Network address, False otherwise.
+        """
+        if not hasattr(module_object, 'address'):
+            return True
+        if not module_object.address or module_object.address == '':
+            return warning(f'{module_object.__class__.__name__} {module_object.name} has no IP address!')
+        return True
+
+    @classmethod
+    def _check_module_has_network_rpi(
+        cls,
+        controller: plc.Controller,
+        module_object: plc_module.Module
+    ) -> bool:
+        """Check if a common PLC object has a Network RPI.
+
+        Args:
+            controller: The controller to check.
+            common_plc_object: The common PLC object to check.
+        Returns:
+            True if the common PLC object has a Network RPI, False otherwise.
+        """
+        if module_object.name == 'Local':
+            return True
+
+        if module_object.introspective_module.controls_type is plc_module.ModuleControlsType.RACK_COMM_CARD:
+            return True
+
+        if not hasattr(module_object, 'rpi'):
+            return True
+
+        if not module_object.rpi or module_object.rpi == '':
+            return fail(f'{module_object.__class__.__name__} {module_object.name} has no RPI!')
+        return True
 
     @classmethod
     def _check_common_has_description(
@@ -30,8 +112,7 @@ class BaseControllerValidator(plc_validator.ControllerValidator):
             True if the common PLC object has a description, False otherwise.
         """
         if not common_plc_object.description or common_plc_object.description == '':
-            log(cls).warning(f'{common_plc_object.__class__.__name__} {common_plc_object.name} has no description!')
-            return False
+            return warning(f'{common_plc_object.__class__.__name__} {common_plc_object.name} has no description!')
         return True
 
     @classmethod
@@ -50,8 +131,7 @@ class BaseControllerValidator(plc_validator.ControllerValidator):
             True if the common PLC object has a name, False otherwise.
         """
         if not common_plc_object.name or common_plc_object.name == '':
-            log(cls).log(LOG_LEVEL_FAILURE, f'{common_plc_object.__class__.__name__} has no name!')
-            return False
+            return fail(f'{common_plc_object.__class__.__name__} has no name!')
         return True
 
     @classmethod
@@ -72,11 +152,9 @@ class BaseControllerValidator(plc_validator.ControllerValidator):
         else:
             message += ' error!'
         if 'error' in message:
-            log(cls).log(LOG_LEVEL_FAILURE, message)
-            return False
+            return fail(message)
         else:
-            log(cls).log(LOG_LEVEL_SUCCESS, message)
-            return True
+            return success(message)
 
     @classmethod
     def _check_datatype_member_has_valid_datatype(
@@ -84,17 +162,20 @@ class BaseControllerValidator(plc_validator.ControllerValidator):
         controller: plc.Controller,
         datatype: plc.Datatype,
         member: plc.DatatypeMember
-    ) -> None:
+    ) -> bool:
         """Check if a datatype member has a valid datatype.
 
         Args:
             controller: The controller to check.
             datatype: The datatype the member belongs to.
             member: The datatype member to check.
+
+        Returns:
+            True if the datatype member has a valid datatype, False otherwise.
         """
         if not member.datatype or member.datatype == '':
-            log(cls).log(LOG_LEVEL_FAILURE,
-                         f'Datatype member {member.name} in datatype {datatype.name} has no datatype!')
+            return fail(f'Datatype member {member.name} in datatype {datatype.name} has no datatype!')
+        return True
 
     @classmethod
     def _check_internal_plc_module(
@@ -114,11 +195,9 @@ class BaseControllerValidator(plc_validator.ControllerValidator):
         else:
             message += ' error!'
         if 'error' in message:
-            log(cls).log(LOG_LEVEL_FAILURE, message)
-            return False
+            return fail(message)
         else:
-            log(cls).log(LOG_LEVEL_SUCCESS, message)
-            return True
+            return success(message)
 
     @classmethod
     def _check_routine_has_jsr(
@@ -126,7 +205,7 @@ class BaseControllerValidator(plc_validator.ControllerValidator):
         controller: plc.Controller,
         program: plc.Program,
         routine: plc.Routine
-    ) -> None:
+    ) -> bool:
         """Check that a routine has at least one JSR call to itself (is not an uncalled routine).
 
         Args:
@@ -135,10 +214,11 @@ class BaseControllerValidator(plc_validator.ControllerValidator):
             routine: The routine to check.
         """
         if program.main_routine_name == routine.name:
-            return
+            return True
 
         if not program.check_routine_has_jsr(routine):
-            log(cls).log(LOG_LEVEL_FAILURE, f'Routine {routine.name} in program {program.name} has no JSR calls to it!')
+            return fail(f'Routine {routine.name} in program {program.name} has no JSR calls to it!')
+        return True
 
     @classmethod
     def _check_slot(
@@ -158,18 +238,15 @@ class BaseControllerValidator(plc_validator.ControllerValidator):
         else:
             message += ' error!'
         if 'error' in message:
-            log(cls).log(LOG_LEVEL_FAILURE, message)
-            return False
+            return fail(message)
         else:
-            log(cls).log(LOG_LEVEL_SUCCESS, message)
-            return True
+            return success(message)
 
     @classmethod
     def validate_all(
         cls,
         controller: plc.Controller
     ) -> None:
-        log(cls).info('Starting report...')
         cls.validate_properties(controller)
         cls.validate_modules(controller)
         cls.validate_datatypes(controller)
@@ -260,17 +337,11 @@ class BaseControllerValidator(plc_validator.ControllerValidator):
         any_failures = False
         any_failures |= not cls._check_common_has_name(controller, module)
         cls._check_common_has_description(controller, module)
-
-        if not module.catalog_number or module.catalog_number == '':
-            any_failures = True
-            log(cls).log(LOG_LEVEL_FAILURE, f'Module {module.name} has no catalog number!')
-
-        if not module.address or module.address == '':
-            any_failures = True
-            log(cls).log(LOG_LEVEL_FAILURE, f'Module {module.name} has no address!')
+        any_failures |= not cls._check_module_has_catalog_number(controller, module)
+        any_failures |= not cls._check_module_has_network_address(controller, module)
 
         if not module.rpi or module.rpi == '':
-            if module.name != 'Local' and module.introspective_module.controls_type is not ModuleControlsType.RACK_COMM_CARD:
+            if module.name != 'Local' and module.introspective_module.controls_type is not plc_module.ModuleControlsType.RACK_COMM_CARD:
                 any_failures = True
                 log(cls).log(LOG_LEVEL_FAILURE, f'Module {module.name} has no RPI!')
 

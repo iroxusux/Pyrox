@@ -3,7 +3,6 @@
 from enum import Enum
 from typing import Optional, TYPE_CHECKING, Union
 from pyrox.models.plc import meta as plc_meta
-from pyrox.services.plc import l5x_dict_from_file
 
 if TYPE_CHECKING:
     from pyrox.models.plc.controller import Controller
@@ -128,17 +127,17 @@ class ModuleConnectionTag(plc_meta.PlcObject):
 
 
 class Module(plc_meta.NamedPlcObject):
+
+    default_l5x_file_path = plc_meta.PLC_MOD_FILE
+    default_l5x_asset_key = 'Module'
+
     def __init__(
         self,
         meta_data: Optional[dict] = None,
         controller: Optional['Controller'] = None
     ) -> None:
 
-        super().__init__(
-            meta_data=meta_data or l5x_dict_from_file(
-                plc_meta.PLC_MOD_FILE)['Module'],
-            controller=controller
-        )
+        super().__init__(meta_data=meta_data, controller=controller)
         self._introspective_module: 'IntrospectiveModule' = None
         self._config_tag: ModuleConnectionTag = None
         self._input_tag: ModuleConnectionTag = None
@@ -376,6 +375,13 @@ class Module(plc_meta.NamedPlcObject):
             :class:`IntrospectiveModule`: introspective module
         """
         return self._introspective_module
+
+    @introspective_module.setter
+    def introspective_module(self, value: 'IntrospectiveModule'):
+        from pyrox.models.plc.imodule import IntrospectiveModule
+        if not isinstance(value, IntrospectiveModule):
+            raise ValueError("IntrospectiveModule must be an instance of IntrospectiveModule!")
+        self._introspective_module = value
 
     @property
     def major_fault(self) -> str:

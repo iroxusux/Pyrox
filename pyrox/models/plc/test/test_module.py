@@ -460,7 +460,7 @@ class TestModule:
             }
         }
 
-    @patch('pyrox.models.plc.module.l5x_dict_from_file')
+    @patch('pyrox.models.plc.meta.l5x_dict_from_file')
     def test_initialization_default_meta_data(self, mock_l5x_dict):
         """Test initialization with default meta data from file."""
         mock_l5x_dict.return_value = {'Module': self.sample_module_data}
