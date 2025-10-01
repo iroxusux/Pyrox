@@ -1,7 +1,7 @@
 """Pyrox emulation services module.
 """
 from pyrox.models.plc import controller
-from pyrox.models import generator as gen
+from pyrox.models.plc import generator as gen
 
 __all__ = (
     'inject_emulation_routine',

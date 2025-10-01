@@ -44,7 +44,7 @@ class NTron16PortSwitch(RedLionModule):
     @property
     def config_cxn_point(self) -> str:
         """The config connection point of the module."""
-        return '103'
+        return ''
 
     @property
     def config_size(self) -> str:
@@ -64,7 +64,7 @@ class NTron16PortSwitch(RedLionModule):
     @property
     def input_size(self) -> str:
         """The input size of the module."""
-        return '16'
+        return '64'
 
     @property
     def output_cxn_point(self) -> str:
@@ -74,4 +74,4 @@ class NTron16PortSwitch(RedLionModule):
     @property
     def output_size(self) -> str:
         """The output size of the module."""
-        return '4'
+        return '16'

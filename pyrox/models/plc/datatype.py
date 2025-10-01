@@ -20,6 +20,19 @@ class DataTypeMeta(plc_meta.NamedPlcObject):
             return self.name in plc_meta.ATOMIC_DATATYPES
         return False
 
+    @property
+    def is_builtin(self) -> bool:
+        """check if this member is a built-in datatype
+
+        Returns:
+            :class:`bool`: True if built-in, False otherwise
+        """
+        if hasattr(self, 'datatype'):  # DatatypeMember uses this member
+            return self.datatype in [x.name for x in BUILTINS]  # type: ignore
+        elif hasattr(self, 'name'):
+            return self.name in [x.name for x in BUILTINS]
+        return False
+
 
 class DatatypeMember(DataTypeMeta):
     def __init__(

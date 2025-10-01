@@ -22,7 +22,7 @@ from .application import (
     ApplicationConfiguration,
 )
 
-from .generator import (
+from .plc.generator import (
     EmulationGenerator,
     EmulationGeneratorFactory,
 )
@@ -101,6 +101,5 @@ __all__ = (
     'SupportsFileLocation',
     'SupportsMetaData',
     'TaskFrame',
-    'TK_CURSORS',
     'gui',
 )

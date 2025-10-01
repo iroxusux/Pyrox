@@ -2,7 +2,7 @@
 """
 from typing import Optional
 from pyrox.models import plc
-from pyrox.models import generator
+from pyrox.models.plc import generator
 
 
 class BaseEmulationGenerator(generator.EmulationGenerator):

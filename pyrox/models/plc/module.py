@@ -32,6 +32,26 @@ class ModuleControlsType(Enum):
     DRIVE = 'Drive'
     POINT_IO = 'PointIO'
 
+    @staticmethod
+    def all_block_types() -> list['ModuleControlsType']:
+        """Get all block types
+
+        Returns:
+            :class:`list[ModuleControlsType]`: list of all block types
+        """
+        return [
+            ModuleControlsType.BLOCK,
+            ModuleControlsType.INPUT_BLOCK,
+            ModuleControlsType.OUTPUT_BLOCK,
+            ModuleControlsType.INPUT_OUTPUT_BLOCK,
+            ModuleControlsType.CONFIG_BLOCK,
+            ModuleControlsType.SAFETY_BLOCK,
+            ModuleControlsType.SAFETY_INPUT_BLOCK,
+            ModuleControlsType.SAFETY_OUTPUT_BLOCK,
+            ModuleControlsType.SAFETY_INPUT_OUTPUT_BLOCK,
+            ModuleControlsType.SAFETY_CONFIG_BLOCK,
+        ]
+
 
 class ModuleConnectionTag(plc_meta.PlcObject):
 

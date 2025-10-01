@@ -2,7 +2,6 @@
 """
 from __future__ import annotations
 from pyrox.models.abc.factory import FactoryTypeMeta
-from typing import Self
 from pyrox.models.plc import (
     IntrospectiveModule,
     ModuleControlsType,
@@ -15,14 +14,17 @@ class AllenBradleyModuleFactory(ModuleWarehouse):
     """Factory for creating Allen Bradley module instances."""
 
 
-class AllenBradleyModule(IntrospectiveModule, metaclass=FactoryTypeMeta[Self, AllenBradleyModuleFactory]):
+class AllenBradleyModule(
+    IntrospectiveModule,
+    metaclass=FactoryTypeMeta['AllenBradleyModule', AllenBradleyModuleFactory]
+):
     """Allen Bradley Module ABC.
     """
 
-    supports_registering = False  # Allen Bradley modules do not support registering directly
+    supports_registering = False
 
     def __init_subclass__(cls, **kwargs):
-        cls.supports_registering = True  # Subclasses can support registering
+        cls.supports_registering = True
         return super().__init_subclass__(**kwargs)
 
     @classmethod
@@ -53,7 +55,10 @@ class AllenBradleyGenericSafetyBlock(AllenBradleyModule):
             (r'docs\controls\emu\Demo3D_CommOK_SBK_DataType.L5X', ['DataTypes'])
         ]
 
-    def get_required_safety_rungs(self):
+    def get_required_safety_rungs(
+        self,
+        **__,
+    ) -> list[Rung]:
         rungs = []
         module = self.module
         controller = module.controller
@@ -65,7 +70,10 @@ class AllenBradleyGenericSafetyBlock(AllenBradleyModule):
         ))
         return rungs
 
-    def get_required_standard_rungs(self):
+    def get_required_standard_rungs(
+        self,
+        **__,
+    ) -> list[Rung]:
         rungs = []
         module = self.module
         controller = module.controller
@@ -84,7 +92,10 @@ class AllenBradleyGenericSafetyBlock(AllenBradleyModule):
 
         return rungs
 
-    def get_required_tags(self) -> list[dict]:
+    def get_required_tags(
+        self,
+        **__,
+    ) -> list[dict]:
         tags = []
         tags.append({
             'tag_name': self.get_standard_input_tag_name(),
@@ -114,22 +125,7 @@ class AllenBradleyGenericSafetyBlock(AllenBradleyModule):
 class AB_1732Es(AllenBradleyGenericSafetyBlock):
     """Allen Bradley 1732ES Safety Block Module.
     """
-    @property
-    def catalog_number(self) -> str:
-        """The catalog number of the G115 drive module."""
-        return '1732ES-IB'
-
-    @classmethod
-    def get_required_imports(cls) -> list[tuple[str, str]]:
-        """Get the required datatype imports for the module.
-
-        Returns:
-            list[tuple[str, str]]: List of tuples containing the module and class name to import.
-        """
-        return [
-            (r'docs\controls\emu\Demo3D_CommOK_SBK_DataType.L5X', ['DataTypes']),
-            (r'docs\controls\emu\Demo3D_WDint_DataType.L5X', ['DataTypes']),
-        ]
+    supports_registering = False
 
     def get_required_safety_rungs(
         self,
@@ -200,6 +196,32 @@ class AB_1732Es(AllenBradleyGenericSafetyBlock):
         return f'zz_Demo3D_{self.module.name}_O'
 
 
+class AB_1732Es_IB8XOBV4(AB_1732Es):
+    """Allen Bradley 1732ES-IB8XOBV4 Safety Block Module.
+    """
+    @property
+    def catalog_number(self) -> str:
+        return '1732ES-IB8XOBV4'
+
+    @property
+    def controls_type(self) -> ModuleControlsType:
+        """The controls type of the module."""
+        return ModuleControlsType.SAFETY_INPUT_OUTPUT_BLOCK
+
+
+class AB_1732Es_IB16(AB_1732Es):
+    """Allen Bradley 1732ES-IB16 Safety Block Module.
+    """
+    @property
+    def catalog_number(self) -> str:
+        return '1732ES-IB16'
+
+    @property
+    def controls_type(self) -> ModuleControlsType:
+        """The controls type of the module."""
+        return ModuleControlsType.SAFETY_INPUT_BLOCK
+
+
 class AB_17348Cfg(AllenBradleyModule):
     """Allen Bradley 1734-8CFG Module.
 
@@ -246,7 +268,7 @@ class AB_1734IB8S(AllenBradleyGenericSafetyBlock):
         return '1734-IB8S'
 
     @classmethod
-    def get_required_imports(cls) -> list[tuple[str, str]]:
+    def get_required_imports(cls) -> list[tuple[str, list[str]]]:
         """Get the required datatype imports for the module.
 
         Returns:
@@ -350,7 +372,7 @@ class AB_1756ENT(AllenBradleyModule):
     @property
     def controls_type(self) -> ModuleControlsType:
         """The controls type of the module."""
-        return ModuleControlsType.ETHERNET
+        return ModuleControlsType.RACK_COMM_CARD
 
 
 class AB_1756L8ES(AllenBradleyModule):

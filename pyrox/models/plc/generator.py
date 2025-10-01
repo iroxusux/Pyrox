@@ -2,8 +2,8 @@
 """
 from typing import Optional, List
 
-from .plc import controller, imodule, module, routine, rung, tag
-from .abc import meta, factory
+from . import controller, imodule, module, routine, rung, tag
+from ..abc import meta, factory
 
 
 class EmulationGeneratorFactory(factory.MetaFactory):

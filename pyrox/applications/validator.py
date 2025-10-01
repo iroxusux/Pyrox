@@ -2,11 +2,11 @@
 """
 from pyrox.models import plc
 from pyrox.models.plc import validator as plc_validator
+from pyrox.models.plc.module import ModuleControlsType
 from pyrox.services.factory import reload_factory_module_while_preserving_registered_types
 from pyrox.services.logging import log, LOG_LEVEL_FAILURE, LOG_LEVEL_SUCCESS
 
 reload_factory_module_while_preserving_registered_types(plc_validator.ControllerValidatorFactory)
-print(f'Registered Controller Validators: {list(plc_validator.ControllerValidatorFactory._registered_types.keys())}')
 
 
 class BaseControllerValidator(plc_validator.ControllerValidator):
@@ -211,10 +211,17 @@ class BaseControllerValidator(plc_validator.ControllerValidator):
         cls,
         controller: plc.Controller,
         datatype: plc.Datatype
-    ) -> None:
-        cls._check_common_has_name(controller, datatype)
+    ) -> bool:
+        if 'Demo3D' in datatype.name:
+            return True  # Don't process Indicon Demo datatypes
+        if datatype.is_atomic or datatype.is_builtin:
+            return True  # Don't process built-in or atomic datatypes
+        if datatype.family == 'StringFamily':
+            return True  # Don't process built-in string datatypes
+        any_failures = False
+        any_failures |= not cls._check_common_has_name(controller, datatype)
         cls._check_common_has_description(controller, datatype)
-        cls.validate_datatype_members(controller, datatype)
+        return not any_failures
 
     @classmethod
     def validate_datatype_member(
@@ -241,7 +248,8 @@ class BaseControllerValidator(plc_validator.ControllerValidator):
         controller: plc.Controller
     ) -> None:
         for datatype in controller.datatypes:
-            cls.validate_datatype(controller, datatype)
+            if not cls.validate_datatype(controller, datatype):
+                log(cls).log(LOG_LEVEL_FAILURE, f'Datatype validation failed! -> {datatype.name}')
 
     @classmethod
     def validate_module(
@@ -250,8 +258,8 @@ class BaseControllerValidator(plc_validator.ControllerValidator):
         module: plc.Module
     ) -> bool:
         any_failures = False
-        any_failures = any_failures or not (cls._check_common_has_name(controller, module))
-        any_failures = any_failures or not (cls._check_common_has_description(controller, module))
+        any_failures |= not cls._check_common_has_name(controller, module)
+        cls._check_common_has_description(controller, module)
 
         if not module.catalog_number or module.catalog_number == '':
             any_failures = True
@@ -262,7 +270,7 @@ class BaseControllerValidator(plc_validator.ControllerValidator):
             log(cls).log(LOG_LEVEL_FAILURE, f'Module {module.name} has no address!')
 
         if not module.rpi or module.rpi == '':
-            if module.name != 'Local':
+            if module.name != 'Local' and module.introspective_module.controls_type is not ModuleControlsType.RACK_COMM_CARD:
                 any_failures = True
                 log(cls).log(LOG_LEVEL_FAILURE, f'Module {module.name} has no RPI!')
 
@@ -281,8 +289,6 @@ class BaseControllerValidator(plc_validator.ControllerValidator):
         for module in controller.modules:
             if not cls.validate_module(controller, module):
                 log(cls).log(LOG_LEVEL_FAILURE, f'Module validation failed! -> {module.name}')
-            else:
-                log(cls).log(LOG_LEVEL_SUCCESS, f'Module validation passed! -> {module.name}')
 
     @classmethod
     def validate_program(

@@ -325,9 +325,8 @@ class IntrospectiveModule(PyroxObject):
         """
         return self.get_standard_input_tag_name(), self.get_safety_input_tag_name()
 
-    @classmethod
     def get_required_tags(
-        cls,
+        self,
         **__,
     ) -> list[dict]:
         """Get the required tags for the module.
