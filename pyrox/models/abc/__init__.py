@@ -36,6 +36,7 @@ from .save import (
 )
 
 from .stream import (
+    FileStream,
     SimpleStream,
     MultiStream
 )
@@ -45,6 +46,7 @@ __all__ = (
     'Buildable',
     'EnforcesNaming',
     'FactoryTypeMeta',
+    'FileStream',
     'HashList',
     'meta',
     'MetaFactory',
