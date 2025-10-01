@@ -69,7 +69,7 @@ class TestAddOnInstruction:
         aoi = AddOnInstruction()
 
         mock_l5x_dict.assert_called_once_with(plc_meta.PLC_AOI_FILE)
-        assert aoi.name == 'AddOnInstruction'
+        assert aoi.name == 'TestAOI'
 
     def test_initialization_with_meta_data(self):
         """Test initialization with provided meta data."""
@@ -800,7 +800,7 @@ class TestAddOnInstructionIntegration:
         aoi = AddOnInstruction()
 
         mock_l5x_dict.assert_called_once_with(plc_meta.PLC_AOI_FILE)
-        assert aoi.name == 'AddOnInstruction'  # Assuming default name in file
+        assert aoi.name == 'ComplexAOI'  # Assuming default name in file
 
     def test_dict_key_order_completeness(self):
         """Test that dict_key_order includes all expected keys."""

@@ -2,41 +2,22 @@
     """
 from __future__ import annotations
 
-from pyrox.models import Application, ApplicationTask, ApplicationConfiguration
+from pyrox.applications.app import App, AppTask
+from pyrox.services.logging import log
+from pyrox.services.env import EnvManager
+from pyrox.services.plc import start_logix_5k
 
-from tkinter.ttk import Frame, Notebook
 import tkinter as tk
 from tkinter import colorchooser, messagebox, ttk
 import copy
-
-try:
-    from pyrox.models.gui.ladder import THEME
-except ImportError:
-    # Fallback THEME if import fails
-    THEME = {
-        "font": "Consolas",
-        "instruction_alias": "#EF1010",
-        "background": "#333333",
-        "comment_background": "#444444",
-        "comment_foreground": "#09C83F",
-        "foreground": "#f00bd5",
-        "highlight_color": "#4A90E2",
-        "highlight_background": "#344FE9",
-        "button_color": "#4A90E2",
-        "button_hover_color": "#357ABD",
-        "button_text_color": "#ffffff",
-        "ladder_rung_color": "#EF1010",
-        "ladder_line_width": 2,
-        "tooltip_background": "#e6f3ff",
-        "tooltip_label_background": "#e6f3ff",
-        "tooltip_label_foreground": "#0066cc",
-    }
+from pyrox.models.gui.ladder import THEME
 
 
 class AppearanceEditor:
-    """Editor for application appearance themes using THEME dictionary."""
+    """Editor for application appearance themes using THEME dictionary.
+    """
 
-    def __init__(self, parent_app: Application):
+    def __init__(self, parent_app: App):
         self.parent_app = parent_app
         self.dialog = None
         self.theme_vars = {}
@@ -48,7 +29,7 @@ class AppearanceEditor:
 
     def _load_theme_from_runtime(self):
         """Load theme values from application runtime_info."""
-        saved_theme = self.parent_app.runtime_info.get('appearance_theme', {})
+        saved_theme: dict = EnvManager.get('UI_LADDER_THEME', {}, dict)
 
         # Merge saved values with default THEME
         self.current_theme = copy.deepcopy(THEME)
@@ -59,7 +40,7 @@ class AppearanceEditor:
 
     def _save_theme_to_runtime(self):
         """Save current theme values to application runtime_info."""
-        self.parent_app.runtime_info.set('appearance_theme', self.current_theme)
+        EnvManager.set('UI_LADDER_THEME', str(self.current_theme))
 
     def _create_color_row(self, parent, key: str, label_text: str, row: int):
         """Create a row with label, color preview, and change button."""
@@ -513,35 +494,22 @@ class AppearanceEditor:
         self.dialog.protocol("WM_DELETE_WINDOW", self._cancel_changes)
 
 
-class LaunchToStudioTask(ApplicationTask):
+class LaunchToStudioTask(AppTask):
     """Launch to Studio 5000 Task
     This task launches the Studio 5000 application with the current controller file.
     """
 
     def launch_studio(self):
         if not self.application.controller:
-            self.logger.error('No controller loaded, cannot launch Studio 5000.')
+            log(self).error('No controller loaded, cannot launch Studio 5000.')
             return
 
         self.application.save_controller()
-        controller_file = self.application.controller.file_location
-        if not controller_file:
-            self.logger.error('Controller file location is not set.')
+        if not self.application.controller.file_location:
+            log(self).error('Controller file location is not set.')
             return
 
-        self.logger.info('Launching Studio 5000 with file: %s', controller_file)
-        try:
-            import subprocess
-
-            # Launch Studio 5000 as a detached process
-            subprocess.Popen(
-                ['cmd', '/c', 'start', '', controller_file],
-                shell=True,
-                creationflags=subprocess.DETACHED_PROCESS | subprocess.CREATE_NEW_PROCESS_GROUP,
-                close_fds=True
-            )
-        except Exception as e:
-            self.logger.error(f'Failed to launch Studio 5000: {e}')
+        start_logix_5k(self.application.controller.file_location)
 
     def inject(self) -> None:
         if not self.application.menu:
@@ -550,7 +518,7 @@ class LaunchToStudioTask(ApplicationTask):
         self.application.menu.edit.add_command(label='Launch to Studio 5000', command=self.launch_studio)
 
 
-class AppearanceTask(ApplicationTask):
+class AppearanceTask(AppTask):
     """Appearance editor task for customizing the application theme."""
 
     def show_appearance_editor(self):
@@ -568,37 +536,12 @@ class AppearanceTask(ApplicationTask):
         )
 
 
-class PreferencesTask(ApplicationTask):
+class PreferencesTask(AppTask):
     """built-in preferences task.
     """
 
     def preferences(self):
-        self.logger.info('running...')
-        config = ApplicationConfiguration.toplevel()
-        config.headless = True
-        config.title = 'Pyrox Preferences'
-        config.inc_log_window = False
-        config.inc_organizer = False
-        config.inc_workspace = False
-        config.size_ = '650x500'
-        app = Application(config)
-        app.build()
-        app.tk_app.resizable(False, False)
-
-        notebook = Notebook(app.frame)
-        notebook.pack(fill='both', expand=True)
-
-        frame1 = Frame(notebook)
-        frame2 = Frame(notebook)
-        frame3 = Frame(notebook)
-        frame4 = Frame(notebook)
-
-        notebook.add(frame1, text='General')
-        notebook.add(frame2, text='Appearance')
-        notebook.add(frame3, text='Shortcuts')
-        notebook.add(frame4, text='Advanced')
-
-        app.start()
+        pass  # Placeholder for future preferences dialog
 
     def inject(self) -> None:
         if not self.application.menu:

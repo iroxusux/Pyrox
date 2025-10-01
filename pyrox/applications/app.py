@@ -784,6 +784,24 @@ class AppTask(models.ApplicationTask):
         super().__init__(application)
 
     @property
+    def application(self) -> App:  # type: ignore
+        """The application associated with this task.
+
+        .. ------------------------------------------------------------
+
+        Returns
+        -----------
+            application: :class:`App`
+        """
+        return self._application  # type: ignore
+
+    @application.setter
+    def application(self, value: App) -> None:  # type: ignore
+        if not isinstance(value, App):
+            raise TypeError(f'Expected App, got {type(value)}')
+        self._application = value
+
+    @property
     def controller(self) -> Optional[models.plc.Controller]:
         """Controller instance associated with this task.
 

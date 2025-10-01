@@ -12,6 +12,8 @@ import xmltodict
 import lxml.etree
 from xml.sax.saxutils import unescape
 
+from pyrox.services.logging import log
+
 from .file import save_file
 from .xml import dict_from_xml_file
 
@@ -156,6 +158,27 @@ def preprocessor(key, value):
         elif isinstance(value, str):
             value = cdata(value)
     return key, value
+
+
+def start_logix_5k(project_file_path: str) -> None:
+    """Start RSLogix 5000 with the specified project file.
+
+    Args:
+        project_file_path: Path to the .L5X project file.
+    """
+    log(__name__).info('Launching Studio 5000 with file: %s', project_file_path)
+    try:
+        import subprocess
+
+        # Launch Studio 5000 as a detached process
+        subprocess.Popen(
+            ['cmd', '/c', 'start', '', project_file_path],
+            shell=True,
+            creationflags=subprocess.DETACHED_PROCESS | subprocess.CREATE_NEW_PROCESS_GROUP,
+            close_fds=True
+        )
+    except Exception as e:
+        log(__name__).error(f'Failed to launch Studio 5000: {e}')
 
 
 def weird_rockwell_escape_sequence(xml_string: str) -> str:

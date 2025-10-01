@@ -1570,7 +1570,7 @@ class TestModuleIntegration:
         module.communications = new_communications
         assert module.communications == new_communications
 
-    @patch('pyrox.models.plc.module.l5x_dict_from_file')
+    @patch('pyrox.models.plc.meta.l5x_dict_from_file')
     @patch('pyrox.models.plc.imodule.IntrospectiveModule')
     def test_default_file_loading_integration(self, mock_introspective_module_class, mock_l5x_dict):
         """Test complete integration with default file loading."""

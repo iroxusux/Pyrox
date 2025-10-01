@@ -14,8 +14,8 @@ class AddOnInstruction(collections.ContainsRoutines):
     """AddOn Instruction Definition for a rockwell plc
     """
 
-    _default_l5x_file_path = plc_meta.PLC_AOI_FILE
-    _default_l5x_asset_key = 'AddOnInstructionDefinition'
+    default_l5x_file_path = plc_meta.PLC_AOI_FILE
+    default_l5x_asset_key = 'AddOnInstructionDefinition'
 
     def __init__(
         self,

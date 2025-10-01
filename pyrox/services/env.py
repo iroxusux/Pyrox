@@ -236,7 +236,12 @@ class EnvManager:
         return value
 
     @classmethod
-    def get(cls, key: str, default=None, cast_type: type = str):
+    def get(
+        cls,
+        key: str,
+        default=None,
+        cast_type: type = str
+    ) -> Any:
         """Get environment variable with optional type casting."""
         load_dotenv(cls._env_file)  # Load from .env file
         if key in cls._env_vars:

@@ -1,10 +1,10 @@
 """Task module for pyrox applications.
 
 Tasks are used to add additional functionality to the application via the toolbar in the main application frame."""
+from typing import Any, Self
+from pyrox.services.logging import log
 from .abc import FactoryTypeMeta, MetaFactory, Runnable
 from .application import Application
-from typing import Self
-from pyrox.services.logging import log
 
 
 class ApplicationTaskFactory(MetaFactory):
@@ -56,7 +56,7 @@ class ApplicationTask(Runnable, metaclass=FactoryTypeMeta[type(Self), Applicatio
         return ApplicationTaskFactory
 
     @property
-    def application(self) -> Application:
+    def application(self) -> Any:
         """The parent application of this task.
 
         Returns:
@@ -65,17 +65,12 @@ class ApplicationTask(Runnable, metaclass=FactoryTypeMeta[type(Self), Applicatio
         return self._application
 
     @application.setter
-    def application(self, value: Application):
+    def application(self, value: Any):
         """Set the parent application for this task.
 
         Args:
             value: The application instance to set.
-
-        Raises:
-            TypeError: If value is not an Application instance.
         """
-        if not isinstance(value, Application):
-            raise TypeError('application must be of type Application')
         self._application = value
 
     def inject(self) -> None:
