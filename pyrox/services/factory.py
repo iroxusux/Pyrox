@@ -5,7 +5,9 @@ import sys
 from pyrox.models.abc.factory import MetaFactory
 
 
-def reload_factory_while_preserving_registered_types(factory: MetaFactory) -> None:
+def reload_factory_while_preserving_registered_types(
+    factory: type[MetaFactory]
+) -> None:
     """Reload the module of the given factory while preserving its registered types.
 
     Args:

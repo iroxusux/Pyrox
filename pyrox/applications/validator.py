@@ -5,7 +5,7 @@ import importlib
 from pyrox.models import plc
 from pyrox.services.logging import log, LOG_LEVEL_FAILURE, LOG_LEVEL_SUCCESS
 
-importlib.reload(plc)  # Ensure the plc module is reloaded to get the latest classes
+importlib.reload(plc)
 
 
 class BaseControllerValidator(plc.ControllerValidator):
@@ -126,6 +126,9 @@ class BaseControllerValidator(plc.ControllerValidator):
             program: The program the routine is in.
             routine: The routine to check.
         """
+        if program.main_routine_name == routine.name:
+            return
+
         if not program.check_routine_has_jsr(routine):
             log(cls).log(LOG_LEVEL_FAILURE, f'Routine {routine.name} in program {program.name} has no JSR calls to it!')
 
@@ -172,7 +175,6 @@ class BaseControllerValidator(plc.ControllerValidator):
         controller: plc.Controller,
         aoi: plc.AddOnInstruction
     ) -> None:
-        log(cls).info(f'Validating add on instruction {aoi.name}...')
         cls._check_common_has_name(controller, aoi)
         cls._check_common_has_description(controller, aoi)
 
@@ -202,7 +204,6 @@ class BaseControllerValidator(plc.ControllerValidator):
         controller: plc.Controller,
         datatype: plc.Datatype
     ) -> None:
-        log(cls).info(f'Validating datatype {datatype.name}...')
         cls._check_common_has_name(controller, datatype)
         cls._check_common_has_description(controller, datatype)
         cls.validate_datatype_members(controller, datatype)
@@ -215,7 +216,6 @@ class BaseControllerValidator(plc.ControllerValidator):
         member: plc.DatatypeMember
     ) -> None:
         cls._check_common_has_name(controller, member)
-        # cls._check_common_has_description(controller, member)  # Datatype members often don't have descriptions, so this doesn't matter
         cls._check_datatype_member_has_valid_datatype(controller, datatype, member)
 
     @classmethod
@@ -224,7 +224,6 @@ class BaseControllerValidator(plc.ControllerValidator):
         controller: plc.Controller,
         datatype: plc.Datatype
     ) -> None:
-        log(cls).info(f'Validating datatype members for {datatype.name}...')
         for member in datatype.members:
             cls.validate_datatype_member(controller, datatype, member)
 
@@ -233,7 +232,6 @@ class BaseControllerValidator(plc.ControllerValidator):
         cls,
         controller: plc.Controller
     ) -> None:
-        log(cls).info('Validating datatypes...')
         for datatype in controller.datatypes:
             cls.validate_datatype(controller, datatype)
 
@@ -243,7 +241,6 @@ class BaseControllerValidator(plc.ControllerValidator):
         controller: plc.Controller,
         module: plc.Module
     ) -> None:
-        log(cls).info(f'Validating module {module.name}...')
         cls._check_common_has_name(controller, module)
         cls._check_common_has_description(controller, module)
 
@@ -275,7 +272,6 @@ class BaseControllerValidator(plc.ControllerValidator):
         controller: plc.Controller,
         program: plc.Program
     ) -> None:
-        log(cls).info(f'Validating program {program.name}...')
         cls._check_common_has_name(controller, program)
         cls._check_common_has_description(controller, program)
         cls.validate_routines(controller, program)
@@ -296,7 +292,6 @@ class BaseControllerValidator(plc.ControllerValidator):
         program: plc.Program,
         routine: plc.Routine
     ) -> None:
-        log(cls).info(f'Validating routine {routine.name} in program {program.name}...')
         cls._check_common_has_name(controller, routine)
         cls._check_common_has_description(controller, routine)
         cls._check_routine_has_jsr(controller, program, routine)
@@ -308,7 +303,6 @@ class BaseControllerValidator(plc.ControllerValidator):
         controller: plc.Controller,
         program: plc.Program
     ) -> None:
-        log(cls).info(f'Validating routines in program {program.name}...')
         for routine in program.routines:
             cls.validate_routine(controller, program, routine)
 
@@ -334,7 +328,6 @@ class BaseControllerValidator(plc.ControllerValidator):
         program: plc.Program,
         routine: plc.Routine
     ) -> None:
-        log(cls).info(f'Validating rungs in routine {routine.name} in program {program.name}...')
         for rung in routine.rungs:
             cls.validate_rung(controller, program, routine, rung)
 
@@ -344,7 +337,6 @@ class BaseControllerValidator(plc.ControllerValidator):
         controller: plc.Controller,
         tag: plc.Tag
     ) -> None:
-        log(cls).info(f'Validating tag {tag.name}...')
         cls._check_common_has_name(controller, tag)
         cls._check_common_has_description(controller, tag)
 

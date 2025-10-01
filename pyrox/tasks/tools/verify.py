@@ -1,6 +1,5 @@
 """Controller Verify Task
 """
-import importlib
 from tkinter import Menu
 
 from pyrox.applications.app import App, AppTask
@@ -23,7 +22,6 @@ class ControllerVerifyTask(AppTask):
     ) -> None:
         if not self.controller:
             return
-        importlib.reload(validator)
         ctrl_validator = validator.ControllerValidatorFactory.get_validator(self.controller)
 
         match verify_type:

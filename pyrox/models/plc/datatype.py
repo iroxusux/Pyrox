@@ -172,6 +172,31 @@ TIMER = Datatype(meta_data={
             {'@Name': 'TT', '@DataType': 'BOOL', '@Dimension': '1', '@Hidden': 'false'},
             {'@Name': 'DN', '@DataType': 'BOOL', '@Dimension': '1', '@Hidden': 'false'},
         ]}})
+CONTROL = Datatype(meta_data={
+    '@Name': 'CONTROL',
+    'Members': {
+        'Member': [
+            {'@Name': 'LEN', '@DataType': 'DINT', '@Dimension': '1', '@Hidden': 'false'},
+            {'@Name': 'POS', '@DataType': 'DINT', '@Dimension': '1', '@Hidden': 'false'},
+            {'@Name': 'EN', '@DataType': 'BOOL', '@Dimension': '1', '@Hidden': 'false'},
+            {'@Name': 'EU', '@DataType': 'BOOL', '@Dimension': '1', '@Hidden': 'false'},
+            {'@Name': 'DN', '@DataType': 'BOOL', '@Dimension': '1', '@Hidden': 'false'},
+            {'@Name': 'EM', '@DataType': 'BOOL', '@Dimension': '1', '@Hidden': 'false'},
+            {'@Name': 'ER', '@DataType': 'BOOL', '@Dimension': '1', '@Hidden': 'false'},
+            {'@Name': 'UL', '@DataType': 'BOOL', '@Dimension': '1', '@Hidden': 'false'},
+            {'@Name': 'IN', '@DataType': 'BOOL', '@Dimension': '1', '@Hidden': 'false'},
+            {'@Name': 'FD', '@DataType': 'BOOL', '@Dimension': '1', '@Hidden': 'false'},
+        ]}})
+COUNTER = Datatype(meta_data={
+    '@Name': 'COUNTER',
+    'Members': {
+        'Member': [
+            {'@Name': 'PRE', '@DataType': 'DINT', '@Dimension': '1', '@Hidden': 'false'},
+            {'@Name': 'ACC', '@DataType': 'DINT', '@Dimension': '1', '@Hidden': 'false'},
+            {'@Name': 'CU', '@DataType': 'BOOL', '@Dimension': '1', '@Hidden': 'false'},
+            {'@Name': 'CD', '@DataType': 'BOOL', '@Dimension': '1', '@Hidden': 'false'},
+            {'@Name': 'DN', '@DataType': 'BOOL', '@Dimension': '1', '@Hidden': 'false'},
+        ]}})
 
 BUILTINS = [
     BOOL,
@@ -188,4 +213,5 @@ BUILTINS = [
     LREAL,
     STRING,
     TIMER,
+    COUNTER,
 ]
