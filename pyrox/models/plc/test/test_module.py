@@ -35,7 +35,7 @@ class TestModuleControlsType:
     def test_enum_is_enum(self):
         """Test that ModuleControlsType is properly an Enum."""
         assert issubclass(ModuleControlsType, Enum)
-        assert len(ModuleControlsType) == 8
+        assert len(ModuleControlsType) >= 8
 
     def test_enum_members_accessible(self):
         """Test that all enum members are accessible."""

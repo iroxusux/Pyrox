@@ -3,11 +3,12 @@
 from __future__ import annotations
 from typing import List, Optional, TYPE_CHECKING, Union
 from pyrox.models.abc import FactoryTypeMeta, HashList, MetaFactory, PyroxObject
+from pyrox.models.plc import Module
 from pyrox.services.logging import log
 
 
 if TYPE_CHECKING:
-    from ..plc import Module, ModuleControlsType, Rung
+    from ..plc import ModuleControlsType, Rung
 
 __all__ = (
     'ModuleWarehouse',
@@ -154,9 +155,9 @@ class IntrospectiveModule(PyroxObject):
 
     def __init__(
         self,
-        module: Optional[Module] = None
+        module: Module
     ) -> None:
-        self._module = module
+        self.module = module
 
     @property
     def catalog_number(self) -> str:
@@ -176,7 +177,8 @@ class IntrospectiveModule(PyroxObject):
     @property
     def controls_type(cls) -> ModuleControlsType:
         """The controls type of the module."""
-        return ModuleControlsType.UNKNOWN
+        from pyrox.models.plc.module import ModuleControlsType
+        return ModuleControlsType.UNKOWN
 
     @property
     def input_cxn_point(self) -> str:
@@ -189,7 +191,7 @@ class IntrospectiveModule(PyroxObject):
         raise NotImplementedError('This method should be implemented by the subclass.')
 
     @property
-    def module(self) -> Optional[Module]:
+    def module(self) -> Module:
         """The module being wrapped by the IntrospectiveModule."""
         return self._module
 

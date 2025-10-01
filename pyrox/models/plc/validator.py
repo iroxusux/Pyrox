@@ -46,7 +46,9 @@ class ControllerValidator(
             controller: The controller to validate.
         """
         self.controller = controller
-        file_stream = create_stream_to_file(self.controller.file_location + '.validation.log')
+        file_stream = create_stream_to_file(
+            self.controller.file_location + '.validation.log',
+            mode='w')
         if not file_stream:
             raise ValueError(f'Could not create log file stream for {self.controller.file_location}.')
         self.log_file_stream = file_stream

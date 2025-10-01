@@ -2,7 +2,6 @@
 """
 from __future__ import annotations
 from pyrox.models.abc.factory import FactoryTypeMeta
-from typing import Self
 from pyrox.models.plc import (
     IntrospectiveModule,
     ModuleControlsType,
@@ -14,7 +13,10 @@ class TurckModuleFactory(ModuleWarehouse):
     """Factory for creating Turck module instances."""
 
 
-class TurckModule(IntrospectiveModule, metaclass=FactoryTypeMeta[Self, TurckModuleFactory]):
+class TurckModule(
+        IntrospectiveModule,
+        metaclass=FactoryTypeMeta['TurckModule', TurckModuleFactory]
+):
     """Turck Module ABC.
     """
     supports_registering = False  # Turck modules do not support registering directly
@@ -23,17 +25,25 @@ class TurckModule(IntrospectiveModule, metaclass=FactoryTypeMeta[Self, TurckModu
         cls.supports_registering = True  # Subclasses can support registering
         return super().__init_subclass__(**kwargs)
 
-    @classmethod
-    def get_factory(cls):
-        return TurckModuleFactory
-
-
-class TurckTBENG16ConfigBlock(TurckModule):
     @property
     def catalog_number(self) -> str:
         """The catalog number of the G115 drive module."""
         return 'ETHERNET-MODULE'
 
+    @property
+    def config_cxn_point(self) -> str:
+        """The config connection point of the module."""
+        return ''
+
+    @classmethod
+    def get_factory(cls):
+        return TurckModuleFactory
+
+    def get_standard_input_tag_name(self):
+        return f'zz_Demo3D_{self.module.name}'
+
+
+class TurckTBENG16ConfigBlock(TurckModule):
     @property
     def config_size(self) -> str:
         """The config connection size of the module."""
@@ -42,7 +52,7 @@ class TurckTBENG16ConfigBlock(TurckModule):
     @property
     def controls_type(self) -> ModuleControlsType:
         """The controls type of the module."""
-        return ModuleControlsType.BLOCK
+        return ModuleControlsType.CONFIG_BLOCK
 
     @property
     def input_cxn_point(self) -> str:
@@ -64,21 +74,8 @@ class TurckTBENG16ConfigBlock(TurckModule):
         """The output size of the module."""
         return '4'
 
-    def get_standard_input_tag_name(self):
-        return f'zz_Demo3D_{self.module.name}'
-
 
 class TurckTBENG8In8OutBlock(TurckModule):
-    @property
-    def catalog_number(self) -> str:
-        """The catalog number of the G115 drive module."""
-        return 'ETHERNET-MODULE'
-
-    @property
-    def config_cxn_point(self) -> str:
-        """The config connection point of the module."""
-        return ''
-
     @property
     def config_size(self) -> str:
         """The config connection size of the module."""
@@ -87,7 +84,7 @@ class TurckTBENG8In8OutBlock(TurckModule):
     @property
     def controls_type(self) -> ModuleControlsType:
         """The controls type of the module."""
-        return ModuleControlsType.BLOCK
+        return ModuleControlsType.INPUT_OUTPUT_BLOCK
 
     @property
     def input_cxn_point(self) -> str:
@@ -109,21 +106,8 @@ class TurckTBENG8In8OutBlock(TurckModule):
         """The output size of the module."""
         return '4'
 
-    def get_standard_input_tag_name(self):
-        return f'zz_Demo3D_{self.module.name}'
-
 
 class TurckTBENL16InBlock(TurckModule):
-    @property
-    def catalog_number(self) -> str:
-        """The catalog number of the G115 drive module."""
-        return 'ETHERNET-MODULE'
-
-    @property
-    def config_cxn_point(self) -> str:
-        """The config connection point of the module."""
-        return ''
-
     @property
     def config_size(self) -> str:
         """The config connection size of the module."""
@@ -132,7 +116,7 @@ class TurckTBENL16InBlock(TurckModule):
     @property
     def controls_type(self) -> ModuleControlsType:
         """The controls type of the module."""
-        return ModuleControlsType.BLOCK
+        return ModuleControlsType.INPUT_BLOCK
 
     @property
     def input_cxn_point(self) -> str:
@@ -153,6 +137,3 @@ class TurckTBENL16InBlock(TurckModule):
     def output_size(self) -> str:
         """The output size of the module."""
         return '2'
-
-    def get_standard_input_tag_name(self):
-        return f'zz_Demo3D_{self.module.name}'

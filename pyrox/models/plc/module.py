@@ -6,7 +6,7 @@ from pyrox.models.plc import meta as plc_meta
 from pyrox.services.plc import l5x_dict_from_file
 
 if TYPE_CHECKING:
-    from pyrox.models.plc import Controller
+    from pyrox.models.plc.controller import Controller
     from pyrox.models.plc.imodule import IntrospectiveModule
 
 
@@ -15,10 +15,20 @@ class ModuleControlsType(Enum):
     """
     UNKOWN = 'Unknown'
     PLC = 'PLC'
+    RACK_COMM_CARD = 'RackCommCard'
     ETHERNET = 'Ethernet'
+    ETHERNET_SWITCH = 'EthernetSwitch'
     SERIAL = 'Serial'
     BLOCK = 'Block'
+    INPUT_BLOCK = 'InputBlock'
+    OUTPUT_BLOCK = 'OutputBlock'
+    INPUT_OUTPUT_BLOCK = 'InputOutputBlock'
+    CONFIG_BLOCK = 'ConfigBlock'
     SAFETY_BLOCK = 'SafetyBlock'
+    SAFETY_INPUT_BLOCK = 'SafetyInputBlock'
+    SAFETY_OUTPUT_BLOCK = 'SafetyOutputBlock'
+    SAFETY_INPUT_OUTPUT_BLOCK = 'SafetyInputOutputBlock'
+    SAFETY_CONFIG_BLOCK = 'SafetyConfigBlock'
     DRIVE = 'Drive'
     POINT_IO = 'PointIO'
 

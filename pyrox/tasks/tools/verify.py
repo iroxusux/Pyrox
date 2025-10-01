@@ -48,7 +48,7 @@ class ControllerValidatorTask(AppTask):
                     ctrl_validator.validate_programs(self.controller)
                 case _:
                     raise ValueError(f'Unknown Validate type: {validate_type}')
-            ctrl_validator.log().info(f'--- Controller Validation Complete ---')
+            ctrl_validator.log().info('--- Controller Validation Complete ---')
 
     def inject(self) -> None:
         drop_down = Menu(self.application.menu.tools, tearoff=0)

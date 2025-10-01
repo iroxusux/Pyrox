@@ -30,7 +30,7 @@ class BaseControllerValidator(plc_validator.ControllerValidator):
             True if the common PLC object has a description, False otherwise.
         """
         if not common_plc_object.description or common_plc_object.description == '':
-            log(cls).log(LOG_LEVEL_FAILURE, f'{common_plc_object.__class__.__name__} {common_plc_object.name} has no description!')
+            log(cls).warning(f'{common_plc_object.__class__.__name__} {common_plc_object.name} has no description!')
             return False
         return True
 
