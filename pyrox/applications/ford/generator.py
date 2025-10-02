@@ -1,6 +1,7 @@
 """Ford specific emulation logic generator."""
 from pyrox.applications.generator import BaseEmulationGenerator
 from pyrox.services.logging import log
+from pyrox.models import plc
 from .ford import FordController
 
 
