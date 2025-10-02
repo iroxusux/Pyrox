@@ -11,9 +11,6 @@ log_and_echo() {
     echo "$1" | tee -a "$LOG_FILE"
 }
 
-# Redirect all output to log file and console
-exec > >(tee -a "$LOG_FILE") 2>&1
-
 log_and_echo "=== Starting Pyrox Deployment ==="
 log_and_echo "Log file: $LOG_FILE"
 log_and_echo "Timestamp: $(date)"

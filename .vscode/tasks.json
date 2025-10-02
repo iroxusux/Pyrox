@@ -1,6 +1,4 @@
 {
-    // See https://go.microsoft.com/fwlink/?LinkId=733558
-    // for the documentation about the tasks.json format
     "version": "2.0.0",
     "tasks": [
         {
@@ -14,24 +12,75 @@
             }
         },
         {
+            "label": "test-python",
+            "type": "shell",
+            "command": "python",
+            "args": [
+                "-m",
+                "pytest",
+                "tests/",
+                "-v",
+                "--tb=short"
+            ],
+            "problemMatcher": [],
+            "group": "test",
+            "presentation": {
+                "echo": true,
+                "reveal": "always",
+                "focus": false,
+                "panel": "shared",
+                "showReuseMessage": true,
+                "clear": false
+            }
+        },
+        {
+            "label": "test-shell",
+            "type": "shell",
+            "command": "./lib/test/test_utils.sh",
+            "problemMatcher": [],
+            "group": "test",
+            "presentation": {
+                "echo": true,
+                "reveal": "always",
+                "focus": false,
+                "panel": "shared",
+                "showReuseMessage": true,
+                "clear": false
+            }
+        },
+        {
+            "label": "test-all",
+            "dependsOrder": "sequence",
+            "dependsOn": [
+                "test-python",
+                "test-shell"
+            ],
+            "group": {
+                "kind": "test",
+                "isDefault": true
+            },
+            "presentation": {
+                "echo": true,
+                "reveal": "always",
+                "focus": false,
+                "panel": "shared",
+                "showReuseMessage": true,
+                "clear": true
+            }
+        },
+        {
             "label": "deploy",
             "type": "shell",
             "command": "./deploy.sh",
             "problemMatcher": [],
-            "group": {
-                "kind": "test",
-                "isDefault": true
-            }
+            "group": "build"
         },
         {
             "label": "distribute",
             "type": "shell",
             "command": "./dist.sh",
             "problemMatcher": [],
-            "group": {
-                "kind": "test",
-                "isDefault": false
-            }
+            "group": "build"
         }
     ]
 }

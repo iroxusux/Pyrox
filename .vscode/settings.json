@@ -7,5 +7,5 @@
     "editor.fontFamily": "Consolas, monospace",
     "workbench.startupEditor": "none",
     "editor.defaultFoldingRangeProvider": null,
-    "python.analysis.typeCheckingMode": "standard"
+    "python.analysis.typeCheckingMode": "standard",
 }
