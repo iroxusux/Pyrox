@@ -1,4 +1,4 @@
-from typing import Callable, Optional, TextIO
+from typing import Callable, TextIO
 import tkinter as tk
 from tkinter import ttk
 from pyrox.models.gui import meta
@@ -43,14 +43,10 @@ class LogFrame(meta.PyroxFrame):
             expand=True
         )
 
-        self._logtext = tk.Text(
+        self._logtext = meta.PyroxText(
             text_frame,
             state='disabled',
-            background=meta.PyroxDefaultTheme.widget_background,
-            foreground=meta.PyroxDefaultTheme.foreground,
             wrap='word',
-            borderwidth=meta.PyroxDefaultTheme.borderwidth,
-            relief=meta.PyroxDefaultTheme.relief,
         )
 
         # Scrollbars

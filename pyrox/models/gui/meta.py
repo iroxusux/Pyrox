@@ -296,7 +296,6 @@ class PyroxNotebook(ttk.Notebook):
 
     def _configure_style(self, tab_pos) -> None:
         # Ensure shared theme is created and applied
-        PyroxThemeManager.ensure_theme_created()
 
         style = ttk.Style()
         style.configure('TNotebook', tabposition=tab_pos)
@@ -308,6 +307,28 @@ class PyroxPanedWindow(ttk.PanedWindow):
 
     def __init__(self, master=None) -> None:
         super().__init__(master)
+
+
+class PyroxText(Text):
+    """A text widget with Pyrox default theme."""
+
+    def __init__(
+        self,
+        master=None,
+        **kwargs
+    ) -> None:
+        super().__init__(master, **kwargs)
+        self._configure_style()
+
+    def _configure_style(self) -> None:
+        self.configure(
+            background=PyroxDefaultTheme.widget_background,
+            foreground=PyroxDefaultTheme.foreground,
+            insertbackground=PyroxDefaultTheme.foreground_selected,
+            font=(PyroxDefaultTheme.font_family, PyroxDefaultTheme.font_size),
+            borderwidth=PyroxDefaultTheme.borderwidth,
+            relief=PyroxDefaultTheme.relief,  # type: ignore
+        )
 
 
 class PyroxTreeview(ttk.Treeview):

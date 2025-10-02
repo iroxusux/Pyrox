@@ -9,7 +9,7 @@ from .frames import (
 )
 from .ladder import LadderEditorTaskFrame
 from .listbox import UserListbox
-from .logger import LogFrame
+from .logframe import LogFrame
 from .menu import ContextMenu, MenuItem
 from .meta import PyroxFrame
 from .plc import PlcGuiObject
