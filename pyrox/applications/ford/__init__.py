@@ -1,9 +1,9 @@
-from . import ford, validator, matcher, generator
+from . import plc
+
+from .plc.ford import FordController
 
 
 __all__ = [
-    'ford',
-    'generator',
-    'matcher',
-    'validator'
+    'FordController',
+    'plc',
 ]

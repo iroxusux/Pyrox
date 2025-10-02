@@ -15,7 +15,7 @@ importlib.reload(base_validator)
 class FordControllerValidator(base_validator.BaseControllerValidator):
     """Validator for Ford controllers.
     """
-    supporting_class = ford.ford.FordController
+    supporting_class = ford.FordController
 
     @classmethod
     def validate_datatype(

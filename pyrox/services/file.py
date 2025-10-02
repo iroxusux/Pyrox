@@ -161,8 +161,8 @@ def save_dict_to_json_file(
 def save_file(
     file_path: str,
     file_extension: str,
-    save_mode: str,
-    file_data: str | bytes,
+    save_mode: str = 'w',
+    file_data: str | bytes = '',
     encoding: Optional[str] = None
 ) -> bool:
     """save file to location

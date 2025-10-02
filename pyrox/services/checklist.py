@@ -1,4 +1,6 @@
 from typing import Optional
+from pyrox.models.eplan import project as proj
+from pyrox.services import env
 from pyrox.services.file import transform_file_to_dict
 from pyrox.services.logging import log
 
@@ -70,7 +72,23 @@ def _finalize_checklist_checks(checklist: dict) -> None:
         log().info(f'  - {test_name}: {len(content)} steps')
 
 
-def compile_checklist_from_md_file(
+def _compile_hmi_checklist_from_eplan_project(
+    project: proj.EplanProject,
+    template: dict
+) -> dict:
+    pass  # Placeholder for future implementation
+    return {}
+
+
+def compile_checklist_from_eplan_project(
+    project: proj.EplanProject,
+    template: dict
+) -> dict:
+    pass  # Placeholder for future implementation
+    return {}
+
+
+def get_checklist_template_from_md_file(
     file_path: Optional[str] = None
 ) -> dict:
     """Compile a checklist from a markdown file.
@@ -91,3 +109,15 @@ def compile_checklist_from_md_file(
     checklist = _compile_checklist_from_metadata(checklist_meta)
     _finalize_checklist_checks(checklist)
     return checklist
+
+
+def get_controls_template() -> dict:
+    template_path = env.get_env('CHECKLIST_TEMPLATE_FILE')
+    if not template_path:
+        raise ValueError('No controls template file path set in environment variable CHECKLIST_TEMPLATE_FILE')
+
+    log(__name__).info(f'Loading controls template from {template_path}')
+    controls_template = get_checklist_template_from_md_file(template_path)
+    if controls_template is None:
+        raise ValueError(f'Could not load controls template from {template_path}')
+    return controls_template

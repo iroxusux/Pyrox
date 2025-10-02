@@ -309,12 +309,11 @@ class EplanProject(
 
     def _gather_project_device_io_details(self) -> None:
         """Gather all device IO details from the project."""
-        log(self).warning("EPLAN device IO gathering not yet implemented.")
+        raise NotImplementedError("Subclasses must override this abstract method.")
 
     def _gather_project_ethernet_devices(self) -> None:
         """Gather all ethernet devices from the project."""
-        log(self).warning("EPLAN ethernet device gathering not yet implemented.")
-        return  # Not yet implemented
+        raise NotImplementedError("Subclasses must override this abstract method.")
 
     def _gather_project_group_details(self) -> None:
         """Gather all groups from the project."""

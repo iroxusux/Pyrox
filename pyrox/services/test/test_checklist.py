@@ -6,7 +6,7 @@ import unittest
 from unittest.mock import patch
 
 from pyrox.services.checklist import (
-    compile_checklist_from_md_file,
+    get_checklist_template_from_md_file,
     _categorize_sections_by_header,
     _get_all_tests,
     _get_sections_tests,
@@ -128,7 +128,7 @@ Just a single line of content.
 
     def test_compile_checklist_from_valid_md_file(self):
         """Test compile_checklist_from_md_file with a valid markdown file."""
-        result = compile_checklist_from_md_file(self.valid_md_file)
+        result = get_checklist_template_from_md_file(self.valid_md_file)
 
         # Verify result is a dictionary
         self.assertIsInstance(result, dict)
@@ -159,7 +159,7 @@ Just a single line of content.
 
     def test_compile_checklist_from_empty_md_file(self):
         """Test compile_checklist_from_md_file with an empty markdown file."""
-        result = compile_checklist_from_md_file(self.empty_md_file)
+        result = get_checklist_template_from_md_file(self.empty_md_file)
 
         # Verify result is a dictionary
         self.assertIsInstance(result, dict)
@@ -178,7 +178,7 @@ Just a single line of content.
 
     def test_compile_checklist_from_complex_md_file(self):
         """Test compile_checklist_from_md_file with complex markdown formatting."""
-        result = compile_checklist_from_md_file(self.complex_md_file)
+        result = get_checklist_template_from_md_file(self.complex_md_file)
 
         # Verify result is a dictionary
         self.assertIsInstance(result, dict)
@@ -193,7 +193,7 @@ Just a single line of content.
 
     def test_compile_checklist_from_simple_md_file(self):
         """Test compile_checklist_from_md_file with simple markdown content."""
-        result = compile_checklist_from_md_file(self.simple_md_file)
+        result = get_checklist_template_from_md_file(self.simple_md_file)
 
         # Verify result structure
         self.assertIsInstance(result, dict)
@@ -209,7 +209,7 @@ Just a single line of content.
         nonexistent_file = os.path.join(self.test_dir, 'nonexistent.md')
 
         with self.assertRaises(FileNotFoundError) as context:
-            compile_checklist_from_md_file(nonexistent_file)
+            get_checklist_template_from_md_file(nonexistent_file)
 
         # Verify error message contains file path
         self.assertIn('File not found:', str(context.exception))
@@ -218,23 +218,23 @@ Just a single line of content.
     def test_compile_checklist_from_directory_path(self):
         """Test compile_checklist_from_md_file with directory path instead of file."""
         with self.assertRaises(FileNotFoundError) as context:
-            compile_checklist_from_md_file(self.test_dir)
+            get_checklist_template_from_md_file(self.test_dir)
 
         self.assertIn('File not found:', str(context.exception))
 
     def test_compile_checklist_from_none_path(self):
         """Test compile_checklist_from_md_file with None as file path."""
         with self.assertRaises((TypeError, AttributeError)):
-            compile_checklist_from_md_file(None)
+            get_checklist_template_from_md_file(None)
 
     def test_compile_checklist_from_empty_string_path(self):
         """Test compile_checklist_from_md_file with empty string as file path."""
         with self.assertRaises(TypeError):
-            compile_checklist_from_md_file("")
+            get_checklist_template_from_md_file("")
 
     def test_compile_checklist_return_type_consistency(self):
         """Test that compile_checklist_from_md_file always returns consistent dict structure."""
-        result = compile_checklist_from_md_file(self.valid_md_file)
+        result = get_checklist_template_from_md_file(self.valid_md_file)
 
         # Verify all expected keys are present
         expected_keys = {'file_path', 'line_count', 'content_preview', 'content', 'description', 'title', 'tests'}
@@ -280,7 +280,7 @@ Just a single line of content.
                 'Verify that **Status LED** is green.\n'
             ]
         }
-        result = compile_checklist_from_md_file(self.valid_md_file)
+        result = get_checklist_template_from_md_file(self.valid_md_file)
 
         # Verify result is what was returned by the mock
         self.assertEqual(result, expected_result)
@@ -292,7 +292,7 @@ Just a single line of content.
         mock_transform.side_effect = FileNotFoundError("Mock file not found")
 
         with self.assertRaises(FileNotFoundError) as context:
-            compile_checklist_from_md_file(self.valid_md_file)
+            get_checklist_template_from_md_file(self.valid_md_file)
 
         self.assertIn("Mock file not found", str(context.exception))
 
@@ -300,7 +300,7 @@ Just a single line of content.
         mock_transform.side_effect = PermissionError("Mock permission denied")
 
         with self.assertRaises(PermissionError) as context:
-            compile_checklist_from_md_file(self.valid_md_file)
+            get_checklist_template_from_md_file(self.valid_md_file)
 
         self.assertIn("Mock permission denied", str(context.exception))
 
@@ -322,7 +322,7 @@ Just a single line of content.
         with open(unicode_md_file, 'w', encoding='utf-8') as f:
             f.write(unicode_content)
 
-        result = compile_checklist_from_md_file(unicode_md_file)
+        result = get_checklist_template_from_md_file(unicode_md_file)
 
         # Verify Unicode content is properly handled
         content_text = ''.join(result['content'])
@@ -344,7 +344,7 @@ Just a single line of content.
         with open(large_md_file, 'w', encoding='utf-8') as f:
             f.write(large_content)
 
-        result = compile_checklist_from_md_file(large_md_file)
+        result = get_checklist_template_from_md_file(large_md_file)
 
         # Verify large file is handled correctly
         self.assertIsInstance(result, dict)
@@ -360,7 +360,7 @@ Just a single line of content.
 
     def test_compile_checklist_sections_parsing(self):
         """Test that compile_checklist_from_md_file properly parses sections with ##### headers."""
-        result = compile_checklist_from_md_file(self.complex_md_file)
+        result = get_checklist_template_from_md_file(self.complex_md_file)
 
         # Verify sections key is present
         self.assertIn('tests', result)
@@ -379,7 +379,7 @@ Just a single line of content.
 
     def test_compile_checklist_no_sections_handling(self):
         """Test compile_checklist_from_md_file when there are no ##### headers."""
-        result = compile_checklist_from_md_file(self.valid_md_file)
+        result = get_checklist_template_from_md_file(self.valid_md_file)
 
         # Should still have sections key but it should be empty
         self.assertIn('tests', result)
