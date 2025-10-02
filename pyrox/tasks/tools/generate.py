@@ -52,18 +52,9 @@ class ControllerGenerateTask(AppTask):
         emu.remove_emulation_routine(self.controller)
 
     def inject(self) -> None:
-        drop_down = Menu(self.application.menu.tools, name='generate_tasks', tearoff=0)
-        self.application.menu.tools.insert_cascade(0, label='Generate Tasks', menu=drop_down)
-
-        drop_down.add_command(label='Generate GM Controller', command=self.generate_gm)
-
-        drop_down.add_command(label='Ford (WIP)', command=self.generate_ford)
-        drop_down.add_command(label='Stellantis (WIP)', command=self.generate_stellantis)
-
-        emu_drop_down = Menu(drop_down, name='emu_tasks', tearoff=0)
-        drop_down.add_cascade(label='Emulation Tasks', menu=emu_drop_down)
-
-        emu_drop_down.add_command(label='Inject Emulation Routine', command=self._inject)
-        emu_drop_down.add_command(label='Remove Emulation Routine', command=self._remove)
-        emu_drop_down.add_separator()
-        emu_drop_down.add_command(label='Generate Checklist', command=self._gen_checklist)
+        drop_down = Menu(self.application.menu.tools, name='logic_generation', tearoff=0)
+        self.application.menu.tools.insert_cascade(0, label='Logic Generation', menu=drop_down)
+        drop_down.add_command(label='Inject Emulation Routine', command=self._inject)
+        drop_down.add_command(label='Remove Emulation Routine', command=self._remove)
+        drop_down.add_separator()
+        drop_down.add_command(label='Generate Checklist', command=self._gen_checklist)
