@@ -16,6 +16,13 @@ from pyrox.models.eplan import project as proj
 if TYPE_CHECKING:
     from pyrox.models import plc
 
+
+__all__ = (
+    'get_project',
+    'import_eplan',
+)
+
+
 PACKAGE_NAME_RE: str = r"(?:PACKAGE )(.*)(?:DESCRIPTION: )(.*)"
 SECTION_LETTER_RE: str = r"(?:SECTION\nLETTER:\n)(.*)"
 SHEET_NUMBER_RE: str = r"(?:SHEET\nNUMBER:\n)(.*) (.*)(?:\nOF)"
@@ -39,23 +46,11 @@ def _debug_export_project_dict(project: proj.EplanProject) -> None:
     project.save_project_dict_to_file(_debug_get_project_save_file(project))
 
 
-def _get_epj_file() -> str:
+def get_epj_file() -> str:
     return get_open_file(
         title='Select EPlan Project',
         filetypes=[('.epj Files', '*.epj'), ('All Files', '*.*')],
     )
-
-
-def _get_project(
-    controller: plc.Controller,
-    file_location: str
-) -> proj.EplanProject:
-    project: Optional[type[proj.EplanProject]] = proj.EplanProjectFactory.get_registered_type_by_supporting_class(controller)
-    if not project:
-        project = proj.EplanProjectFactory.get_registered_type_by_supporting_class('Controller')
-    if not isinstance(project, type(proj.EplanProject)):
-        raise ValueError('No valid project found for this controller type!')
-    return project(file_location=file_location)
 
 
 def _get_validator(
@@ -84,20 +79,31 @@ def _work_precheck(
         raise ValueError('No validator provided for eplan import operation.')
 
 
+def get_project(
+    controller: plc.Controller,
+    file_location: str
+) -> proj.EplanProject:
+    project = proj.EplanProjectFactory.get_registered_type_by_supporting_class(controller)
+    if not project:
+        project = proj.EplanProjectFactory.get_registered_type_by_supporting_class('Controller')
+    if not isinstance(project, type(proj.EplanProject)):
+        raise ValueError('No valid project found for this controller type!')
+    if not file_location:
+        file_location = get_epj_file()
+    if not file_location or not os.path.isfile(file_location):
+        raise FileNotFoundError('No valid EPlan project file selected!')
+    return project(file_location=file_location)
+
+
 def import_eplan(
     controller: plc.Controller
 ) -> None:
-    """Injects emulation routine the current controller.
-
-    Args:
-        controller (plc.Controller): The controller to inject the emulation routine into.
-    """
-    file_location = _get_epj_file()
+    file_location = get_epj_file()
     if not file_location or not os.path.isfile(file_location):
         log(__name__).error('No valid EPlan project file selected!')
         return
 
-    project: proj.EplanProject = _get_project(controller, file_location)
+    project: proj.EplanProject = get_project(controller, file_location)
     validator: proj.EplanControllerValidator = _get_validator(controller, project)
     _work_precheck(controller, project, validator)
     project.parse()

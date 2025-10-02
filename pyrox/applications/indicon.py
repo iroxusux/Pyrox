@@ -6,11 +6,6 @@ from pyrox.models import eplan, plc
 from pyrox.services.logging import log
 
 
-class BaseEplanProject(eplan.project.EplanProject):
-    """Base class for Eplan project generation logic."""
-    supporting_class = plc.Controller
-
-
 class BaseEplanValidator(eplan.project.EplanControllerValidator):
     """Base class for Eplan project validation logic."""
     supporting_class = plc.Controller

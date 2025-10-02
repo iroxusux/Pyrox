@@ -5,7 +5,7 @@ from typing import Optional, TypeVar
 from pyrox.models import HashList, plc, SupportsMetaData
 from pyrox.models import eplan
 from pyrox.services.logging import log
-from ..indicon import BaseEplanProject
+from ..eplan import BaseEplanProject
 
 
 FORD_CTRL = TypeVar('FORD_CTRL', bound='FordController')

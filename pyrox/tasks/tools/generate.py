@@ -1,41 +1,47 @@
 """PLC Inspection Application
     """
 import importlib
-from pyrox.applications import AppTask
-from pyrox.services import checklist, emu, env
 from tkinter import Menu
+from pyrox.applications import AppTask
+from pyrox.models.eplan.project import EplanProject
+from pyrox.services import checklist, eplan, emu, env
 
 
 class ControllerGenerateTask(AppTask):
     """Controller generation task for the PLC Application.
     """
 
-    def generate_gm(self):
-        raise NotImplementedError('GM controller generation not implemented yet.')
+    def _get_controls_template(self) -> dict:
+        importlib.reload(checklist)
 
-    def generate_ford(self):
-        raise NotImplementedError('Ford controller generation not implemented yet.')
+        template_path = env.get_env('CHECKLIST_TEMPLATE_FILE')
+        if not template_path:
+            raise ValueError('No controls template file path set in environment variable CHECKLIST_TEMPLATE_FILE')
 
-    def generate_stellantis(self):
-        raise NotImplementedError('Stellantis controller generation not implemented yet.')
+        self.log().info(f'Loading controls template from {template_path}')
+        controls_template = checklist.compile_checklist_from_md_file(template_path)
+        if controls_template is None:
+            raise ValueError(f'Could not load controls template from {template_path}')
+        return controls_template
+
+    def _get_eplan_project(self) -> EplanProject:
+        if not self.controller:
+            raise ValueError('No controller loaded, cannot get EPlan project!')
+        return eplan.get_project(self.controller, '')
 
     def _gen_checklist(self):
-        importlib.reload(checklist)
-        importlib.reload(env)
-
         if not self.controller:
             self.log().warning('No controller loaded, cannot generate any checklists!')
             return
 
-        checklist_template_path = env.get_env('CHECKLIST_TEMPLATE_FILE')
-        if not checklist_template_path:
-            self.log().error('No checklist path found in .env file. Please refer to symbol -> CHECKLIST_TEMPLATE_FILE')
+        checklist_template = self._get_controls_template()
+        if checklist_template is None:
+            return
+        eplan_project = self._get_eplan_project()
+        if eplan_project is None:
             return
 
         self.log().info(f'Generating checklist for controller {self.controller.name}')
-        controls_checklist = checklist.compile_checklist_from_md_file(checklist_template_path)
-        if controls_checklist is None:
-            self.log().error('Error generating checklist... Cannot continue.')
 
     def _inject(self):
         if not self.controller:
