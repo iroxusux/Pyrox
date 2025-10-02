@@ -60,21 +60,18 @@ class EnvManager:
             cls._env_file = cls._find_env_file()
 
         if not cls._env_file:
-            print("No .env file found")
             return False
 
         # Check if file exists and is readable
         if not cls._is_file_readable(cls._env_file):
-            print(f"File is not readable: {cls._env_file}")
             return False
 
         try:
             cls._load_from_file(cls._env_file)
-            print(f"Loaded environment variables from: {cls._env_file}")
             cls._loaded = True
             return True
-        except Exception as e:
-            print(f"Failed to load .env file {cls._env_file}: {e}")
+
+        except Exception:
             return False
 
     @classmethod
@@ -90,17 +87,14 @@ class EnvManager:
         try:
             # Check if file exists
             if not os.path.exists(file_path):
-                print(f"File does not exist: {file_path}")
                 return False
 
             # Check if it's actually a file (not a directory)
             if not os.path.isfile(file_path):
-                print(f"Path is not a file: {file_path}")
                 return False
 
             # Check read permissions using os.access
             if not os.access(file_path, os.R_OK):
-                print(f"File is not readable (permissions): {file_path}")
                 return False
 
             # Try to actually open and read a small portion to verify readability
@@ -108,12 +102,10 @@ class EnvManager:
                 with open(file_path, 'r', encoding='utf-8') as f:
                     f.read(1)  # Try to read just one character
                 return True
-            except (IOError, OSError, PermissionError, UnicodeDecodeError) as e:
-                print(f"File cannot be read: {file_path}, error: {e}")
+            except (IOError, OSError, PermissionError, UnicodeDecodeError):
                 return False
 
-        except Exception as e:
-            print(f"Error checking file readability for {file_path}: {e}")
+        except Exception:
             return False
 
     @classmethod
@@ -128,7 +120,6 @@ class EnvManager:
         for search_path in search_paths:
             env_path = os.path.join(search_path, '.env')
             if cls._is_file_readable(env_path):
-                print(f"Found readable .env file at: {env_path}")
                 return env_path
 
         return None
@@ -136,35 +127,25 @@ class EnvManager:
     @classmethod
     def _load_from_file(cls, file_path: str) -> None:
         """Load variables from .env file."""
-        try:
-            with open(file_path, 'r', encoding='utf-8') as f:
-                for line_num, line in enumerate(f, 1):
-                    line = line.strip()
 
-                    # Skip empty lines and comments
-                    if not line or line.startswith('#'):
-                        continue
+        with open(file_path, 'r', encoding='utf-8') as f:
+            for line_num, line in enumerate(f, 1):
+                line = line.strip()
 
-                    # Parse key=value pairs
-                    if '=' not in line:
-                        print(f"Invalid line {line_num} in {file_path}: {line}")
-                        continue
+                # Skip empty lines and comments
+                if not line or line.startswith('#'):
+                    continue
 
-                    key, value = cls._parse_line(line, line_num, file_path)
-                    if key:
-                        cls._env_vars[key] = value
-                        # Also set in os.environ if not already set
-                        if key not in os.environ:
-                            os.environ[key] = value
-        except (IOError, OSError, PermissionError) as e:
-            print(f"IO error reading file {file_path}: {e}")
-            raise
-        except UnicodeDecodeError as e:
-            print(f"Encoding error reading file {file_path}: {e}")
-            raise
-        except Exception as e:
-            print(f"Unexpected error reading file {file_path}: {e}")
-            raise
+                # Parse key=value pairs
+                if '=' not in line:
+                    continue
+
+                key, value = cls._parse_line(line, line_num, file_path)
+                if key:
+                    cls._env_vars[key] = value
+                    # Also set in os.environ if not already set
+                    if key not in os.environ:
+                        os.environ[key] = value
 
     @classmethod
     def _parse_line(
@@ -178,7 +159,6 @@ class EnvManager:
             # Handle different quote styles and escaping
             match = re.match(r'^([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(.*)$', line)
             if not match:
-                print(f"Invalid format at line {line_num} in {file_path}")
                 return "", ""
 
             key, value = match.groups()
@@ -188,8 +168,7 @@ class EnvManager:
 
             return key, value
 
-        except Exception as e:
-            print(f"Error parsing line {line_num} in {file_path}: {e}")
+        except Exception:
             return "", ""
 
     @classmethod
@@ -348,9 +327,7 @@ ENCRYPTION_ALGORITHM=AES256
         try:
             with open(file_path, 'w', encoding='utf-8') as f:
                 f.write(template_content)
-            print(f"Created .env template at: {file_path}")
-        except (IOError, OSError, PermissionError) as e:
-            print(f"Failed to create template file {file_path}: {e}")
+        except (IOError, OSError, PermissionError):
             raise
 
     @classmethod
@@ -366,14 +343,7 @@ ENCRYPTION_ALGORITHM=AES256
         return cls.load()
 
 
-# Initialize the static EnvManager on module import
-# This ensures the .env file is loaded once when the project initializes
-try:
-    EnvManager.load()
-except Exception as e:
-    # Log error but don't crash the import
-    import logging
-    logging.warning(f"Failed to auto-load .env file during module import: {e}")
+EnvManager.load()
 
 
 def load_env(env_file: Optional[str] = None) -> bool:
