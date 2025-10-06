@@ -1,7 +1,11 @@
 """PLC Inspection Application
     """
-from __future__ import annotations
+from pyrox.applications import AppTask
 
-from pyrox.applications.plcio import PlcIoTask
 
-__all__ = ['PlcIoTask']
+class PlcIoTask(AppTask):
+    """Controller verification task for the PLC verification Application.
+    """
+
+    def inject(self) -> None:
+        self.application.menu.tools.add_command(label='PLC I/O', command=self.start)
