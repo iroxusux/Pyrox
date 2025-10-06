@@ -12,10 +12,11 @@ from .meta import (
 )
 
 from .collections import ContainsRoutines, ContainsTags
-from .connection_needs_test import (
+from .connection import (
     ConnectionCommand,
     ConnectionCommandType,
     ConnectionParameters,
+    ControllerConnection
 )
 from .aoi import AddOnInstruction
 from .datatype import Datatype, DatatypeMember
@@ -61,6 +62,7 @@ __all__ = (
     'ContainsTags',
     'Controller',
     'ControllerConfiguration',
+    'ControllerConnection',
     'ControllerFactory',
     'ControllerMatcher',
     'ControllerMatcherFactory',

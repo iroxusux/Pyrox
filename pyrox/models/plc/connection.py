@@ -19,21 +19,21 @@ class ConnectionParameters:
         if len(ip_address.split('.')) != 4:
             raise ValueError('Ip addresses must be specified in groups of 4 - e.g. 192.168.1.2')
 
-        self._ip_address: str = ip_address  # PLC IP Address
-        self._slot: int = slot              # PLC Slot
-        self._rpi: float = rpi              # PLC Requested Packet Interval
+        self.ip_address = ip_address  # PLC IP Address
+        self.slot: int = slot              # PLC Slot
+        self.rpi: float = rpi              # PLC Requested Packet Interval
 
     @property
     def ip_address(self) -> str:
         return self._ip_address
 
-    @property
-    def rpi(self) -> int:
-        return self._rpi
-
-    @property
-    def slot(self) -> int:
-        return self._slot
+    @ip_address.setter
+    def ip_address(self, value: str) -> None:
+        if not isinstance(value, str):
+            raise ValueError('ip_address must be a string!')
+        if len(value.split('.')) != 4:
+            raise ValueError('Ip addresses must be specified in groups of 4 - e.g. 192.168.1.10')
+        self._ip_address = value
 
 
 class ConnectionCommandType(Enum):
@@ -77,3 +77,13 @@ class ConnectionCommand:
     @property
     def response_cb(self) -> Callable:
         return self._response_cb
+
+
+class ControllerConnection:
+    """Controller Connection for a PLC
+    """
+
+    def __init__(self,
+                 parameters: ConnectionParameters):
+        self.parameters = parameters
+        self.is_connected = False
