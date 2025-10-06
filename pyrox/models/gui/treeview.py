@@ -1,12 +1,11 @@
 from tkinter import Event, Widget
+from typing import Optional, Union
 
 from .menu import ContextMenu
 from .meta import PyroxTreeview
 from pyrox.models.abc.meta import PyroxObject
 from pyrox.models.abc.list import HashList
 from pyrox.models.gui.pyroxguiobject import PyroxGuiObject
-
-UNITTEST_PLC_FILE = r'docs\controls\unittest.L5X'
 
 
 class LazyLoadingTreeView(PyroxTreeview):
@@ -19,18 +18,18 @@ class LazyLoadingTreeView(PyroxTreeview):
 
     def __init__(
         self,
-        master: Widget = None,
-        columns: list[str] = None,
+        master: Optional[Widget] = None,
+        columns: Optional[list[str]] = None,
         show: str = 'tree',
-        base_gui_class: type[PyroxGuiObject] = None,
-        context_menu: ContextMenu = None
+        base_gui_class: type[PyroxGuiObject] = PyroxGuiObject,
+        context_menu: Optional[ContextMenu] = None
     ) -> None:
         super().__init__(
             master=master,
             columns=columns,
             show=show
         )
-        self._base_gui_class: type[PyroxGuiObject] = base_gui_class or PyroxGuiObject
+        self._base_gui_class: type[PyroxGuiObject] = base_gui_class
         self._context_menu = context_menu or ContextMenu(master=self)
         self.bind('<Button-3>', self.on_right_click)
         self.bind('<<TreeviewOpen>>', self.on_expand)
@@ -85,11 +84,64 @@ class LazyLoadingTreeView(PyroxTreeview):
             self.delete(x)
         self.populate_tree(item, self._lazy_load_map.get(item, {}))
 
-    def populate_tree(self,
-                      parent,
-                      data,
-                      container=None,
-                      key=None,):
+    def _populate_base_node(
+        self,
+        parent,
+        data: PyroxGuiObject
+    ) -> None:
+        """Helper method to populate a base GUI object node."""
+        for edit_field in data.gui_interface_attributes():
+            value = getattr(data.pyrox_object, edit_field.property_name, None)
+            if isinstance(value, (dict, list, HashList, PyroxObject)):
+                node = self.insert(parent, 'end', text=edit_field.display_name, values=['[...]'])
+                self._lazy_load_map[node] = value
+                self.insert(node, 'end', text='Empty...', values=['...'])
+            else:
+                node = self.insert(parent, 'end', text=edit_field.display_name, values=(value,))
+            self._item_hash[node] = (data, edit_field.property_name)  # Store reference to parent object and property name
+
+    def _populate_dict_node(
+        self,
+        parent,
+        data: dict
+    ) -> None:
+        """Helper method to populate a dictionary node."""
+        for k, v in data.items():
+            if isinstance(v, (dict, list, HashList, PyroxObject)):
+                node = self.insert(parent, 'end', text=str(k), values=['[...]'])
+                self._lazy_load_map[node] = v
+                self.insert(node, 'end', text='Empty...', values=['[...]'])
+            else:
+                node = self.insert(parent, 'end', text=str(k), values=(v,))
+            self._item_hash[node] = (data, k)  # Store reference to parent dict and key
+
+    def _populate_list_node(
+        self,
+        parent,
+        data: Union[list, HashList]
+    ) -> None:
+        """Helper method to populate a list node."""
+        for idx, item in enumerate(data):
+            node_label = f"[{idx}]"
+            if isinstance(item, dict):
+                node_label = item.get('@Name') or item.get('name') or item.get('Name') or node_label
+            elif isinstance(item, PyroxObject):
+                node_label = getattr(item, 'name', None) or getattr(item, 'description', None) or node_label
+            if isinstance(item, (dict, list, HashList, PyroxObject)):
+                node = self.insert(parent, 'end', text=node_label, values=['[...]'])
+                self._lazy_load_map[node] = item
+                self.insert(node, 'end', text='Empty...', values=['...'])
+            else:
+                node = self.insert(parent, 'end', text=node_label, values=(item,))
+            self._item_hash[node] = (data, idx)  # Store reference to parent list and index
+
+    def populate_tree(
+        self,
+        parent,
+        data,
+        container=None,
+        key=None
+    ) -> None:
         """
         Recursively populates a ttk.Treeview with keys and values from a dictionary, list, or custom class.
         Stores (container, key/index) for each node to allow modification.
@@ -98,40 +150,13 @@ class LazyLoadingTreeView(PyroxTreeview):
             data = self._base_gui_class.from_data(data)
 
         if isinstance(data, dict):
-            for k, v in data.items():
-                if isinstance(v, (dict, list, HashList, PyroxObject)):
-                    node = self.insert(parent, 'end', text=str(k), values=['[...]'])
-                    self._lazy_load_map[node] = v
-                    self.insert(node, 'end', text='Empty...', values=['[...]'])
-                else:
-                    node = self.insert(parent, 'end', text=str(k), values=(v,))
-                self._item_hash[node] = (data, k)  # Store reference to parent dict and key
+            self._populate_dict_node(parent, data)
 
         elif isinstance(data, (list, HashList)):
-            for idx, item in enumerate(data):
-                node_label = f"[{idx}]"
-                if isinstance(item, dict):
-                    node_label = item.get('@Name') or item.get('name') or item.get('Name') or node_label
-                elif isinstance(item, PyroxObject):
-                    node_label = getattr(item, 'name', None) or getattr(item, 'description', None) or node_label
-                if isinstance(item, (dict, list, HashList, PyroxObject)):
-                    node = self.insert(parent, 'end', text=node_label, values=['[...]'])
-                    self._lazy_load_map[node] = item
-                    self.insert(node, 'end', text='Empty...', values=['...'])
-                else:
-                    node = self.insert(parent, 'end', text=node_label, values=(item,))
-                self._item_hash[node] = (data, idx)  # Store reference to parent list and index
+            self._populate_list_node(parent, data)
 
         elif isinstance(data, self._base_gui_class):
-            for edit_field in data.gui_interface_attributes():
-                value = getattr(data.pyrox_object, edit_field.property_name, None)
-                if isinstance(value, (dict, list, HashList, PyroxObject)):
-                    node = self.insert(parent, 'end', text=edit_field.display_name, values=['[...]'])
-                    self._lazy_load_map[node] = value
-                    self.insert(node, 'end', text='Empty...', values=['...'])
-                else:
-                    node = self.insert(parent, 'end', text=edit_field.display_name, values=(value,))
-                self._item_hash[node] = (data, edit_field.property_name)  # Store reference to parent object and property name
+            self._populate_base_node(parent, data)
 
         else:
             node = self.insert(parent, 'end', text=str(data), values=['...'])
@@ -145,5 +170,4 @@ class LazyLoadingTreeView(PyroxTreeview):
             node: The Treeview node ID to update.
             new_value: The new value to set.
         """
-        # Update the Treeview display (assumes value is in the first value column)
         self.item(node, values=(new_value,))

@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import tkinter as tk
 from typing import Any, Optional, Self
+from .meta import ObjectEditField
 
 
 from ..abc.meta import Loggable, PyroxObject
@@ -91,8 +92,10 @@ class PyroxGuiObject(Loggable):
         return self._pyrox_object
 
     @classmethod
-    def from_data(cls,
-                  data: Any) -> Self:
+    def from_data(
+        cls,
+        data: Any
+    ) -> Self:
         """get a new instance of this class from data.
 
         this method is intended to be overridden by subclasses to
@@ -104,7 +107,9 @@ class PyroxGuiObject(Loggable):
         if isinstance(data, PyroxObject):
             data = PyroxGuiObject(pyrox_object=data)
 
-    def editable_gui_interface_attributes(self) -> list[str]:
+        return data
+
+    def editable_gui_interface_attributes(self) -> list[ObjectEditField]:
         """Return a set of attributes that are intended for GUI interface and editable.
 
         This method is meant to be overridden by subclasses to provide
@@ -131,7 +136,7 @@ class PyroxGuiObject(Loggable):
         """
         return []
 
-    def gui_interface_attributes(self) -> list[tuple[str, str]]:
+    def gui_interface_attributes(self) -> list[ObjectEditField]:
         """Return a set of attributes that are intended for GUI interface.
 
         This method is meant to be overridden by subclasses to provide
@@ -142,11 +147,11 @@ class PyroxGuiObject(Loggable):
             :type:`list[str]`: Set of attribute names.
         """
         return [
-            ('name', 'Name', tk.Label, True),
-            ('description', 'Description', tk.Label, True),
+            ObjectEditField('name', 'Name', tk.Entry, True),
+            ObjectEditField('description', 'Description', tk.Text, True),
         ]
 
-    def public_attributes(self) -> list[str]:
+    def public_attributes(self) -> set[str]:
         """Return a set of public attributes for this object.
 
         This method is meant to be overridden by subclasses to provide

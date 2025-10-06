@@ -7,7 +7,7 @@ import tkinter as tk
 from tkinter import ttk
 from typing import Self
 
-from .frames import ObjectEditField
+from .meta import ObjectEditField
 from .pyroxguiobject import PyroxGuiObject
 from .. import plc
 

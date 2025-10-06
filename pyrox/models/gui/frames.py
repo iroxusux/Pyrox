@@ -1,7 +1,6 @@
 """tkinter user made frames
     """
 from __future__ import annotations
-from dataclasses import dataclass
 import tkinter as tk
 from tkinter import ttk, messagebox
 from tkinter.ttk import Widget
@@ -247,25 +246,6 @@ class TaskFrame(tk.Frame):
             LazyLoadingTreeView: The treeview widget in this window.
         """
         return self._tree
-
-
-@dataclass
-class ObjectEditField:
-    """Configuration for an object property edit field.
-
-    This dataclass defines how an object property should be displayed
-    and edited in an ObjectEditTaskFrame.
-
-    Attributes:
-        property_name (str): The name of the property on the object.
-        display_name (str): The human-readable name to display.
-        display_type (Widget): The tkinter widget type to use for editing.
-        editable (bool): Whether the field can be edited. Defaults to False.
-    """
-    property_name: str
-    display_name: str
-    display_type: Widget
-    editable: bool = False
 
 
 class ObjectEditTaskFrame(TaskFrame):

@@ -268,16 +268,13 @@ class AppOrganizer(models.PyroxObject):
 
     def _populate_prog_tab(self, controller: models.plc.Controller) -> None:
         if not controller:
-            log(self).debug('No controller provided to populate programs tab.')
             return
-        log(self).debug('Populating programs tab with controller data.')
         self._program_frame.tree.populate_tree('', {
             'Standard': [self._build_standard_program_dict(program) for program in controller.standard_programs],
             'Safety': [self._build_standard_program_dict(program) for program in controller.safety_programs]}
         )
 
     def _populate_raw_tab(self, controller: models.plc.Controller) -> None:
-        log(self).debug('Populating raw tab with controller data.')
         self._raw_l5x_frame.tree.populate_tree('', controller)
 
     def build(
@@ -299,8 +296,10 @@ class AppOrganizer(models.PyroxObject):
         self._raw_l5x_frame.tree.delete(*self._raw_l5x_frame.tree.get_children())
         self._program_frame.tree.delete(*self._program_frame.tree.get_children())
 
-    def populate_organizer(self,
-                           controller: models.plc.Controller) -> None:
+    def populate_organizer(
+        self,
+        controller: models.plc.Controller
+    ) -> None:
         """Populate the organizer with the provided controller.
 
         This method will populate the organizer with the provided controller's data.
@@ -479,9 +478,9 @@ class App(models.Application):
     def _set_app_title(self) -> None:
         """Set the application title based on the controller name and file location."""
         if self.controller:
-            self._tk_app.title(f'{self.config.title} - [{self.controller.name}] - [{self.controller.file_location}]')
+            self.tk_app.title(f'{self.config.title} - [{self.controller.name}] - [{self.controller.file_location}]')
         else:
-            self._tk_app.title(self.config.title)
+            self.tk_app.title(self.config.title)
 
     def _set_frame_selected(self, frame):
         """Set the selected frame in the view menubar."""
@@ -620,10 +619,6 @@ class App(models.Application):
         log(self).info('Controller instance set successfully.')
 
     def refresh(self) -> None:
-        if not self.organizer:
-            return
-
-        log(self).info('Refreshing application gui...')
         self.set_app_state_busy()
         self.clear_organizer()
         self.clear_workspace()

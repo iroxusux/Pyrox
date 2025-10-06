@@ -4,10 +4,12 @@ from dataclasses import dataclass
 import tkinter as tk
 from tkinter import ttk
 from tkinter import Text
-from typing import Callable, Optional
+from tkinter.ttk import Widget as TtkWidget
+from typing import Callable, Optional, Union
 
 
 __all__ = [
+    'ObjectEditField',
     'TextWidgetStream',
     'PyroxFrame',
     'PyroxNotebook',
@@ -16,6 +18,25 @@ __all__ = [
     'PyroxThemeManager',
     'PyroxDefaultTheme',
 ]
+
+
+@dataclass
+class ObjectEditField:
+    """Configuration for an object property edit field.
+
+    This dataclass defines how an object property should be displayed
+    and edited in an ObjectEditTaskFrame.
+
+    Attributes:
+        property_name (str): The name of the property on the object.
+        display_name (str): The human-readable name to display.
+        display_type (Widget): The tkinter widget type to use for editing.
+        editable (bool): Whether the field can be edited. Defaults to False.
+    """
+    property_name: str
+    display_name: str
+    display_type: type[Union[tk.Widget, TtkWidget]]
+    editable: bool = False
 
 
 @dataclass

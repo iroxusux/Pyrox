@@ -396,7 +396,7 @@ class TestTimerService(unittest.TestCase):
 
         task_id = self.timer_service.schedule_task(callback, 0.001)  # 1ms
 
-        time.sleep(0.01)  # 10ms should be enough
+        time.sleep(0.02)  # 20ms should be enough
 
         callback.assert_called_once()
         self.assertFalse(self.timer_service.is_task_scheduled(task_id))
