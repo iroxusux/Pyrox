@@ -1,5 +1,6 @@
 """Pyrox emulation services module.
 """
+import importlib
 from pyrox.models.plc import controller
 from pyrox.models.plc import generator as gen
 from pyrox.services import checklist, eplan
@@ -33,6 +34,8 @@ def _work_precheck(
 def create_checklist_from_template(
     ctrl: controller.Controller
 ) -> None:
+    importlib.reload(eplan)
+    importlib.reload(checklist)
     project_checklist = checklist.compile_checklist_from_eplan_project(
         project=eplan.get_project(ctrl, ''),
         template=checklist.get_controls_template()
@@ -45,6 +48,7 @@ def create_checklist_from_template(
         file_location = ctrl.file_location.replace('.L5X', '_Emulation_Checklist.md')
     if not file_location:
         raise ValueError('No valid location to save checklist file selected!')
+
     save_file(file_location, project_checklist['raw_content'])
 
 

@@ -84,8 +84,9 @@ def compile_checklist_from_eplan_project(
     project: proj.EplanProject,
     template: dict
 ) -> dict:
-    pass  # Placeholder for future implementation
-    return {}
+    project_checklist = {}
+    project_checklist['HMI'] = _compile_hmi_checklist_from_eplan_project(project, template)
+    return project_checklist
 
 
 def get_checklist_template_from_md_file(

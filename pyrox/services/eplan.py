@@ -46,13 +46,6 @@ def _debug_export_project_dict(project: proj.EplanProject) -> None:
     project.save_project_dict_to_file(_debug_get_project_save_file(project))
 
 
-def get_epj_file() -> str:
-    return get_open_file(
-        title='Select EPlan Project',
-        filetypes=[('.epj Files', '*.epj'), ('All Files', '*.*')],
-    )
-
-
 def _get_validator(
     controller: plc.Controller,
     project: proj.EplanProject
@@ -79,19 +72,26 @@ def _work_precheck(
         raise ValueError('No validator provided for eplan import operation.')
 
 
+def get_epj_file() -> str:
+    return get_open_file(
+        title='Select EPlan Project',
+        filetypes=[('.epj Files', '*.epj'), ('All Files', '*.*')],
+    )
+
+
 def get_project(
     controller: plc.Controller,
     file_location: str
 ) -> proj.EplanProject:
-    project = proj.EplanProjectFactory.get_registered_type_by_supporting_class(controller)
-    if not project:
-        project = proj.EplanProjectFactory.get_registered_type_by_supporting_class('Controller')
+    project = (proj.EplanProjectFactory.get_registered_type_by_supporting_class(controller)
+               or proj.EplanProjectFactory.get_registered_type_by_supporting_class('Controller'))
     if not isinstance(project, type(proj.EplanProject)):
         raise ValueError('No valid project found for this controller type!')
-    if not file_location:
-        file_location = get_epj_file()
+
+    file_location = file_location or get_epj_file()
     if not file_location or not os.path.isfile(file_location):
         raise FileNotFoundError('No valid EPlan project file selected!')
+
     return project(file_location=file_location)
 
 
