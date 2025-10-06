@@ -2,38 +2,46 @@
 """
 from enum import Enum
 from typing import Callable
+from pyrox.models.abc.network import Ipv4Address
 
 
 class ConnectionParameters:
-    """connection parameters for connecting to a plc
-    """
 
-    def __init__(self,
-                 ip_address: str,
-                 slot: int,
-                 rpi: int = 50):
-        # explicit type-casting to enform type protection for this class
-        slot = int(slot)
-        rpi = int(rpi)
-
-        if len(ip_address.split('.')) != 4:
-            raise ValueError('Ip addresses must be specified in groups of 4 - e.g. 192.168.1.2')
-
-        self.ip_address = ip_address  # PLC IP Address
-        self.slot: int = slot              # PLC Slot
-        self.rpi: float = rpi              # PLC Requested Packet Interval
+    def __init__(
+        self,
+        ip_address: Ipv4Address,
+        slot: int,
+        rpi: int = 250
+    ) -> None:
+        self.ip_address = ip_address
+        self.slot = slot
+        self.rpi = rpi
 
     @property
-    def ip_address(self) -> str:
-        return self._ip_address
+    def rpi(self) -> float:
+        return self._rpi
 
-    @ip_address.setter
-    def ip_address(self, value: str) -> None:
-        if not isinstance(value, str):
-            raise ValueError('ip_address must be a string!')
-        if len(value.split('.')) != 4:
-            raise ValueError('Ip addresses must be specified in groups of 4 - e.g. 192.168.1.10')
-        self._ip_address = value
+    @rpi.setter
+    def rpi(self, value: float) -> None:
+        if not isinstance(value, (int, float)):
+            raise TypeError('rpi must be a number')
+        if value < 1:
+            raise ValueError('rpi must be a positive number')
+        self._rpi = float(value)
+
+    @property
+    def slot(self) -> int:
+        return self._slot
+
+    @slot.setter
+    def slot(self, value: int) -> None:
+        if not isinstance(value, int):
+            raise TypeError('slot must be an integer')
+        if value < 0:
+            raise ValueError('slot must be a non-negative integer')
+        if value > 16:
+            raise ValueError('slot must be between 0 and 16')
+        self._slot = value
 
 
 class ConnectionCommandType(Enum):
@@ -83,7 +91,9 @@ class ControllerConnection:
     """Controller Connection for a PLC
     """
 
-    def __init__(self,
-                 parameters: ConnectionParameters):
+    def __init__(
+        self,
+        parameters: ConnectionParameters
+    ) -> None:
         self.parameters = parameters
         self.is_connected = False
