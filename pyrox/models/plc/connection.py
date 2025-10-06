@@ -1,10 +1,11 @@
 """Connection parameters and commands for a PLC
 """
 from enum import Enum
-from typing import Callable, Optional
+from typing import Callable, Optional, Union
 from pylogix import PLC
 from pylogix.lgx_response import Response
 from pyrox.models.abc.network import Ipv4Address
+from pyrox.services.logging import log
 from pyrox.services.timer import TimerService
 
 
@@ -13,7 +14,7 @@ class ConnectionParameters:
     def __init__(
         self,
         ip_address: Ipv4Address,
-        slot: int,
+        slot: Union[int, str] = 0,
         rpi: int = 250
     ) -> None:
         self.ip_address = ip_address
@@ -37,7 +38,12 @@ class ConnectionParameters:
         return self._slot
 
     @slot.setter
-    def slot(self, value: int) -> None:
+    def slot(self, value: Union[str, int]) -> None:
+        if isinstance(value, str):
+            try:
+                value = int(value)
+            except ValueError:
+                raise ValueError('slot string must be convertible to an integer')
         if not isinstance(value, int):
             raise TypeError('slot must be an integer')
         if value < 0:
@@ -78,9 +84,15 @@ class ControllerConnection:
 
     def __init__(
         self,
-        parameters: ConnectionParameters,
-        commands: list[ConnectionCommand] = []
+        parameters: Optional[ConnectionParameters] = None,
+        commands: Optional[list[ConnectionCommand]] = []
     ) -> None:
+        if parameters is None:
+            parameters = ConnectionParameters(
+                Ipv4Address('192.168.1.1'),
+                slot=0,
+                rpi=250,
+            )
         self.commands = commands
         self.parameters = parameters
         self.is_connected = False
@@ -100,19 +112,23 @@ class ControllerConnection:
         if params:
             self.parameters = params
 
+        log(self).info('Connecting to PLC at %s...', self.parameters.ip_address)
         self._connection_loop()
 
     def _connection_loop(self) -> None:
         """Main connection loop for the PLC.
         """
-        if not self.is_connected:
-            return
-
         try:
-            if not self._strobe_plc():
+            response = self._strobe_plc()
+            if not response.Status == 'Success':
                 self.is_connected = False
+                log(self).warning('Failed to strobe PLC at %s', self.parameters.ip_address)
                 return
+            if not self.is_connected:
+                log(self).info('Connected to PLC at %s', self.parameters.ip_address)
+                self.is_connected = True
         except Exception:
+            log(self).error('Error connecting to PLC at %s', self.parameters.ip_address)
             self.is_connected = False
             return
 
@@ -183,6 +199,15 @@ class ControllerConnection:
         """Start connection process to PLC.
         """
         self._connect(params)
+
+    def disconnect(self) -> None:
+        """Disconnect from the PLC.
+        """
+        if not self.is_connected:
+            return
+        log(self).info('Disconnecting from PLC at %s...', self.parameters.ip_address)
+        self.is_connected = False
+        self._timer_service.clear_all_tasks()
 
     def subscribe_to_ticks(self, callback: Callable) -> None:
         """Subscribe to tick events.

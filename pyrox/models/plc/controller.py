@@ -289,7 +289,7 @@ class Controller(
     ) -> None:
         super().__init__(meta_data=meta_data)
 
-        self._file_location, self._ip_address, self._slot = file_location, None, None
+        self.file_location, self.ip_address, self.slot = file_location, None, None
         self._config = ControllerConfiguration()
 
         self._aois: HashList[AddOnInstruction] = HashList('name')
@@ -308,10 +308,6 @@ class Controller(
                 item_class=self.config.aoi_type,
             )
         return self._aois
-
-    @property
-    def raw_aois(self) -> list[dict]:
-        return self._get_raw_l5x_asset_list(plc_meta.L5X_ASSET_ADDONINSTRUCTIONDEFINITIONS)
 
     @property
     def comm_path(self) -> Optional[str]:
@@ -349,10 +345,6 @@ class Controller(
         return self._datatypes
 
     @property
-    def raw_datatypes(self) -> list[dict]:
-        return self._get_raw_l5x_asset_list(plc_meta.L5X_ASSET_DATATYPES)
-
-    @property
     def file_location(self) -> str:
         if self._file_location is None:
             file_location = get_save_file(filetypes=[('.L5x', 'L5X Files')])
@@ -364,10 +356,10 @@ class Controller(
     @file_location.setter
     def file_location(
         self,
-        value: str
+        value: Optional[str]
     ):
-        if not isinstance(value, str):
-            raise ValueError('File location must be a string!')
+        if not isinstance(value, str) and value is not None:
+            raise ValueError('File location must be a string or None!')
         self._file_location = value
 
     @property
@@ -389,10 +381,17 @@ class Controller(
         return instr
 
     @property
-    def output_instructions(self) -> list[LogixInstruction]:
-        instr = []
-        [instr.extend(x.output_instructions) for x in self.programs]
-        return instr
+    def ip_address(self) -> Optional[str]:
+        return self._ip_address
+
+    @ip_address.setter
+    def ip_address(
+        self,
+        value: Optional[str]
+    ) -> None:
+        if not isinstance(value, str) and value is not None:
+            raise ValueError('IP address must be a string or None!')
+        self._assign_address(value)
 
     @property
     def l5x_meta_data(self) -> dict:
@@ -447,8 +446,10 @@ class Controller(
         return self._modules
 
     @property
-    def raw_modules(self) -> list[dict]:
-        return self._get_raw_l5x_asset_list(plc_meta.L5X_ASSET_MODULES)
+    def output_instructions(self) -> list[LogixInstruction]:
+        instr = []
+        [instr.extend(x.output_instructions) for x in self.programs]
+        return instr
 
     @property
     def plc_module(self) -> Optional[dict]:
@@ -492,8 +493,37 @@ class Controller(
         return self._programs
 
     @property
+    def raw_aois(self) -> list[dict]:
+        return self._get_raw_l5x_asset_list(plc_meta.L5X_ASSET_ADDONINSTRUCTIONDEFINITIONS)
+
+    @property
+    def raw_datatypes(self) -> list[dict]:
+        return self._get_raw_l5x_asset_list(plc_meta.L5X_ASSET_DATATYPES)
+
+    @property
+    def raw_modules(self) -> list[dict]:
+        return self._get_raw_l5x_asset_list(plc_meta.L5X_ASSET_MODULES)
+
+    @property
     def raw_programs(self) -> list[dict]:
         return self._get_raw_l5x_asset_list(plc_meta.L5X_ASSET_PROGRAMS)
+
+    @property
+    def raw_tags(self) -> list[dict]:
+        return self._get_raw_l5x_asset_list(plc_meta.L5X_ASSET_TAGS)
+
+    @raw_tags.setter
+    def raw_tags(self,
+                 value: dict):
+        if value is None:
+            raise ValueError('Tags cannot be None!')
+        if not isinstance(value, dict) and not isinstance(value, list):
+            raise ValueError('Tags must be a dictionary or a list!')
+
+        if isinstance(value, dict):
+            self['Tags'] = value
+        elif isinstance(value, list):
+            self['Tags']['Tag'] = value
 
     @property
     def safety_info(self) -> Optional[ControllerSafetyInfo]:
@@ -515,8 +545,13 @@ class Controller(
 
     @slot.setter
     def slot(self,
-             value: int):
-        self._slot = int(value)
+             value: Optional[int]
+             ) -> None:
+        if value is not None:
+            value = int(value)
+            if value < 0 or value > 16:
+                raise ValueError('Slot must be between 0 and 16!')
+        self._slot = value
 
     @property
     def standard_programs(self) -> list[Program]:
@@ -534,23 +569,6 @@ class Controller(
                 container=self
             )
         return self._tags
-
-    @property
-    def raw_tags(self) -> list[dict]:
-        return self._get_raw_l5x_asset_list(plc_meta.L5X_ASSET_TAGS)
-
-    @raw_tags.setter
-    def raw_tags(self,
-                 value: dict):
-        if value is None:
-            raise ValueError('Tags cannot be None!')
-        if not isinstance(value, dict) and not isinstance(value, list):
-            raise ValueError('Tags must be a dictionary or a list!')
-
-        if isinstance(value, dict):
-            self['Tags'] = value
-        elif isinstance(value, list):
-            self['Tags']['Tag'] = value
 
     @classmethod
     def from_file(
@@ -712,8 +730,13 @@ class Controller(
             else:
                 log(self).warning('No SafetyInfo found in controller metadata.')
 
-    def _assign_address(self,
-                        address: str):
+    def _assign_address(
+        self,
+        address: Optional[str]
+    ) -> None:
+        if address is None:
+            self._ip_address = None
+            return
         octets = address.split('.')
         if not octets or len(octets) != 4:
             raise ValueError('IP Octets invalid!')

@@ -1,5 +1,5 @@
 from . import ladder, meta, plc
-from .frames import (
+from .frame import (
     FrameWithTreeViewAndScrollbar,
     ObjectEditTaskFrame,
     OrganizerWindow,

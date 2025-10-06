@@ -213,6 +213,17 @@ class TaskFrame(tk.Frame):
         """
         return self._shown_var
 
+    def build(
+        self,
+        **kwargs,
+    ) -> None:
+        """Build the task frame.
+
+        This method can be overridden by subclasses to populate
+        the content frame with widgets.
+        """
+        pass
+
     def destroy(self):
         """Destroy the task frame and execute all registered callbacks.
 

@@ -8,7 +8,7 @@ from tkinter import ttk, Canvas
 from typing import Optional, Dict, List
 import re
 
-from .frames import TaskFrame
+from .frame import TaskFrame
 from ..plc import controller
 from ..abc.meta import Loggable
 

@@ -10,7 +10,7 @@ from typing import Any, Optional, Dict, List, Literal, Union
 
 from pyrox.models import plc
 from pyrox.services.logging import log
-from .frames import TaskFrame
+from .frame import TaskFrame
 from ..plc import controller
 from ..abc.meta import Loggable
 
