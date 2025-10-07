@@ -3,7 +3,7 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [project]
-name = "Pyrox"
+name = "pyrox"
 version = "1.2.6"
 authors = [
   { name="Brian LaFond", email="Brian.L.LaFond@gmail.com" },
