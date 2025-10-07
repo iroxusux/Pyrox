@@ -5,8 +5,14 @@ from pyrox.models.plc import validator as plc_validator
 from pyrox.models.plc import module as plc_module
 from pyrox.services.factory import reload_factory_module_while_preserving_registered_types
 from pyrox.services.logging import log, LOG_LEVEL_FAILURE, LOG_LEVEL_SUCCESS
+from pyrox.services.logic import function_list_or_chain
 
 reload_factory_module_while_preserving_registered_types(plc_validator.ControllerValidatorFactory)
+
+
+def debug_success(message: str) -> bool:
+    log(BaseControllerValidator).debug(message)
+    return True
 
 
 def success(message: str) -> bool:
@@ -28,73 +34,6 @@ class BaseControllerValidator(plc_validator.ControllerValidator):
     """Validator for controllers.
     """
     supporting_class = plc.Controller
-
-    @classmethod
-    def _check_module_has_catalog_number(
-        cls,
-        controller: plc.Controller,
-        module_object: plc_module.Module
-    ) -> bool:
-        """Check if a common PLC object has a catalog number.
-
-        Args:
-            controller: The controller to check.
-            common_plc_object: The common PLC object to check.
-        Returns:
-            True if the common PLC object has a catalog number, False otherwise.
-        """
-        if not hasattr(module_object, 'catalog_number'):
-            return True
-        if not module_object.catalog_number or module_object.catalog_number == '':
-            return warning(f'{module_object.__class__.__name__} {module_object.name} has no catalog number!')
-        return True
-
-    @classmethod
-    def _check_module_has_network_address(
-        cls,
-        controller: plc.Controller,
-        module_object: plc_module.Module
-    ) -> bool:
-        """Check if a common PLC object has a Network address.
-
-        Args:
-            controller: The controller to check.
-            common_plc_object: The common PLC object to check.
-        Returns:
-            True if the common PLC object has a Network address, False otherwise.
-        """
-        if not hasattr(module_object, 'address'):
-            return True
-        if not module_object.address or module_object.address == '':
-            return warning(f'{module_object.__class__.__name__} {module_object.name} has no IP address!')
-        return True
-
-    @classmethod
-    def _check_module_has_network_rpi(
-        cls,
-        controller: plc.Controller,
-        module_object: plc_module.Module
-    ) -> bool:
-        """Check if a common PLC object has a Network RPI.
-
-        Args:
-            controller: The controller to check.
-            common_plc_object: The common PLC object to check.
-        Returns:
-            True if the common PLC object has a Network RPI, False otherwise.
-        """
-        if module_object.name == 'Local':
-            return True
-
-        if module_object.introspective_module.controls_type is plc_module.ModuleControlsType.RACK_COMM_CARD:
-            return True
-
-        if not hasattr(module_object, 'rpi'):
-            return True
-
-        if not module_object.rpi or module_object.rpi == '':
-            return fail(f'{module_object.__class__.__name__} {module_object.name} has no RPI!')
-        return True
 
     @classmethod
     def _check_common_has_description(
@@ -198,6 +137,144 @@ class BaseControllerValidator(plc_validator.ControllerValidator):
             return fail(message)
         else:
             return success(message)
+
+    @classmethod
+    def _check_module_has_catalog_number(
+        cls,
+        controller: plc.Controller,
+        module_object: plc_module.Module
+    ) -> bool:
+        """Check if a common PLC object has a catalog number.
+
+        Args:
+            controller: The controller to check.
+            common_plc_object: The common PLC object to check.
+        Returns:
+            True if the common PLC object has a catalog number, False otherwise.
+        """
+        if not hasattr(module_object, 'catalog_number'):
+            return True
+        if not module_object.catalog_number or module_object.catalog_number == '':
+            return warning(f'{module_object.__class__.__name__} {module_object.name} has no catalog number!')
+        return True
+
+    @classmethod
+    def _check_module_has_electronic_keying(
+        cls,
+        controller: plc.Controller,
+        module_object: plc_module.Module
+    ) -> bool:
+        """Check if a common PLC object has electronic keying.
+
+        Args:
+            controller: The controller to check.
+            common_plc_object: The common PLC object to check.
+        Returns:
+            True if the common PLC object has electronic keying, False otherwise.
+        """
+        if not hasattr(module_object, 'ekey'):
+            return True
+        if not module_object.ekey or module_object.ekey == '':
+            return warning(f'{module_object.__class__.__name__} {module_object.name} has no electronic keying!')
+        return True
+
+    @classmethod
+    def _check_module_has_logic_gsv(
+        cls,
+        controller: plc.Controller,
+        module_object: plc_module.Module
+    ) -> bool:
+        """Check if a common PLC object has logic GSV.
+
+        Args:
+            controller: The controller to check.
+            common_plc_object: The common PLC object to check.
+        Returns:
+            True if the common PLC object has logic GSV, False otherwise.
+        """
+        instr = controller.find_instruction('GSV', module_object.name)
+        if instr is None:
+            return warning(f'{module_object.__class__.__name__} {module_object.name} has no GSV logic!')
+        return debug_success(f'{module_object.__class__.__name__} {module_object.name} has GSV logic.')
+
+    @classmethod
+    def _check_module_has_logic_tag(
+        cls,
+        controller: plc.Controller,
+        module_object: plc_module.Module
+    ) -> bool:
+        """Check if a common PLC object has logic tag.
+
+        Args:
+            controller: The controller to check.
+            common_plc_object: The common PLC object to check.
+        Returns:
+            True if the common PLC object has logic tag, False otherwise.
+        """
+        try:
+            if module_object.name == 'Local':
+                return True
+            instr = controller.find_instruction('GSV', module_object.name)
+            if not instr:
+                raise Exception()
+            instr = instr[0]
+            target_operand = instr.operands[-1]  # The last operand is the target tag
+            if target_operand is None or target_operand == '':
+                return warning(f'{module_object.__class__.__name__} {module_object.name} has no logic tag!')
+            tag_name = target_operand.meta_data.split('.')[0]
+            if tag_name not in controller.tags:
+                return warning(f'{module_object.__class__.__name__} {module_object.name} has no logic tag!')
+
+        except Exception:
+            return warning(f'{module_object.__class__.__name__} {module_object.name} has no logic tag!')
+        return debug_success(f'{module_object.__class__.__name__} {module_object.name} has logic tag.')
+
+    @classmethod
+    def _check_module_has_network_address(
+        cls,
+        controller: plc.Controller,
+        module_object: plc_module.Module
+    ) -> bool:
+        """Check if a common PLC object has a Network address.
+
+        Args:
+            controller: The controller to check.
+            common_plc_object: The common PLC object to check.
+        Returns:
+            True if the common PLC object has a Network address, False otherwise.
+        """
+        if not hasattr(module_object, 'address'):
+            return True
+        if not module_object.address or module_object.address == '':
+            return warning(f'{module_object.__class__.__name__} {module_object.name} has no IP address!')
+        return True
+
+    @classmethod
+    def _check_module_has_network_rpi(
+        cls,
+        controller: plc.Controller,
+        module_object: plc_module.Module
+    ) -> bool:
+        """Check if a common PLC object has a Network RPI.
+
+        Args:
+            controller: The controller to check.
+            common_plc_object: The common PLC object to check.
+        Returns:
+            True if the common PLC object has a Network RPI, False otherwise.
+        """
+        if module_object.name == 'Local':
+            return True
+
+        if module_object.introspective_module.controls_type is plc_module.ModuleControlsType.RACK_COMM_CARD:
+            return True
+
+        if not hasattr(module_object, 'rpi'):
+            return True
+
+        if not module_object.rpi or module_object.rpi == '':
+            return fail(f'{module_object.__class__.__name__} {module_object.name} has no RPI!')
+        return True
 
     @classmethod
     def _check_routine_has_jsr(
@@ -334,22 +411,16 @@ class BaseControllerValidator(plc_validator.ControllerValidator):
         controller: plc.Controller,
         module: plc.Module
     ) -> bool:
-        any_failures = False
-        any_failures |= not cls._check_common_has_name(controller, module)
-        cls._check_common_has_description(controller, module)
-        any_failures |= not cls._check_module_has_catalog_number(controller, module)
-        any_failures |= not cls._check_module_has_network_address(controller, module)
-
-        if not module.rpi or module.rpi == '':
-            if module.name != 'Local' and module.introspective_module.controls_type is not plc_module.ModuleControlsType.RACK_COMM_CARD:
-                any_failures = True
-                log(cls).log(LOG_LEVEL_FAILURE, f'Module {module.name} has no RPI!')
-
-        if not module.ekey or module.ekey == '':
-            any_failures = True
-            log(cls).log(LOG_LEVEL_FAILURE, f'Module {module.name} has no EKey!')
-
-        return not any_failures
+        pass_status = function_list_or_chain([
+            lambda: cls._check_common_has_name(controller, module),
+            lambda: cls._check_module_has_catalog_number(controller, module),
+            lambda: cls._check_module_has_network_address(controller, module),
+            lambda: cls._check_module_has_network_rpi(controller, module),
+            lambda: cls._check_module_has_electronic_keying(controller, module),
+            lambda: cls._check_module_has_logic_gsv(controller, module),
+            lambda: cls._check_module_has_logic_tag(controller, module),
+        ])
+        return pass_status
 
     @classmethod
     def validate_modules(

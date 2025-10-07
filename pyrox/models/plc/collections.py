@@ -28,6 +28,8 @@ class ContainsTags(plc_meta.NamedPlcObject):
     def raw_tags(self) -> list[dict]:
         if not self['Tags']:
             self['Tags'] = {'Tag': []}
+        if 'Tag' not in self['Tags']:
+            self['Tags']['Tag'] = []
         if not isinstance(self['Tags']['Tag'], list):
             self['Tags']['Tag'] = [self['Tags']['Tag']]
         return self['Tags']['Tag']

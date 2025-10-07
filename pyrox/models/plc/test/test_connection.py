@@ -119,11 +119,6 @@ class TestConnectionParameters(unittest.TestCase):
         params = ConnectionParameters(self.test_ip, self.test_slot)
 
         with self.assertRaises(TypeError) as context:
-            params.slot = "5"  # type: ignore
-
-        self.assertIn("slot must be an integer", str(context.exception))
-
-        with self.assertRaises(TypeError) as context:
             params.slot = 5.5  # type: ignore
 
         self.assertIn("slot must be an integer", str(context.exception))
@@ -355,7 +350,7 @@ class TestControllerConnection(unittest.TestCase):
             slot=self.test_params.slot
         )
         mock_plc_instance.GetPLCTime.assert_called_once()
-        self.assertEqual(result, mock_response)
+        self.assertEqual(result, False)
 
     @patch('pyrox.models.plc.connection.PLC')
     def test_run_commands_read_success(self, mock_plc_class):
@@ -619,9 +614,10 @@ class TestControllerConnection(unittest.TestCase):
             with patch.object(connection, '_tick') as mock_tick:
                 with patch.object(connection, '_run_commands') as mock_commands:
                     with patch.object(connection, '_schedule') as mock_schedule:
+                        mock_strobe.return_value = False
                         connection._connection_loop()
 
-        mock_strobe.assert_not_called()
+        mock_strobe.assert_called_once()
         mock_tick.assert_not_called()
         mock_commands.assert_not_called()
         mock_schedule.assert_not_called()

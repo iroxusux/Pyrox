@@ -119,8 +119,7 @@ class ControllerConnection:
         """Main connection loop for the PLC.
         """
         try:
-            response = self._strobe_plc()
-            if not response.Status == 'Success':
+            if not self._strobe_plc():
                 self.is_connected = False
                 log(self).warning('Failed to strobe PLC at %s', self.parameters.ip_address)
                 return
@@ -182,12 +181,15 @@ class ControllerConnection:
 
         self._timer_service.schedule_task(self._connection_loop, self.parameters.rpi)
 
-    def _strobe_plc(self) -> Response:
+    def _strobe_plc(self) -> bool:
         with PLC(
             ip_address=str(self.parameters.ip_address),
             slot=self.parameters.slot
         ) as comm:
-            return comm.GetPLCTime()
+            response = comm.GetPLCTime()
+            if response.Status == 'Success':
+                return True
+            return False
 
     def _tick(self) -> None:
         [callback() for callback in self._subscribers]
