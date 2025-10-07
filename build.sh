@@ -1,99 +1,70 @@
 #!/bin/bash
 
 # Source utilities
-source lib/utils.sh
+source ./utils.sh
 
 # Pyrox Build Script
-# This script sets up the development environment and installs dependencies
+# This script builds the package into a distributable format using PyInstaller
 
 # Setup logging
 setup_logging "logs" "build"
 
-# Change to script directory
-cd "$(dirname "$0")"
+# Configuration
+PACKAGE_NAME="Pyrox"
+PACKAGE_NAME_LOWER="pyrox"
 
-echo "=== Pyrox Build Script ==="
-echo "Starting build process..."
+log_and_echo "=== Starting $PACKAGE_NAME Build Process ==="
+log_and_echo "Log file: $LOG_FILE"
+log_and_echo "Timestamp: $(date)"
 
-# Check if Python is available
-if ! command -v python &> /dev/null; then
-    echo "Error: Python is not installed or not in PATH"
+# Clean up previous builds
+log_and_echo "Cleaning up previous builds..."
+rm -rf dist/ build/ *.spec
+
+# Stop any running Pyrox processes
+log_and_echo "Stopping any running $PACKAGE_NAME processes..."
+pkill -f $PACKAGE_NAME 2>/dev/null || true
+
+# Run PyInstaller with improved error handling
+log_and_echo "Running PyInstaller..."
+pyinstaller --name $PACKAGE_NAME \
+    --noconfirm \
+    --onedir \
+    --icon="$PACKAGE_NAME/ui/icons/_def.ico" \
+    --add-data "$PACKAGE_NAME/ui/icons:$PACKAGE_NAME/ui/icons" \
+    --add-data "$PACKAGE_NAME/tasks:$PACKAGE_NAME/tasks" \
+    --add-data "$PACKAGE_NAME/applications/mod:$PACKAGE_NAME/applications/mod" \
+    --add-data "docs/controls:docs/controls" \
+    --hidden-import="PIL" \
+    --hidden-import="PIL.Image" \
+    --hidden-import="PIL.ImageTk" \
+    --hidden-import="tkinter" \
+    --hidden-import="tkinter.colorchooser" \
+    --hidden-import="tkinter.commondialog" \
+    --hidden-import="tkinter.constants" \
+    --hidden-import="tkinter.dialog" \
+    --hidden-import="tkinter.dnd" \
+    --hidden-import="tkinter.filedialog" \
+    --hidden-import="tkinter.font" \
+    --hidden-import="tkinter.messagebox" \
+    --hidden-import="tkinter.scrolledtext" \
+    --hidden-import="tkinter.simpledialog" \
+    --hidden-import="tkinter.ttk" \
+    --distpath dist \
+    --workpath build \
+    --clean \
+    $PACKAGE_NAME_LOWER/__main__.py
+
+# Check if build was successful
+if [ $? -eq 0 ]; then
+    log_and_echo "Build completed successfully!"
+    log_and_echo "Executable location: dist/$PACKAGE_NAME/$PACKAGE_NAME.exe"
+    log_and_echo "Log saved to: $LOG_FILE"
+else
+    log_and_echo "ERROR: Build failed with errors."
+    log_and_echo "Check log file for details: $LOG_FILE"
     exit 1
 fi
 
-# Check Python version (requires 3.13+)
-python_version=$(python -c "import sys; print(f'{sys.version_info.major}.{sys.version_info.minor}')")
-required_version="3.13"
-
-if ! python -c "import sys; exit(0 if sys.version_info >= (3, 13) else 1)" 2>/dev/null; then
-    log_and_echo "Error: Python $required_version or higher is required. Found: $python_version"
-    exit 1
-fi
-
-echo "✓ Python $python_version detected"
-
-# Create virtual environment if it doesn't exist
-if [ ! -d ".venv" ]; then
-    echo "Creating virtual environment..."
-    python -m venv .venv
-    echo "✓ Virtual environment created"
-else
-    echo "✓ Virtual environment exists"
-fi
-
-# Activate virtual environment
-echo "Activating virtual environment..."
-if [[ "$OSTYPE" == "msys" || "$OSTYPE" == "win32" ]]; then
-    # Windows/Git Bash
-    source .venv/Scripts/activate
-else
-    # Linux/Mac
-    source .venv/bin/activate
-fi
-
-if [[ "$VIRTUAL_ENV" == "" ]]; then
-    echo "Error: Failed to activate virtual environment"
-    exit 1
-fi
-
-echo "✓ Virtual environment activated: $VIRTUAL_ENV"
-
-# Upgrade pip first
-echo "Upgrading pip..."
-python -m pip install --upgrade pip
-
-# Install/upgrade requirements
-if [ -f "requirements.txt" ]; then
-    echo "Installing requirements from requirements.txt..."
-    python -m pip install -r requirements.txt --upgrade
-    echo "✓ Requirements installed"
-else
-    echo "Warning: requirements.txt not found"
-fi
-
-# Install the package in development mode
-echo "Installing Pyrox package in development mode..."
-if [ -f "pyproject.toml" ]; then
-    python -m pip install -e . --upgrade
-    echo "✓ Pyrox package installed in development mode"
-else
-    echo "Warning: pyproject.toml not found, skipping package installation"
-fi
-
-# Verify installation
-echo "Verifying installation..."
-if python -c "import pyrox; print(f'✓ Pyrox module imported successfully')" 2>/dev/null; then
-    echo "✓ Build completed successfully!"
-else
-    echo "Warning: Could not import pyrox module"
-fi
-
-echo "=== Build Summary ==="
-echo "Python version: $python_version"
-echo "Virtual environment: $VIRTUAL_ENV"
-echo "Installed packages:"
-python -m pip list --format=columns | head -20
-
-echo ""
-echo "Build process completed!"
-echo "You can now run the deployment script."
+log_and_echo "=== Deployment Complete ==="
+read -p "Press Enter to continue..."
