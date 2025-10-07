@@ -4,7 +4,7 @@ from __future__ import annotations
 from typing import List, Self, Type
 from pyrox.models.abc.meta import PyroxObject
 from pyrox.models.abc.factory import FactoryTypeMeta, MetaFactory
-from pyrox.utils import check_wildcard_patterns
+from pyrox.services.search import check_wildcard_patterns
 
 from .controller import Controller
 
