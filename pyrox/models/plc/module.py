@@ -1,11 +1,10 @@
 """Module model for pyrox Controller applications
 """
 from enum import Enum
-from typing import Optional, TYPE_CHECKING, Union
+from typing import TYPE_CHECKING, Union
 from pyrox.models.plc import meta as plc_meta
 
 if TYPE_CHECKING:
-    from pyrox.models.plc.controller import Controller
     from pyrox.models.plc.imodule import IntrospectiveModule
 
 
@@ -15,6 +14,7 @@ class ModuleControlsType(Enum):
     UNKOWN = 'Unknown'
     PLC = 'PLC'
     RACK_COMM_CARD = 'RackCommCard'
+    ENCODER = 'Encoder'
     ETHERNET = 'Ethernet'
     ETHERNET_SWITCH = 'EthernetSwitch'
     SERIAL = 'Serial'

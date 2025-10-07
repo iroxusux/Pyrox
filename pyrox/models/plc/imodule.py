@@ -57,7 +57,7 @@ class ModuleWarehouseFactory(MetaFactory):
             if warehouse_cls:
                 modules.extend(warehouse_cls.get_modules_by_type(module_type))
             else:
-                cls.get_logger().warning(f'Warehouse class for {warehouse_name} is None')
+                log(cls).warning(f'Warehouse class for {warehouse_name} is None')
 
         return modules
 
@@ -79,7 +79,7 @@ class ModuleWarehouseFactory(MetaFactory):
         filtered = []
         for module in modules:
             if not module.introspective_module:
-                cls.get_logger().warning(f'Module {module} has no introspective_module, skipping...')
+                log(cls).warning(f'Module {module} has no introspective_module, skipping...')
                 continue
             if module.introspective_module.controls_type != module_type:
                 continue
@@ -100,7 +100,7 @@ class ModuleWarehouse(MetaFactory, metaclass=FactoryTypeMeta['ModuleWarehouse', 
         cls.supports_registering = True  # Subclasses can be used to match
 
     @classmethod
-    def get_factory(cls) -> ModuleWarehouseFactory:
+    def get_factory(cls) -> type[ModuleWarehouseFactory]:
         return ModuleWarehouseFactory
 
     @classmethod
@@ -118,32 +118,6 @@ class ModuleWarehouse(MetaFactory, metaclass=FactoryTypeMeta['ModuleWarehouse', 
             if issubclass(known, IntrospectiveModule):
                 classes.append(known)
         return classes
-
-    @classmethod
-    def get_known_modules(cls) -> list[IntrospectiveModule]:
-        """Get instances of all known modules from this warehouse."""
-        module_classes = cls.get_known_module_classes()
-        return [module_cls() for module_cls in module_classes]
-
-    @classmethod
-    def get_modules_by_type(
-        cls,
-        module_type: ModuleControlsType
-    ) -> List[IntrospectiveModule]:
-        """Get all modules of a specific type from this warehouse.
-
-        Args:
-            module_type (ModuleControlsType): The type of module to filter by.
-
-        Returns:
-            List[IntrospectiveModule]: List of modules matching the specified type.
-        """
-        modules = cls.get_known_modules()
-
-        return [
-            module for module in modules
-            if module.module_type == module_type
-        ]
 
 
 class IntrospectiveModule(PyroxObject):
@@ -276,12 +250,6 @@ class IntrospectiveModule(PyroxObject):
             'ConfigSize': module.config_connection_size,
         })
         return cls(module)
-
-    @classmethod
-    def get_controls_type(cls) -> ModuleControlsType:
-        """Get the controls type of the module."""
-        obj = cls()
-        return obj.controls_type
 
     @classmethod
     def get_required_imports(cls) -> List[tuple[str, List[str]]]:
