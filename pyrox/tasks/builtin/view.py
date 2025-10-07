@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from tkinter import Menu
 from pyrox.models import ApplicationTask
+from pyrox.services.logging import log
 
 
 class ViewTask(ApplicationTask):
@@ -18,24 +19,24 @@ class ViewTask(ApplicationTask):
         """Open a directory in the file explorer."""
 
         if not dir_location:
-            self.logger.warning('No directory selected...')
+            log(self).warning('No directory selected...')
             return
 
-        self.logger.info('Opening directory -> %s', dir_location)
+        log(self).info('Opening directory -> %s', dir_location)
         try:
             import os
             os.startfile(dir_location)
         except Exception as e:
-            self.logger.error(f'Failed to open directory: {e}')
+            log(self).error(f'Failed to open directory: {e}')
 
     def inject(self) -> None:
         if not self.application.menu:
-            self.logger.error('Application menu not found, cannot inject view tasks.')
+            log(self).error('Application menu not found, cannot inject view tasks.')
             return
 
         getattr(self.application, 'all_directories', None)
         if not self.application.directory_service.all_directories:
-            self.logger.error('Application does not support directories services, cannot create view tasks.')
+            log(self).error('Application does not support directories services, cannot create view tasks.')
             return
 
         drop_down = Menu(self.application.menu.view, name='application_directories', tearoff=0)

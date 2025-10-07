@@ -116,3 +116,37 @@ def rename_keys(d, key_map):
             for item in v:
                 if isinstance(item, dict):
                     rename_keys(item, key_map)
+
+
+def replace_strings_in_dict(
+    data,
+    old_string,
+    new_string
+) -> None:
+    """
+    Recursively searches and replaces all occurrences of a string in a dictionary,
+    including nested dictionaries and lists.
+
+    Args:
+        data (dict or list): The dictionary or list to process.
+        old_string (str): The string to search for.
+        new_string (str): The string to replace with.
+    Returns:
+        None: The function modifies the input data in place.
+    """
+    if isinstance(data, dict):
+        new_dict = {}
+        for key, value in data.items():
+            new_key = key.replace(
+                old_string, new_string) if isinstance(key, str) else key
+            new_dict[new_key] = replace_strings_in_dict(
+                value, old_string, new_string)
+        data.clear()
+        data.update(new_dict)
+    elif isinstance(data, list):
+        for item in data:
+            replace_strings_in_dict(item, old_string, new_string)
+    elif isinstance(data, str):
+        data.replace(old_string, new_string)
+    else:
+        return data

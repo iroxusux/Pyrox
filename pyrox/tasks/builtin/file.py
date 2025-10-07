@@ -1,19 +1,15 @@
 """ file tasks
     """
-from __future__ import annotations
-
-
 import tkinter.messagebox
 from typing import Optional
 import sys
 
-
 from pyrox.services.file import get_open_file, get_save_file
 from pyrox.services.logging import log
-from pyrox.applications import AppTask
+from pyrox.models import ApplicationTask
 
 
-class FileTask(AppTask):
+class FileTask(ApplicationTask):
     """PLC Tasker `Task`
 
     Injects `New` and `Save` tk menu buttons into parent :class:`Application`.

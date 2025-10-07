@@ -27,7 +27,7 @@ from .tag import Tag
 
 from pyrox.services.file import get_save_file
 from pyrox.services.plc import l5x_dict_from_file
-from pyrox.utils import replace_strings_in_dict
+from pyrox.services.dict import replace_strings_in_dict
 
 __all__ = (
     'Controller',

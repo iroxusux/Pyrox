@@ -1,8 +1,7 @@
 """ preferences task
     """
 from __future__ import annotations
-
-from pyrox.applications.app import App, AppTask
+from pyrox.models import Application, ApplicationTask
 from pyrox.services.logging import log
 from pyrox.services.env import EnvManager
 from pyrox.services.plc import start_logix_5k
@@ -17,7 +16,7 @@ class AppearanceEditor:
     """Editor for application appearance themes using THEME dictionary.
     """
 
-    def __init__(self, parent_app: App):
+    def __init__(self, parent_app: Application):
         self.parent_app = parent_app
         self.dialog = None
         self.theme_vars = {}
@@ -494,7 +493,7 @@ class AppearanceEditor:
         self.dialog.protocol("WM_DELETE_WINDOW", self._cancel_changes)
 
 
-class LaunchToStudioTask(AppTask):
+class LaunchToStudioTask(ApplicationTask):
     """Launch to Studio 5000 Task
     This task launches the Studio 5000 application with the current controller file.
     """
@@ -518,7 +517,7 @@ class LaunchToStudioTask(AppTask):
         self.application.menu.edit.add_command(label='Launch to Studio 5000', command=self.launch_studio)
 
 
-class AppearanceTask(AppTask):
+class AppearanceTask(ApplicationTask):
     """Appearance editor task for customizing the application theme."""
 
     def show_appearance_editor(self):
@@ -536,7 +535,7 @@ class AppearanceTask(AppTask):
         )
 
 
-class PreferencesTask(AppTask):
+class PreferencesTask(ApplicationTask):
     """built-in preferences task.
     """
 

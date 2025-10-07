@@ -535,24 +535,3 @@ def enhanced_convert_bytes_to_filtered_string(data: bytes,
         filtered_data = context_aware_filtering(filtered_data, context_keywords)
 
     return filtered_data
-
-
-if __name__ == "__main__":
-    read_size = 1024 * 1024  # 1 MB
-    # Example usage
-    file_path = r'C:\Users\MH8243\OneDrive - EQUANS\Documents\Controls\23-442\T1\OHAP_T1_RFC_Rev2(2025-08-27)\Connection.eod'
-    with open(file_path, 'rb') as f:
-        # Read file info
-        f.seek(0, 2)  # Seek to end
-        file_size = f.tell()
-        f.seek(0)  # Back to beginning
-        file_bytes = f.read(read_size)
-
-        filtered_string = enhanced_convert_bytes_to_filtered_string(file_bytes,
-                                                                    apply_noise_filtering=True,
-                                                                    context_keywords=['device', 'connection', 'terminal', 'function'])
-
-        # Or use individual techniques
-        meaningful_strings = extract_meaningful_strings(file_bytes)
-        advanced_extraction = advanced_string_extraction(file_bytes)
-        print(advanced_extraction)

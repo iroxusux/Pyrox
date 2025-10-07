@@ -145,8 +145,10 @@ class SliceableInt(int):
         """
         self._value = 0
 
-    def clear_bit(self,
-                  bit_position: int) -> int:
+    def clear_bit(
+        self,
+        bit_position: int
+    ) -> int:
         """Binary slicing operation to clear a bit of an integer.
 
         .. -------------------------------------------------------
@@ -182,8 +184,10 @@ class SliceableInt(int):
         """
         return bool((self._value & (1 << bit_position)) >> bit_position)
 
-    def set_bit(self,
-                bit_position: int) -> int:
+    def set_bit(
+        self,
+        bit_position: int
+    ) -> int:
         """Binary slicing operation to set a bit of an integer.
 
         .. -------------------------------------------------------
@@ -200,7 +204,10 @@ class SliceableInt(int):
         self._value = self._value | (1 << bit_position)
         return self._value
 
-    def set_value(self, value: int) -> None:
+    def set_value(
+        self,
+        value: int
+    ) -> None:
         """Set a value for this sliceable int without changing it's base type (`SliceableInt`).
 
         .. -------------------------------------------------------

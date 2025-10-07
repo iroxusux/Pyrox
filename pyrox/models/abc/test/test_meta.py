@@ -629,5 +629,48 @@ class TestIntegration:
         assert obj.description == "Valid description"
 
 
+class TestBitOperations:
+    """Test bit operations in SliceableInt."""
+
+    def test_bit_operations(self):
+        """test bit operations perform correctly
+        """
+
+        my_value = SliceableInt(0)
+
+        my_value.set_bit(0)
+
+        assert my_value == 1
+        assert my_value.read_bit(0)
+
+        my_value.set_bit(1)
+
+        assert my_value == 3
+        assert my_value.read_bit(0)
+        assert my_value.read_bit(1)
+
+        my_value.clear_bit(0)
+
+        assert my_value == 2
+        assert not my_value.read_bit(0)
+        assert my_value.read_bit(1)
+
+        assert isinstance(my_value, SliceableInt)
+
+        my_value.set_value(8)
+
+        assert my_value == 8
+        assert not my_value.read_bit(0)
+        assert not my_value.read_bit(1)
+        assert not my_value.read_bit(2)
+        assert my_value.read_bit(3)
+
+        my_value.clear()
+
+        assert my_value == 0
+
+        assert isinstance(my_value, SliceableInt)
+
+
 if __name__ == '__main__':
     pytest.main([__file__, '-v'])
