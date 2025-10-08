@@ -52,10 +52,19 @@ class Application(Runnable):
 
     def __init__(
         self,
+        tk_instance: Tk,
     ) -> None:
         super().__init__()
         sys.excepthook = self._excepthook
         self._directory_service = PlatformDirectoryService()
+
+        # Build tk info
+        self._tk_app = tk_instance
+
+        self._menu = MainApplicationMenu(self.tk_app)
+
+        self._frame: Frame = Frame(master=self.tk_app, background='#2b2b2b')
+        self._frame.pack(fill='both', expand=True)
 
     @property
     def tk_app(self) -> Tk:
@@ -111,8 +120,8 @@ class Application(Runnable):
     def _build_app_icon(self) -> None:
         icon_path = Path(EnvManager.get('PYROX_APP_ICON', meta.DEF_ICON, str))
         if icon_path.exists():
-            self._tk_app.iconbitmap(icon_path)
-            self._tk_app.iconbitmap(default=icon_path)
+            self.tk_app.iconbitmap(icon_path)
+            self.tk_app.iconbitmap(default=icon_path)
         else:
             self.log().warning(f'Icon file not found: {icon_path}.')
 
@@ -122,13 +131,6 @@ class Application(Runnable):
         logging_level = EnvManager.get('PYROX_LOG_LEVEL', 'INFO')
         if logging_level is not None and isinstance(logging_level, (str, int)):
             self.set_logging_level(logging_level)
-
-    def _build_frame(self) -> None:
-        self._frame: Frame = Frame(master=self._tk_app, background='#2b2b2b')
-        self._frame.pack(fill='both', expand=True)
-
-    def _build_menu(self) -> None:
-        self._menu = MainApplicationMenu(self.tk_app)
 
     def _build_multi_stream(self) -> None:
         if hasattr(self, '_multi_stream'):
@@ -142,15 +144,11 @@ class Application(Runnable):
         except Exception as e:
             raise RuntimeError(f'Failed to set up MultiStream: {e}') from e
 
-    def _build_tk_app_instance(self) -> None:
-        self._tk_app = Tk()
-        self._tk_app.bind('<Configure>', self._on_tk_configure)
-        self._tk_app.bind('<F11>', lambda _: self.toggle_fullscreen(not self._tk_app.attributes('-fullscreen')))
-
     def _connect_tk_attributes(self) -> None:
-        if isinstance(self.tk_app, Tk):
-            self.tk_app.report_callback_exception = self._excepthook
+        self.tk_app.report_callback_exception = self._excepthook
         self.tk_app.protocol('WM_DELETE_WINDOW', self.close)
+        self.tk_app.bind('<Configure>', self._on_tk_configure)
+        self.tk_app.bind('<F11>', lambda _: self.toggle_fullscreen(not self.tk_app.attributes('-fullscreen')))
         self.tk_app.title(EnvManager.get('PYROX_WINDOW_TITLE', 'Pyrox Application', str))
 
     def _excepthook(self, exc_type, exc_value, exc_traceback) -> None:
@@ -284,11 +282,8 @@ class Application(Runnable):
     def build(self) -> None:
         self._build_env()
         self._build_multi_stream()
-        self._build_tk_app_instance()
         self._connect_tk_attributes()
         self._build_app_icon()
-        self._build_frame()
-        self._build_menu()
         self._directory_service.build_directory()
         self._restore_geometry_env()
         super().build()
