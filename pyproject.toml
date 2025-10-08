@@ -4,11 +4,11 @@ build-backend = "hatchling.build"
 
 [project]
 name = "pyrox"
-version = "1.2.6"
+version = "1.3.0"
 authors = [
   { name="Brian LaFond", email="Brian.L.LaFond@gmail.com" },
 ]
-description = "Python based ladder logic editor and toolset."
+description = "Python based irox engine."
 readme = "README.md"
 requires-python = ">=3.13"
 classifiers = [
