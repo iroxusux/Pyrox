@@ -3,7 +3,7 @@ from typing import Callable, TextIO
 import tkinter as tk
 from tkinter import ttk
 from pyrox.models.gui import meta
-from pyrox.services.logging import LoggingManager
+from pyrox.services.logging import LoggingManager, log
 
 
 __all__ = ('LogFrame',)
@@ -314,18 +314,16 @@ class LogFrame(meta.PyroxFrame):
 if __name__ == '__main__':
     root = tk.Tk()
     root.title("LogFrame Test")
-    root.geometry("800x600")
+    root.geometry("1000x600")
 
     log_frame = LogFrame(root)
     log_frame.pack(fill=tk.BOTH, expand=True)
 
     # Test logging
-    log_frame.log("This is an info message.\n")
-    log_frame.log("| WARNING | This is a warning message.\n")
-    log_frame.log("| ERROR | This is an error message.\n")
-    log_frame.log("| DEBUG | This is a debug message.\n")
-    log_frame.log("| SUCCESS | This is a success message.\n")
-    log_frame.log("| FAILURE | This is a failure message.\n")
-    log_frame.log("This is another info message.\n")
+    log('test').info("This is an info message.")
+    log('test').warning("| WARNING | This is a warning message.")
+    log('test').error("| ERROR | This is an error message.")
+    log('test').debug("| DEBUG | This is a debug message.")
+    log('test').info("| INFO | This is another info message.")
 
     root.mainloop()
