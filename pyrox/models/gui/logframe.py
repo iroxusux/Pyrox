@@ -1,12 +1,12 @@
+import logging
 from typing import Callable, TextIO
 import tkinter as tk
 from tkinter import ttk
 from pyrox.models.gui import meta
+from pyrox.services.logging import LoggingManager
 
 
-__all__ = (
-    'LogFrame',
-)
+__all__ = ('LogFrame',)
 
 
 class LogFrame(meta.PyroxFrame):
@@ -33,6 +33,25 @@ class LogFrame(meta.PyroxFrame):
         self._setup_toolbar()
         self._setup_text_widget()
         self._setup_text_tags()
+        self._fill_log_from_sys_streams()
+
+    def _fill_log_from_sys_streams(self):
+        """Fill the log window from sys.stdout and sys.stderr."""
+        err_stream = LoggingManager.get_captured_stderr()
+        if not err_stream:
+            raise RuntimeError('No captured stderr stream available.')
+        self.clear_log_window()
+        for line in err_stream.yield_lines():
+            self.log(line)
+
+    def _handle_dropdown_log_level_change(self, selection: str):
+        """Handle changes in log level from dropdown."""
+        level = getattr(logging, selection.upper(), None)
+        if level is not None:
+            LoggingManager.set_logging_level(level)
+            self._fill_log_from_sys_streams()
+        else:
+            self.log(f'| ERROR | Unknown log level selected: {selection}\n')
 
     def _setup_text_widget(self):
         """Setup the main text widget and scrollbar."""
@@ -109,9 +128,22 @@ class LogFrame(meta.PyroxFrame):
             "Clear",
             self.clear_log_window
         )
+        log_levels = ['DEBUG', 'INFO', 'WARNING', 'ERROR', 'CRITICAL']
+        self.add_toolbar_dropdown(
+            log_levels,
+            self._handle_dropdown_log_level_change
+        )
 
-    def _log_message(self, message: str, tag: str = 'INFO'):
+    def _log_message(
+        self,
+        message: str,
+        tag: str = 'INFO'
+    ) -> None:
         """Log a message directly to the text widget."""
+        # Check to see if the message is within the current logging level's threshold
+        if not self._message_is_within_log_level(tag):
+            return
+
         try:
             self._logtext.config(state='normal')
 
@@ -177,6 +209,29 @@ class LogFrame(meta.PyroxFrame):
         except tk.TclError as e:
             print(f'Error logging message: {e}')
 
+    def _message_is_within_log_level(self, tag: str) -> bool:
+        match tag:
+            case 'DEBUG':
+                if LoggingManager.curr_logging_level > logging.DEBUG:
+                    return False
+            case 'INFO':
+                if LoggingManager.curr_logging_level > logging.INFO:
+                    return False
+            case 'WARNING':
+                if LoggingManager.curr_logging_level > logging.WARNING:
+                    return False
+            case 'ERROR':
+                if LoggingManager.curr_logging_level > logging.ERROR:
+                    return False
+            case 'CRITICAL':
+                if LoggingManager.curr_logging_level > logging.CRITICAL:
+                    return False
+            case 'STDERR' | 'STDOUT' | 'SUCCESS' | 'FAILURE':
+                return True
+            case _:
+                return True
+        return True  # Default to True but this should not be reached
+
     def add_toolbar_button(
         self,
         text: str, command: Callable
@@ -187,9 +242,32 @@ class LogFrame(meta.PyroxFrame):
             self._toolbar,
             text=text,
             command=command,
+            width=8,
+            style='TButton'
         )
         button.pack(side=tk.LEFT, fill=tk.Y)
         return button
+
+    def add_toolbar_dropdown(
+        self,
+        options: list[str],
+        command: Callable
+    ) -> ttk.OptionMenu:
+        """Add a custom dropdown to the toolbar."""
+        variable = tk.StringVar(self._toolbar)
+        variable.set(options[0])  # default value
+
+        dropdown = ttk.OptionMenu(
+            self._toolbar,
+            variable,
+            options[0],
+            *options,
+            command=command,
+            style='TMenubutton',
+        )
+        dropdown.pack(side=tk.LEFT, fill=tk.Y)
+        dropdown.configure(width=10)  # Width in characters
+        return dropdown
 
     def clear_log_window(self):
         """Clear all text from the log window."""
@@ -231,3 +309,23 @@ class LogFrame(meta.PyroxFrame):
         if not message.endswith('\n'):
             message += '\n'
         self._log_message(message, tag)
+
+
+if __name__ == '__main__':
+    root = tk.Tk()
+    root.title("LogFrame Test")
+    root.geometry("800x600")
+
+    log_frame = LogFrame(root)
+    log_frame.pack(fill=tk.BOTH, expand=True)
+
+    # Test logging
+    log_frame.log("This is an info message.\n")
+    log_frame.log("| WARNING | This is a warning message.\n")
+    log_frame.log("| ERROR | This is an error message.\n")
+    log_frame.log("| DEBUG | This is a debug message.\n")
+    log_frame.log("| SUCCESS | This is a success message.\n")
+    log_frame.log("| FAILURE | This is a failure message.\n")
+    log_frame.log("This is another info message.\n")
+
+    root.mainloop()

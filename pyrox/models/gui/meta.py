@@ -189,6 +189,29 @@ class PyroxThemeManager:
                         ]
                     }
                 },
+                'TMenubutton': {
+                    'configure': {
+                        'background': PyroxDefaultTheme.button_color,
+                        'foreground': PyroxDefaultTheme.foreground,
+                        'font': (PyroxDefaultTheme.font_family, PyroxDefaultTheme.font_size),
+                        'borderwidth': PyroxDefaultTheme.borderwidth,
+                        'focuscolor': 'none',
+                        'padding': (8, 4),
+                        'relief': PyroxDefaultTheme.relief,
+                    },
+                    'map': {
+                        'background': [
+                            ('active', PyroxDefaultTheme.button_hover),
+                            ('pressed', PyroxDefaultTheme.button_active),
+                            ('!active', PyroxDefaultTheme.button_color)
+                        ],
+                        'foreground': [
+                            ('active', PyroxDefaultTheme.foreground_selected),
+                            ('pressed', PyroxDefaultTheme.foreground_selected),
+                            ('!active', PyroxDefaultTheme.foreground)
+                        ]
+                    }
+                },
                 'TEntry': {
                     'configure': {
                         'fieldbackground': PyroxDefaultTheme.widget_background,

@@ -126,6 +126,11 @@ class StreamCapture(io.StringIO):
         """Return True - StringIO is seekable."""
         return True
 
+    def yield_lines(self):
+        """Yield lines one by one."""
+        for line in self._lines.copy():
+            yield line
+
 
 class LoggingManager:
     """A Logging manager for the pyrox application environment."""
@@ -188,6 +193,11 @@ class LoggingManager:
     def get_captured_stderr(cls) -> Optional[StreamCapture]:
         """Get the captured stderr stream."""
         return cls._captured_stderr
+
+    @classmethod
+    def get_captured_streams(cls) -> list[Optional[StreamCapture]]:
+        """Get both captured stdout and stderr streams."""
+        return [cls._captured_stdout, cls._captured_stderr]
 
     @classmethod
     def get_stdout_content(cls) -> str:
