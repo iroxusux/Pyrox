@@ -8,12 +8,7 @@ from typing import Any, Optional, Union
 from pyrox.services.logging import Loggable
 
 __all__ = (
-    'DEF_APP_NAME',
-    'DEF_AUTHOR_NAME',
     'DEF_ICON',
-    'DEF_VIEW_TYPE',
-    'DEF_WIN_TITLE',
-    'DEF_WIN_SIZE',
     'EnforcesNaming',
     'PyroxObject',
     'SliceableInt',
@@ -26,11 +21,6 @@ __all__ = (
 ALLOWED_CHARS = re.compile(f'[^{r'a-zA-Z0-9_\[\]'}]')
 ALLOWED_REV_CHARS = re.compile(f'[^{r'0-9.'}]')
 ALLOWED_MOD_CHARS = re.compile(f'[^{r'a-zA-Z0-9_.-'}]')
-DEF_APP_NAME = 'Pyrox Application'
-DEF_AUTHOR_NAME = 'Pyrox Author'
-DEF_VIEW_TYPE = 1
-DEF_WIN_TITLE = 'Pyrox Default Frame'
-DEF_WIN_SIZE = '1024x768'
 DEF_ICON = Path(__file__).resolve().parents[2] / "ui" / "icons" / "_def.ico"
 
 

@@ -10,11 +10,6 @@ from pyrox.models.abc.meta import (
     ALLOWED_CHARS,
     ALLOWED_REV_CHARS,
     ALLOWED_MOD_CHARS,
-    DEF_APP_NAME,
-    DEF_AUTHOR_NAME,
-    DEF_VIEW_TYPE,
-    DEF_WIN_TITLE,
-    DEF_WIN_SIZE,
     DEF_ICON,
     EnforcesNaming,
     NamedPyroxObject,
@@ -33,11 +28,6 @@ class TestConstants:
 
     def test_default_constants(self):
         """Test that default constants are properly defined."""
-        assert DEF_APP_NAME == 'Pyrox Application'
-        assert DEF_AUTHOR_NAME == 'Pyrox Author'
-        assert DEF_VIEW_TYPE == 1
-        assert DEF_WIN_TITLE == 'Pyrox Default Frame'
-        assert DEF_WIN_SIZE == '1024x768'
         assert isinstance(DEF_ICON, Path)
         assert DEF_ICON.name == '_def.ico'
 

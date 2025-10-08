@@ -1,9 +1,7 @@
 """Application ABC types for the Pyrox framework."""
 from __future__ import annotations
 
-from dataclasses import dataclass
 import datetime
-from enum import Enum
 import gc
 from logging import getLevelNamesMapping, getLevelName
 import os
@@ -17,7 +15,7 @@ from tkinter import (
     Tk,
     Toplevel,
 )
-from typing import Any, Callable, Optional, Self, Union
+from typing import Any, Callable, Optional, Union
 
 from .abc import Buildable, Runnable, SupportsJsonLoading, SupportsJsonSaving
 from .abc import meta, runtime, stream
@@ -27,7 +25,6 @@ from pyrox.services.env import EnvManager
 
 __all__ = (
     'BaseMenu',
-    'ApplicationConfiguration',
     'ApplicationDirectoryService',
     'ApplicationRuntimeInfo',
     'Application',
@@ -181,99 +178,6 @@ class MainApplicationMenu(BaseMenu):
         return self._view
 
 
-class ApplicationTkType(Enum):
-    """Application Tkinter Type enumeration.
-
-    Attributes:
-        NA: Not applicable type.
-        ROOT: Root window type.
-        TOPLEVEL: Toplevel window type.
-        EMBED: Embedded window type.
-    """
-    NA = 0
-    ROOT = 1
-    TOPLEVEL = 2
-    EMBED = 3
-
-
-@dataclass
-class ApplicationConfiguration:
-    """Application configuration dataclass.
-
-    Attributes:
-        headless: If True, the application will not create a main window.
-        application_name: The name of the application, used for directory naming and logging.
-        author_name: The name of the author, used for directory naming and logging.
-        title: The title of the application window.
-        type_: The type of the application view.
-        icon: The icon to use for the application window.
-        size_: The size of the application window, specified as a string (e.g., "800x600").
-    """
-    headless: bool = False
-    application_name: Optional[str] = meta.DEF_APP_NAME
-    author_name: Optional[str] = meta.DEF_AUTHOR_NAME
-    title: Optional[str] = meta.DEF_WIN_TITLE
-    type_: ApplicationTkType = ApplicationTkType.ROOT
-    icon: Optional[Union[str, Path]] = meta.DEF_ICON
-    size_: Optional[str] = meta.DEF_WIN_SIZE
-
-    @classmethod
-    def _common_assembly(
-        cls,
-        headless: bool = False,
-        application_name: str = meta.DEF_APP_NAME,
-        author_name: str = meta.DEF_AUTHOR_NAME,
-        title: str = meta.DEF_WIN_TITLE,
-        type_: ApplicationTkType = ApplicationTkType.ROOT,
-        icon: Optional[Union[str, Path]] = meta.DEF_ICON,
-        size_: str = meta.DEF_WIN_SIZE
-    ) -> Self:
-        """Common assembly method for creating ApplicationConfiguration instances.
-
-        Args:
-            headless: Whether the application is headless.
-            application_name: Name of the application.
-            author_name: Name of the author.
-            title: Title of the application window.
-            theme: Theme to use.
-            type_: Type of the application.
-            icon: Icon path.
-            size_: Window size.
-
-        Returns:
-            Self: A new ApplicationConfiguration instance.
-        """
-        return cls(
-            headless=headless,
-            application_name=application_name,
-            author_name=author_name,
-            title=title,
-            type_=type_,
-            icon=icon,
-            size_=size_
-        )
-
-    @classmethod
-    def toplevel(cls) -> Self:
-        """Get a generic toplevel application configuration.
-
-        Returns:
-            Self: A toplevel ApplicationConfiguration instance.
-        """
-        return cls._common_assembly(
-            type_=ApplicationTkType.TOPLEVEL,
-        )
-
-    @classmethod
-    def root(cls) -> Self:
-        """Get a generic root application configuration.
-
-        Returns:
-            Self: A root ApplicationConfiguration instance.
-        """
-        return cls._common_assembly()
-
-
 class ApplicationDirectoryService:
     """Application Directory Service for managing application directories.
 
@@ -296,17 +200,7 @@ class ApplicationDirectoryService:
 
     def __init__(
         self,
-        author_name: Optional[str] = meta.DEF_AUTHOR_NAME,
-        app_name: Optional[str] = meta.DEF_APP_NAME
     ) -> None:
-        if not author_name or author_name == '':
-            raise ValueError('A valid, non-null author name must be supplied for this class!')
-
-        if not app_name or app_name == '':
-            raise ValueError('A valid, non-null application name must be supplied for this class!')
-
-        self._app_name = app_name
-        self._author_name = author_name
         self.build_directory()
 
     @property
@@ -330,6 +224,10 @@ class ApplicationDirectoryService:
         Returns:
             str: The name of the application.
         """
+        if not hasattr(self, '_app_name') or self._app_name is None:
+            setattr(self, '_app_name', EnvManager.get('PYROX_APP_NAME', 'Pyrox Application', str))
+        if self._app_name is None:
+            raise ValueError('Application name cannot be None.')
         return self._app_name
 
     @property
@@ -350,6 +248,10 @@ class ApplicationDirectoryService:
         Returns:
             str: The name of the author.
         """
+        if not hasattr(self, '_author_name') or self._author_name is None:
+            setattr(self, '_author_name', EnvManager.get('PYROX_AUTHOR', 'Pyrox Author', str))
+        if self._author_name is None:
+            raise ValueError('Author name cannot be None.')
         return self._author_name
 
     @property
@@ -619,15 +521,10 @@ class Application(Runnable):
 
     def __init__(
         self,
-        config: ApplicationConfiguration
     ) -> None:
         super().__init__()
         sys.excepthook = self._excepthook
-        self.config = config or ApplicationConfiguration.root()
-        self.directory_service = ApplicationDirectoryService(
-            author_name=self.config.author_name,
-            app_name=self.config.application_name
-        )
+        self.directory_service = ApplicationDirectoryService()
 
     @property
     def tk_app(self) -> Tk:
@@ -639,29 +536,6 @@ class Application(Runnable):
         if not isinstance(self._tk_app, Tk):
             raise RuntimeError('Applications only support Tk class functionality.')
         return self._tk_app
-
-    @property
-    def config(self) -> ApplicationConfiguration:
-        """Configuration for this Application.
-
-        Returns:
-            ApplicationConfiguration: The application configuration.
-        """
-        return self._config
-
-    @config.setter
-    def config(self, value: ApplicationConfiguration) -> None:
-        """Set the configuration for this Application.
-
-        Args:
-            value: The new configuration to set.
-
-        Raises:
-            TypeError: If the value is not an instance of ApplicationConfiguration.
-        """
-        if not isinstance(value, ApplicationConfiguration):
-            raise TypeError('Config must be an instance of ApplicationConfiguration.')
-        self._config = value
 
     @property
     def directory_service(self) -> ApplicationDirectoryService:
@@ -732,12 +606,12 @@ class Application(Runnable):
         self._multi_stream = value
 
     def _build_app_icon(self) -> None:
-        icon_path = Path(str(self.config.icon))
+        icon_path = Path(EnvManager.get('PYROX_APP_ICON', meta.DEF_ICON, str))
         if icon_path.exists():
-            self._tk_app.iconbitmap(self.config.icon)
-            self._tk_app.iconbitmap(default=self.config.icon)
+            self._tk_app.iconbitmap(icon_path)
+            self._tk_app.iconbitmap(default=icon_path)
         else:
-            self.log().warning(f'Icon file not found: {self.config.icon}.')
+            self.log().warning(f'Icon file not found: {icon_path}.')
 
     def _build_env(self) -> None:
         if not EnvManager.is_loaded():
@@ -766,20 +640,15 @@ class Application(Runnable):
             raise RuntimeError(f'Failed to set up MultiStream: {e}') from e
 
     def _build_tk_app_instance(self) -> None:
-        if self.config.type_ == ApplicationTkType.ROOT:
-            self._tk_app = Tk()
-            self._tk_app.bind('<Configure>', self._on_tk_configure)
-            self._tk_app.bind('<F11>', lambda _: self.toggle_fullscreen(not self._tk_app.attributes('-fullscreen')))
-        elif self.config.type_ == ApplicationTkType.TOPLEVEL:
-            self._tk_app = Toplevel()
-        else:
-            raise ValueError('Application type is not supported. Please use ROOT or TOPLEVEL.')
+        self._tk_app = Tk()
+        self._tk_app.bind('<Configure>', self._on_tk_configure)
+        self._tk_app.bind('<F11>', lambda _: self.toggle_fullscreen(not self._tk_app.attributes('-fullscreen')))
 
     def _connect_tk_attributes(self) -> None:
         if isinstance(self.tk_app, Tk):
             self.tk_app.report_callback_exception = self._excepthook
         self.tk_app.protocol('WM_DELETE_WINDOW', self.close)
-        self.tk_app.title(self.config.title)
+        self.tk_app.title(EnvManager.get('PYROX_WINDOW_TITLE', 'Pyrox Application', str))
 
     def _excepthook(self, exc_type, exc_value, exc_traceback) -> None:
         """Handle uncaught exceptions.
@@ -837,7 +706,7 @@ class Application(Runnable):
             self.log().error(f'TclError: Could not set window position: {e}')
 
     def _restore_window_size(self) -> None:
-        window_size = EnvManager.get(UI_WINDOW_SIZE, self.config.size_, str)
+        window_size = EnvManager.get(UI_WINDOW_SIZE, '600x600', str)
         if not isinstance(window_size, str):
             return  # Invalid format, skip setting size
         try:

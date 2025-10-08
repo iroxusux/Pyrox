@@ -15,10 +15,7 @@ from .abc import (
     SupportsMetaData,
 )
 
-from .application import (
-    Application,
-    ApplicationConfiguration,
-)
+from .application import Application
 
 from .gui import (
     ContextMenu,
@@ -27,7 +24,6 @@ from .gui import (
     MenuItem,
     ObjectEditTaskFrame,
     OrganizerWindow,
-    ProgressBar,
     PyroxFrame,
     PyroxGuiObject,
     TaskFrame
@@ -41,7 +37,6 @@ from .task import ApplicationTask, ApplicationTaskFactory
 __all__ = (
     'abc',
     'Application',
-    'ApplicationConfiguration',
     'ApplicationTask',
     'ApplicationTaskFactory',
     'Buildable',
@@ -55,7 +50,6 @@ __all__ = (
     'Model',
     'ObjectEditTaskFrame',
     'OrganizerWindow',
-    'ProgressBar',
     'PyroxFrame',
     'PyroxGuiObject',
     'PyroxObject',
