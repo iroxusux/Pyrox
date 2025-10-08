@@ -1,10 +1,185 @@
 """File services module
     """
 import os
+import platformdirs
 import shutil
 import tkinter as tk
 from tkinter import filedialog
-from typing import Optional
+from typing import Any, Optional
+from .env import EnvManager
+
+
+class PlatformDirectoryService:
+    """Platform Directory Service for managing platform-specific directories.
+
+    Attributes:
+        app_name: The name of the application.
+        author_name: The name of the author.
+        user_cache: The path to the user cache directory for the application.
+        user_config: The path to the user config directory for the application.
+        user_data: The path to the user data directory for the application.
+        user_documents: The path to the user documents directory for the application.
+        user_downloads: The path to the user downloads directory for the application.
+        user_log: The path to the user log directory for the application.
+        user_log_file: The path to the application's log file.
+    """
+    __slots__ = ('_app_name', '_author_name')
+
+    def __init__(
+        self,
+    ) -> None:
+        self.build_directory()
+
+    @property
+    def all_directories(self) -> dict:
+        """All directories for this service class.
+
+        Returns:
+            dict: Dictionary of all directories for this service class.
+        """
+        return {
+            'user_cache': self.user_cache,
+            'user_config': self.user_config,
+            'user_data': self.user_data,
+            'user_log': self.user_log
+        }
+
+    @property
+    def app_name(self) -> str:
+        """Application name supplied to this service class.
+
+        Returns:
+            str: The name of the application.
+        """
+        if not hasattr(self, '_app_name') or self._app_name is None:
+            setattr(self, '_app_name', EnvManager.get('PYROX_APP_NAME', 'Pyrox Application', str))
+        if self._app_name is None:
+            raise ValueError('Application name cannot be None.')
+        return self._app_name
+
+    @property
+    def app_runtime_info_file(self) -> str:
+        """Application runtime info file path.
+
+        This is the file where the application will store runtime information.
+
+        Returns:
+            str: The path to the application's runtime info file.
+        """
+        return os.path.join(self.user_data, f'{self._app_name}_runtime_info.json')
+
+    @property
+    def author_name(self) -> str:
+        """Author name supplied to this service class.
+
+        Returns:
+            str: The name of the author.
+        """
+        if not hasattr(self, '_author_name') or self._author_name is None:
+            setattr(self, '_author_name', EnvManager.get('PYROX_AUTHOR', 'Pyrox Author', str))
+        if self._author_name is None:
+            raise ValueError('Author name cannot be None.')
+        return self._author_name
+
+    @property
+    def user_cache(self) -> str:
+        """User cache directory.
+
+        Returns:
+            str: The path to the user cache directory for the application.
+        """
+        return platformdirs.user_cache_dir(self.app_name, self.author_name, ensure_exists=True)
+
+    @property
+    def user_config(self) -> str:
+        """User config directory.
+
+        Returns:
+            str: The path to the user config directory for the application.
+        """
+        return platformdirs.user_config_dir(self._app_name, self._author_name, ensure_exists=True)
+
+    @property
+    def user_data(self) -> str:
+        """User data directory.
+
+        Example: 'C:/Users/JohnSmith/AppData/Local/JSmithEnterprises/MyApplication'
+
+        Returns:
+            str: The path to the user data directory for the application.
+        """
+        return platformdirs.user_data_dir(self._app_name, self._author_name, ensure_exists=True)
+
+    @property
+    def user_documents(self) -> str:
+        """User documents directory.
+
+        Returns:
+            str: The path to the user documents directory.
+        """
+        return platformdirs.user_documents_dir()
+
+    @property
+    def user_downloads(self) -> str:
+        """User downloads directory.
+
+        Returns:
+            str: The path to the user downloads directory.
+        """
+        return platformdirs.user_downloads_dir()
+
+    @property
+    def user_log(self) -> str:
+        """User log directory.
+
+        Returns:
+            str: The path to the user log directory for the application.
+        """
+        return platformdirs.user_log_dir(self._app_name, self._author_name)
+
+    @property
+    def user_log_file(self) -> str:
+        """User log file path.
+
+        This is the file where the application will log messages.
+
+        Returns:
+            str: The path to the application's log file.
+        """
+        return os.path.join(self.user_log, f'{self._app_name}.log')
+
+    def build_directory(self, as_refresh: bool = False) -> None:
+        """Build the directory for the parent application.
+
+        Uses the supplied name for directory naming.
+
+        Args:
+            as_refresh: If True, the directories will be refreshed, removing all files in them.
+
+        Raises:
+            OSError: If the directory creation fails.
+        """
+        for dir_path in self.all_directories.values():
+            if not os.path.isdir(dir_path):
+                try:
+                    os.makedirs(dir_path, exist_ok=True)
+                except OSError as e:
+                    raise OSError(f'Failed to create directory {dir_path}: {e}') from e
+            else:
+                if as_refresh:
+                    try:
+                        remove_all_files(dir_path)
+                    except OSError as e:
+                        raise OSError(f'Failed to refresh directory {dir_path}: {e}') from e
+
+    def get_log_file_stream(self) -> Any:
+        """Get a SimpleStream for the user log file.
+
+        Returns:
+            stream object: A stream object for the user log file.
+        """
+        log_file = open(self.user_log_file, 'a', encoding='utf-8')
+        return log_file
 
 
 def get_all_files_in_directory(
