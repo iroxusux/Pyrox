@@ -57,6 +57,10 @@ class Application(Runnable):
         super().__init__()
         sys.excepthook = self._excepthook
         self._directory_service = PlatformDirectoryService()
+        self._multi_stream = stream.MultiStream(
+            self._directory_service.get_log_file_stream(),
+            stream.SimpleStream(self.application_log)
+        )
 
         # Build tk info
         self._tk_app = tk_instance
@@ -127,18 +131,13 @@ class Application(Runnable):
 
     def _build_env(self) -> None:
         if not EnvManager.is_loaded():
-            raise RuntimeError('Environment variables have not been loaded. Please call EnvManager.load() before building the application.')
+            EnvManager.load()
         logging_level = EnvManager.get('PYROX_LOG_LEVEL', 'INFO')
         if logging_level is not None and isinstance(logging_level, (str, int)):
             self.set_logging_level(logging_level)
 
     def _build_multi_stream(self) -> None:
-        if hasattr(self, '_multi_stream'):
-            raise RuntimeError('MultiStream has already been set up for this application.')
         try:
-            self._multi_stream = stream.MultiStream(
-                self._directory_service.get_log_file_stream(),
-                stream.SimpleStream(self.application_log))
             LoggingManager.register_callback_to_captured_streams(self._multi_stream.write)
             self.log().info(f'Logging to file: {self._directory_service.user_log_file}')
         except Exception as e:
@@ -277,7 +276,7 @@ class Application(Runnable):
         Args:
             message: Message to be sent to this Application's log file.
         """
-        ...
+        print(message)
 
     def build(self) -> None:
         self._build_env()
@@ -352,7 +351,7 @@ class Application(Runnable):
             raise TypeError('Logging level must be an integer.')
 
         level_name = getLevelName(level)
-        if level_name == 'Level %s' % level:
+        if level_name == f'Level {level}':
             raise ValueError(f'Invalid logging level integer: {level}')
         self.log().info(f'Logging level set to {level_name} ({level}).')
         LoggingManager.set_logging_level(level)
@@ -374,7 +373,7 @@ class Application(Runnable):
                        If None, it will toggle the current state.
         """
         if fullscreen is None:
-            fullscreen = not self._runtime_info.get('full_screen', False)
+            fullscreen = not EnvManager.get('UI_FULLSCREEN', str(fullscreen))
         self.tk_app.attributes('-fullscreen', fullscreen)
 
     def update_cursor(self, cursor: Union[meta.TK_CURSORS, str]) -> None:

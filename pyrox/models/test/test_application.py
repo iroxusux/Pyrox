@@ -225,25 +225,6 @@ class TestApplication(unittest.TestCase):
     @patch('pyrox.models.application.MainApplicationMenu')
     @patch('pyrox.models.application.PlatformDirectoryService')
     @patch('pyrox.models.application.EnvManager')
-    def test_build_env_not_loaded_raises_error(self, mock_env, mock_service_class, mock_menu_class, mock_frame_class):
-        """Test _build_env when environment is not loaded."""
-        mock_menu_class.return_value = self.mock_menu
-        mock_frame_class.return_value = self.mock_frame
-        mock_service_class.return_value = self.mock_directory_service
-
-        mock_env.is_loaded.return_value = False
-
-        app = Application(self.mock_tk)
-
-        with self.assertRaises(RuntimeError) as context:
-            app._build_env()
-
-        self.assertIn("Environment variables have not been loaded", str(context.exception))
-
-    @patch('pyrox.models.application.Frame')
-    @patch('pyrox.models.application.MainApplicationMenu')
-    @patch('pyrox.models.application.PlatformDirectoryService')
-    @patch('pyrox.models.application.EnvManager')
     def test_build_env_sets_logging_level(self, mock_env, mock_service_class, mock_menu_class, mock_frame_class):
         """Test _build_env sets logging level."""
         mock_menu_class.return_value = self.mock_menu
@@ -286,24 +267,6 @@ class TestApplication(unittest.TestCase):
 
             self.assertEqual(app._multi_stream, mock_multistream)
             mock_logging_manager.register_callback_to_captured_streams.assert_called_once()
-
-    @patch('pyrox.models.application.Frame')
-    @patch('pyrox.models.application.MainApplicationMenu')
-    @patch('pyrox.models.application.PlatformDirectoryService')
-    @patch('pyrox.models.application.stream')
-    def test_build_multi_stream_already_exists(self, mock_stream, mock_service_class, mock_menu_class, mock_frame_class):
-        """Test _build_multi_stream when already set up."""
-        mock_menu_class.return_value = self.mock_menu
-        mock_frame_class.return_value = self.mock_frame
-        mock_service_class.return_value = self.mock_directory_service
-
-        app = Application(self.mock_tk)
-        app._multi_stream = self.mock_multi_stream
-
-        with self.assertRaises(RuntimeError) as context:
-            app._build_multi_stream()
-
-        self.assertIn("MultiStream has already been set up", str(context.exception))
 
     @patch('pyrox.models.application.Frame')
     @patch('pyrox.models.application.MainApplicationMenu')

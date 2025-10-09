@@ -5,7 +5,7 @@ This module provides a Tkinter TreeView widget that can display any Python objec
 (dictionaries, lists, custom objects) with recursive expansion and lazy loading
 for efficient memory usage and performance.
 """
-
+import tkinter as tk
 from tkinter import ttk
 from typing import Any, Dict, Set, Optional, List
 
@@ -23,7 +23,13 @@ class DynamicTreeView(ttk.Treeview):
     - Filters private attributes by default
     """
 
-    def __init__(self, parent, show_private=False, max_items=100, **kwargs):
+    def __init__(
+        self,
+        parent,
+        show_private=False,
+        max_items=100,
+        **kwargs
+    ) -> None:
         """
         Initialize the DynamicTreeView.
 
@@ -104,7 +110,6 @@ class DynamicTreeView(ttk.Treeview):
     def _is_expandable(self, obj: Any) -> bool:
         """Check if an object has expandable attributes or items."""
         try:
-            # Check if it's a collection with items
             if isinstance(obj, (dict, list, tuple, set)) and len(obj) > 0:
                 return True
 
@@ -225,14 +230,23 @@ class DynamicTreeView(ttk.Treeview):
         finally:
             self._visited_objects.discard(obj_id)
 
-    def _add_object_item(self, parent_id: str, name: str, obj: Any):
+    def _add_object_item(
+        self,
+        parent_id: str,
+        name: str,
+        obj: Any
+    ) -> None:
         """Add a single object as a tree item."""
         # Create the item
         type_name = self._get_object_type_name(obj)
         value_preview = self._get_object_value_preview(obj)
 
-        item_id = self.insert(parent_id, 'end', text=name,
-                              values=(type_name, value_preview))
+        item_id = self.insert(
+            parent_id,
+            'end',
+            text=name,
+            values=(type_name, value_preview)
+        )
 
         # Store the object for later access
         self._object_cache[item_id] = obj
@@ -242,7 +256,11 @@ class DynamicTreeView(ttk.Treeview):
             self._create_placeholder(item_id)
             self._placeholder_items.add(item_id)
 
-    def display_object(self, obj: Any, name: str = "Root"):
+    def display_object(
+        self,
+        obj: Any,
+        name: str = "Root"
+    ) -> None:
         """
         Display an object in the tree view.
 
@@ -313,8 +331,6 @@ class DynamicTreeView(ttk.Treeview):
 
 def create_demo_window():
     """Create a demo window showing the DynamicTreeView in action."""
-    import tkinter as tk
-    from tkinter import ttk
 
     root = tk.Tk()
     root.title("Dynamic TreeView Demo")
