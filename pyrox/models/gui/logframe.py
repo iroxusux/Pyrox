@@ -1,3 +1,6 @@
+"""Built-in logging window with enhanced features.
+Captures both logging and stderr/stdout streams.
+"""
 import logging
 from typing import Callable, TextIO
 import tkinter as tk
