@@ -3,6 +3,17 @@
 from typing import Any, Dict
 
 
+def object_is_builtin(obj: Any) -> bool:
+    """Check if an object is of a built-in type.
+
+    Args:
+        obj: The object to check.
+    Returns:
+        True if the object is of a built-in type, False otherwise.
+    """
+    return isinstance(obj, (int, float, str, bool, bytes, bytearray, complex))
+
+
 def get_object_attributes(
     obj: Any,
     show_private: bool = False
@@ -24,6 +35,8 @@ def get_object_attributes(
             return {f"[{i}]": item for i, item in enumerate(obj)}
         if isinstance(obj, set):
             return {f"item_{i}": item for i, item in enumerate(obj)}
+        if object_is_builtin(obj):
+            return {}
 
         for name in dir(obj):
             if not show_private and name.startswith('_'):

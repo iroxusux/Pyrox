@@ -15,7 +15,9 @@ class TestObjectAttributes:
     def test_set_attributes(self):
         my_set = {'x', 'y', 'z'}
         attrs = get_object_attributes(my_set)
-        assert attrs == {'item_0': 'x', 'item_1': 'y', 'item_2': 'z'}
+        assert 'x' in attrs.values()
+        assert 'y' in attrs.values()
+        assert 'z' in attrs.values()
 
     def test_object_attributes(self):
         class MyClass:
@@ -220,9 +222,9 @@ class TestObjectAttributes:
         attrs_with_private = get_object_attributes(obj, show_private=True)
         assert 'public_attr' in attrs_with_private
         assert '_private_attr' in attrs_with_private
-        assert '__very_private_attr' in attrs_with_private
+        assert '_MyClass__very_private_attr' in attrs_with_private
         assert attrs_with_private['_private_attr'] == 'private_value'
-        assert attrs_with_private['__very_private_attr'] == 'very_private_value'
+        assert attrs_with_private['_MyClass__very_private_attr'] == 'very_private_value'
 
     def test_object_with_mixed_attributes(self):
         class MyClass:
