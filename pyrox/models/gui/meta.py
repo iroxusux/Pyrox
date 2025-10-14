@@ -389,12 +389,7 @@ class PyroxTreeview(ttk.Treeview):
 
     def _configure_style(self) -> None:
         PyroxThemeManager.ensure_theme_created()
-        self._configure_additional_options()
         self._setup_hover_tags()
-
-    def _configure_additional_options(self) -> None:
-        """Configure additional treeview-specific options."""
-        self.configure(show='tree headings')
 
     def _on_hover(self, event):
         """Handle mouse hover over items."""

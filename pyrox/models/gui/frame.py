@@ -7,7 +7,7 @@ from tkinter.ttk import Widget
 from typing import Any, Optional, Union
 
 from . import meta
-from .treeview import LazyLoadingTreeView
+from .legacy_treeview import LazyLoadingTreeView
 from ...services.logging import log
 
 

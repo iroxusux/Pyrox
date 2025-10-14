@@ -1,173 +1,450 @@
-from tkinter import Event, Widget
-from typing import Optional, Union
+"""
+Dynamic TreeView for displaying arbitrary objects with lazy loading.
 
-from .menu import ContextMenu
-from .meta import PyroxTreeview
-from pyrox.models.abc.meta import PyroxObject
-from pyrox.models.abc.list import HashList
-from pyrox.models.gui.pyroxguiobject import PyroxGuiObject
+This module provides a Tkinter TreeView widget that can display any Python object
+(dictionaries, lists, custom objects) with recursive expansion and lazy loading
+for efficient memory usage and performance.
+"""
+import tkinter as tk
+from tkinter import ttk
+from typing import Any, Dict, Set, Optional, List
+from pyrox.models.gui.meta import PyroxDefaultTheme, PyroxThemeManager
 
 
-class LazyLoadingTreeView(PyroxTreeview):
-    """A Treeview that supports lazy loading of items.
+class PyroxTreeView(ttk.Treeview):
+    """
+    A TreeView widget that can display any Python object with lazy loading.
 
-    This class extends the standard ttk.Treeview to support lazy loading
-    of items, which can be useful for large datasets where loading all
-    items at once would be inefficient.
+    Features:
+    - Displays dictionaries, lists, tuples, sets, and custom objects
+    - Recursive expansion of nested structures
+    - Lazy loading - only loads attributes when expanded
+    - Handles circular references safely
+    - Customizable display formatting
+    - Filters private attributes by default
     """
 
     def __init__(
         self,
-        master: Optional[Widget] = None,
-        columns: Optional[list[str]] = None,
-        show: str = 'tree',
-        base_gui_class: type[PyroxGuiObject] = PyroxGuiObject,
-        context_menu: Optional[ContextMenu] = None
+        parent,
+        show_private=False,
+        max_items=100,
+        **kwargs
     ) -> None:
-        super().__init__(
-            master=master,
-            columns=columns,
-            show=show
-        )
-        self._base_gui_class: type[PyroxGuiObject] = base_gui_class
-        self._context_menu = context_menu or ContextMenu(master=self)
-        self.bind('<Button-3>', self.on_right_click)
-        self.bind('<<TreeviewOpen>>', self.on_expand)
-        self._lazy_load_map = {}
-        self._item_hash = {}
+        """
+        Initialize the PyroxTreeView.
 
-    @property
-    def context_menu(self) -> ContextMenu:
-        """Get the context menu associated with this treeview."""
-        return self._context_menu
+        Args:
+            parent: Parent widget
+            show_private: Whether to show private attributes (starting with _)
+            max_items: Maximum number of items to show in collections
+            **kwargs: Additional arguments passed to ttk.Treeview
+        """
+        # Set up columns if not specified
+        if 'columns' not in kwargs:
+            kwargs['columns'] = ('type', 'value')
+        if 'show' not in kwargs:
+            kwargs['show'] = 'tree headings'
 
-    def clear(self):
-        """Clear the treeview and reset the lazy loading map."""
-        if not self.winfo_exists():
-            return
-        for item in self.get_children():
-            self.delete(item)
-        self._lazy_load_map.clear()
-        self._item_hash.clear()
+        super().__init__(parent, **kwargs)
 
-    def on_expand(self, _: Event):
-        """Handle expand events to load items lazily when about to be expanded."""
-        # Get the item that's being expanded
+        # Configuration
+        self.show_private = show_private
+        self.max_items = max_items
+
+        # Track expanded items and their objects to prevent circular references
+        self._object_cache: Dict[str, Any] = {}
+        self._visited_objects: Set[int] = set()
+        self._placeholder_items: Set[str] = set()
+
+        # Set up columns
+        self.heading('#0', text='Name')
+        self.heading('type', text='Type')
+        self.heading('value', text='Value')
+
+        self.column('#0', width=200, minwidth=100)
+        self.column('type', width=100, minwidth=50)
+        self.column('value', width=300, minwidth=100)
+
+        # Bind events for lazy loading
+        self.bind('<<TreeviewOpen>>', self._on_item_open)
+        self.bind('<<TreeviewClose>>', self._on_item_close)
+        self.bind('<Motion>', self._on_hover)
+
+        # Style configuration
+        self._configure_style()
+
+    def _get_object_type_name(self, obj: Any) -> str:
+        """Get a friendly name for the object's type."""
+        obj_type = type(obj)
+        if hasattr(obj_type, '__name__'):
+            return obj_type.__name__
+        return str(obj_type)
+
+    def _get_object_value_preview(self, obj: Any) -> str:
+        """Get a preview string for the object's value."""
+        try:
+            if obj is None:
+                return "None"
+            elif isinstance(obj, (str, int, float, bool)):
+                return repr(obj)
+            elif isinstance(obj, (list, tuple)):
+                count = len(obj)
+                return f"[{count} item{'s' if count != 1 else ''}]"
+            elif isinstance(obj, dict):
+                count = len(obj)
+                return f"{{{count} item{'s' if count != 1 else ''}}}"
+            elif isinstance(obj, set):
+                count = len(obj)
+                return f"{{{count} item{'s' if count != 1 else ''}}}"
+            elif hasattr(obj, '__len__'):
+                try:
+                    count = len(obj)
+                    return f"[{count} item{'s' if count != 1 else ''}]"
+                except Exception:
+                    pass
+
+            # For other objects, try to get a meaningful representation
+            str_repr = str(obj)
+            if len(str_repr) > 50:
+                return str_repr[:47] + "..."
+            return str_repr
+        except Exception as e:
+            return f"<Error: {str(e)}>"
+
+    def _is_expandable(self, obj: Any) -> bool:
+        """Check if an object has expandable attributes or items."""
+        try:
+            if isinstance(obj, (dict, list, tuple, set)) and len(obj) > 0:
+                return True
+
+            # Check if it has attributes (excluding built-in types that we don't want to expand)
+            if not isinstance(obj, (str, int, float, bool, type(None))):
+                # Get attributes, filtering based on show_private setting
+                attrs = self._get_object_attributes(obj)
+                return len(attrs) > 0
+
+            return False
+        except Exception:
+            return False
+
+    def _get_object_attributes(self, obj: Any) -> Dict[str, Any]:
+        """Get the attributes of an object that should be displayed."""
+        attributes = {}
+
+        try:
+            # Handle different types of objects
+            if isinstance(obj, dict):
+                return obj
+            elif isinstance(obj, (list, tuple)):
+                return {f"[{i}]": item for i, item in enumerate(obj)}
+            elif isinstance(obj, set):
+                return {f"item_{i}": item for i, item in enumerate(obj)}
+            else:
+                # For regular objects, get their attributes
+                for name in dir(obj):
+                    # Skip private attributes unless requested
+                    if not self.show_private and name.startswith('_'):
+                        continue
+
+                    # Skip methods and built-in attributes we don't want to show
+                    if name in ('__class__', '__doc__', '__module__', '__dict__'):
+                        continue
+
+                    try:
+                        value = getattr(obj, name)
+                        # Skip methods unless they're properties
+                        if callable(value) and not isinstance(getattr(type(obj), name, None), property):
+                            continue
+                        attributes[name] = value
+                    except Exception:
+                        # Skip attributes that can't be accessed
+                        continue
+
+        except Exception:
+            pass
+
+        return attributes
+
+    def _configure_style(self) -> None:
+        PyroxThemeManager.ensure_theme_created()
+        self._setup_hover_tags()
+
+    def _on_hover(self, event):
+        """Handle mouse hover over items."""
+        item = self.identify_row(event.y)
+        self.tk.call(self, 'tag', 'remove', 'hover')
+        self.tk.call(self, 'tag', 'add', 'hover', item)
+
+    def _on_item_open(self, event):
+        """Handle tree item expansion with lazy loading."""
         selection = self.selection()
         if not selection:
             return
 
-        item = selection[0]
+        item_id = selection[0]
 
-        # Check if this item needs lazy loading
-        if item and self._lazy_load_map.get(item):
-            self.load_children(item)
-            del self._lazy_load_map[item]
+        # Check if this item has already been loaded
+        if item_id not in self._placeholder_items:
+            return
 
-    def on_right_click(self,
-                       event: Event,
-                       treeview_item: str = None):
-        if not treeview_item:
-            treeview_item = self.identify_row(event.y)
-            if treeview_item:
-                self.selection_set(treeview_item)
-                self.focus(treeview_item)
-        hash_item, lookup_attribute = self._item_hash.get(treeview_item, (None, None))
-        self._context_menu.on_right_click(event=event,
-                                          treeview_item=treeview_item,
-                                          hash_item=hash_item,
-                                          lookup_attribute=lookup_attribute)
+        # Remove the placeholder
+        self._placeholder_items.discard(item_id)
 
-    def load_children(self, item):
-        """Load children for the given item."""
-        for x in self.get_children(item):
-            self.delete(x)
-        self.populate_tree(item, self._lazy_load_map.get(item, {}))
+        # Get the object associated with this item
+        if item_id not in self._object_cache:
+            return
 
-    def _populate_base_node(
+        obj = self._object_cache[item_id]
+
+        # Clear any existing children (should just be the placeholder)
+        for child in self.get_children(item_id):
+            self.delete(child)
+
+        # Load the actual children
+        self._populate_item_children(item_id, obj)
+
+    def _on_item_close(self, event):
+        """Handle tree item collapse."""
+        # For now, we keep the loaded items even when collapsed
+        # This could be enhanced to unload items for memory efficiency
+        pass
+
+    def _create_placeholder(self, parent_id: str):
+        """Create a placeholder item to indicate that children can be loaded."""
+        placeholder_id = self.insert(parent_id, 'end', text='Loading...',
+                                     values=('', ''))
+        return placeholder_id
+
+    def _populate_item_children(self, parent_id: str, obj: Any):
+        """Populate the children of a tree item."""
+        # Prevent circular references
+        obj_id = id(obj)
+        if obj_id in self._visited_objects:
+            self.insert(parent_id, 'end', text='<Circular Reference>',
+                        values=('circular', 'Reference to parent object'))
+            return
+
+        self._visited_objects.add(obj_id)
+
+        try:
+            attributes = self._get_object_attributes(obj)
+
+            # Limit the number of items shown
+            items = list(attributes.items())
+            if len(items) > self.max_items:
+                items = items[:self.max_items]
+                # Add an indicator for truncated items
+                self.insert(parent_id, 'end',
+                            text=f'... ({len(attributes) - self.max_items} more items)',
+                            values=('info', 'Items truncated for performance'))
+
+            for name, value in items:
+                self._add_object_item(parent_id, name, value)
+
+        finally:
+            self._visited_objects.discard(obj_id)
+
+    def _setup_hover_tags(self):
+        """Set up tags for hover effects."""
+        # Configure hover tag with your desired color
+        self.tag_configure(
+            'hover',
+            foreground=PyroxDefaultTheme.foreground_hover,
+            background=PyroxDefaultTheme.background_hover
+        )
+
+    def _add_object_item(
         self,
-        parent,
-        data: PyroxGuiObject
+        parent_id: str,
+        name: str,
+        obj: Any
     ) -> None:
-        """Helper method to populate a base GUI object node."""
-        for edit_field in data.gui_interface_attributes():
-            value = getattr(data.pyrox_object, edit_field.property_name, None)
-            if isinstance(value, (dict, list, HashList, PyroxObject)):
-                node = self.insert(parent, 'end', text=edit_field.display_name, values=['[...]'])
-                self._lazy_load_map[node] = value
-                self.insert(node, 'end', text='Empty...', values=['...'])
-            else:
-                node = self.insert(parent, 'end', text=edit_field.display_name, values=(value,))
-            self._item_hash[node] = (data, edit_field.property_name)  # Store reference to parent object and property name
+        """Add a single object as a tree item."""
+        # Create the item
+        type_name = self._get_object_type_name(obj)
+        value_preview = self._get_object_value_preview(obj)
 
-    def _populate_dict_node(
-        self,
-        parent,
-        data: dict
-    ) -> None:
-        """Helper method to populate a dictionary node."""
-        for k, v in data.items():
-            if isinstance(v, (dict, list, HashList, PyroxObject)):
-                node = self.insert(parent, 'end', text=str(k), values=['[...]'])
-                self._lazy_load_map[node] = v
-                self.insert(node, 'end', text='Empty...', values=['[...]'])
-            else:
-                node = self.insert(parent, 'end', text=str(k), values=(v,))
-            self._item_hash[node] = (data, k)  # Store reference to parent dict and key
+        item_id = self.insert(
+            parent_id,
+            'end',
+            text=name,
+            values=(type_name, value_preview)
+        )
 
-    def _populate_list_node(
-        self,
-        parent,
-        data: Union[list, HashList]
-    ) -> None:
-        """Helper method to populate a list node."""
-        for idx, item in enumerate(data):
-            node_label = f"[{idx}]"
-            if isinstance(item, dict):
-                node_label = item.get('@Name') or item.get('name') or item.get('Name') or node_label
-            elif isinstance(item, PyroxObject):
-                node_label = getattr(item, 'name', None) or getattr(item, 'description', None) or node_label
-            if isinstance(item, (dict, list, HashList, PyroxObject)):
-                node = self.insert(parent, 'end', text=node_label, values=['[...]'])
-                self._lazy_load_map[node] = item
-                self.insert(node, 'end', text='Empty...', values=['...'])
-            else:
-                node = self.insert(parent, 'end', text=node_label, values=(item,))
-            self._item_hash[node] = (data, idx)  # Store reference to parent list and index
+        # Store the object for later access
+        self._object_cache[item_id] = obj
 
-    def populate_tree(
+        # Add a placeholder if the object is expandable
+        if self._is_expandable(obj):
+            self._create_placeholder(item_id)
+            self._placeholder_items.add(item_id)
+
+    def display_object(
         self,
-        parent,
-        data,
-        container=None,
-        key=None
+        obj: Any,
+        name: str = "Root"
     ) -> None:
         """
-        Recursively populates a ttk.Treeview with keys and values from a dictionary, list, or custom class.
-        Stores (container, key/index) for each node to allow modification.
-        """
-        if isinstance(data, PyroxObject):
-            data = self._base_gui_class.from_data(data)
-
-        if isinstance(data, dict):
-            self._populate_dict_node(parent, data)
-
-        elif isinstance(data, (list, HashList)):
-            self._populate_list_node(parent, data)
-
-        elif isinstance(data, self._base_gui_class):
-            self._populate_base_node(parent, data)
-
-        else:
-            node = self.insert(parent, 'end', text=str(data), values=['...'])
-            self._item_hash[node] = (container, key)  # fallback
-
-    def update_node_value(self, node, new_value):
-        """
-        Update the value displayed in the Treeview node.
+        Display an object in the tree view.
 
         Args:
-            node: The Treeview node ID to update.
-            new_value: The new value to set.
+            obj: The object to display
+            name: The name to show for the root item
         """
-        self.item(node, values=(new_value,))
+        # Clear existing items
+        self.clear()
+
+        # Add the root object
+        self._add_object_item('', name, obj)
+
+        # Auto-expand the root if it's a simple container
+        root_items = self.get_children('')
+        if root_items and isinstance(obj, (dict, list)) and len(obj) <= 10:
+            self.item(root_items[0], open=True)
+            # Trigger loading of children
+            self._on_item_open(None)
+
+    def clear(self):
+        """Clear all items from the tree."""
+        # Clear the tree
+        for item in self.get_children():
+            self.delete(item)
+
+        # Clear internal caches
+        self._object_cache.clear()
+        self._visited_objects.clear()
+        self._placeholder_items.clear()
+
+    def refresh(self):
+        """Refresh the current tree display."""
+        # Get the current root object if any
+        root_items = self.get_children('')
+        if root_items:
+            root_item = root_items[0]
+            if root_item in self._object_cache:
+                root_obj = self._object_cache[root_item]
+                root_name = self.item(root_item, 'text')
+                self.display_object(root_obj, root_name)
+
+    def get_selected_object(self) -> Any:
+        """Get the object associated with the currently selected item."""
+        selection = self.selection()
+        if selection:
+            item_id = selection[0]
+            return self._object_cache.get(item_id)
+        return None
+
+    def get_object_path(self, item_id: Optional[str] = None) -> List[str]:
+        """Get the path from root to the specified item (or selected item)."""
+        if item_id is None:
+            selection = self.selection()
+            if not selection:
+                return []
+            item_id = selection[0]
+
+        path = []
+        current = item_id
+        while current:
+            item_text = self.item(current, 'text')
+            path.insert(0, item_text)
+            current = self.parent(current)
+
+        return path
+
+
+def create_demo_window():
+    """Create a demo window showing the DynamicTreeView in action."""
+
+    root = tk.Tk()
+    root.title("Dynamic TreeView Demo")
+    root.geometry("800x600")
+
+    # Create a frame for the tree
+    frame = ttk.Frame(root)
+    frame.pack(fill='both', expand=True, padx=10, pady=10)
+
+    # Create the dynamic tree view
+    tree = PyroxTreeView(frame, show_private=False)
+
+    # Add scrollbars
+    v_scrollbar = ttk.Scrollbar(frame, orient='vertical', command=tree.yview)
+    h_scrollbar = ttk.Scrollbar(frame, orient='horizontal', command=tree.xview)
+    tree.configure(yscrollcommand=v_scrollbar.set, xscrollcommand=h_scrollbar.set)
+
+    # Grid layout
+    tree.grid(row=0, column=0, sticky='nsew')
+    v_scrollbar.grid(row=0, column=1, sticky='ns')
+    h_scrollbar.grid(row=1, column=0, sticky='ew')
+
+    frame.grid_rowconfigure(0, weight=1)
+    frame.grid_columnconfigure(0, weight=1)
+
+    # Create some demo data
+    class DemoClass:
+        def __init__(self):
+            self.name = "Demo Object"
+            self.value = 42
+            self.data = [1, 2, 3, {'nested': 'value'}]
+            self.settings = {'debug': True, 'level': 'info'}
+
+    demo_data = {
+        'string': 'Hello World',
+        'number': 123,
+        'float': 3.14159,
+        'boolean': True,
+        'list': [1, 2, 3, [4, 5, {'deep': 'nested'}]],
+        'dict': {
+            'key1': 'value1',
+            'key2': {'nested_key': 'nested_value'},
+            'key3': [1, 2, 3]
+        },
+        'tuple': (1, 2, 'three'),
+        'set': {1, 2, 3, 4, 5},
+        'custom_object': DemoClass(),
+        'none_value': None
+    }
+
+    # Display the demo data
+    tree.display_object(demo_data, "Demo Data")
+
+    # Add buttons for different demo objects
+    button_frame = ttk.Frame(root)
+    button_frame.pack(fill='x', padx=10, pady=5)
+
+    def show_sys_modules():
+        import sys
+        tree.display_object(dict(list(sys.modules.items())[:20]), "sys.modules (first 20)")
+
+    def show_demo_object():
+        tree.display_object(DemoClass(), "Custom Object")
+
+    def show_demo_data():
+        tree.display_object(demo_data, "Demo Data")
+
+    ttk.Button(button_frame, text="Show Demo Data", command=show_demo_data).pack(side='left', padx=5)
+    ttk.Button(button_frame, text="Show Custom Object", command=show_demo_object).pack(side='left', padx=5)
+    ttk.Button(button_frame, text="Show sys.modules", command=show_sys_modules).pack(side='left', padx=5)
+
+    # Add status bar
+    status_var = tk.StringVar()
+    status_bar = ttk.Label(root, textvariable=status_var, relief='sunken')
+    status_bar.pack(fill='x', side='bottom')
+
+    def on_select(event):
+        selected_obj = tree.get_selected_object()
+        path = tree.get_object_path()
+        if selected_obj is not None:
+            status_var.set(f"Selected: {' → '.join(path)} | Type: {type(selected_obj).__name__}")
+        else:
+            status_var.set("No selection")
+
+    tree.bind('<<TreeviewSelect>>', on_select)
+
+    return root
+
+
+if __name__ == "__main__":
+    # Run the demo
+    demo_window = create_demo_window()
+    demo_window.mainloop()
