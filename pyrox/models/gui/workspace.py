@@ -11,6 +11,7 @@ This module provides a workspace widget that mimics the VSCode interface with:
 import tkinter as tk
 from tkinter import ttk
 from typing import Dict, List, Optional, Callable, Any
+from pyrox.models.gui.logframe import LogFrame
 from pyrox.models.gui.meta import PyroxFrame
 from pyrox.models.gui.notebook import PyroxNotebook
 
@@ -37,6 +38,7 @@ class PyroxWorkspace(PyroxFrame):
         sidebar_position: str = 'left',
         sidebar_visible: bool = True,
         enable_status_bar: bool = True,
+        enable_log_window: bool = True,
         splitter_sash_pad: int = 4,
         **kwargs
     ) -> None:
@@ -59,6 +61,7 @@ class PyroxWorkspace(PyroxFrame):
         self.sidebar_position = sidebar_position
         self.sidebar_visible = sidebar_visible
         self.enable_status_bar = enable_status_bar
+        self.enable_log_window = enable_log_window
         self.splitter_sash_pad = splitter_sash_pad
 
         # Widget references
@@ -94,11 +97,18 @@ class PyroxWorkspace(PyroxFrame):
             self._create_status_bar()
 
         # Create main paned window
-        self.main_paned_window = ttk.PanedWindow(self, orient='horizontal')
+        self.log_paned_window = ttk.PanedWindow(self, orient='vertical')
+        self.main_paned_window = ttk.PanedWindow(self.log_paned_window, orient='horizontal')
+        self.main_paned_window.pack(fill='both', expand=True, pady=(0, 0))
+
+        # Create log window if enabled
+        if self.enable_log_window:
+            self._create_log_window()
+
         if self.enable_status_bar:
-            self.main_paned_window.pack(fill='both', expand=True, pady=(0, 0))
+            self.log_paned_window.pack(fill='both', expand=True, pady=(0, 0))
         else:
-            self.main_paned_window.pack(fill='both', expand=True)
+            self.log_paned_window.pack(fill='both', expand=True)
 
         # Create sidebar organizer (PyroxNotebook with vertical tabs)
         self.sidebar_organizer = PyroxNotebook(
@@ -126,6 +136,10 @@ class PyroxWorkspace(PyroxFrame):
         else:
             self.hide_sidebar()
 
+        self.log_paned_window.add(self.main_paned_window)
+        if self.enable_log_window:
+            self.log_paned_window.add(self.log_window)
+
     def _create_status_bar(self) -> None:
         """Create the status bar at the bottom."""
         self.status_bar = ttk.Frame(self)
@@ -148,6 +162,15 @@ class PyroxWorkspace(PyroxFrame):
             command=self._show_workspace_info
         )
         info_button.pack(side='right', padx=(2, 5))
+
+    def _create_log_window(self) -> None:
+        """Create a log window at the bottom.
+        """
+        if not self.enable_log_window:
+            return
+
+        self.log_window = LogFrame(self.log_paned_window)
+        self.log_window.pack(fill='x', side='bottom', padx=2, pady=2)
 
     def _setup_bindings(self) -> None:
         """Set up event bindings."""

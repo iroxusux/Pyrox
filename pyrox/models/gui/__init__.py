@@ -11,6 +11,7 @@ from .logframe import LogFrame
 from .menu import ContextMenu, MenuItem
 from .meta import ObjectEditField, PyroxFrame
 from .pyroxguiobject import PyroxGuiObject
+from .workspace import PyroxWorkspace
 
 __all__ = (
     'ContextMenu',
