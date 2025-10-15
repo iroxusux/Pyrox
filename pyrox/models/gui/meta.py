@@ -51,7 +51,7 @@ class PyroxDefaultTheme:
     button_color: str = '#2b2b2b'
     button_hover: str = '#6e6e6e'
     button_active: str = '#2b2b2b'
-    debug_text: str = '#00FFFF'
+    debug_text: str = '#FFFFFF'
     error_background: str = "#be3232"
     font_family: str = 'Consolas'
     font_size: int = 10
@@ -62,7 +62,7 @@ class PyroxDefaultTheme:
     stderr_text: str = '#FF4500'
     stdout_text: str = '#00FF00'
     warning_background: str = "#f7e822"
-    widget_background: str = '#101010'
+    widget_background: str = '#1e1e1e'
 
 
 class PyroxThemeManager:

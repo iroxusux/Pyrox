@@ -1,4 +1,5 @@
 from . import meta
+from .commandbar import PyroxCommandBar, CommandButton
 from .frame import (
     FrameWithTreeViewAndScrollbar,
     ObjectEditTaskFrame,
@@ -14,6 +15,7 @@ from .pyroxguiobject import PyroxGuiObject
 from .workspace import PyroxWorkspace
 
 __all__ = (
+    'CommandButton',
     'ContextMenu',
     'FrameWithTreeViewAndScrollbar',
     'LogFrame',
@@ -22,8 +24,10 @@ __all__ = (
     'OrganizerWindow',
     'MenuItem',
     'meta',
+    'PyroxCommandBar',
     'PyroxFrame',
     'PyroxGuiObject',
+    'PyroxWorkspace',
     'TaskFrame',
     'UserListbox',
     'WatchTableTaskFrame'

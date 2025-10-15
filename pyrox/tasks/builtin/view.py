@@ -48,7 +48,7 @@ class ViewTask(ApplicationTask):
         self.application.menu.view.add_separator()
         self.application.menu.view.add_command(
             label='Toggle Organizer',
-            command=self.application.toggle_organizer,
+            command=self.application.workspace.toggle_sidebar,
             accelerator='Ctrl+B',
             underline=0
         )

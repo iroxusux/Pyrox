@@ -69,6 +69,8 @@ class LogFrame(meta.PyroxFrame):
             text_frame,
             state='disabled',
             wrap='word',
+            font=('Consolas', 9),
+            insertbackground='white'
         )
 
         # Scrollbars
@@ -167,7 +169,7 @@ class LogFrame(meta.PyroxFrame):
 
             match tag:
                 case 'INFO':
-                    foreground = white
+                    foreground = lightgreen
                     background = black
                 case 'WARNING':
                     foreground = black
@@ -193,10 +195,11 @@ class LogFrame(meta.PyroxFrame):
                 case _:
                     foreground = white
                     background = black
-            self._logtext.tag_configure(message,
-                                        foreground=foreground,
-                                        background=background,
-                                        font=('Courier New', 12, 'bold'))
+            self._logtext.tag_configure(
+                message,
+                foreground=foreground,
+                background=background,
+            )
 
             # Auto-scroll and limit lines
             self._logtext.see('end')
@@ -324,9 +327,9 @@ if __name__ == '__main__':
 
     # Test logging
     log('test').info("This is an info message.")
-    log('test').warning("| WARNING | This is a warning message.")
-    log('test').error("| ERROR | This is an error message.")
-    log('test').debug("| DEBUG | This is a debug message.")
-    log('test').info("| INFO | This is another info message.")
+    log('test').warning("This is a warning message.")
+    log('test').error("This is an error message.")
+    log('test').debug("This is a debug message.")
+    log('test').info("This is another info message.")
 
     root.mainloop()
