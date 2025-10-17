@@ -50,7 +50,7 @@ class PyroxDefaultTheme:
     borderwidth: int = 1
     button_color: str = '#2b2b2b'
     button_hover: str = '#6e6e6e'
-    button_active: str = '#2b2b2b'
+    button_active: str = '#4b4b4b'
     debug_text: str = '#FFFFFF'
     error_background: str = "#be3232"
     font_family: str = 'Consolas'

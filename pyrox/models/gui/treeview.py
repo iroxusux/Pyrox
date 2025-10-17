@@ -7,8 +7,9 @@ for efficient memory usage and performance.
 """
 import tkinter as tk
 from tkinter import ttk
-from typing import Any, Dict, Set, Optional, List
+from typing import Any, Callable, Dict, Set, Optional, List
 from pyrox.models.gui.meta import PyroxDefaultTheme, PyroxThemeManager
+from pyrox.models.gui.contextmenu import PyroxContextMenu, MenuItem
 
 
 class PyroxTreeView(ttk.Treeview):
@@ -57,6 +58,9 @@ class PyroxTreeView(ttk.Treeview):
         self._visited_objects: Set[int] = set()
         self._placeholder_items: Set[str] = set()
 
+        # Manage callbacks for selection events
+        self._selection_callbacks: Set[Callable] = set()
+
         # Set up columns
         self.heading('#0', text='Name')
         self.heading('type', text='Type')
@@ -70,9 +74,116 @@ class PyroxTreeView(ttk.Treeview):
         self.bind('<<TreeviewOpen>>', self._on_item_open)
         self.bind('<<TreeviewClose>>', self._on_item_close)
         self.bind('<Motion>', self._on_hover)
+        self.bind('<Button-1>', self._on_click)
+        self.bind('<Button-3>', self._on_right_click)
 
         # Style configuration
         self._configure_style()
+
+    def _add_object_item(
+        self,
+        parent_id: str,
+        name: str,
+        obj: Any
+    ) -> None:
+        """Add a single object as a tree item."""
+        # Create the item
+        type_name = self._get_object_type_name(obj)
+        value_preview = self._get_object_value_preview(obj)
+
+        item_id = self.insert(
+            parent_id,
+            'end',
+            text=name,
+            values=(type_name, value_preview)
+        )
+
+        # Store the object for later access
+        self._object_cache[item_id] = obj
+
+        # Add a placeholder if the object is expandable
+        if self._is_expandable(obj):
+            self._create_placeholder(item_id)
+            self._placeholder_items.add(item_id)
+
+    def _call_callbacks(
+        self,
+        selected_object: Any,
+        is_right_click: bool,
+        context_menu: Optional[PyroxContextMenu] = None,
+        event: Optional[tk.Event] = None
+    ) -> None:
+        """Invoke all registered selection callbacks."""
+        for callback in self._selection_callbacks:
+            callback(
+                selected_object=selected_object,
+                is_right_click=is_right_click,
+                context_menu=context_menu,
+                event=event
+            )
+
+    def _configure_style(self) -> None:
+        PyroxThemeManager.ensure_theme_created()
+        self._setup_hover_tags()
+
+    def _create_context_menu(
+        self,
+    ) -> PyroxContextMenu:
+        """Create a context menu for the tree view."""
+        menu = PyroxContextMenu(self)
+
+        # Example menu items - customize as needed
+        menu.add_item(MenuItem(
+            id='refresh',
+            label='Refresh',
+            command=lambda: self.refresh()
+        ))
+
+        return menu
+
+    def _create_placeholder(self, parent_id: str):
+        """Create a placeholder item to indicate that children can be loaded."""
+        placeholder_id = self.insert(parent_id, 'end', text='Loading...',
+                                     values=('', ''))
+        return placeholder_id
+
+    def _get_object_attributes(self, obj: Any) -> Dict[str, Any]:
+        """Get the attributes of an object that should be displayed."""
+        attributes = {}
+
+        try:
+            # Handle different types of objects
+            if isinstance(obj, dict):
+                return obj
+            elif isinstance(obj, (list, tuple)):
+                return {f"[{i}]": item for i, item in enumerate(obj)}
+            elif isinstance(obj, set):
+                return {f"item_{i}": item for i, item in enumerate(obj)}
+            else:
+                # For regular objects, get their attributes
+                for name in dir(obj):
+                    # Skip private attributes unless requested
+                    if not self.show_private and name.startswith('_'):
+                        continue
+
+                    # Skip methods and built-in attributes we don't want to show
+                    if name in ('__class__', '__doc__', '__module__', '__dict__'):
+                        continue
+
+                    try:
+                        value = getattr(obj, name)
+                        # Skip methods unless they're properties
+                        if callable(value) and not isinstance(getattr(type(obj), name, None), property):
+                            continue
+                        attributes[name] = value
+                    except Exception:
+                        # Skip attributes that can't be accessed
+                        continue
+
+        except Exception:
+            pass
+
+        return attributes
 
     def _get_object_type_name(self, obj: Any) -> str:
         """Get a friendly name for the object's type."""
@@ -128,47 +239,22 @@ class PyroxTreeView(ttk.Treeview):
         except Exception:
             return False
 
-    def _get_object_attributes(self, obj: Any) -> Dict[str, Any]:
-        """Get the attributes of an object that should be displayed."""
-        attributes = {}
+    def _on_click(
+        self,
+        event,
+        is_right_click=False,
+    ) -> None:
+        """Handle mouse click events."""
+        item = self.identify_row(event.y)
+        if item:
+            self.selection_set(item)
 
-        try:
-            # Handle different types of objects
-            if isinstance(obj, dict):
-                return obj
-            elif isinstance(obj, (list, tuple)):
-                return {f"[{i}]": item for i, item in enumerate(obj)}
-            elif isinstance(obj, set):
-                return {f"item_{i}": item for i, item in enumerate(obj)}
-            else:
-                # For regular objects, get their attributes
-                for name in dir(obj):
-                    # Skip private attributes unless requested
-                    if not self.show_private and name.startswith('_'):
-                        continue
-
-                    # Skip methods and built-in attributes we don't want to show
-                    if name in ('__class__', '__doc__', '__module__', '__dict__'):
-                        continue
-
-                    try:
-                        value = getattr(obj, name)
-                        # Skip methods unless they're properties
-                        if callable(value) and not isinstance(getattr(type(obj), name, None), property):
-                            continue
-                        attributes[name] = value
-                    except Exception:
-                        # Skip attributes that can't be accessed
-                        continue
-
-        except Exception:
-            pass
-
-        return attributes
-
-    def _configure_style(self) -> None:
-        PyroxThemeManager.ensure_theme_created()
-        self._setup_hover_tags()
+        self._call_callbacks(
+            self.get_selected_object(),
+            is_right_click,
+            self._create_context_menu() if is_right_click else None,
+            event
+        )
 
     def _on_hover(self, event):
         """Handle mouse hover over items."""
@@ -210,11 +296,16 @@ class PyroxTreeView(ttk.Treeview):
         # This could be enhanced to unload items for memory efficiency
         pass
 
-    def _create_placeholder(self, parent_id: str):
-        """Create a placeholder item to indicate that children can be loaded."""
-        placeholder_id = self.insert(parent_id, 'end', text='Loading...',
-                                     values=('', ''))
-        return placeholder_id
+    def _on_right_click(
+        self,
+        event,
+        show_context_menu: bool = True
+    ) -> None:
+        """Handle right-click context menu (if needed)."""
+        self._on_click(
+            event,
+            is_right_click=show_context_menu,
+        )
 
     def _populate_item_children(self, parent_id: str, obj: Any):
         """Populate the children of a tree item."""
@@ -254,36 +345,12 @@ class PyroxTreeView(ttk.Treeview):
             background=PyroxDefaultTheme.background_hover
         )
 
-    def _add_object_item(
-        self,
-        parent_id: str,
-        name: str,
-        obj: Any
-    ) -> None:
-        """Add a single object as a tree item."""
-        # Create the item
-        type_name = self._get_object_type_name(obj)
-        value_preview = self._get_object_value_preview(obj)
-
-        item_id = self.insert(
-            parent_id,
-            'end',
-            text=name,
-            values=(type_name, value_preview)
-        )
-
-        # Store the object for later access
-        self._object_cache[item_id] = obj
-
-        # Add a placeholder if the object is expandable
-        if self._is_expandable(obj):
-            self._create_placeholder(item_id)
-            self._placeholder_items.add(item_id)
-
     def display_object(
         self,
         obj: Any,
-        name: str = "Root"
+        name: str = "Root",
+        force_open: bool = False,
+        soft_open_limit: int = 10
     ) -> None:
         """
         Display an object in the tree view.
@@ -300,8 +367,12 @@ class PyroxTreeView(ttk.Treeview):
 
         # Auto-expand the root if it's a simple container
         root_items = self.get_children('')
-        if root_items and isinstance(obj, (dict, list)) and len(obj) <= 10:
+        if root_items and (isinstance(obj, (dict, list)) and (len(obj) <= soft_open_limit) or force_open):
             self.item(root_items[0], open=True)
+            if not self.selection():
+                self.selection_set(root_items[0])
+            if not self.selection():
+                raise RuntimeError("Failed to select the root item.")
             # Trigger loading of children
             self._on_item_open(None)
 
@@ -351,6 +422,30 @@ class PyroxTreeView(ttk.Treeview):
             current = self.parent(current)
 
         return path
+
+    def subscribe_to_selection(
+        self,
+        callback: Callable[[Any, bool, Optional[PyroxContextMenu]], None]
+    ) -> None:
+        """
+        Subscribe to selection change events.
+
+        Args:
+            callback: A function that takes (selected_object, is_right_click, context_menu)
+        """
+        self._selection_callbacks.add(callback)
+
+    def unsubscribe_from_selection(
+        self,
+        callback: Callable[[Any, bool, Optional[PyroxContextMenu]], None]
+    ) -> None:
+        """
+        Unsubscribe from selection change events.
+
+        Args:
+            callback: The previously subscribed callback function
+        """
+        self._selection_callbacks.discard(callback)
 
 
 def create_demo_window():

@@ -1,8 +1,0 @@
-# To do list of things that, ya know, i gotta do
-
-------
- Controller Verification
-------
-- Standard To Safety Mapping for unpaired controller inputs (LaFond - 6/26/2025)
-- Local Tags vs Global Tags for redundant outputs (LaFond - 6/27/2025)
-- Module defined I/O for unpaired controller inputs (LaFond - 6/26/2025) - Complete (LaFond - 6/26/2025)

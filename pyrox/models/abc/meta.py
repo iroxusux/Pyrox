@@ -5,7 +5,6 @@ from enum import Enum
 from pathlib import Path
 import re
 from typing import Any, Optional, Union
-from pyrox.services.logging import Loggable
 
 __all__ = (
     'DEF_ICON',
@@ -323,7 +322,7 @@ class SnowFlake:
         return self._id
 
 
-class PyroxObject(SnowFlake, Loggable):
+class PyroxObject(SnowFlake):
     """A base class for all Pyrox objects."""
     __slots__ = ()
 

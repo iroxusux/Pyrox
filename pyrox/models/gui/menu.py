@@ -6,7 +6,7 @@ from dataclasses import dataclass
 from tkinter import Event, Menu
 from typing import Any, Optional
 
-from ..abc.meta import Loggable, PyroxObject
+from ..abc.meta import PyroxObject
 
 
 @dataclass
@@ -23,7 +23,7 @@ class MenuItem:
     accelerator: Optional[str] = None
 
 
-class ContextMenu(Loggable, Menu):
+class ContextMenu(Menu):
     """tkinter :class:`Menu` with user logic and attributes packed on top.
 
     Intended to be used as a right-click context menu
@@ -54,7 +54,6 @@ class ContextMenu(Loggable, Menu):
 
     def __init__(self,
                  master: Optional[Any] = None,):
-        Loggable.__init__(self)
         Menu.__init__(self,
                       master=master,
                       tearoff=0)

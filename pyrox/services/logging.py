@@ -6,9 +6,7 @@ import sys
 import io
 from typing import Optional, TextIO
 
-from pyrox.services.env import EnvManager
-
-from .decorate import deprecated
+from pyrox.services.env import EnvManager, get_default_date_format, get_default_formatter
 
 ###
 # Custom Logging Configuration
@@ -48,7 +46,6 @@ CUSTOM_LOGGING_LEVELS = [
 
 __all__ = (
     'LoggingManager',
-    'Loggable',
     'log',
     'StreamCapture',
     'LOG_LEVEL_SUCCESS',
@@ -200,6 +197,11 @@ class LoggingManager:
         return [cls._captured_stdout, cls._captured_stderr]
 
     @classmethod
+    def get_all_logging_levels(cls) -> dict[str, int]:
+        """Get a mapping of all logging levels."""
+        return {level: name for level, name in logging._nameToLevel.items()}
+
+    @classmethod
     def get_stdout_content(cls) -> str:
         """Get all captured stdout content."""
         if cls._captured_stdout:
@@ -268,9 +270,33 @@ class LoggingManager:
             if not isinstance(level, int) or not isinstance(name, str):
                 raise ValueError("Custom logging levels must be tuples of (int, str).")
             if level in logging_levels:
-                log(cls).warning(f"Logging level {level} already exists.")
+                print(f"WARNING - Logging level {level} already exists.")
                 continue
             addLevelName(level, name)
+
+    @classmethod
+    def initialize_logging_level_from_env(cls):
+        """Initialize logging level from environment variable."""
+        from pyrox.services.env import EnvManager
+        log_level = EnvManager.get("LOG_LEVEL", None)
+        if log_level is None:
+            print("No LOG_LEVEL set in environment; defaulting to DEBUG.")
+            cls.set_logging_level(logging.DEBUG)
+
+        try:  # try converting to int
+            log_level = int(log_level)
+        except (ValueError, TypeError):
+            pass
+
+        # Accept string names like "DEBUG", "INFO", etc.
+        if isinstance(log_level, str):
+            mapped_level = getattr(logging, log_level.upper(), None)
+            if isinstance(mapped_level, int):
+                log_level = mapped_level
+            else:
+                print(f"Invalid LOG_LEVEL string '{log_level}'; defaulting to DEBUG.")
+                log_level = logging.DEBUG
+        cls.set_logging_level(log_level)
 
     @classmethod
     def register_callback_to_captured_streams(
@@ -297,14 +323,12 @@ class LoggingManager:
     def _get_default_formatter() -> logging.Formatter:
         """Get the default logging formatter."""
         default_formatter = EnvManager.get(
-            'PYROX_LOG_FORMAT',
-            default='%(asctime)s | %(name)s | %(levelname)s | %(message)s',
-            cast_type=str
+            'LOG_FORMAT',
+            default=get_default_formatter()
         )
         default_datefmt = EnvManager.get(
-            'PYROX_LOG_DATE_FORMAT',
-            default='%Y-%m-%d %H:%M:%S',
-            cast_type=str
+            'LOG_DATE_FORMAT',
+            default=get_default_date_format()
         )
 
         if not isinstance(default_formatter, str):
@@ -432,32 +456,13 @@ class LoggingManager:
         Args:
             log_level: The logging level to set for all current loggers.
         """
+        EnvManager.set('LOG_LEVEL', str(log_level))
         cls.curr_logging_level = log_level
         for logger in cls._curr_loggers.values():
             logger.setLevel(log_level)
             for handler in logger.handlers:
                 handler.setLevel(log_level)
-
-
-class Loggable:
-    """A mixin class to provide logging capabilities to subclasses.
-    This allows logging through inheritance rather than importing the logging module directly.
-    """
-
-    def __init_subclass__(cls, **kwargs):
-        super().__init_subclass__(**kwargs)
-        # Ensure logger is registered in LoggingManager._curr_loggers
-        LoggingManager._curr_loggers[cls.__name__] = LoggingManager.get_or_create_logger(name=cls.__name__)
-
-    @classmethod
-    @deprecated(reason="Use LoggingManager.log(cls) instead or pyrox.services.logging.log.", version="2.0")
-    def log(cls) -> logging.Logger:
-        """Get a logger for this instance's class.
-
-        Returns:
-            logging.Logger: The logger instance.
-        """
-        return LoggingManager.log(caller=cls.__name__)
+        print(f"Logging level set to {log_level}")
 
 
 def log(caller: Optional[object] = None) -> logging.Logger:
@@ -473,4 +478,5 @@ def log(caller: Optional[object] = None) -> logging.Logger:
 
 # Auto-capture streams when module is imported
 LoggingManager.initialize_additional_logging_levels()
+LoggingManager.initialize_logging_level_from_env()
 LoggingManager.capture_system_streams()

@@ -27,6 +27,7 @@ class CommandButton:
         icon (Optional[str]): Icon path or Unicode character for the button.
         enabled (bool): Whether the button is initially enabled.
         visible (bool): Whether the button is initially visible.
+        selectable (bool): Whether the button is selectable (toggle).
         width (Optional[int]): Button width in characters.
     """
     id: str
@@ -36,6 +37,7 @@ class CommandButton:
     icon: Optional[str] = None
     enabled: bool = True
     visible: bool = True
+    selectable: bool = False
     width: Optional[int] = None
 
 
@@ -118,6 +120,7 @@ class PyroxCommandBar(PyroxFrame):
         # Widget tracking
         self._buttons: Dict[str, tk.Button] = {}
         self._button_configs: Dict[str, CommandButton] = {}
+        self._button_selected_state: Dict[str, bool] = {}
         self._separators: List[Optional[ttk.Separator]] = []
         self._tooltips: Dict[str, str] = {}
 
@@ -176,6 +179,7 @@ class PyroxCommandBar(PyroxFrame):
         # Store references
         self._buttons[button_config.id] = button
         self._button_configs[button_config.id] = button_config
+        self._button_selected_state[button_config.id] = False
         self._widget_order.append(button_config.id)
 
         # Position the button
@@ -233,6 +237,7 @@ class PyroxCommandBar(PyroxFrame):
         # Clean up references
         del self._buttons[button_id]
         del self._button_configs[button_id]
+        del self._button_selected_state[button_id]
 
         # Remove from widget order
         if button_id in self._widget_order:
@@ -297,6 +302,28 @@ class PyroxCommandBar(PyroxFrame):
         # Update configuration
         self._button_configs[button_id].enabled = enabled
 
+    def set_selected(self, button_id: str, selected: bool) -> None:
+        """
+        Set the selected state of a selectable command button.
+
+        Args:
+            button_id (str): ID of the button to modify.
+            selected (bool): Whether the button should be in selected state.
+        """
+        if button_id not in self._buttons:
+            return
+
+        button_config = self._button_configs[button_id]
+        if not button_config.selectable:
+            return
+
+        button = self._buttons[button_id]
+        self._button_selected_state[button_id] = selected
+        if selected:
+            button.config(relief='sunken', background=PyroxDefaultTheme.button_active)
+        else:
+            button.config(relief='raised', background=PyroxDefaultTheme.button_color)
+
     def set_visible(self, button_id: str, visible: bool) -> None:
         """
         Show or hide a command button.
@@ -354,6 +381,21 @@ class PyroxCommandBar(PyroxFrame):
         """
         return self._buttons.get(button_id)
 
+    def get_button_id(self, button: tk.Button) -> Optional[str]:
+        """
+        Get the ID of a button widget.
+
+        Args:
+            button (tk.Button): Button widget to look up.
+
+        Returns:
+            Optional[str]: The button ID, or None if not found.
+        """
+        for b_id, b_widget in self._buttons.items():
+            if b_widget == button:
+                return b_id
+        return None
+
     def get_button_config(self, button_id: str) -> Optional[CommandButton]:
         """
         Get a button configuration by ID.
@@ -406,6 +448,13 @@ class PyroxCommandBar(PyroxFrame):
             except Exception as e:
                 # Could add logging here if needed
                 print(f"Error executing command for button '{button_config.id}': {e}")
+
+        # If selectable, toggle selected state
+        if button_config.selectable:
+            # First, clear all other selected states
+            for other_config in self._button_configs.values():
+                self.set_selected(other_config.id, False)
+            self.set_selected(button_config.id, True)
 
         # Trigger callback
         if self.on_button_clicked:
@@ -490,6 +539,7 @@ class PyroxCommandBar(PyroxFrame):
     def _setup_hover_effects(self, button: tk.Button) -> None:
         """Setup hover effects for buttons."""
         original_bg = button.cget('background')
+        original_rlf = button.cget('relief')
 
         def on_enter(event):
             button.config(
@@ -498,10 +548,22 @@ class PyroxCommandBar(PyroxFrame):
             )
 
         def on_leave(event):
-            button.config(
-                background=original_bg,
-                relief='raised'
-            )
+            try:  # Try resetting the selected state if the button was previously selected
+                button_id = self.get_button_id(button)
+                if not button_id:
+                    raise Exception
+                config = self.get_button_config(button_id)
+                if not config:
+                    raise Exception
+                if self._button_selected_state.get(button_id, False):
+                    self.set_selected(button_id, self._button_selected_state.get(button_id, False))
+                else:
+                    raise Exception
+            except Exception:
+                button.config(
+                    background=original_bg,
+                    relief=original_rlf
+                )
 
         button.bind('<Enter>', on_enter)
         button.bind('<Leave>', on_leave)
@@ -656,6 +718,27 @@ if __name__ == '__main__':
         command=lambda: print('View refreshed'),
         icon='🔄',
         tooltip='Refresh the current view'
+    ))
+
+    # Add another separator
+    command_bar.add_separator()
+
+    command_bar.add_button(CommandButton(
+        id='toggle_selected_a',
+        text='Option A',
+        command=lambda: print('Option A selected'),
+        icon='A',
+        tooltip='Select Option A',
+        selectable=True,
+    ))
+
+    command_bar.add_button(CommandButton(
+        id='toggle_selected_b',
+        text='Option B',
+        command=lambda: print('Option B selected'),
+        icon='B',
+        tooltip='Select Option B',
+        selectable=True,
     ))
 
     # Create control panel for testing button management

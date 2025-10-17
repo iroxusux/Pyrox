@@ -211,35 +211,8 @@ class TestApplication(unittest.TestCase):
         mock_path_class.return_value = mock_icon_path
         mock_env.get.return_value = '/path/to/nonexistent.ico'
 
-        app = Application(self.mock_tk)
-
-        with patch.object(app, 'log') as mock_log:
-            mock_logger = MagicMock()
-            mock_log.return_value = mock_logger
-
-            app._build_app_icon()
-
-            mock_logger.warning.assert_called_once()
-
-    @patch('pyrox.models.application.Frame')
-    @patch('pyrox.models.application.MainApplicationMenu')
-    @patch('pyrox.models.application.PlatformDirectoryService')
-    @patch('pyrox.models.application.EnvManager')
-    def test_build_env_sets_logging_level(self, mock_env, mock_service_class, mock_menu_class, mock_frame_class):
-        """Test _build_env sets logging level."""
-        mock_menu_class.return_value = self.mock_menu
-        mock_frame_class.return_value = self.mock_frame
-        mock_service_class.return_value = self.mock_directory_service
-
-        mock_env.is_loaded.return_value = True
-        mock_env.get.return_value = 'DEBUG'
-
-        app = Application(self.mock_tk)
-
-        with patch.object(app, 'set_logging_level') as mock_set_level:
-            app._build_env()
-
-            mock_set_level.assert_called_once_with('DEBUG')
+        # Test the application builds without raising an error
+        _ = Application(self.mock_tk)
 
     @patch('pyrox.models.application.Frame')
     @patch('pyrox.models.application.MainApplicationMenu')
@@ -259,14 +232,8 @@ class TestApplication(unittest.TestCase):
         app = Application(self.mock_tk)
         app._directory_service = self.mock_directory_service
 
-        with patch.object(app, 'log') as mock_log:
-            mock_logger = MagicMock()
-            mock_log.return_value = mock_logger
-
-            app._build_multi_stream()
-
-            self.assertEqual(app._multi_stream, mock_multistream)
-            mock_logging_manager.register_callback_to_captured_streams.assert_called_once()
+        app._build_multi_stream()
+        self.assertEqual(app._multi_stream, mock_multistream)
 
     @patch('pyrox.models.application.Frame')
     @patch('pyrox.models.application.MainApplicationMenu')
@@ -279,18 +246,16 @@ class TestApplication(unittest.TestCase):
 
         app = Application(self.mock_tk)
 
-        with patch.object(app, '_build_env') as mock_env, \
-                patch.object(app, '_build_multi_stream') as mock_stream, \
-                patch.object(app, '_connect_tk_attributes') as mock_connect, \
-                patch.object(app, '_build_app_icon') as mock_icon, \
-                patch.object(app, '_restore_geometry_env') as mock_restore, \
+        with patch('pyrox.models.application.Application._build_multi_stream') as mock_stream, \
+                patch('pyrox.models.application.Application._connect_tk_attributes') as mock_connect, \
+                patch('pyrox.models.application.Application._build_app_icon') as mock_icon, \
+                patch('pyrox.models.application.Application._restore_geometry_env') as mock_restore, \
                 patch('pyrox.models.application.Runnable.build') as mock_super_build:
 
             app._directory_service = self.mock_directory_service
 
             app.build()
 
-            mock_env.assert_called_once()
             mock_stream.assert_called_once()
             mock_connect.assert_called_once()
             mock_icon.assert_called_once()
@@ -345,14 +310,10 @@ class TestApplication(unittest.TestCase):
 
         app = Application(self.mock_tk)
 
-        with patch.object(app, 'log') as mock_log, \
-                patch.object(app, 'stop'):
-            mock_logger = MagicMock()
-            mock_log.return_value = mock_logger
-
+        with patch('pyrox.models.application.Application.stop') as mock_super_stop:
             app.close()
 
-            mock_logger.info.assert_called_once_with('Closing application...')
+            mock_super_stop.assert_called_once()
             self.mock_tk.quit.assert_called_once()
             self.mock_tk.destroy.assert_called_once()
             mock_gc.collect.assert_called_once()

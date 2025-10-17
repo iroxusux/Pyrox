@@ -405,7 +405,7 @@ def get_database_url() -> str:
 
 def get_default_date_format() -> str:
     """Get default log date format string."""
-    date_format = EnvManager.get('PYROX_LOG_DATE_FORMAT', '%Y-%m-%d %H:%M:%S', str)
+    date_format = EnvManager.get('LOG_DATE_FORMAT', '%Y-%m-%d %H:%M:%S', str)
     if not isinstance(date_format, str) or not date_format.strip():
         raise ValueError("Invalid log date format string from .env file!")
     return date_format
@@ -413,7 +413,7 @@ def get_default_date_format() -> str:
 
 def get_default_formatter() -> str:
     """Get default log formatter string."""
-    formatter = EnvManager.get('PYROX_LOG_FORMATTER', '%(asctime)s | %(name)s | %(levelname)s | %(message)s', str)
+    formatter = EnvManager.get('LOG_FORMAT', '%(asctime)s | %(name)s | %(levelname)s | %(message)s', str)
     if not isinstance(formatter, str) or not formatter.strip():
         raise ValueError("Invalid log formatter string from .env file!")
     return formatter

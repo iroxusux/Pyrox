@@ -7,6 +7,7 @@ from tkinter import (
 )
 from typing import Union
 from pyrox.models.abc import Buildable
+from pyrox.models.gui.backend import GuiBackend
 
 
 class BaseMenu(Buildable):
@@ -21,9 +22,20 @@ class BaseMenu(Buildable):
     """
     __slots__ = ('_root', '_menu')
 
-    def __init__(self, root: Union[Tk, Toplevel]):
+    def __init__(
+        self,
+        root: Union[Tk, Toplevel, GuiBackend]
+    ) -> None:
         super().__init__()
-        self._root: Union[Tk, Toplevel] = root
+        self._root: Union[Tk, Toplevel, GuiBackend] = root
+
+        if isinstance(root, GuiBackend):
+            if not root.is_available():
+                raise RuntimeError("GUI backend is not available")
+            self._root = root.get_root_window()
+        else:
+            self._root = root
+
         self._menu: Menu = Menu(self._root)
 
     @property
@@ -88,7 +100,10 @@ class MainApplicationMenu(BaseMenu):
     """
     __slots__ = ('_file', '_edit', '_tools', '_view', '_help')
 
-    def __init__(self, root: Union[Tk, Toplevel]):
+    def __init__(
+        self,
+        root: Union[Tk, Toplevel]
+    ) -> None:
         super().__init__(root=root)
         self._file: Menu = Menu(self.menu, name='file', tearoff=0)
         self._edit: Menu = Menu(self.menu, name='edit', tearoff=0)

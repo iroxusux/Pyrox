@@ -13,7 +13,7 @@ from tkinter import (
 )
 from typing import Optional, Union
 from pyrox.models.abc import Runnable, meta, stream
-from pyrox.services.logging import LoggingManager
+from pyrox.services.logging import LoggingManager, log
 from pyrox.services.env import EnvManager
 from pyrox.services.file import PlatformDirectoryService
 from .menu import MainApplicationMenu
@@ -44,6 +44,7 @@ class Application(Runnable):
         '_config',
         '_directory_service',
         '_frame',
+        '_gui_backend',
         '_menu',
         '_multi_stream',
         '_runtime_info',
@@ -127,19 +128,27 @@ class Application(Runnable):
             self.tk_app.iconbitmap(icon_path)
             self.tk_app.iconbitmap(default=icon_path)
         else:
-            self.log().warning(f'Icon file not found: {icon_path}.')
+            log(self).warning(f'Icon file not found: {icon_path}.')
 
-    def _build_env(self) -> None:
-        if not EnvManager.is_loaded():
-            EnvManager.load()
-        logging_level = EnvManager.get('PYROX_LOG_LEVEL', 'INFO')
-        if logging_level is not None and isinstance(logging_level, (str, int)):
-            self.set_logging_level(logging_level)
+    def _build_gui(self) -> None:
+        from pyrox.services.gui import GuiManager
+        if not GuiManager.is_gui_available():
+            raise RuntimeError("GUI not available")
+
+        self._gui_backend = GuiManager.get_backend()
+
+        # Build tk info
+        # self._tk_app = tk_instance
+
+        self._menu = MainApplicationMenu(self.tk_app)
+
+        self._frame: Frame = Frame(master=self.tk_app, background='#2b2b2b')
+        self._frame.pack(fill='both', expand=True)
 
     def _build_multi_stream(self) -> None:
         try:
             LoggingManager.register_callback_to_captured_streams(self._multi_stream.write)
-            self.log().info(f'Logging to file: {self._directory_service.user_log_file}')
+            log(self).info(f'Logging to file: {self._directory_service.user_log_file}')
         except Exception as e:
             raise RuntimeError(f'Failed to set up MultiStream: {e}') from e
 
@@ -160,7 +169,7 @@ class Application(Runnable):
         """
         if issubclass(exc_type, KeyboardInterrupt):
             return
-        self.log().error(
+        log(self).error(
             msg=f'Uncaught exception: {exc_value}',
             exc_info=(exc_type, exc_value, exc_traceback)
         )
@@ -203,7 +212,7 @@ class Application(Runnable):
         try:
             self.tk_app.geometry(f'+{window_position[0]}+{window_position[1]}')
         except TclError as e:
-            self.log().error(f'TclError: Could not set window position: {e}')
+            log(self).error(f'TclError: Could not set window position: {e}')
 
     def _restore_window_size(self) -> None:
         window_size = EnvManager.get('UI_WINDOW_SIZE', '600x600', str)
@@ -212,7 +221,7 @@ class Application(Runnable):
         try:
             self.tk_app.geometry(window_size)
         except TclError as e:
-            self.log().error(f'TclError: Could not set window size: {e}')
+            log(self).error(f'TclError: Could not set window size: {e}')
 
     def _restore_window_state(self) -> None:
         window_state = EnvManager.get('UI_WINDOW_STATE', 'normal', str)
@@ -221,7 +230,7 @@ class Application(Runnable):
         try:
             self.tk_app.state(window_state)
         except TclError as e:
-            self.log().error(f'TclError: Could not set window state: {e}')
+            log(self).error(f'TclError: Could not set window state: {e}')
 
     def _restore_geometry_env(self) -> None:
         self._restore_fullscreen()
@@ -279,7 +288,6 @@ class Application(Runnable):
         print(message)
 
     def build(self) -> None:
-        self._build_env()
         self._build_multi_stream()
         self._connect_tk_attributes()
         self._build_app_icon()
@@ -306,7 +314,7 @@ class Application(Runnable):
 
     def close(self) -> None:
         """Close this application."""
-        self.log().info('Closing application...')
+        log(self).info('Closing application...')
         self.stop()
         try:
             if isinstance(self.tk_app, Tk):
@@ -315,7 +323,7 @@ class Application(Runnable):
             elif isinstance(self.tk_app, Toplevel):
                 self.tk_app.destroy()
         except TclError:
-            self.log().error('TclError: Could not destroy the parent window')
+            log(self).error('TclError: Could not destroy the parent window')
         finally:
             gc.collect()  # Process garbage collection for tk/tcl elements
 
@@ -341,6 +349,11 @@ class Application(Runnable):
         """
         level_mapping = getLevelNamesMapping()
 
+        try:  # Try to cast to int first
+            level = int(level)
+        except (ValueError, TypeError):
+            pass
+
         if isinstance(level, str):
             if level.upper() in level_mapping:
                 level = level_mapping[level.upper()]
@@ -353,14 +366,14 @@ class Application(Runnable):
         level_name = getLevelName(level)
         if level_name == f'Level {level}':
             raise ValueError(f'Invalid logging level integer: {level}')
-        self.log().info(f'Logging level set to {level_name} ({level}).')
+        log(self).info(f'Logging level set to {level_name} ({level}).')
         LoggingManager.set_logging_level(level)
         EnvManager.set('PYROX_LOG_LEVEL', level_name)
 
     def start(self) -> None:
         """Start the application."""
         super().start()
-        self.tk_app.after(100, lambda: self.log().info('Ready...'))
+        self.tk_app.after(100, lambda: log(self).info('Ready...'))
         self.tk_app.focus()
         self.tk_app.mainloop()
 

@@ -223,7 +223,6 @@ class FactoryTypeMeta(ABCMeta, Generic[T, F]):
     ) -> Type:
         new_cls = super().__new__(cls, name, bases, attrs)
         if new_cls.supports_registering is False:
-            log(cls).debug(f'FactoryTypeMeta: Class {name} does not support registering with a factory.')
             return new_cls
 
         factory = new_cls.get_factory()
@@ -232,7 +231,6 @@ class FactoryTypeMeta(ABCMeta, Generic[T, F]):
             return new_cls
 
         if (new_cls.__name__ != 'FactoryTypeMeta'):
-            log(cls).debug(f'FactoryTypeMeta: Registering class {name} with factory {factory.__name__}.')
             factory.register_type(new_cls)
         else:
             log(cls).warning(

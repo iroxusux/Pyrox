@@ -2,7 +2,7 @@
 Captures both logging and stderr/stdout streams.
 """
 import logging
-from typing import Callable, TextIO
+from typing import Callable, Optional, TextIO
 import tkinter as tk
 from tkinter import ttk
 from pyrox.models.gui import meta
@@ -49,12 +49,13 @@ class LogFrame(meta.PyroxFrame):
 
     def _handle_dropdown_log_level_change(self, selection: str):
         """Handle changes in log level from dropdown."""
-        level = getattr(logging, selection.upper(), None)
-        if level is not None:
-            LoggingManager.set_logging_level(level)
-            self._fill_log_from_sys_streams()
-        else:
-            self.log(f'| ERROR | Unknown log level selected: {selection}\n')
+        for level_name, level in LoggingManager.get_all_logging_levels().items():
+            if selection == level_name:
+                LoggingManager.set_logging_level(level)
+                self._fill_log_from_sys_streams()
+                return
+
+        self.log(f'| ERROR | Unknown log level selected: {selection}\n')
 
     def _setup_text_widget(self):
         """Setup the main text widget and scrollbar."""
@@ -133,10 +134,17 @@ class LogFrame(meta.PyroxFrame):
             "Clear",
             self.clear_log_window
         )
-        log_levels = ['DEBUG', 'INFO', 'WARNING', 'ERROR', 'CRITICAL']
+
+        log_levels = list(LoggingManager.get_all_logging_levels().keys())
+        curr_level = logging.getLevelName(LoggingManager.curr_logging_level)
+
+        if curr_level not in log_levels:
+            raise ValueError(f'Current logging level "{curr_level}" not in available log levels.')
+
         self.add_toolbar_dropdown(
             log_levels,
-            self._handle_dropdown_log_level_change
+            self._handle_dropdown_log_level_change,
+            default_option=curr_level
         )
 
     def _log_message(
@@ -257,16 +265,25 @@ class LogFrame(meta.PyroxFrame):
     def add_toolbar_dropdown(
         self,
         options: list[str],
-        command: Callable
+        command: Callable,
+        default_option: Optional[str] = None
     ) -> ttk.OptionMenu:
         """Add a custom dropdown to the toolbar."""
         variable = tk.StringVar(self._toolbar)
-        variable.set(options[0])  # default value
+
+        if len(options) == 0:
+            raise ValueError('Options list cannot be empty.')
+
+        if not default_option:
+            default_option = options[0]
+
+        if default_option not in options:
+            raise ValueError(f'Default option "{default_option}" not in options list.')
 
         dropdown = ttk.OptionMenu(
             self._toolbar,
             variable,
-            options[0],
+            default_option,
             *options,
             command=command,
             style='TMenubutton',

@@ -8,7 +8,7 @@ from typing import Any, Optional, Self
 from .meta import ObjectEditField
 
 
-from ..abc.meta import Loggable, PyroxObject
+from ..abc.meta import PyroxObject
 
 
 __all__ = (
@@ -40,7 +40,7 @@ class PyroxGuiObjectAttributeResolver:
         return getattr(self._pyrox_object, attribute_name, None)
 
 
-class PyroxGuiObject(Loggable):
+class PyroxGuiObject:
     """A base class for all Pyrox objects to be represented in the GUI interface.
 
     .. ------------------------------------------------------------
@@ -64,8 +64,8 @@ class PyroxGuiObject(Loggable):
 
     def __init__(self,
                  pyrox_object: Optional[PyroxObject] = None,
-                 **kwargs):
-        super().__init__(**kwargs)
+                 **kwargs
+                 ):
         self._pyrox_object = pyrox_object
 
     @property
