@@ -108,6 +108,7 @@ class PyroxTreeView(ttk.Treeview):
 
     def _call_callbacks(
         self,
+        tree_item_id: str,
         selected_object: Any,
         is_right_click: bool,
         context_menu: Optional[PyroxContextMenu] = None,
@@ -116,6 +117,7 @@ class PyroxTreeView(ttk.Treeview):
         """Invoke all registered selection callbacks."""
         for callback in self._selection_callbacks:
             callback(
+                tree_item_id=tree_item_id,
                 selected_object=selected_object,
                 is_right_click=is_right_click,
                 context_menu=context_menu,
@@ -250,6 +252,7 @@ class PyroxTreeView(ttk.Treeview):
             self.selection_set(item)
 
         self._call_callbacks(
+            item,
             self.get_selected_object(),
             is_right_click,
             self._create_context_menu() if is_right_click else None,
@@ -398,6 +401,10 @@ class PyroxTreeView(ttk.Treeview):
                 root_name = self.item(root_item, 'text')
                 self.display_object(root_obj, root_name)
 
+    def get_object_from_item(self, item_id: str) -> Any:
+        """Get the object associated with a given tree item ID."""
+        return self._object_cache.get(item_id)
+
     def get_selected_object(self) -> Any:
         """Get the object associated with the currently selected item."""
         selection = self.selection()
@@ -422,6 +429,10 @@ class PyroxTreeView(ttk.Treeview):
             current = self.parent(current)
 
         return path
+
+    def get_display_text_from_tree_item(self, item_id: str) -> str:
+        """Get the display text for a given tree item ID."""
+        return self.item(item_id, 'text')
 
     def subscribe_to_selection(
         self,

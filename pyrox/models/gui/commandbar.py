@@ -408,6 +408,15 @@ class PyroxCommandBar(PyroxFrame):
         """
         return self._button_configs.get(button_id)
 
+    def get_selected_buttons(self) -> List[str]:
+        """
+        Get a list of IDs for all currently selected buttons.
+
+        Returns:
+            List[str]: List of selected button IDs.
+        """
+        return [button_id for button_id, selected in self._button_selected_state.items() if selected]
+
     def get_all_button_ids(self) -> List[str]:
         """
         Get all button IDs in the command bar.
