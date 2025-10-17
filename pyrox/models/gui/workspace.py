@@ -11,6 +11,8 @@ This module provides a workspace widget that mimics the VSCode interface with:
 import tkinter as tk
 from tkinter import ttk
 from typing import Dict, List, Optional, Callable, Any
+from pyrox.models import application
+from pyrox.models.gui.frame import TaskFrame
 from pyrox.models.gui.logframe import LogFrame
 from pyrox.models.gui.meta import PyroxFrame
 from pyrox.models.gui.notebook import PyroxNotebook
@@ -34,6 +36,7 @@ class PyroxWorkspace(PyroxFrame):
     def __init__(
         self,
         master=None,
+        application_instance: Optional[application.Application] = None,
         sidebar_width: int = 300,
         sidebar_position: str = 'left',
         sidebar_visible: bool = True,
@@ -56,6 +59,9 @@ class PyroxWorkspace(PyroxFrame):
         """
         super().__init__(master, **kwargs)
 
+        # Application instance
+        self.application_instance = application_instance
+
         # Configuration
         self.sidebar_width = sidebar_width
         self.sidebar_position = sidebar_position
@@ -74,7 +80,7 @@ class PyroxWorkspace(PyroxFrame):
         # Widget tracking
         self._mounted_widgets: Dict[str, tk.Widget] = {}
         self._sidebar_tabs: Dict[str, str] = {}  # widget_id -> tab_id mapping
-        self._workspace_widgets: Dict[str, tk.Widget] = {}
+        self._workspace_widgets: Dict[str, TaskFrame] = {}
 
         # Event callbacks
         self.on_sidebar_toggle: Optional[Callable[[bool], None]] = None
@@ -172,6 +178,77 @@ class PyroxWorkspace(PyroxFrame):
         self.log_window = LogFrame(self.log_paned_window)
         self.log_window.pack(fill='x', side='bottom', padx=2, pady=2)
 
+    def _raise_frame(
+        self,
+        frame: TaskFrame
+    ) -> None:
+        """Raise a frame to the top of the application.
+
+        Args:
+            frame (TaskFrame): The frame to raise.
+        """
+        if not frame or not frame.winfo_exists():
+            self._unregister_workspace_frame(frame)
+            return
+
+        if frame.name not in self._workspace_widgets:
+            self._register_workspace_frame(
+                frame.name,
+                frame,
+                raise_frame=False
+            )
+
+        frame.master = self.workspace.workspace_area  # type: ignore
+        self.add_workspace_widget(
+            frame,
+            frame.name,
+            {'fill': 'both', 'expand': True, 'side': 'top'}
+        )
+        self._set_frame_selected(frame)
+
+    def _raise_next_available_frame(self) -> None:
+        """Raise the next available frame in the workspace."""
+        for widget_id, frame in self._workspace_widgets.items():
+            if frame.winfo_exists():
+                self._raise_frame(frame)
+                return
+
+    def _register_workspace_frame(
+        self,
+        widget_id: str,
+        frame: TaskFrame,
+        raise_frame: bool = False
+    ) -> None:
+        """Register a widget in the workspace tracking."""
+        if self.application_instance is None:
+            return
+
+        if widget_id is None or frame is None:
+            return
+
+        if widget_id in self._workspace_widgets:
+            self._raise_frame(self._workspace_widgets[widget_id])
+            return
+
+        frame.on_destroy.append(lambda: self._unregister_workspace_frame(frame))
+        self._workspace_widgets[widget_id] = frame
+        self.application_instance.menu.view.add_checkbutton(
+            label=widget_id,
+            variable=frame.shown_var,
+            command=lambda: self._raise_frame(frame)
+        )
+
+        if raise_frame:
+            self._raise_frame(frame)
+
+    def _set_frame_selected(
+        self,
+        frame: TaskFrame
+    ) -> None:
+        """Set the selected frame in the view menubar."""
+        self._unset_frames_selected()
+        frame.shown_var.set(True)
+
     def _setup_bindings(self) -> None:
         """Set up event bindings."""
         # Bind sidebar organizer events
@@ -196,6 +273,27 @@ class PyroxWorkspace(PyroxFrame):
             except (tk.TclError, AttributeError):
                 # Sash not ready yet, try again later
                 self.after(100, self._set_initial_sidebar_width)
+
+    def _unregister_workspace_frame(
+        self,
+        frame: TaskFrame
+    ) -> None:
+        """Unregister a widget from the workspace tracking."""
+        if self.application_instance is None:
+            return
+
+        self.application_instance.menu.view.delete(frame.name)
+
+        if frame.name not in self._workspace_widgets:
+            return
+
+        self._workspace_widgets.pop(frame.name, None)
+        self._raise_next_available_frame()
+
+    def _unset_frames_selected(self):
+        """Unset all frames in the view menubar.
+        """
+        [frame.shown_var.set(False) for frame in self._workspace_widgets.values()]
 
     def add_sidebar_widget(
         self,
@@ -287,7 +385,12 @@ class PyroxWorkspace(PyroxFrame):
             ValueError: If widget_id already exists
         """
         if widget_id is None:
-            widget_id = f"workspace_widget_{len(self._workspace_widgets) + 1}"
+            widget_id = getattr(
+                widget, 'name',
+                f"workspace_widget_{len(self._workspace_widgets) + 1}"
+            )
+        if widget_id is None:
+            raise ValueError("Widget must have a name or widget_id must be provided")
 
         if widget_id in self._workspace_widgets:
             raise ValueError(f"Widget ID '{widget_id}' already exists")
@@ -302,7 +405,7 @@ class PyroxWorkspace(PyroxFrame):
         widget.pack(in_=self.workspace_area, **pack_options)
 
         # Store reference
-        self._workspace_widgets[widget_id] = widget
+        self._register_workspace_frame(widget_id, widget)  # type: ignore
 
         # Update status
         self.set_status(f"Added workspace widget: {widget_id}")
@@ -692,7 +795,7 @@ def create_demo_window():
                 sample_code = f"""# File {i+1} - Sample Python Code
 def main():
     print("Hello from file {i+1}")
-    
+
     # Sample function
     result = calculate_something()
     return result

@@ -65,9 +65,7 @@ class Application(Runnable):
 
         # Build tk info
         self._tk_app = tk_instance
-
         self._menu = MainApplicationMenu(self.tk_app)
-
         self._frame: Frame = Frame(master=self.tk_app, background='#2b2b2b')
         self._frame.pack(fill='both', expand=True)
 
@@ -129,21 +127,6 @@ class Application(Runnable):
             self.tk_app.iconbitmap(default=icon_path)
         else:
             log(self).warning(f'Icon file not found: {icon_path}.')
-
-    def _build_gui(self) -> None:
-        from pyrox.services.gui import GuiManager
-        if not GuiManager.is_gui_available():
-            raise RuntimeError("GUI not available")
-
-        self._gui_backend = GuiManager.get_backend()
-
-        # Build tk info
-        # self._tk_app = tk_instance
-
-        self._menu = MainApplicationMenu(self.tk_app)
-
-        self._frame: Frame = Frame(master=self.tk_app, background='#2b2b2b')
-        self._frame.pack(fill='both', expand=True)
 
     def _build_multi_stream(self) -> None:
         try:

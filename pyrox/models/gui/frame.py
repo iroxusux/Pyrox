@@ -4,7 +4,7 @@ from __future__ import annotations
 import tkinter as tk
 from tkinter import ttk, messagebox
 from tkinter.ttk import Widget
-from typing import Any, Optional, Union
+from typing import Any, Callable, Optional, Union
 
 from . import meta
 from .legacy_treeview import LazyLoadingTreeView
@@ -130,7 +130,7 @@ class TaskFrame(tk.Frame):
 
     def __init__(self,
                  *args,
-                 name: str = None,
+                 name: str = '',
                  **kwargs):
         super().__init__(*args, **kwargs)
         self._name = name or 'Task Frame'
@@ -152,7 +152,7 @@ class TaskFrame(tk.Frame):
         self._content_frame = tk.Frame(self)
         self._content_frame.pack(fill=tk.BOTH, expand=True, side=tk.TOP)
 
-        self._on_destroy: list[callable] = []
+        self._on_destroy: list[Callable] = []
 
     @property
     def content_frame(self) -> tk.Frame:
