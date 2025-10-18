@@ -1,7 +1,20 @@
 #!/bin/sh
-# Pre-commit hook to sync version from pyproject.toml to README.md
+# Pre-commit hook to check version increment and sync README badges
 
-python utils/sync_version.py
+# First, check if version needs to be incremented
+echo "🔍 Checking version increment requirement..."
+python utils/check_version_increment.py
+if [ $? -ne 0 ]; then
+    echo "❌ Pre-commit hook failed: Version check failed"
+    exit 1
+fi
+
+# If version check passes, sync README badges
+echo "📝 Syncing README badges from pyproject.toml..."
+python utils/sync_readme.py
 
 # Add the updated README.md to the commit if it was changed
+echo "📝 Updating README.md in git commit..."
 git add README.md
+
+echo "✅ Pre-commit checks passed!"

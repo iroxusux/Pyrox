@@ -1,4 +1,4 @@
-name: Sync Version
+name: Sync README Badges
 
 on:
   push:
@@ -7,7 +7,7 @@ on:
     branches: [ main, irox_rehaul ]
 
 jobs:
-  sync-version:
+  sync-readme:
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v4
@@ -21,10 +21,10 @@ jobs:
         
     - name: Install dependencies
       run: |
-        pip install toml
+        pip install tomli
         
-    - name: Sync version
-      run: python sync_version.py
+    - name: Sync README badges
+      run: python utils/sync_readme.py
       
     - name: Check for changes
       id: verify-changed-files
@@ -41,5 +41,5 @@ jobs:
         git config --local user.email "action@github.com"
         git config --local user.name "GitHub Action"
         git add README.md
-        git commit -m "Auto-sync version from pyproject.toml"
+        git commit -m "Auto-sync README badges from pyproject.toml"
         git push

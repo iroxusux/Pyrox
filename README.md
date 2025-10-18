@@ -1,7 +1,7 @@
 # Pyrox
 
 [![Python Version](https://img.shields.io/badge/python-3.13+-blue.svg)](https://www.python.org/downloads/)
-[![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
+[![License](https://img.shields.io/badge/license-GPL--3.0-green.svg)](LICENSE)
 ![Development Status](https://img.shields.io/badge/status-beta-orange.svg)
 ![Version](https://img.shields.io/badge/version-1.5.0-blue.svg)
 
@@ -59,8 +59,11 @@ cd Pyrox
 # Or install manually:
 pip install -e . --upgrade
 
-# Set up Git hooks (for version sync)
-python setup_hooks.py
+# Set up Git hooks (for README badge sync)
+python utils/setup_hooks.py
+
+# Manually sync README badges from pyproject.toml
+python utils/sync_readme.py
 ```
 
 ### Dependencies
@@ -228,6 +231,61 @@ pyrox/
 - Implement new task types and services
 - Create specialized GUI components
 - Build on proven architectural patterns
+
+## 🤖 Automated Badge Synchronization
+
+Pyrox automatically keeps README badges in sync with your `pyproject.toml` metadata:
+
+### What Gets Synced
+
+- **Python Version**: From `requires-python` field
+- **License**: Extracted from `classifiers` 
+- **Development Status**: From development status classifiers
+- **Project Version**: From `version` field
+
+### How It Works
+
+- **Version Increment Check**: Pre-commit hook ensures version is bumped for code changes
+- **Badge Synchronization**: Automatically syncs badges before each commit
+- **GitHub Action**: Syncs badges when `pyproject.toml` is updated
+- **Manual Tools**: 
+  - `python utils/sync_readme.py` - Sync badges anytime
+  - `python utils/check_version_increment.py` - Check version increment requirement
+
+### Supported Classifiers
+
+```toml
+[project]
+version = "1.5.0"
+requires-python = ">=3.13"
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "License :: OSI Approved :: GNU General Public License v3 (GPLv3)",
+    "Programming Language :: Python :: 3.13",
+]
+```
+
+This ensures your README always reflects your actual project configuration!
+
+### Version Increment Enforcement
+
+The pre-commit hook automatically checks if code changes require a version bump:
+
+- **Smart Detection**: Distinguishes between code changes and documentation updates
+- **Flexible Rules**: Only enforces version increments for actual code changes
+- **Clear Guidance**: Provides helpful suggestions for version increments
+- **Bypass for Docs**: Allows commits that only change documentation/config files
+
+**Files that DON'T require version bumps:**
+- `README.md` and other `.md` files
+- Documentation in `docs/` directory  
+- `.gitignore`, `LICENSE`, `.yml/.yaml` files
+- Git hooks and utility scripts (`utils/sync_*.py`, `hooks/`)
+
+**Files that DO require version bumps:**
+- Python source code in `pyrox/`
+- `pyproject.toml` dependencies or configuration
+- Any other source code files
 
 ## 🔧 Advanced Features
 
