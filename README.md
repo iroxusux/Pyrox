@@ -3,7 +3,7 @@
 [![Python Version](https://img.shields.io/badge/python-3.13+-blue.svg)](https://www.python.org/downloads/)
 [![License](https://img.shields.io/badge/license-GPL--3.0-green.svg)](LICENSE)
 ![Development Status](https://img.shields.io/badge/status-beta-orange.svg)
-![Version](https://img.shields.io/badge/version-1.5.0-blue.svg)
+![Version](https://img.shields.io/badge/version-1.5.1-blue.svg)
 
 **Pyrox** is a Python-based engine that provides common services, models, and abstractions for building different types of applications. Originally part of a comprehensive industrial automation suite, Pyrox has been refactored into a focused core library that serves as the foundation for specialized applications like [ControlRox](https://github.com/iroxusux/ControlRox).
 
@@ -239,16 +239,16 @@ Pyrox automatically keeps README badges in sync with your `pyproject.toml` metad
 ### What Gets Synced
 
 - **Python Version**: From `requires-python` field
-- **License**: Extracted from `classifiers` 
+- **License**: Extracted from `classifiers`
 - **Development Status**: From development status classifiers
 - **Project Version**: From `version` field
 
 ### How It Works
 
-- **Version Increment Check**: Pre-commit hook ensures version is bumped for code changes
-- **Badge Synchronization**: Automatically syncs badges before each commit
-- **GitHub Action**: Syncs badges when `pyproject.toml` is updated
-- **Manual Tools**: 
+- **Pre-commit Automation**: Handles both version checking and badge syncing before each commit
+  - Version Increment Check: Ensures version is bumped for code changes
+  - Badge Synchronization: Automatically syncs badges from `pyproject.toml`
+- **Manual Tools**:
   - `python utils/sync_readme.py` - Sync badges anytime
   - `python utils/check_version_increment.py` - Check version increment requirement
 
@@ -277,12 +277,14 @@ The pre-commit hook automatically checks if code changes require a version bump:
 - **Bypass for Docs**: Allows commits that only change documentation/config files
 
 **Files that DON'T require version bumps:**
+
 - `README.md` and other `.md` files
 - Documentation in `docs/` directory  
 - `.gitignore`, `LICENSE`, `.yml/.yaml` files
 - Git hooks and utility scripts (`utils/sync_*.py`, `hooks/`)
 
 **Files that DO require version bumps:**
+
 - Python source code in `pyrox/`
 - `pyproject.toml` dependencies or configuration
 - Any other source code files
