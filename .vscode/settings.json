@@ -8,4 +8,11 @@
     "workbench.startupEditor": "none",
     "editor.defaultFoldingRangeProvider": null,
     "python.analysis.typeCheckingMode": "standard",
+    "files.exclude": {
+        "**/.git": false,
+        "**/.svn": true,
+        "**/.hg": true,
+        "**/.DS_Store": true,
+        "**/Thumbs.db": true
+    }
 }

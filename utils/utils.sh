@@ -807,4 +807,3 @@ EOF
     log_and_echo "You may need to restart your terminal or use '$working_python_cmd' directly"
     return 0  # Don't fail here since Python is actually installed and working
 }
-}

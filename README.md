@@ -1,50 +1,50 @@
 # Pyrox
 
 [![Python Version](https://img.shields.io/badge/python-3.13+-blue.svg)](https://www.python.org/downloads/)
-[![License](https://img.shields.io/badge/license-GPL--3.0-green.svg)](LICENSE)
+[![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 ![Development Status](https://img.shields.io/badge/status-beta-orange.svg)
-![Version](https://img.shields.io/badge/version-1.2.6-blue.svg)
+![Version](https://img.shields.io/badge/version-1.5.0-blue.svg)
 
-**Pyrox** is a comprehensive Python-based ladder logic editor and industrial automation toolset designed for PLC programming, EPLAN integration, and electrical controls automation. Built with a robust Tkinter-based GUI framework, Pyrox provides professional tools for industrial automation engineers and controls programmers.
+**Pyrox** is a Python-based engine that provides common services, models, and abstractions for building different types of applications. Originally part of a comprehensive industrial automation suite, Pyrox has been refactored into a focused core library that serves as the foundation for specialized applications like [ControlRox](https://github.com/iroxusux/ControlRox).
 
 ## 🚀 Key Features
 
-### 🔧 PLC Integration & Programming
+### 🏗️ Core Application Framework
 
-- **Multi-Vendor PLC Support**: Allen-Bradley (Rockwell), Ford, GM, and other industrial controllers
-- **Real-time PLC Communication**: Live tag monitoring, reading/writing PLC values
-- **L5X File Processing**: Import, export, and manipulate Logix Designer files
-- **Ladder Logic Editor**: Visual ladder logic programming with syntax highlighting
-- **Controller Validation**: Automated PLC configuration validation and verification
+- **Task-Based Architecture**: Modular application structure with extensible tasks and services
+- **Abstract Base Classes**: Well-defined interfaces for consistent application development
+- **Factory Pattern Implementation**: Extensible object creation patterns for different application types
+- **Model-View-Controller Support**: Clean separation of concerns for maintainable applications
 
-### 📋 EPLAN Integration
+### 🎨 GUI Framework & Components
 
-- **EPLAN Project Import**: Parse and validate EPLAN electrical schematics
-- **Device Mapping**: Automatic mapping between EPLAN devices and PLC I/O
-- **Project Validation**: Cross-reference EPLAN designs with PLC configurations
-- **PDF Schematic Parsing**: Extract device information from EPLAN-generated PDFs
+- **Modern Tkinter Interface**: Professional-grade user interface components and themes
+- **Reusable GUI Models**: Common GUI patterns like frames, notebooks, menus, and dialogs
+- **Workspace Management**: Multi-window support with dockable frames and layout management
+- **Legacy Support**: Backwards compatibility with existing GUI implementations
 
-### 🏗️ Industrial Automation Tools
+### 🔧 Common Services & Utilities
 
-- **Emulation Generation**: Generate PLC emulation routines for testing
-- **Checklist Management**: Create and manage commissioning checklists from markdown templates
-- **Tag Management**: Comprehensive PLC tag browsing, editing, and monitoring
-- **Watch Tables**: Real-time PLC data monitoring and debugging tools
+- **File & Stream Processing**: Robust file handling, archiving, and data streaming utilities
+- **Environment Management**: Cross-platform configuration and environment variable handling
+- **Logging & Debugging**: Comprehensive logging framework with debug tools
+- **Data Manipulation**: XML processing, dictionary utilities, and object manipulation
+- **Timer & Notification Services**: Event scheduling and notification systems
 
-### 🎨 Professional GUI Framework
+### 🧩 Extensible Models
 
-- **Modern Tkinter Interface**: Professional-grade user interface with themes
-- **Task-Based Architecture**: Modular application structure with extensible tasks
-- **Multi-Window Support**: Dockable frames and workspace management
-- **Debug Tools**: Integrated debugging and development tools
+- **Application Models**: Base classes for building different types of applications
+- **GUI Component Models**: Reusable interface components for consistent user experiences
+- **Abstract Interfaces**: Well-defined contracts for extending functionality
+- **Configuration Management**: Flexible configuration handling for various application needs
 
 ## 📦 Installation
 
 ### Requirements
 
 - **Python 3.13+** (Required)
-- Windows (Primary platform - includes `pywin32` support)
-- Compatible with Allen-Bradley PLCs and EPLAN software
+- Cross-platform support (Windows, Linux, macOS)
+- Compatible with applications built on the Pyrox framework
 
 ### Quick Install
 
@@ -53,60 +53,73 @@
 git clone https://github.com/iroxusux/Pyrox.git
 cd Pyrox
 
-# Install in development mode
+# Run the installation script (recommended)
+./install.sh
+
+# Or install manually:
 pip install -e . --upgrade
 
-# Or install directly from source
-pip install . --upgrade
+# Set up Git hooks (for version sync)
+python setup_hooks.py
 ```
 
 ### Dependencies
 
 Pyrox automatically installs the following key dependencies:
 
-- **lxml** - XML processing for L5X files
-- **pylogix** - Allen-Bradley PLC communication
+- **lxml** - XML processing capabilities
 - **pandas** - Data manipulation and analysis
 - **openpyxl** - Excel file processing
-- **Pillow** - Image processing
-- **PyPDF2, pdfplumber, PyMuPDF** - PDF processing for EPLAN integration
+- **Pillow** - Image processing support
+- **PyPDF2, pdfplumber, PyMuPDF** - PDF processing utilities
 - **platformdirs** - Cross-platform directory management
+- **pywin32** - Windows integration (Windows only)
 
 ## 🏁 Quick Start
 
 ### Basic Application Setup
 
 ```python
-from pyrox.applications.app import App
-from pyrox.models import ApplicationConfiguration
+from pyrox.models.application import Application
+from pyrox.models.menu import Menu
 
-# Create application configuration
-config = ApplicationConfiguration(
-    app_name="My PLC Application",
-    author_name="Your Name",
-    version="1.0.0"
-)
+# Create a basic application
+class MyApp(Application):
+    def __init__(self):
+        super().__init__(
+            app_name="My Application",
+            author_name="Your Name",
+            version="1.0.0"
+        )
+    
+    def initialize(self):
+        # Set up your application-specific logic
+        self.setup_gui()
+        self.load_tasks()
 
 # Initialize and run the application
-app = App(config)
+app = MyApp()
 app.run()
 ```
 
-### PLC Connection Example
+### Using Core Services
 
 ```python
-from pyrox.applications.plcio import PlcIoTask
-from pyrox.models import ConnectionParameters
+from pyrox.services.file import FileService
+from pyrox.services.logging import get_logger
+from pyrox.services.env import EnvironmentService
 
-# Configure PLC connection
-connection_params = ConnectionParameters(
-    ip_address="192.168.1.100",
-    slot=0
-)
+# File operations
+file_service = FileService()
+data = file_service.read_json("config.json")
 
-# Create PLC I/O task
-plc_task = PlcIoTask(app)
-plc_task.start()
+# Logging
+logger = get_logger(__name__)
+logger.info("Application started")
+
+# Environment management
+env_service = EnvironmentService()
+debug_mode = env_service.get_bool("DEBUG", default=False)
 ```
 
 ### Environment Configuration
@@ -117,8 +130,8 @@ cp .env.example .env
 
 # Configure your settings
 PYROX_DEBUG=false
-PLC_DEFAULT_IP=192.168.1.100
-EPLAN_DEFAULT_PROJECT_DIR=./projects
+PYROX_LOG_LEVEL=INFO
+PYROX_CONFIG_DIR=./config
 ```
 
 ## 🏗️ Architecture
@@ -127,96 +140,152 @@ EPLAN_DEFAULT_PROJECT_DIR=./projects
 
 ```text
 pyrox/
-├── applications/          # Application implementations
-│   ├── app.py            # Main application framework
-│   ├── plcio.py          # PLC I/O and communication
-│   ├── ladder.py         # Ladder logic editor
-│   ├── ford.py           # Ford-specific PLC support
-│   └── indicon.py        # Indicon automation tools
-├── models/               # Data models and core objects
-│   ├── plc/             # PLC data structures
-│   ├── eplan/           # EPLAN integration models
-│   ├── gui/             # GUI components and frames
-│   └── abc/             # Abstract base classes
-├── services/            # Business logic and services
-│   ├── eplan.py         # EPLAN processing services
-│   ├── env.py           # Environment configuration
-│   ├── file.py          # File handling utilities
-│   └── checklist.py     # Checklist management
-└── tasks/               # Modular application tasks
-    ├── ladder.py        # Ladder logic tasks
-    └── tools/           # Built-in tools and utilities
+├── models/                  # Core data models and abstractions
+│   ├── application.py       # Base application framework
+│   ├── menu.py             # Menu system models
+│   ├── model.py            # Base model classes
+│   ├── task.py             # Task framework
+│   ├── abc/                # Abstract base classes
+│   │   ├── factory.py      # Factory pattern implementations
+│   │   ├── list.py         # List abstractions
+│   │   ├── meta.py         # Metaclass utilities
+│   │   ├── network.py      # Network abstractions
+│   │   ├── runtime.py      # Runtime abstractions
+│   │   ├── save.py         # Save/load abstractions
+│   │   └── stream.py       # Stream processing abstractions
+│   ├── gui/                # GUI component models
+│   │   ├── backend.py      # GUI backend abstractions
+│   │   ├── commandbar.py   # Command bar components
+│   │   ├── contextmenu.py  # Context menu models
+│   │   ├── frame.py        # Frame abstractions
+│   │   ├── listbox.py      # Listbox components
+│   │   ├── menu.py         # Menu components
+│   │   ├── notebook.py     # Notebook/tab components
+│   │   ├── treeview.py     # Tree view components
+│   │   └── workspace.py    # Workspace management
+│   └── test/               # Model unit tests
+├── services/               # Business logic and utilities
+│   ├── archive.py          # Archive and compression services
+│   ├── bit.py              # Bit manipulation utilities
+│   ├── byte.py             # Byte processing services
+│   ├── decorate.py         # Decorator utilities
+│   ├── dict.py             # Dictionary manipulation
+│   ├── env.py              # Environment management
+│   ├── factory.py          # Factory service implementations
+│   ├── file.py             # File handling utilities
+│   ├── gui.py              # GUI utility services
+│   ├── logging.py          # Logging framework
+│   ├── logic.py            # Common logic utilities
+│   ├── notify_services.py  # Notification services
+│   ├── object.py           # Object manipulation utilities
+│   ├── search.py           # Search and filtering services
+│   ├── stream.py           # Stream processing services
+│   ├── timer.py            # Timer and scheduling services
+│   ├── xml.py              # XML processing utilities
+│   └── test/               # Service unit tests
+├── tasks/                  # Task framework and built-in tasks
+│   ├── builtin/            # Built-in task implementations
+│   └── test/               # Task unit tests
+└── ui/                     # User interface assets
+    ├── icons/              # Application icons
+    └── splash/             # Splash screen assets
 ```
 
 ### Key Design Patterns
 
-- **MVC Architecture**: Clear separation of models, views, and controllers
-- **Factory Pattern**: Extensible object creation for different PLC types
+- **Abstract Base Classes**: Consistent interfaces across all components
+- **Factory Pattern**: Flexible object creation for different application types  
 - **Task-Based Design**: Modular functionality through application tasks
 - **Observer Pattern**: Event-driven updates and notifications
+- **Model-View-Controller**: Clear separation of concerns for maintainable code
 
 ## 🎯 Use Cases
 
-### Industrial Automation Engineers
+### Application Developers
 
-- Design and validate PLC control systems
-- Import EPLAN electrical designs and cross-reference with PLC configurations
-- Generate commissioning checklists and documentation
-
-### Controls Programmers
-
-- Develop and debug ladder logic programs
-- Monitor PLC tags and variables in real-time
-- Validate controller configurations and I/O mappings
+- Build applications with consistent architecture and patterns
+- Leverage proven GUI components and frameworks
+- Utilize common services for file handling, logging, and configuration
+- Extend functionality through the task-based system
 
 ### System Integrators
 
-- Integrate multiple automation systems (EPLAN + PLC)
-- Generate emulation routines for testing
-- Manage project documentation and validation workflows
+- Create specialized applications using Pyrox as a foundation
+- Implement domain-specific functionality on top of core services
+- Maintain consistency across multiple related applications
+- Benefit from shared models and abstractions
 
-### Commissioning Engineers
+### Framework Users
 
-- Use automated checklists for system commissioning
-- Verify PLC configurations against design specifications
-- Monitor and troubleshoot live PLC systems
+- Industrial automation applications (like [ControlRox](https://github.com/iroxusux/ControlRox))
+- Desktop applications requiring robust GUI frameworks
+- Applications needing task-based architecture
+- Projects requiring consistent logging, configuration, and file handling
+
+### Library Developers
+
+- Extend Pyrox with domain-specific modules
+- Implement new task types and services
+- Create specialized GUI components
+- Build on proven architectural patterns
 
 ## 🔧 Advanced Features
 
-### Custom PLC Support
+### Custom Application Development
 
 ```python
-from pyrox.models.plc import Controller, ControllerMatcher
+from pyrox.models.application import Application
+from pyrox.models.task import Task
 
-class CustomController(Controller):
-    """Custom PLC controller implementation."""
+class CustomTask(Task):
+    """Custom task implementation."""
     
-class CustomControllerMatcher(ControllerMatcher):
-    """Matcher for custom controllers."""
+    def execute(self):
+        # Implement your task logic
+        self.logger.info("Executing custom task")
+        return True
+
+class CustomApplication(Application):
+    """Custom application built on Pyrox."""
     
-    def is_match(self, controller_data) -> bool:
-        return controller_data.get('type') == 'CustomPLC'
+    def load_tasks(self):
+        # Register your custom tasks
+        self.register_task("custom", CustomTask)
 ```
 
-### EPLAN Integration
+### GUI Component Extension
 
 ```python
-from pyrox.services.eplan import import_eplan
-from pyrox.models.plc import Controller
+from pyrox.models.gui.frame import Frame
+from pyrox.services.gui import GuiService
 
-# Import EPLAN project and validate against PLC
-controller = Controller.from_file("project.L5X")
-import_eplan(controller)  # Validates EPLAN design against PLC config
+class CustomFrame(Frame):
+    """Custom GUI frame."""
+    
+    def setup_widgets(self):
+        # Implement your GUI layout
+        self.gui_service.create_button(
+            parent=self,
+            text="Custom Action",
+            command=self.handle_action
+        )
 ```
 
-### Checklist Automation
+### Service Extension
 
 ```python
-from pyrox.services.checklist import compile_checklist_from_md_file
+from pyrox.services.object import ObjectService
+from pyrox.services.logging import get_logger
 
-# Generate structured checklist from markdown
-checklist = compile_checklist_from_md_file("commissioning_checklist.md")
-print(f"Found {len(checklist['sections'])} checklist sections")
+class CustomService(ObjectService):
+    """Custom service implementation."""
+    
+    def __init__(self):
+        self.logger = get_logger(__name__)
+    
+    def process_data(self, data):
+        # Implement your service logic
+        return self.transform(data)
 ```
 
 ## 🛠️ Development
@@ -226,14 +295,17 @@ print(f"Found {len(checklist['sections'])} checklist sections")
 ```text
 Pyrox/
 ├── pyrox/                    # Main package
+│   ├── models/              # Core models and abstractions
+│   ├── services/            # Business logic and utilities
+│   ├── tasks/               # Task framework
+│   └── ui/                  # User interface assets
 ├── docs/                     # Documentation and examples
-├── samples/                  # Sample projects and scripts  
 ├── build/                    # Build outputs
 ├── logs/                     # Application logs
 ├── .env.example              # Environment template
 ├── pyproject.toml           # Project configuration
-├── build.sh / build.ps1     # Build scripts
-└── deploy.sh / deploy.ps1   # Deployment scripts
+├── build.sh                 # Build script
+└── install.sh               # Installation script
 ```
 
 ### Running Tests
@@ -243,8 +315,8 @@ Pyrox/
 pytest
 
 # Run specific test modules
-pytest pyrox/services/test/
 pytest pyrox/models/test/
+pytest pyrox/services/test/
 
 # Run with coverage
 pytest --cov=pyrox
@@ -253,29 +325,36 @@ pytest --cov=pyrox
 ### Building Distribution
 
 ```bash
-# Build executable (Windows)
-./build.ps1
+# Build package
+./build.sh
 
-# Deploy to production
-./deploy.ps1
+# Install locally for development
+pip install -e . --upgrade
 ```
 
 ## 📚 Documentation
 
-- **[Environment Configuration Guide](ENVIRONMENT.md)** - Complete environment setup
-- **[API Documentation](docs/)** - Detailed API reference
-- **[Sample Projects](samples/)** - Example implementations
-- **[Development Guide](docs/development.md)** - Contributing guidelines
+- **[API Documentation](docs/)** - Detailed API reference for all modules
+- **[Architecture Guide](docs/architecture.md)** - Deep dive into Pyrox architecture
+- **[Development Guide](docs/development.md)** - Contributing and extension guidelines
+- **[Environment Configuration](docs/environment.md)** - Complete environment setup guide
+
+## 🏭 Related Projects
+
+- **[ControlRox](https://github.com/iroxusux/ControlRox)** - Industrial automation application built on Pyrox
+- Applications using Pyrox as their foundation benefit from shared models and services
 
 ## 🤝 Contributing
 
-Pyrox is developed for industrial automation professionals. Contributions are welcome!
+Pyrox is a foundational library for Python applications. Contributions are welcome!
 
 1. Fork the repository
 2. Create a feature branch (`git checkout -b feature/amazing-feature`)
 3. Commit your changes (`git commit -m 'Add amazing feature'`)
 4. Push to the branch (`git push origin feature/amazing-feature`)
 5. Open a Pull Request
+
+Please ensure your contributions maintain the architectural consistency and include appropriate tests.
 
 ## 📄 License
 
@@ -289,11 +368,11 @@ This project is licensed under the GNU General Public License v3.0 - see the [LI
 
 ## 🙏 Acknowledgments
 
-- Allen-Bradley and Rockwell Automation for PLC standards
-- EPLAN Software & Service for electrical design integration
-- The Python community for excellent automation libraries
-- Industrial automation professionals who inspired this project
+- The Python community for excellent libraries and frameworks
+- Contributors who have helped shape the architecture and design
+- Applications built on Pyrox that have driven feature development
+- The open-source community for inspiration and best practices
 
 ---
 
-**Pyrox** - *Professional Python-based ladder logic editor and industrial automation toolset*
+**Pyrox** - *Python-based engine for services and common models across different types of applications*

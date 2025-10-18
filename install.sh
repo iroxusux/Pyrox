@@ -9,7 +9,7 @@ PACKAGE_NAME_LOWER="pyrox"
 cd "$(dirname "$0")"
 
 # Source utilities
-source ./utils.sh
+source ./utils/utils.sh
 
 # Setup logging
 setup_logging "logs" "install"
@@ -34,7 +34,7 @@ handle_error() {
 # Set up error trap
 trap 'handle_error $LINENO' ERR
 
-log_and_echo "=== $PACKAGE_NAME Build Script ==="
+log_and_echo "========= $PACKAGE_NAME Build Script ========="
 log_and_echo "Starting installation process..."
 log_and_echo "Log file: $(get_log_file)"
 safe_ensure_python_installed 3 13
@@ -44,12 +44,14 @@ upgrade_pip
 install_local_dependencies
 python_cmd=$(get_python_command)
 python_version=$("$python_cmd" -c "import sys; print(f'{sys.version_info.major}.{sys.version_info.minor}.{sys.version_info.micro}')" 2>/dev/null || echo "Unknown")
-log_and_echo "=== Build Summary ==="
+log_and_echo "========= Build Summary ========="
 log_and_echo "Python version: $python_version"
 log_and_echo "Virtual environment: $VIRTUAL_ENV"
 log_and_echo "Installed packages:"
 get_installed_packages || log_and_echo "Warning: Could not list installed packages"
-log_and_echo "=== Installation Complete ==="
+log_and_echo "========= Setting up Git hooks ========="
+"$python_cmd" utils/setup_hooks.py
+log_and_echo "========= Installation Complete ========="
 log_and_echo "Installation completed successfully!"
 log_and_echo "Log saved to: $(get_log_file)"
 echo "Press Enter to continue..."

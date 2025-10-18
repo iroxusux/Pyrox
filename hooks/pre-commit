@@ -1,0 +1,7 @@
+#!/bin/sh
+# Pre-commit hook to sync version from pyproject.toml to README.md
+
+python utils/sync_version.py
+
+# Add the updated README.md to the commit if it was changed
+git add README.md
