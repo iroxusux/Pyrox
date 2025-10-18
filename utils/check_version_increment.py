@@ -161,14 +161,14 @@ def check_version_increment():
     all_changed_files = list(set(staged_files + modified_files))
 
     if not all_changed_files:
-        print("ℹ️  No files changed, skipping version check")
+        print("No files changed, skipping version check")
         return True
 
-    print(f"📋 Checking version increment for {len(all_changed_files)} changed files...")
+    print(f"Checking version increment for {len(all_changed_files)} changed files...")
 
     # Check if this is a code change that requires version bump
     if not is_code_change(all_changed_files):
-        print("✅ Only documentation/config files changed, no version increment required")
+        print("Only documentation/config files changed, no version increment required")
         return True
 
     # Get versions
@@ -176,27 +176,27 @@ def check_version_increment():
     committed_version = get_committed_version()
 
     if not current_version:
-        print("❌ Could not read current version from pyproject.toml")
+        print("Error: Could not read current version from pyproject.toml")
         return False
 
-    print(f"📊 Current version: {current_version}")
+    print(f"Current version: {current_version}")
 
     if not committed_version:
-        print("ℹ️  No previous version found (first commit?), allowing...")
+        print("Note: No previous version found (first commit?), allowing...")
         return True
 
-    print(f"📊 Previous version: {committed_version}")
+    print(f"Previous version: {committed_version}")
 
     # Compare versions
     if compare_versions(current_version, committed_version):
-        print(f"✅ Version incremented: {committed_version} → {current_version}")
+        print(f"Version incremented: {committed_version} -> {current_version}")
         return True
     else:
-        print("❌ Version not incremented!")
+        print("Error: Version not incremented!")
         print(f"   Current:  {current_version}")
         print(f"   Previous: {committed_version}")
         print()
-        print("💡 Code changes detected but version wasn't incremented.")
+        print("Note: Code changes detected but version wasn't incremented.")
         print("   Please update the version in pyproject.toml before committing.")
         print()
         print("   Example version increment:")
@@ -205,7 +205,7 @@ def check_version_increment():
             if len(parts) >= 3:
                 parts[2] = str(int(parts[2]) + 1)  # Increment patch version
                 suggested = '.'.join(parts)
-                print(f"   {committed_version} → {suggested}")
+                print(f"   {committed_version} -> {suggested}")
         print()
         return False
 
