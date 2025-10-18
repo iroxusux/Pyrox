@@ -2,85 +2,14 @@
     "version": "2.0.0",
     "tasks": [
         {
-            "label": "build",
+            "label": "install",
             "type": "shell",
-            "command": "./build.sh",
+            "command": "./install.sh",
             "problemMatcher": [],
             "group": {
                 "kind": "build",
                 "isDefault": true
             }
         },
-        {
-            "label": "test-python",
-            "type": "shell",
-            "command": "python",
-            "args": [
-                "-m",
-                "pytest",
-                "tests/",
-                "-v",
-                "--tb=short"
-            ],
-            "problemMatcher": [],
-            "group": "test",
-            "presentation": {
-                "echo": true,
-                "reveal": "always",
-                "focus": false,
-                "panel": "shared",
-                "showReuseMessage": true,
-                "clear": false
-            }
-        },
-        {
-            "label": "test-shell",
-            "type": "shell",
-            "command": "./lib/test/test_utils.sh",
-            "problemMatcher": [],
-            "group": "test",
-            "presentation": {
-                "echo": true,
-                "reveal": "always",
-                "focus": false,
-                "panel": "shared",
-                "showReuseMessage": true,
-                "clear": false
-            }
-        },
-        {
-            "label": "test-all",
-            "dependsOrder": "sequence",
-            "dependsOn": [
-                "test-python",
-                "test-shell"
-            ],
-            "group": {
-                "kind": "test",
-                "isDefault": true
-            },
-            "presentation": {
-                "echo": true,
-                "reveal": "always",
-                "focus": false,
-                "panel": "shared",
-                "showReuseMessage": true,
-                "clear": true
-            }
-        },
-        {
-            "label": "deploy",
-            "type": "shell",
-            "command": "./deploy.sh",
-            "problemMatcher": [],
-            "group": "build"
-        },
-        {
-            "label": "distribute",
-            "type": "shell",
-            "command": "./dist.sh",
-            "problemMatcher": [],
-            "group": "build"
-        }
     ]
 }
