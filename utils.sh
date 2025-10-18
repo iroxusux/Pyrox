@@ -319,7 +319,7 @@ ensure_python_installed() {
     local required_minor="$2"
     
     # First check if Python is already installed and meets requirements
-    if check_python_version_installed "$required_major" "$required_minor" >/dev/null 2>&1; then
+    if verify_python_installation "$required_major" "$required_minor"; then
         return 0
     fi
     
@@ -679,6 +679,7 @@ verify_python_installation() {
     # Try to find python in common locations
     log_and_echo "Searching for Python executable..."
     local username=$(get_username)
+    log_and_echo "Using username: $username"
     local python_paths=(
         "python"
         "python3"
@@ -733,7 +734,6 @@ verify_python_installation() {
     # If we didn't find a working python command, fail
     if [ -z "$working_python_cmd" ]; then
         log_and_echo "Error: Python installation verification failed"
-        log_and_echo "Please restart your terminal/shell and try again, or install Python manually"
         return 1
     fi
     
