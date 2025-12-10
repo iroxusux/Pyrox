@@ -29,6 +29,10 @@ fi
 # If version check passes, sync README badges
 echo "📝 Syncing README badges from pyproject.toml..."
 python ${UTIL_PATH}sync_readme.py
+if [ $? -ne 0 ]; then
+    echo "❌ README sync failed"
+    exit 1
+fi
 
 # Add the updated README.md to the commit if it was changed
 echo "📝 Updating README.md in git commit..."
