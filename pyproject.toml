@@ -1,0 +1,62 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "pyrox"
+version = "2.0.52"
+authors = [
+  { name="Brian LaFond", email="Brian.L.LaFond@gmail.com" },
+]
+description = "Python based irox engine."
+readme = "README.md"
+requires-python = ">=3.13.9"
+classifiers = [
+  # How mature is this project? Common values are
+  #   3 - Alpha
+  #   4 - Beta
+  #   5 - Production/Stable
+  "Development Status :: 4 - Beta",
+
+  # Indicate who your project is intended for
+  "Intended Audience :: Developers",
+  "Topic :: Software Development :: Build Tools",
+
+  # Pick your license as you wish (see also "license" above)
+  "License :: OSI Approved :: GNU General Public License v3 (GPLv3)",
+
+  # Specify the Python versions you support here.
+  "Programming Language :: Python :: 3.13",
+]
+dependencies = [
+  "lxml",
+  "openpyxl",
+  "pandas",
+  "Pillow>=9.0.0",
+  "platformdirs",
+  "pyinstaller==6.15.0",
+  "pylogix",
+  "PyPDF2",
+  "pdfplumber",
+  "py7zr",
+  "PyMuPDF",
+  "pytest",
+  "python-dotenv",
+  "pywin32",
+  "tk",
+  "tomli",
+  "xmltodict",
+]
+
+license = {file = "LICENSE"}
+keywords = ["python", "tkinter", "api"]
+
+[tool.pytest.ini_options]
+log_cli = true
+log_cli_level = "INFO"
+log_cli_format = "%(asctime)s | %(name)s | %(levelname)s | %(message)s"
+log_cli_date_format = "%m/%d/%Y, %H:%M:%S"
+
+[project.urls]
+Homepage = "https://github.com/iroxusux/Pyrox"
+Issues = "https://github.com/iroxusux/Pyrox/issues"

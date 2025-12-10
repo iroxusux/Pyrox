@@ -1,0 +1,515 @@
+"""Logging module for pyrox applications.
+"""
+from __future__ import annotations
+import logging
+import sys
+import io
+from typing import Optional, TextIO
+
+from pyrox.services import EnvManager, get_default_date_format, get_default_formatter
+
+###
+# Custom Logging Configuration
+###
+
+LOGGING_LEVEL_SUCCESS_TUPLE = EnvManager.get(
+    'LOGGING_LEVEL_SUCCESS_TUPLE',
+    default=(100, 'SUCCESS'),
+    cast_type=tuple
+)
+LOGGING_LEVEL_FAILURE_TUPLE = EnvManager.get(
+    'LOGGING_LEVEL_FAILURE_TUPLE',
+    default=(101, 'FAILURE'),
+    cast_type=tuple
+)
+LOGGING_LEVEL_NOTICE_TUPLE = EnvManager.get(
+    'LOGGING_LEVEL_NOTICE_TUPLE',
+    default=(102, 'NOTICE'),
+    cast_type=tuple
+)
+if not (isinstance(LOGGING_LEVEL_SUCCESS_TUPLE, tuple)):
+    raise RuntimeError("Environment variable LOGGING_LEVEL_SUCCESS_TUPLE must be a tuple.")
+if not (isinstance(LOGGING_LEVEL_FAILURE_TUPLE, tuple)):
+    raise RuntimeError("Environment variable LOGGING_LEVEL_FAILURE_TUPLE must be a tuple.")
+if not (isinstance(LOGGING_LEVEL_NOTICE_TUPLE, tuple)):
+    raise RuntimeError("Environment variable LOGGING_LEVEL_NOTICE_TUPLE must be a tuple.")
+
+LOG_LEVEL_SUCCESS = int(LOGGING_LEVEL_SUCCESS_TUPLE[0])
+LOG_LEVEL_FAILURE = int(LOGGING_LEVEL_FAILURE_TUPLE[0])
+LOG_LEVEL_NOTICE = int(LOGGING_LEVEL_NOTICE_TUPLE[0])
+CUSTOM_LOGGING_LEVELS = [
+    LOGGING_LEVEL_SUCCESS_TUPLE,
+    LOGGING_LEVEL_FAILURE_TUPLE,
+    LOGGING_LEVEL_NOTICE_TUPLE,
+]
+
+
+__all__ = (
+    'LoggingManager',
+    'log',
+    'StreamCapture',
+    'LOG_LEVEL_SUCCESS',
+    'LOG_LEVEL_FAILURE',
+    'LOG_LEVEL_NOTICE',
+)
+
+
+class PyroxHandler(logging.StreamHandler):
+    """A custom logging handler that writes to a StreamCapture."""
+
+    def emit(self, record: logging.LogRecord) -> None:
+        """Emit a log record to the stream."""
+        try:
+            msg = self.format(record)
+            if self.stream:
+                if hasattr(self.stream.write, 'levelname'):
+                    self.stream.write(
+                        msg + '\n',
+                        levelname=record.levelname
+                    )
+                else:
+                    self.stream.write(msg + '\n')
+                self.stream.flush()
+        except Exception as e:
+            print(f"Error emitting log record: {e}")
+            self.handleError(record)
+
+
+class StreamCapture(io.StringIO):
+    """A StringIO subclass that captures stream output and maintains readability."""
+
+    def __init__(self, original_stream: Optional[TextIO] = None):
+        super().__init__()
+        self.original_stream = original_stream
+        self._lines = []
+        self._callbacks = []
+
+    def write(
+        self,
+        s: str,
+        levelname: str = 'INFO',
+    ) -> int:
+        """Write to both the capture buffer and optionally the original stream."""
+        result = super().write(s)
+
+        if (self.original_stream and
+            hasattr(self.original_stream, 'write') and
+                not self.original_stream.closed):
+            try:
+                self.original_stream.write(s)
+                self.original_stream.flush()
+            except (OSError, ValueError):
+                pass
+
+        if '\n' in s:
+            self._lines.extend(s.splitlines(keepends=True))
+
+        for callback in self._callbacks:
+            try:
+                if hasattr(callback, 'levelname'):
+                    callback(
+                        s,
+                        levelname=levelname
+                    )
+                else:
+                    callback(s)
+            except Exception as e:
+                log(self).warning(f'Error in stream write callback: {e}')
+
+        return result
+
+    def flush(self):
+        """Flush both buffers."""
+        super().flush()
+        if (self.original_stream and
+            hasattr(self.original_stream, 'flush') and
+                not self.original_stream.closed):
+            try:
+                self.original_stream.flush()
+            except (OSError, ValueError):
+                pass
+
+    def get_lines(self) -> list[str]:
+        """Get all captured lines."""
+        return self._lines.copy()
+
+    def clear_lines(self):
+        """Clear the captured lines buffer."""
+        self._lines.clear()
+
+    def readable(self) -> bool:
+        """Always return True - this stream is readable."""
+        return True
+
+    def register_callback(self, callback):
+        """Register a callback to be called on each write."""
+        if callable(callback):
+            self._callbacks.append(callback)
+
+    def seekable(self) -> bool:
+        """Return True - StringIO is seekable."""
+        return True
+
+    def yield_lines(self):
+        """Yield lines one by one."""
+        for line in self._lines.copy():
+            yield line
+
+
+class LoggingManager:
+    """A Logging manager for the pyrox application environment."""
+
+    curr_logging_level = logging.DEBUG
+    _curr_loggers = {}
+
+    # Stream capture attributes
+    _original_stdout: Optional[TextIO] = None
+    _original_stderr: Optional[TextIO] = None
+    _captured_stdout: Optional[StreamCapture] = None
+    _captured_stderr: Optional[StreamCapture] = None
+    _streams_captured = False
+
+    @classmethod
+    def capture_system_streams(cls) -> tuple[Optional[StreamCapture], Optional[StreamCapture]]:
+        """Capture sys.stdout and sys.stderr at application boot.
+
+        Returns:
+            tuple[StreamCapture, StreamCapture]: (captured_stdout, captured_stderr)
+        """
+        if cls._streams_captured:
+            return cls._captured_stdout, cls._captured_stderr
+
+        # Store original streams
+        cls._original_stdout = sys.stdout
+        cls._original_stderr = sys.stderr
+
+        # Create capturing streams
+        cls._captured_stdout = StreamCapture(cls._original_stdout)
+        cls._captured_stderr = StreamCapture(cls._original_stderr)
+
+        # Replace system streams
+        sys.stdout = cls._captured_stdout
+        sys.stderr = cls._captured_stderr
+
+        cls._streams_captured = True
+
+        return cls._captured_stdout, cls._captured_stderr
+
+    @classmethod
+    def restore_system_streams(cls) -> None:
+        """Restore original sys.stdout and sys.stderr."""
+        if not cls._streams_captured:
+            return
+
+        if cls._original_stdout:
+            sys.stdout = cls._original_stdout
+        if cls._original_stderr:
+            sys.stderr = cls._original_stderr
+
+        cls._streams_captured = False
+
+    @classmethod
+    def get_captured_stdout(cls) -> Optional[StreamCapture]:
+        """Get the captured stdout stream."""
+        return cls._captured_stdout
+
+    @classmethod
+    def get_captured_stderr(cls) -> Optional[StreamCapture]:
+        """Get the captured stderr stream."""
+        return cls._captured_stderr
+
+    @classmethod
+    def unsafe_get_captured_stderr(cls) -> StreamCapture:
+        """Get the captured stderr stream, raising if not captured."""
+        if cls._captured_stderr is None:
+            raise RuntimeError("Stderr stream has not been captured yet.")
+        return cls._captured_stderr
+
+    @classmethod
+    def get_captured_streams(cls) -> list[Optional[StreamCapture]]:
+        """Get both captured stdout and stderr streams."""
+        return [cls._captured_stdout, cls._captured_stderr]
+
+    @classmethod
+    def get_all_logging_levels(cls) -> dict[str, int]:
+        """Get a mapping of all logging levels."""
+        return {level: name for level, name in logging._nameToLevel.items()}
+
+    @classmethod
+    def get_stdout_content(cls) -> str:
+        """Get all captured stdout content."""
+        if cls._captured_stdout:
+            current_pos = cls._captured_stdout.tell()
+            cls._captured_stdout.seek(0)
+            content = cls._captured_stdout.read()
+            cls._captured_stdout.seek(current_pos)
+            return content
+        return ""
+
+    @classmethod
+    def get_stderr_content(cls) -> str:
+        """Get all captured stderr content."""
+        if cls._captured_stderr:
+            current_pos = cls._captured_stderr.tell()
+            cls._captured_stderr.seek(0)
+            content = cls._captured_stderr.read()
+            cls._captured_stderr.seek(current_pos)
+            return content
+        return ""
+
+    @classmethod
+    def get_stdout_lines(cls) -> list[str]:
+        """Get captured stdout as a list of lines."""
+        return cls._captured_stdout.get_lines() if cls._captured_stdout else []
+
+    @classmethod
+    def get_stderr_lines(cls) -> list[str]:
+        """Get captured stderr as a list of lines."""
+        return cls._captured_stderr.get_lines() if cls._captured_stderr else []
+
+    @classmethod
+    def clear_captured_streams(cls) -> None:
+        """Clear the content of captured streams."""
+        if cls._captured_stdout:
+            cls._captured_stdout.seek(0)
+            cls._captured_stdout.truncate(0)
+            cls._captured_stdout.clear_lines()
+
+        if cls._captured_stderr:
+            cls._captured_stderr.seek(0)
+            cls._captured_stderr.truncate(0)
+            cls._captured_stderr.clear_lines()
+
+    @classmethod
+    def debug_loggers(cls):
+        """Debug current logger state."""
+        print("=== Current Loggers ===")
+        for name, logger in cls._curr_loggers.items():
+            print(f"Logger: {name}")
+            print(f"  Level: {logger.level}")
+            print(f"  Propagate: {logger.propagate}")
+            print(f"  Handlers: {len(logger.handlers)}")
+            for i, handler in enumerate(logger.handlers):
+                print(f"    Handler {i}: {type(handler).__name__} -> {getattr(handler, 'stream', 'N/A')}")
+            print()
+
+    @classmethod
+    def initialize_additional_logging_levels(cls):
+        """Initialize any additional logging levels if needed."""
+        # Example: Add a custom logging level if required
+        from logging import addLevelName, getLevelNamesMapping
+        logging_levels = getLevelNamesMapping()
+        for level, name in CUSTOM_LOGGING_LEVELS:
+            level = int(level)
+            if not isinstance(level, int) or not isinstance(name, str):
+                raise ValueError("Custom logging levels must be tuples of (int, str).")
+            if level in logging_levels:
+                print(f"WARNING - Logging level {level} already exists.")
+                continue
+            addLevelName(level, name)
+
+    @classmethod
+    def initialize_logging_level_from_env(cls):
+        """Initialize logging level from environment variable."""
+        from pyrox.services.env import EnvManager
+        log_level = EnvManager.get("LOG_LEVEL", None)
+        if log_level is None:
+            print("No LOG_LEVEL set in environment; defaulting to DEBUG.")
+            cls.set_logging_level(logging.DEBUG)
+
+        try:  # try converting to int
+            log_level = int(log_level)
+        except (ValueError, TypeError):
+            pass
+
+        # Accept string names like "DEBUG", "INFO", etc.
+        if isinstance(log_level, str):
+            mapped_level = getattr(logging, log_level.upper(), None)
+            if isinstance(mapped_level, int):
+                log_level = mapped_level
+            else:
+                print(f"Invalid LOG_LEVEL string '{log_level}'; defaulting to DEBUG.")
+                log_level = logging.DEBUG
+        cls.set_logging_level(log_level)
+
+    @classmethod
+    def register_callback_to_captured_streams(
+        cls,
+        callback
+    ) -> None:
+        """Register a callback to be called on writes to the captured streams.
+
+        Args:
+            callback: A callable that takes a single string argument.
+        """
+        if cls._captured_stdout:
+            cls._captured_stdout.register_callback(callback)
+        if cls._captured_stderr:
+            cls._captured_stderr.register_callback(callback)
+
+    @classmethod
+    def _create_logger(cls, name: str = __name__) -> logging.Logger:
+        """Create a logger that outputs to the captured stderr."""
+        cls._curr_loggers[name] = cls._setup_standard_logger(name=name)
+        return cls._curr_loggers[name]
+
+    @staticmethod
+    def _get_default_formatter() -> logging.Formatter:
+        """Get the default logging formatter."""
+        default_formatter = EnvManager.get(
+            'LOG_FORMAT',
+            default=get_default_formatter()
+        )
+        default_datefmt = EnvManager.get(
+            'LOG_DATE_FORMAT',
+            default=get_default_date_format()
+        )
+
+        if not isinstance(default_formatter, str):
+            raise RuntimeError("Environment variable PYROX_LOG_FORMAT must be a string.")
+        if not isinstance(default_datefmt, str):
+            raise RuntimeError("Environment variable PYROX_LOG_DATE_FORMAT must be a string.")
+
+        return logging.Formatter(fmt=default_formatter, datefmt=default_datefmt)
+
+    @classmethod
+    def _get_or_create_logger(cls, name: str = __name__) -> logging.Logger:
+        """Get or create a logger with the specified name.
+
+        Args:
+            name: The name for the logger.
+
+        Returns:
+            logging.Logger: The logger instance.
+        """
+        return cls._curr_loggers.get(name, cls._create_logger(name=name))
+
+    @classmethod
+    def _get_standard_handler(cls, stream=None) -> logging.StreamHandler:
+        """Get a standard logging handler that outputs to the specified stream.
+
+        Args:
+            stream: The stream to output logs to. If None, uses captured stderr.
+
+        Returns:
+            logging.StreamHandler: A configured StreamHandler instance.
+        """
+        if stream is None:
+            stream = cls._captured_stderr if cls._captured_stderr else sys.stderr
+
+        handler = PyroxHandler(stream)
+        formatter = cls._get_default_formatter()
+        handler.setFormatter(formatter)
+        handler.setLevel(cls.curr_logging_level)
+        return handler
+
+    @classmethod
+    def _setup_standard_logger(cls, name: Optional[str] = None) -> logging.Logger:
+        """Get a standard logger with the specified name.
+
+        Args:
+            name: The name for the logger.
+
+        Returns:
+            logging.Logger: A configured Logger instance.
+        """
+        logger = logging.getLogger(name)
+        cls._remove_all_handlers(logger)
+        logger.addHandler(cls._get_standard_handler())
+        logger.setLevel(cls.curr_logging_level)
+        logger.propagate = False
+        return logger
+
+    @staticmethod
+    def _remove_all_handlers(logger: logging.Logger) -> None:
+        """Remove all handlers from the specified logger.
+
+        Args:
+            logger: The logger from which to remove handlers.
+        """
+        hdlrs = logger.handlers[:]
+        for hdlr in hdlrs:
+            logger.removeHandler(hdlr)
+
+    @classmethod
+    def get_or_create_logger(cls, name: str = __name__) -> logging.Logger:
+        """Get or create a logger with the specified name.
+
+        Args:
+            name: The name for the logger.
+
+        Returns:
+            logging.Logger: The logger instance.
+        """
+        return cls._get_or_create_logger(name=name)
+
+    @classmethod
+    def force_all_loggers_to_captured_stderr(cls):
+        """Force all existing loggers to use the captured stderr."""
+        # Ensure streams are captured first
+        if not cls._streams_captured:
+            cls.capture_system_streams()
+
+        # Update root logger
+        cls._setup_standard_logger()
+
+        # Update all existing loggers in the manager
+        for name in list(logging.Logger.manager.loggerDict.keys()):
+            cls._setup_standard_logger(name)
+
+        # Update the Loggable class loggers too
+        for name, _ in cls._curr_loggers.items():
+            cls._setup_standard_logger(name)
+
+    @classmethod
+    def log(
+        cls,
+        caller: Optional[object] = None,
+    ) -> logging.Logger:
+        """Get a logger for the specified caller.
+
+        Args:
+            caller: The object or class requesting the logger. If None, uses the module logger.
+        Returns:
+            logging.Logger: The logger instance.
+        """
+        if caller is None:
+            return cls.get_or_create_logger(name=__name__)
+        elif isinstance(caller, str):
+            return cls.get_or_create_logger(name=caller)
+        elif isinstance(caller, type):
+            return cls.get_or_create_logger(name=caller.__name__)
+        else:
+            return cls.get_or_create_logger(name=caller.__class__.__name__)
+
+    @classmethod
+    def set_logging_level(cls, log_level: int = logging.INFO) -> None:
+        """Set the logging level for all current loggers.
+
+        Args:
+            log_level: The logging level to set for all current loggers.
+        """
+        EnvManager.set('LOG_LEVEL', str(log_level))
+        cls.curr_logging_level = log_level
+        for logger in cls._curr_loggers.values():
+            logger.setLevel(log_level)
+            for handler in logger.handlers:
+                handler.setLevel(log_level)
+        print(f"Logging level set to {log_level}")
+
+
+def log(caller: Optional[object] = None) -> logging.Logger:
+    """Get a logger for the specified caller.
+
+    Args:
+        caller: The object or class requesting the logger. If None, uses the module logger.
+    Returns:
+        logging.Logger: The logger instance.
+    """
+    return LoggingManager.log(caller=caller)
+
+
+# Auto-capture streams when module is imported
+LoggingManager.initialize_additional_logging_levels()
+LoggingManager.initialize_logging_level_from_env()
+LoggingManager.capture_system_streams()

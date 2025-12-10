@@ -1,0 +1,154 @@
+{
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "label": "install",
+            "type": "shell",
+            "command": "./install.sh",
+            "problemMatcher": [],
+            "group": {
+                "kind": "build",
+                "isDefault": true
+            }
+        },
+        {
+            "label": "install python",
+            "type": "shell",
+            "windows": {
+                "command": "./utils/utils.sh",
+                "args": ["prompt_and_install_python", "3", "13"]
+            },
+            "linux": {
+                "command": "./utils/utils.sh",
+                "args": ["prompt_and_install_python", "3", "13"]
+            },
+            "osx": {
+                "command": "./utils/utils.sh", 
+                "args": ["prompt_and_install_python", "3", "13"]
+            },
+            "presentation": {
+                "echo": true,
+                "reveal": "always",
+                "focus": false,
+                "panel": "shared",
+                "showReuseMessage": true,
+                "clear": false
+            },
+            "problemMatcher": [],
+            "group": {
+                "kind": "build",
+                "isDefault": false
+            }
+        },
+        {
+            "label": "sync readme",
+            "type": "shell",
+            "command": "python",
+            "args": ["utils/sync_readme.py"],
+            "presentation": {
+                "echo": true,
+                "reveal": "always",
+                "focus": false,
+                "panel": "shared"
+            },
+            "problemMatcher": [],
+            "group": "build"
+        },
+        {
+            "label": "check version",
+            "type": "shell",
+            "command": "python",
+            "args": ["utils/check_version_increment.py"],
+            "presentation": {
+                "echo": true,
+                "reveal": "always",
+                "focus": false,
+                "panel": "shared"
+            },
+            "problemMatcher": [],
+            "group": "test"
+        },
+        {
+            "label": "setup hooks",
+            "type": "shell",
+            "command": "python",
+            "args": ["utils/setup_hooks.py"],
+            "presentation": {
+                "echo": true,
+                "reveal": "always",
+                "focus": false,
+                "panel": "shared"
+            },
+            "problemMatcher": [],
+            "group": "build"
+        },
+        {
+            "label": "check python version",
+            "type": "shell",
+            "command": "bash",
+            "args": ["./utils/utils.sh", "check_python_version_installed", "3", "13"],
+            "presentation": {
+                "echo": true,
+                "reveal": "always",
+                "focus": false,
+                "panel": "shared"
+            },
+            "problemMatcher": [],
+            "group": "test"
+        },
+        {
+            "label": "create venv",
+            "type": "shell",
+            "command": "bash",
+            "args": ["./utils/utils.sh", "check_and_create_venv"],
+            "presentation": {
+                "echo": true,
+                "reveal": "always",
+                "focus": false,
+                "panel": "shared"
+            },
+            "problemMatcher": [],
+            "group": "build"
+        },
+        {
+            "label": "upgrade pip",
+            "type": "shell",
+            "command": "bash",
+            "args": ["./utils/utils.sh", "upgrade_pip"],
+            "presentation": {
+                "echo": true,
+                "reveal": "always",
+                "focus": false,
+                "panel": "shared"
+            },
+            "problemMatcher": [],
+            "group": "build"
+        },
+        {
+            "label": "install dependencies",
+            "type": "shell",
+            "command": "bash",
+            "args": ["./utils/utils.sh", "install_local_dependencies"],
+            "presentation": {
+                "echo": true,
+                "reveal": "always",
+                "focus": false,
+                "panel": "shared"
+            },
+            "problemMatcher": [],
+            "group": "build"
+        },
+        {
+            "label": "install python (PowerShell)",
+            "type": "shell",
+            "command": "powershell",
+            "args": [
+                "-ExecutionPolicy", "Bypass",
+                "-Command", 
+                "& { Write-Host 'Installing Python 3.13...'; winget install Python.Python.3.13 --accept-package-agreements --accept-source-agreements; Write-Host 'Python installation completed!' }"
+            ],
+            "problemMatcher": [],
+            "group": "build"
+        }
+    ]
+}

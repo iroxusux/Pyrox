@@ -1,0 +1,25 @@
+{
+    "python.testing.pytestArgs": [
+        "pyrox",
+    ],
+    "python.testing.unittestEnabled": false,
+    "python.testing.pytestEnabled": true,
+    "editor.fontFamily": "Consolas, monospace",
+    "workbench.startupEditor": "none",
+    "editor.defaultFoldingRangeProvider": null,
+    "python.analysis.typeCheckingMode": "standard",
+    "files.exclude": {
+        "**/.git": false,
+        "**/.svn": true,
+        "**/.hg": true,
+        "**/.DS_Store": true,
+        "**/Thumbs.db": true
+    },
+    "python-envs.pythonProjects": [
+        {
+            "path": "",
+            "envManager": "ms-python.python:venv",
+            "packageManager": "ms-python.python:pip"
+        }
+    ],
+}

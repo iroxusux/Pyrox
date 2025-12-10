@@ -1,0 +1,37 @@
+#!/bin/sh
+# Pre-commit hook to check version increment and sync README badges
+# Note: Use library site-packages to ensure correct environment and common use from pyrox engine
+
+# Check to see if pyrox is installed in the venv site-packages or if we need to use a local utils path
+if [ -f ".venv/Lib/site-packages/pyrox/__init__.py" ]; then
+    print "Using pyrox package from virtual environment site-packages for hook setup"
+    UTIL_PATH=".venv/Lib/site-packages/pyrox/utils/"
+    
+else
+    print "Using local utils path for hook setup"
+    UTIL_PATH="./pyrox/utils/"
+fi
+
+# Ensure virtual environment exists and pyrox is installed
+if [ ! -d ".venv" ]; then
+    echo "❌ Pre-commit hook failed: Virtual environment not found. Please run install.sh first."
+    exit 1
+fi
+
+# First, check if version needs to be incremented
+echo "🔍 Checking version increment requirement..."
+python ${UTIL_PATH}check_version_increment.py
+if [ $? -ne 0 ]; then
+    echo "❌ Pre-commit hook failed: Version check failed"
+    exit 1
+fi
+
+# If version check passes, sync README badges
+echo "📝 Syncing README badges from pyproject.toml..."
+python ${UTIL_PATH}sync_readme.py
+
+# Add the updated README.md to the commit if it was changed
+echo "📝 Updating README.md in git commit..."
+git add README.md
+
+echo "✅ Pre-commit checks passed!"

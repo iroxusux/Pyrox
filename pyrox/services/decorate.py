@@ -1,0 +1,46 @@
+"""Decorators for pyrox environment.
+"""
+
+import warnings
+import functools
+from typing import Callable, Optional
+
+__all__ = (
+    'deprecated',
+)
+
+
+def deprecated(
+    reason: Optional[str] = "This function is deprecated",
+    version: Optional[str] = None
+) -> Callable:
+    """Decorator to mark functions as deprecated.
+
+    Args:
+        reason: Explanation of why it's deprecated and what to use instead
+        version: Version when it will be removed
+
+    Example:
+    >>>
+        @deprecated("Use new_function instead", version="2.0")
+    """
+    def decorator(func: Callable) -> Callable:
+        @functools.wraps(func)
+        def wrapper(*args, **kwargs):
+            if not isinstance(func, Callable):
+                raise TypeError("The @deprecated decorator can only be applied to callable objects.")
+
+            message = f"{func.__name__} is deprecated"
+            if reason:
+                message += f": {reason}"
+            if version:
+                message += f" (will be removed in version {version})"
+
+            warnings.warn(
+                message,
+                category=DeprecationWarning,
+                stacklevel=2
+            )
+            return func(*args, **kwargs)
+        return wrapper
+    return decorator
