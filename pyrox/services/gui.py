@@ -8,7 +8,7 @@ and provides a unified interface for GUI operations.
 from __future__ import annotations
 from typing import Any, Dict, Optional, Type, Union
 from pyrox.services import EnvManager, log
-from pyrox.interfaces import IGuiBackend, GuiFramework
+from pyrox.interfaces import EnvironmentKeys, IGuiBackend, GuiFramework
 
 
 class GuiManager:
@@ -34,7 +34,10 @@ class GuiManager:
 
         if not framework:
             log(cls).debug("Setting GUI framework from environment variable.")
-            return EnvManager.get('UI_FRAMEWORK', default='tkinter')
+            return EnvManager.get(
+                EnvironmentKeys.ui.UI_FRAMEWORK,
+                default='tkinter'
+            )
 
         if isinstance(framework, str):
             try:

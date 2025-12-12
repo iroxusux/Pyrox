@@ -14,7 +14,6 @@ from pyrox.services.env import (
     get_debug_mode,
     get_log_level,
     get_data_dir,
-    get_database_url,
 )
 
 
@@ -519,7 +518,7 @@ class TestGlobalFunctions(unittest.TestCase):
         """Test that EnvManager behaves as a static class."""
         # Create test env file to avoid overwriting production .env
         test_env = os.path.join(self.test_dir, '.env')
-        
+
         # Test that we can call methods without instantiation
         EnvManager.set('TEST_STATIC', 'static_value', env_file=test_env)
         self.assertEqual(EnvManager.get('TEST_STATIC'), 'static_value')
@@ -555,7 +554,7 @@ class TestGlobalFunctions(unittest.TestCase):
         with patch('pyrox.services.env.EnvManager.set') as mock_set:
             set_env('NEW_VAR', 'new_value')
             mock_set.assert_called_once_with('NEW_VAR', 'new_value')
-        
+
         # Test the functionality separately by setting directly in os.environ
         os.environ['NEW_VAR'] = 'new_value'
         self.assertEqual(get_env('NEW_VAR'), 'new_value')
@@ -564,10 +563,10 @@ class TestGlobalFunctions(unittest.TestCase):
     def test_convenience_functions(self):
         """Test convenience functions for common configurations."""
         # Test debug mode
-        os.environ['DEBUG_MODE'] = 'true'
+        os.environ['APP_DEBUG_MODE'] = 'true'
         self.assertTrue(get_debug_mode())
 
-        os.environ['DEBUG_MODE'] = 'false'
+        os.environ['APP_DEBUG_MODE'] = 'false'
         self.assertFalse(get_debug_mode())
 
         # Test log level
@@ -575,12 +574,8 @@ class TestGlobalFunctions(unittest.TestCase):
         self.assertEqual(get_log_level(), 'DEBUG')
 
         # Test data directory
-        os.environ['DATA_DIR'] = './custom/data'
+        os.environ['DIR_DATA'] = './custom/data'
         self.assertEqual(get_data_dir(), './custom/data')
-
-        # Test database URL
-        os.environ['DATABASE_URL'] = 'postgresql://localhost/test'
-        self.assertEqual(get_database_url(), 'postgresql://localhost/test')
 
     def test_convenience_functions_defaults(self):
         """Test convenience functions return defaults when not set."""
@@ -601,7 +596,13 @@ class TestGlobalFunctions(unittest.TestCase):
 
     def test_setitem(self):
         """Test __setitem__ method of EnvManager."""
-        EnvManager.__setitem__('NEW_VAR', 'new_value')
+        # Patch EnvManager.set to avoid writing to production .env file
+        with patch('pyrox.services.env.EnvManager.set') as mock_set:
+            EnvManager.__setitem__('NEW_VAR', 'new_value')
+            mock_set.assert_called_once_with('NEW_VAR', 'new_value')
+        
+        # Test the functionality separately by setting directly in os.environ
+        os.environ['NEW_VAR'] = 'new_value'
         self.assertEqual(EnvManager.get('NEW_VAR'), 'new_value')
         self.assertEqual(os.environ.get('NEW_VAR'), 'new_value')
 

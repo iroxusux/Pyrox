@@ -9,6 +9,7 @@ from typing import Any, Callable, Union
 import tkinter as tk
 
 from pyrox.interfaces import (
+    EnvironmentKeys,
     GuiFramework,
     IGuiBackend,
     IGuiFrame,
@@ -79,13 +80,22 @@ class TkinterBackend(IGuiBackend):
             raise RuntimeError("Root window is not a Tkinter Tk instance")
 
         self.get_root_window().title(
-            EnvManager.get('UI_WINDOW_TITLE', default=kwargs.get('title', 'Pyrox Application'))
-        )
-        self.get_root_window().geometry(
-            EnvManager.get('UI_WINDOW_GEOMETRY', default=kwargs.get('geometry', '800x600'))
-        )
+            EnvManager.get(
+                EnvironmentKeys.core.APP_WINDOW_TITLE,
+                default=kwargs.get('title', 'Pyrox Application')
+            ))
 
-        icon_path = EnvManager.get('UI_ICON_PATH', None, str)
+        self.get_root_window().geometry(
+            EnvManager.get(
+                EnvironmentKeys.ui.UI_WINDOW_SIZE,
+                default=kwargs.get('geometry', '800x600')
+            ))
+
+        icon_path = EnvManager.get(
+            EnvironmentKeys.core.APP_ICON,
+            None,
+            str
+        )
         if icon_path and Path(icon_path).is_file():
             self.set_icon(str(icon_path))
         else:

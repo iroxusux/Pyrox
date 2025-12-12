@@ -7,6 +7,7 @@ import tkinter as tk
 from tkinter import filedialog
 from typing import Any, Optional
 from .env import EnvManager
+from pyrox.interfaces import EnvironmentKeys
 
 
 class PlatformDirectoryService:
@@ -52,7 +53,15 @@ class PlatformDirectoryService:
             str: The name of the application.
         """
         if not hasattr(self, '_app_name') or self._app_name is None:
-            setattr(self, '_app_name', EnvManager.get('PYROX_APP_NAME', 'Pyrox Application', str))
+            setattr(
+                self,
+                '_app_name',
+                EnvManager.get(
+                    EnvironmentKeys.core.APP_NAME,
+                    'Pyrox Application',
+                    str
+                )
+            )
         if self._app_name is None:
             raise ValueError('Application name cannot be None.')
         return self._app_name
@@ -76,7 +85,14 @@ class PlatformDirectoryService:
             str: The name of the author.
         """
         if not hasattr(self, '_author_name') or self._author_name is None:
-            setattr(self, '_author_name', EnvManager.get('PYROX_AUTHOR', 'Pyrox Author', str))
+            setattr(
+                self,
+                '_author_name',
+                EnvManager.get(
+                    EnvironmentKeys.core.APP_AUTHOR,
+                    'Pyrox Author',
+                    str)
+            )
         if self._author_name is None:
             raise ValueError('Author name cannot be None.')
         return self._author_name

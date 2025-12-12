@@ -5,7 +5,7 @@ import logging
 import sys
 import io
 from typing import Optional, TextIO
-
+from pyrox.interfaces import EnvironmentKeys
 from pyrox.services import EnvManager, get_default_date_format, get_default_formatter
 
 ###
@@ -13,17 +13,17 @@ from pyrox.services import EnvManager, get_default_date_format, get_default_form
 ###
 
 LOGGING_LEVEL_SUCCESS_TUPLE = EnvManager.get(
-    'LOGGING_LEVEL_SUCCESS_TUPLE',
+    EnvironmentKeys.logging.LOG_SUCCESS_TUPLE,
     default=(100, 'SUCCESS'),
     cast_type=tuple
 )
 LOGGING_LEVEL_FAILURE_TUPLE = EnvManager.get(
-    'LOGGING_LEVEL_FAILURE_TUPLE',
+    EnvironmentKeys.logging.LOG_FAILURE_TUPLE,
     default=(101, 'FAILURE'),
     cast_type=tuple
 )
 LOGGING_LEVEL_NOTICE_TUPLE = EnvManager.get(
-    'LOGGING_LEVEL_NOTICE_TUPLE',
+    EnvironmentKeys.logging.LOG_NOTICE_TUPLE,
     default=(102, 'NOTICE'),
     cast_type=tuple
 )
@@ -312,7 +312,11 @@ class LoggingManager:
     def initialize_logging_level_from_env(cls):
         """Initialize logging level from environment variable."""
         from pyrox.services.env import EnvManager
-        log_level = EnvManager.get("LOG_LEVEL", None)
+        log_level = EnvManager.get(
+            EnvironmentKeys.logging.LOG_LEVEL,
+            None
+        )
+
         if log_level is None:
             print("No LOG_LEVEL set in environment; defaulting to DEBUG.")
             cls.set_logging_level(logging.DEBUG)
@@ -489,12 +493,17 @@ class LoggingManager:
         Args:
             log_level: The logging level to set for all current loggers.
         """
-        EnvManager.set('LOG_LEVEL', str(log_level))
+        EnvManager.set(
+            EnvironmentKeys.logging.LOG_LEVEL,
+            str(log_level)
+        )
+
         cls.curr_logging_level = log_level
         for logger in cls._curr_loggers.values():
             logger.setLevel(log_level)
             for handler in logger.handlers:
                 handler.setLevel(log_level)
+
         print(f"Logging level set to {log_level}")
 
 

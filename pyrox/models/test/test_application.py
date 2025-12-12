@@ -115,7 +115,6 @@ class TestApplication(unittest.TestCase):
 
         # Verify workspace was created
         self.mock_workspace_class.assert_called_once()
-        self.mock_workspace.set_status.assert_called_once_with("Ready")
 
     def test_init_with_gui_disabled(self):
         """Test Application initialization with GUI disabled (headless mode)."""

@@ -11,14 +11,16 @@ This module provides a workspace widget that mimics the VSCode interface with:
 import tkinter as tk
 from tkinter import ttk, TclError
 from typing import Dict, List, Optional, Callable, Any
+from pyrox.models.abc.runtime import Buildable
 from pyrox.models.gui.frame import TaskFrame
 from pyrox.models.gui.logframe import LogFrame
 from pyrox.models.gui.frame import PyroxFrameContainer
 from pyrox.models.gui.notebook import PyroxNotebook
-from pyrox.services import GuiManager, log
+from pyrox.interfaces import EnvironmentKeys
+from pyrox.services import EnvManager, GuiManager, log
 
 
-class Workspace:
+class Workspace(Buildable):
     """
     A VSCode-like workspace widget with sidebar organizer and main content area.
 
@@ -38,6 +40,10 @@ class Workspace:
     ) -> None:
         """ Initialize the PyroxWorkspace.
         """
+        super().__init__(
+            name="PyroxWorkspace",
+            description="A VSCode-like workspace widget with sidebar organizer and main content area."
+        )
 
         self.iframework = GuiManager.unsafe_get_backend()
         self.iwindow = self.iframework.get_root_gui_window()
@@ -65,11 +71,6 @@ class Workspace:
 
         # Status tracking
         self._status_text = tk.StringVar()
-        self._status_text.set("Workspace Ready")
-
-        # Create the layout
-        self._create_layout()
-        self._setup_bindings()
 
     @property
     def framework(self) -> Any:
@@ -374,18 +375,22 @@ class Workspace:
     def _set_initial_log_window_height(self) -> None:
         """Set the initial log window height."""
         log(self).debug("Setting initial log window height")
-        self.iframework.update_framekwork_tasks()
-        total_height = self.window.winfo_height()
-        log_height = int(total_height * 0.25)
-        self.log_paned_window.sashpos(0, total_height - log_height)
+        height = EnvManager.get(
+            EnvironmentKeys.ui.UI_LOG_WINDOW_HEIGHT,
+            0.33,
+            float
+        )
+        self.set_log_window_height(height)
 
     def _set_initial_sidebar_width(self) -> None:
         """Set the initial sidebar width."""
         log(self).debug("Setting initial sidebar width")
-        self.iframework.update_framekwork_tasks()
-        total_width = self.window.winfo_width()
-        sidebar_width = int(total_width * 0.20)
-        self.main_paned_window.sashpos(0, sidebar_width)
+        width = EnvManager.get(
+            EnvironmentKeys.ui.UI_SIDEBAR_WIDTH,
+            0.33,
+            float
+        )
+        self.set_sidebar_width(width)
 
     def _unregister_frame_from_view_menu(
         self,
@@ -518,6 +523,12 @@ class Workspace:
         self._register_workspace_frame(task_frame, raise_frame)
 
         return task_frame.name
+
+    def build(self) -> None:
+        self._create_layout()
+        self._setup_bindings()
+        self._status_text.set("Workspace Ready")
+        super().build()
 
     def remove_widget(self, widget_id: str) -> bool:
         """
@@ -664,6 +675,34 @@ class Workspace:
             },
             'widgets': self.get_all_widget_ids()
         }
+
+    def set_log_window_height(self, perc_of_window: float) -> None:
+        """Set the log window height as a percentage of the window height."""
+        if not self.log_paned_window:
+            raise RuntimeError("Log paned window not initialized")
+
+        self.iframework.update_framekwork_tasks()
+        total_height = self.window.winfo_height()
+        log_height = int(total_height * perc_of_window)
+        self.log_paned_window.sashpos(0, total_height - log_height)
+        EnvManager.set(
+            EnvironmentKeys.ui.UI_LOG_WINDOW_HEIGHT,
+            str(perc_of_window)
+        )
+
+    def set_sidebar_width(self, perc_of_window: float) -> None:
+        """Set the sidebar width as a percentage of the window width."""
+        if not self.main_paned_window:
+            raise RuntimeError("Main paned window not initialized")
+
+        self.iframework.update_framekwork_tasks()
+        total_width = self.window.winfo_width()
+        sidebar_width = int(total_width * perc_of_window)
+        self.main_paned_window.sashpos(0, sidebar_width)
+        EnvManager.set(
+            EnvironmentKeys.ui.UI_SIDEBAR_WIDTH,
+            str(perc_of_window)
+        )
 
     def _on_sidebar_tab_selected(self, tab_id: str, frame: PyroxFrameContainer) -> None:
         """Handle sidebar tab selection."""

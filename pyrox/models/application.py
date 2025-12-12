@@ -54,7 +54,7 @@ class Application(Runnable):
             self.window  # Ensure window is created
             self.menu  # Ensure menu is created
             self._workspace = Workspace()
-            self.workspace.set_status("Ready")
+
         else:
             self._workspace = None
 
@@ -345,6 +345,9 @@ class Application(Runnable):
         self.gui_backend.set_icon(get_env('UI_ICON_PATH', '', str))
         self._restore_geometry_env()
         self._directory_service.build_directory()
+        if self._workspace:
+            self.workspace.build()
+            self.workspace.set_status('Ready...')
         super().build()
 
     def close(self) -> None:

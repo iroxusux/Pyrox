@@ -475,11 +475,19 @@ class TestTkinterBackend(unittest.TestCase):
 
         with patch.object(self.backend, 'get_root_window', return_value=mock_tk_window):
             with patch('pyrox.services.env.EnvManager.get') as mock_env_get:
+                # Support new EnvironmentKeys enum-based access by normalizing keys
+                def _normalize_key(k):
+                    try:
+                        from enum import Enum
+                        return str(k.value) if isinstance(k, Enum) else k
+                    except Exception:
+                        return k
+
                 mock_env_get.side_effect = lambda key, default=None, *args: {
-                    'UI_WINDOW_TITLE': 'Test Title',
-                    'UI_WINDOW_GEOMETRY': '1024x768',
-                    'UI_ICON_PATH': None
-                }.get(key, default)
+                    'APP_WINDOW_TITLE': 'Test Title',
+                    'UI_WINDOW_SIZE': '1024x768',
+                    'APP_ICON': None
+                }.get(_normalize_key(key), default)
 
                 self.backend.config_from_env(title='Default Title', geometry='800x600')
 
@@ -496,11 +504,18 @@ class TestTkinterBackend(unittest.TestCase):
             with patch('pyrox.services.env.EnvManager.get') as mock_env_get:
                 with patch('pathlib.Path.is_file', return_value=True):
                     with patch.object(self.backend, 'set_icon') as mock_set_icon:
+                        def _normalize_key(k):
+                            try:
+                                from enum import Enum
+                                return str(k.value) if isinstance(k, Enum) else k
+                            except Exception:
+                                return k
+
                         mock_env_get.side_effect = lambda key, default=None, *args: {
-                            'UI_WINDOW_TITLE': 'Test',
-                            'UI_WINDOW_GEOMETRY': '800x600',
-                            'UI_ICON_PATH': test_icon_path
-                        }.get(key, default)
+                            'APP_WINDOW_TITLE': 'Test',
+                            'UI_WINDOW_SIZE': '800x600',
+                            'APP_ICON': test_icon_path
+                        }.get(_normalize_key(key), default)
 
                         self.backend.config_from_env()
 

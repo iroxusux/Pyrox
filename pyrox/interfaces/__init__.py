@@ -21,7 +21,10 @@ Interface Categories:
     - Events: Observer patterns, subscriptions, and notification interfaces
     - Integration: Dependency injection and registration patterns
 """
+# Environment constants
+from .constants import EnvironmentKeys
 
+# GUI interfaces
 from .gui import (
     IApplicationGuiMenu,
     GuiFramework,
@@ -33,6 +36,7 @@ from .gui import (
     IGuiWindow,
 )
 
+# Service interfaces
 from .services import (
     IEnvironmentManager,
     ILogger,
@@ -41,6 +45,7 @@ from .services import (
     IConfigurationManager,
 )
 
+# Application interfaces
 from .application import (
     IApplication,
     IApplicationTask,
@@ -48,6 +53,7 @@ from .application import (
     ILifecycleManager,
 )
 
+# Event interfaces
 from .events import (
     IObserver,
     ISubscribable,
@@ -55,6 +61,7 @@ from .events import (
     INotificationService,
 )
 
+# Integration interfaces
 from .integration import (
     IServiceRegistry,
     IBackendRegistry,
@@ -64,6 +71,9 @@ from .integration import (
 
 
 __all__ = (
+    # Environment Constants
+    'EnvironmentKeys',
+
     # GUI Interfaces
     'GuiFramework',
     'IGuiBackend',
@@ -73,6 +83,7 @@ __all__ = (
     'IGuiFrame',
     'IGuiComponent',
     'IApplicationGuiMenu',
+
     # Service Interfaces
     'IEnvironmentManager',
     'ILogger',

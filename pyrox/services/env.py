@@ -5,12 +5,14 @@ from .env files and system environment.
 """
 
 from __future__ import annotations
+from enum import Enum
 import os
 import re
 from pathlib import Path
 from typing import Any, Dict, Optional, Union
-
 from dotenv import load_dotenv, set_key
+
+from pyrox.interfaces import EnvironmentKeys
 
 
 class EnvManager:
@@ -218,12 +220,15 @@ class EnvManager:
     @classmethod
     def get(
         cls,
-        key: str,
+        key: Union[str, Enum],
         default=None,
         cast_type: type = str
     ) -> Any:
         """Get environment variable with optional type casting."""
         load_dotenv(cls._env_file)  # Load from .env file
+        if isinstance(key, Enum):
+            key = str(key.value)
+
         if key in cls._env_vars:
             value = cls._env_vars[key]
         else:
@@ -251,8 +256,16 @@ class EnvManager:
             return default
 
     @classmethod
-    def set(cls, key: str, value: str, env_file: str = '.env') -> None:
+    def set(
+        cls,
+        key: Union[str, Enum],
+        value: str,
+        env_file: str = '.env'
+    ) -> None:
         """Set environment variable both in memory and in .env file."""
+        if isinstance(key, Enum):
+            key = str(key.value)
+
         # Update in-memory environment
         os.environ[key] = value
 
@@ -360,7 +373,7 @@ def load_env(env_file: Optional[str] = None) -> bool:
 
 
 def get_env(
-    key: str,
+    key: Union[str, Enum],
     default: Any = None,
     cast_type: type = str
 ) -> Any:
@@ -377,7 +390,7 @@ def get_env(
     return EnvManager.get(key, default, cast_type)
 
 
-def set_env(key: str, value: str) -> None:
+def set_env(key: Union[str, Enum], value: str) -> None:
     """Set environment variable.
 
     Args:
@@ -389,35 +402,54 @@ def set_env(key: str, value: str) -> None:
 
 def get_debug_mode() -> bool:
     """Get debug mode setting."""
-    return EnvManager.get('DEBUG_MODE', False, bool)
+    return EnvManager.get(
+        EnvironmentKeys.core.APP_DEBUG_MODE,
+        False,
+        bool
+    )
 
 
 def get_log_level() -> str:
     """Get log level setting."""
-    return EnvManager.get('LOG_LEVEL', 'INFO', str)
+    return EnvManager.get(
+        EnvironmentKeys.logging.LOG_LEVEL,
+        'INFO',
+        str
+    )
 
 
 def get_data_dir() -> str:
     """Get data directory path."""
-    return EnvManager.get('DATA_DIR', './data', str)
-
-
-def get_database_url() -> str:
-    """Get database URL."""
-    return EnvManager.get('DATABASE_URL', 'sqlite:///pyrox.db', str)
+    return EnvManager.get(
+        EnvironmentKeys.directory.DIR_DATA,
+        './data',
+        str
+    )
 
 
 def get_default_date_format() -> str:
     """Get default log date format string."""
-    date_format = EnvManager.get('LOG_DATE_FORMAT', '%Y-%m-%d %H:%M:%S', str)
+    date_format = EnvManager.get(
+        EnvironmentKeys.logging.LOG_DATE_FORMAT,
+        '%Y-%m-%d %H:%M:%S',
+        str
+    )
+
     if not isinstance(date_format, str) or not date_format.strip():
         raise ValueError("Invalid log date format string from .env file!")
+
     return date_format
 
 
 def get_default_formatter() -> str:
     """Get default log formatter string."""
-    formatter = EnvManager.get('LOG_FORMAT', '%(asctime)s | %(name)s | %(levelname)s | %(message)s', str)
+    formatter = EnvManager.get(
+        EnvironmentKeys.logging.LOG_FORMAT,
+        '%(asctime)s | %(name)s | %(levelname)s | %(message)s',
+        str
+    )
+
     if not isinstance(formatter, str) or not formatter.strip():
         raise ValueError("Invalid log formatter string from .env file!")
+
     return formatter
