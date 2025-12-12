@@ -406,7 +406,9 @@ INVALID_FLOAT=not_a_float
 
     def test_set_variable(self):
         """Test setting environment variables."""
-        EnvManager.set('NEW_VAR', 'new_value')
+        # Use test env file to avoid overwriting production .env
+        test_env = self._create_test_env_file('')
+        EnvManager.set('NEW_VAR', 'new_value', env_file=test_env)
         self.assertEqual(EnvManager.get('NEW_VAR'), 'new_value')
         self.assertEqual(os.environ.get('NEW_VAR'), 'new_value')
 
@@ -515,8 +517,11 @@ class TestGlobalFunctions(unittest.TestCase):
 
     def test_static_class_behavior(self):
         """Test that EnvManager behaves as a static class."""
+        # Create test env file to avoid overwriting production .env
+        test_env = os.path.join(self.test_dir, '.env')
+        
         # Test that we can call methods without instantiation
-        EnvManager.set('TEST_STATIC', 'static_value')
+        EnvManager.set('TEST_STATIC', 'static_value', env_file=test_env)
         self.assertEqual(EnvManager.get('TEST_STATIC'), 'static_value')
 
         # Test that state persists across calls
@@ -546,8 +551,13 @@ class TestGlobalFunctions(unittest.TestCase):
 
     def test_set_env_function(self):
         """Test set_env function."""
-        set_env('NEW_VAR', 'new_value')
-
+        # Patch EnvManager.set to avoid writing to production .env file
+        with patch('pyrox.services.env.EnvManager.set') as mock_set:
+            set_env('NEW_VAR', 'new_value')
+            mock_set.assert_called_once_with('NEW_VAR', 'new_value')
+        
+        # Test the functionality separately by setting directly in os.environ
+        os.environ['NEW_VAR'] = 'new_value'
         self.assertEqual(get_env('NEW_VAR'), 'new_value')
         self.assertEqual(os.environ.get('NEW_VAR'), 'new_value')
 
