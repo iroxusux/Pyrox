@@ -44,7 +44,7 @@ class TestConstants:
         assert ALLOWED_REV_CHARS.search('1.2.3') is None
         assert ALLOWED_REV_CHARS.search('1.2.3a') is not None
 
-        assert ALLOWED_MOD_CHARS.search('module_name-1.0') is None
+        assert ALLOWED_MOD_CHARS.search('module_name:1.0') is None
         assert ALLOWED_MOD_CHARS.search('module@name') is not None
 
 
@@ -219,7 +219,7 @@ class TestEnforcesNaming:
         """Test module string validation."""
         # Valid module names
         assert EnforcesNaming.is_valid_module_string("module_name") is True
-        assert EnforcesNaming.is_valid_module_string("module-1.0") is True
+        assert EnforcesNaming.is_valid_module_string("module:1.0") is True
         assert EnforcesNaming.is_valid_module_string("Module123.dll") is True
 
         # Invalid module names
