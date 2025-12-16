@@ -23,7 +23,7 @@ __all__ = (
 
 ALLOWED_CHARS = re.compile(f'[^{r'a-zA-Z0-9_\[\]'}]')
 ALLOWED_REV_CHARS = re.compile(f'[^{r'0-9.'}]')
-ALLOWED_MOD_CHARS = re.compile(f'[^{r'a-zA-Z0-9_.-:'}]')
+ALLOWED_MOD_CHARS = re.compile(f'[^{r'^a-zA-Z0-9\_\.\-\:'}]')
 DEF_ICON = Path(__file__).resolve().parents[2] / "ui" / "icons" / "_def.ico"
 
 
