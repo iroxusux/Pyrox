@@ -72,6 +72,9 @@ class Workspace(Buildable):
         # Status tracking
         self._status_text = tk.StringVar()
 
+        # Callback tracking
+        self._sash_callbacks: List[Callable] = []
+
     @property
     def framework(self) -> Any:
         """Get the GUI framework backend.
@@ -372,6 +375,9 @@ class Workspace(Buildable):
         self.sidebar_organizer.on_tab_added = self._on_sidebar_tab_added
         self.sidebar_organizer.on_tab_removed = self._on_sidebar_tab_removed
 
+        self.log_paned_window.bind('<B1-Motion>', self.on_log_sash_moved)
+        self.main_paned_window.bind('<B1-Motion>', self.on_main_sash_moved)
+
     def _set_initial_log_window_height(self) -> None:
         """Set the initial log window height."""
         log(self).debug("Setting initial log window height")
@@ -656,6 +662,16 @@ class Workspace(Buildable):
         self.clear_sidebar()
         self.set_status("All widgets cleared")
 
+    def on_log_sash_moved(self, event):
+        pos = self.get_log_window_height()
+        for cb in self._sash_callbacks:
+            cb('log', pos)
+
+    def on_main_sash_moved(self, event):
+        pos = self.get_sidebar_width()
+        for cb in self._sash_callbacks:
+            cb('main', pos)
+
     def get_workspace_info(self) -> Dict[str, Any]:
         """Get comprehensive workspace information."""
         return {
@@ -675,6 +691,28 @@ class Workspace(Buildable):
             },
             'widgets': self.get_all_widget_ids()
         }
+
+    def get_log_window_height(self) -> Optional[int]:
+        """Get the current log window sash position as a percentage of the window height."""
+        if not self.log_paned_window:
+            return None
+
+        self.iframework.update_framekwork_tasks()
+        screen_height = self.window.winfo_height()
+        sash_pos = self.log_paned_window.sashpos(0)
+        perc_of_window = (screen_height - sash_pos) / screen_height
+        return perc_of_window
+
+    def get_sidebar_width(self) -> Optional[int]:
+        """Get the current main window sash position as a percentage of the window width."""
+        if not self.main_paned_window:
+            return None
+
+        self.iframework.update_framekwork_tasks()
+        screen_width = self.window.winfo_width()
+        sash_pos = self.main_paned_window.sashpos(0)
+        perc_of_window = sash_pos / screen_width
+        return perc_of_window
 
     def set_log_window_height(self, perc_of_window: float) -> None:
         """Set the log window height as a percentage of the window height."""
@@ -703,6 +741,18 @@ class Workspace(Buildable):
             EnvironmentKeys.ui.UI_SIDEBAR_WIDTH,
             str(perc_of_window)
         )
+
+    def subscribe_to_sash_movement_events(
+        self,
+        callback: Callable
+    ) -> None:
+        """Subscribe to sash movement events.
+        This is temporary and may be replaced with a more robust GUI backend event system later.
+
+        Args:
+            callback: Function to call on sash movement with parameters (sash_id, position)
+        """
+        self._sash_callbacks.append(callback)
 
     def _on_sidebar_tab_selected(self, tab_id: str, frame: PyroxFrameContainer) -> None:
         """Handle sidebar tab selection."""

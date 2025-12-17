@@ -5,9 +5,14 @@ import gc
 import sys
 from typing import Union
 
-from pyrox.interfaces import IApplicationGuiMenu, IGuiBackend, IGuiWindow
+from pyrox.interfaces import (
+    EnvironmentKeys,
+    IApplicationGuiMenu,
+    IGuiBackend,
+    IGuiWindow
+)
 from pyrox.models.abc import Runnable, meta, stream
-from pyrox.services import GuiManager, LoggingManager, log, get_env, set_env
+from pyrox.services import GuiManager, LoggingManager, log, EnvManager
 from pyrox.models import Workspace
 from pyrox.services.file import PlatformDirectoryService
 
@@ -85,7 +90,11 @@ class Application(Runnable):
         Returns:
             bool: True if GUI is enabled, False for headless mode.
         """
-        return get_env('UI_AUTO_INIT', True, bool)
+        return EnvManager.get(
+            EnvironmentKeys.ui.UI_AUTO_INIT,
+            True,
+            bool
+        )
 
     @property
     def menu(self) -> IApplicationGuiMenu:
@@ -135,9 +144,26 @@ class Application(Runnable):
         self.gui_backend.reroute_excepthook(self._excepthook)
         self.gui_backend.subscribe_to_window_close_event(self.close)
         self.gui_backend.subscribe_to_window_change_event(self._on_gui_configure)
-        self.gui_backend.set_title(get_env('PYROX_WINDOW_TITLE', 'Pyrox Application', str))
+        self.gui_backend.set_title(
+            EnvManager.get(
+                EnvironmentKeys.core.APP_WINDOW_TITLE,
+                'Pyrox Application',
+                str
+            )
+        )
+        self.gui_backend.set_icon(
+            EnvManager.get(
+                EnvironmentKeys.ui.UI_ICON_PATH,
+                '',
+                str
+            )
+        )
 
-    def _on_gui_configure(self) -> None:
+        self.workspace.subscribe_to_sash_movement_events(
+            self._on_gui_configure
+        )
+
+    def _on_gui_configure(self, *_, **__) -> None:
         """Handle GUI configure events.
 
         This method is called when the GUI window is configured (resized, moved, etc.).
@@ -168,8 +194,8 @@ class Application(Runnable):
         if not self.is_gui_enabled:
             return
 
-        full_screen = get_env(
-            key='UI_WINDOW_FULLSCREEN',
+        full_screen = EnvManager.get(
+            key=EnvironmentKeys.ui.UI_WINDOW_FULLSCREEN,
             default=False,
             cast_type=bool
         )
@@ -182,8 +208,8 @@ class Application(Runnable):
         if not self.is_gui_enabled:
             return
 
-        window_position = get_env(
-            key='UI_WINDOW_POSITION',
+        window_position = EnvManager.get(
+            key=EnvironmentKeys.ui.UI_WINDOW_POSITION,
             default=None,
             cast_type=tuple
         )
@@ -208,8 +234,8 @@ class Application(Runnable):
         if not self.is_gui_enabled:
             return
 
-        window_size = get_env(
-            key='UI_WINDOW_SIZE',
+        window_size = EnvManager.get(
+            key=EnvironmentKeys.ui.UI_WINDOW_SIZE,
             default=None,
             cast_type=str
         )
@@ -233,8 +259,8 @@ class Application(Runnable):
         if not self.is_gui_enabled:
             return
 
-        window_state = get_env(
-            key='UI_WINDOW_STATE',
+        window_state = EnvManager.get(
+            key=EnvironmentKeys.ui.UI_WINDOW_STATE,
             default='normal',
             cast_type=str
         )
@@ -245,12 +271,52 @@ class Application(Runnable):
 
         self.window.set_state(window_state)
 
+    def _restore_log_window_height(self) -> None:
+        """Restore log window height from environment settings."""
+        if not self.is_gui_enabled:
+            return
+
+        log_window_height = EnvManager.get(
+            key=EnvironmentKeys.ui.UI_LOG_WINDOW_HEIGHT,
+            default=None,
+            cast_type=float
+        )
+
+        if log_window_height is None:
+            log(self).warning('No log window height found in environment; skipping restore.')
+            return
+
+        self.workspace.set_log_window_height(log_window_height)
+
+    def _restore_main_window_sash(self) -> None:
+        """Restore main window sash position from environment settings."""
+        if not self.is_gui_enabled:
+            return
+
+        main_window_sash = EnvManager.get(
+            key=EnvironmentKeys.ui.UI_SIDEBAR_WIDTH,
+            default=None,
+            cast_type=float
+        )
+
+        if main_window_sash is None:
+            log(self).warning('No main window sash position found in environment; skipping restore.')
+            return
+
+        self.workspace.set_sidebar_width(main_window_sash)
+
+    def _restore_sash_positions(self) -> None:
+        """Restore sash positions from environment settings."""
+        self._restore_log_window_height()
+        self._restore_main_window_sash()
+
     def _restore_geometry_env(self) -> None:
         """Restore window geometry settings from environment variables."""
         self._restore_fullscreen()
         self._restore_window_size()
         self._restore_window_state()
         self._restore_window_position()
+        self._restore_sash_positions()
 
     def _set_fullscreen_env(self, fullscreen: bool) -> None:
         """Set fullscreen state in environment variables.
@@ -263,7 +329,10 @@ class Application(Runnable):
         """
         if not isinstance(fullscreen, bool):
             raise TypeError('Fullscreen must be a boolean value.')
-        set_env('UI_FULLSCREEN', str(fullscreen))
+        EnvManager.set(
+            EnvironmentKeys.ui.UI_WINDOW_FULLSCREEN,
+            str(fullscreen)
+        )
 
     def _set_window_position_env(self, position: tuple) -> None:
         """Set window position in environment variables.
@@ -276,7 +345,10 @@ class Application(Runnable):
         """
         if not isinstance(position, tuple) or len(position) != 2:
             raise ValueError('Position must be a tuple of (x, y) coordinates.')
-        set_env('UI_WINDOW_POSITION', str(position))
+        EnvManager.set(
+            EnvironmentKeys.ui.UI_WINDOW_POSITION,
+            str(position)
+        )
 
     def _set_window_size_env(self, size: str) -> None:
         """Set window size in environment variables.
@@ -289,7 +361,10 @@ class Application(Runnable):
         """
         if not isinstance(size, str):
             raise TypeError('Size must be a string value.')
-        set_env('UI_WINDOW_SIZE', size)
+        EnvManager.set(
+            EnvironmentKeys.ui.UI_WINDOW_SIZE,
+            size
+        )
 
     def _set_window_state_env(self, state: str) -> None:
         """Set window state in environment variables.
@@ -302,7 +377,50 @@ class Application(Runnable):
         """
         if not isinstance(state, str):
             raise TypeError('State must be a string value.')
-        set_env('UI_WINDOW_STATE', state)
+        EnvManager.set(
+            EnvironmentKeys.ui.UI_WINDOW_STATE,
+            state
+        )
+
+    def _set_log_window_height_env(
+        self,
+        height: float,
+    ) -> None:
+        """Set log window height in environment variables.
+        This is a percentage of the screen full height.
+
+        Args:
+            height: Height of the log window in percentage of screen.
+
+        Raises:
+            TypeError: If height is not a float value.
+        """
+        if not isinstance(height, float):
+            raise TypeError('Height must be a float value.')
+        EnvManager.set(
+            EnvironmentKeys.ui.UI_LOG_WINDOW_HEIGHT,
+            str(height)
+        )
+
+    def _set_main_window_sash_env(
+        self,
+        width: float,
+    ) -> None:
+        """Set main window sash position in environment variables.
+        This is a percentage of the screen full width.
+
+        Args:
+            width: Width of the main window sash in percentage of screen.
+
+        Raises:
+            TypeError: If width is not a float value.
+        """
+        if not isinstance(width, float):
+            raise TypeError('Width must be a float value.')
+        EnvManager.set(
+            EnvironmentKeys.ui.UI_SIDEBAR_WIDTH,
+            str(width)
+        )
 
     def _set_geometry_env(
         self,
@@ -313,6 +431,9 @@ class Application(Runnable):
         window_position = self.window.get_position()
         window_state = self.window.get_state()
         fullscreen_bool = self.window.is_fullscreen()
+
+        log_window_sash = self.workspace.get_log_window_height()
+        org_window_sash = self.workspace.get_sidebar_width()
 
         if window_size is not None:
             self._set_window_size_env(f'{window_size[0]}x{window_size[1]}')
@@ -325,6 +446,12 @@ class Application(Runnable):
 
         if fullscreen_bool is not None:
             self._set_fullscreen_env(fullscreen_bool)
+
+        if log_window_sash is not None:
+            self._set_log_window_height_env(log_window_sash)
+
+        if org_window_sash is not None:
+            self._set_main_window_sash_env(org_window_sash)
 
     def log(self, message: str) -> None:
         """Post a message to the application log.
@@ -341,14 +468,18 @@ class Application(Runnable):
 
     def build(self) -> None:
         """Build and initialize the application."""
-        self._connect_gui_attributes()
-        self.gui_backend.set_icon(get_env('UI_ICON_PATH', '', str))
-        self._restore_geometry_env()
-        self._directory_service.build_directory()
         if self._workspace:
             self.workspace.build()
-            self.workspace.set_status('Ready...')
+            self.workspace.set_status('Building...')
+
+        self._connect_gui_attributes()
+        self._restore_geometry_env()
+        self._directory_service.build_directory()
+
         super().build()
+
+        if self._workspace:
+            self.workspace.set_status('Ready.')
 
     def close(self) -> None:
         """Close this application."""
