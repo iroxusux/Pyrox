@@ -30,7 +30,7 @@ class TestApplication(unittest.TestCase):
         self.mock_gui_manager.unsafe_get_backend.return_value = self.mock_backend
 
         # Mock environment variables
-        self.env_patcher = patch('pyrox.models.application.get_env')
+        self.env_patcher = patch('pyrox.models.application.EnvManager.get')
         self.mock_get_env = self.env_patcher.start()
 
         def mock_get_env_impl(*args, **kwargs):
@@ -54,7 +54,7 @@ class TestApplication(unittest.TestCase):
         self.mock_get_env.side_effect = mock_get_env_impl
 
         # Mock set_env
-        self.set_env_patcher = patch('pyrox.models.application.set_env')
+        self.set_env_patcher = patch('pyrox.models.application.EnvManager.set')
         self.mock_set_env = self.set_env_patcher.start()
 
         # Mock PlatformDirectoryService
@@ -118,13 +118,17 @@ class TestApplication(unittest.TestCase):
 
     def test_init_with_gui_disabled(self):
         """Test Application initialization with GUI disabled (headless mode)."""
-        self.mock_get_env.side_effect = lambda key, default=None, cast_type=None: (
-            False if key == 'UI_AUTO_INIT' else (default if default is not None else '')
-        )
+        def get_env_impl(key, default=None, cast_type=None):
+            from pyrox.interfaces import EnvironmentKeys
+            if key == EnvironmentKeys.ui.UI_AUTO_INIT:
+                return False
+            return default if default is not None else ''
+
+        self.mock_get_env.side_effect = get_env_impl
 
         app = Application()
 
-        # Verify workspace was not created
+        # Verify workspace was not created (when GUI is disabled)
         self.assertIsNone(app._workspace)
 
     def test_init_sets_after_id_to_none(self):
@@ -166,9 +170,14 @@ class TestApplication(unittest.TestCase):
 
     def test_is_gui_enabled_property_false(self):
         """Test is_gui_enabled property returns False when GUI is disabled."""
-        self.mock_get_env.side_effect = lambda key, default=None, cast_type=None: (
-            False if key == 'UI_AUTO_INIT' else (default if default is not None else '')
-        )
+        def get_env_impl(key, default=None, cast_type=None):
+            # Need to import to check against the actual enum
+            from pyrox.interfaces import EnvironmentKeys
+            if key == EnvironmentKeys.ui.UI_AUTO_INIT:
+                return False
+            return default if default is not None else ''
+
+        self.mock_get_env.side_effect = get_env_impl
 
         app = Application()
         self.assertFalse(app.is_gui_enabled)
@@ -226,9 +235,14 @@ class TestApplication(unittest.TestCase):
     def test_connect_gui_attributes(self):
         """Test _connect_gui_attributes configures GUI connections."""
         def get_env_impl(key, default=None, cast_type=None):
-            if key == 'PYROX_WINDOW_TITLE':
+            from pyrox.interfaces import EnvironmentKeys
+            if key == EnvironmentKeys.core.APP_WINDOW_TITLE:
                 return 'Pyrox Application'
-            return False
+            elif key == EnvironmentKeys.core.APP_ICON:
+                return ''
+            elif key == EnvironmentKeys.ui.UI_AUTO_INIT:
+                return True
+            return default if default is not None else False
 
         self.mock_get_env.side_effect = get_env_impl
 
@@ -327,9 +341,10 @@ class TestApplication(unittest.TestCase):
     def test_restore_fullscreen_when_true(self):
         """Test _restore_fullscreen sets fullscreen when True."""
         def get_env_side_effect(key, default=None, cast_type=None):
-            if key == 'UI_AUTO_INIT':
+            from pyrox.interfaces import EnvironmentKeys
+            if key == EnvironmentKeys.ui.UI_AUTO_INIT:
                 return True
-            elif key == 'UI_WINDOW_FULLSCREEN':
+            elif key == EnvironmentKeys.ui.UI_WINDOW_FULLSCREEN:
                 return True
             return default
 
@@ -369,9 +384,10 @@ class TestApplication(unittest.TestCase):
     def test_restore_window_position_with_invalid_format(self):
         """Test _restore_window_position logs warning with invalid position format."""
         def get_env_side_effect(key, default=None, cast_type=None):
-            if key == 'UI_AUTO_INIT':
+            from pyrox.interfaces import EnvironmentKeys
+            if key == EnvironmentKeys.ui.UI_AUTO_INIT:
                 return True
-            elif key == 'UI_WINDOW_POSITION':
+            elif key == EnvironmentKeys.ui.UI_WINDOW_POSITION:
                 return (100,)  # Invalid: only one element
             return default
 
@@ -381,14 +397,16 @@ class TestApplication(unittest.TestCase):
         app._restore_window_position()
 
         self.mock_logger.warning.assert_called_once()
+        # The actual code checks len(window_position) != 2, so logs 'Invalid window position format'
         self.assertIn('Invalid window position format', self.mock_logger.warning.call_args[0][0])
 
     def test_restore_window_position_success(self):
         """Test _restore_window_position sets geometry with valid position."""
         def get_env_side_effect(key, default=None, cast_type=None):
-            if key == 'UI_AUTO_INIT':
+            from pyrox.interfaces import EnvironmentKeys
+            if key == EnvironmentKeys.ui.UI_AUTO_INIT:
                 return True
-            elif key == 'UI_WINDOW_POSITION':
+            elif key == EnvironmentKeys.ui.UI_WINDOW_POSITION:
                 return (100, 200)
             return default
 
@@ -432,9 +450,10 @@ class TestApplication(unittest.TestCase):
     def test_restore_window_size_with_invalid_format(self):
         """Test _restore_window_size logs warning with invalid size format."""
         def get_env_side_effect(key, default=None, cast_type=None):
-            if key == 'UI_AUTO_INIT':
+            from pyrox.interfaces import EnvironmentKeys
+            if key == EnvironmentKeys.ui.UI_AUTO_INIT:
                 return True
-            elif key == 'UI_WINDOW_SIZE':
+            elif key == EnvironmentKeys.ui.UI_WINDOW_SIZE:
                 return '800'  # Invalid: missing height
             return default
 
@@ -449,9 +468,10 @@ class TestApplication(unittest.TestCase):
     def test_restore_window_size_success(self):
         """Test _restore_window_size sets geometry with valid size."""
         def get_env_side_effect(key, default=None, cast_type=None):
-            if key == 'UI_AUTO_INIT':
+            from pyrox.interfaces import EnvironmentKeys
+            if key == EnvironmentKeys.ui.UI_AUTO_INIT:
                 return True
-            elif key == 'UI_WINDOW_SIZE':
+            elif key == EnvironmentKeys.ui.UI_WINDOW_SIZE:
                 return '800x600'
             return default
 
@@ -474,9 +494,10 @@ class TestApplication(unittest.TestCase):
     def test_restore_window_state_success(self):
         """Test _restore_window_state sets state successfully."""
         def get_env_side_effect(key, default=None, cast_type=None):
-            if key == 'UI_AUTO_INIT':
+            from pyrox.interfaces import EnvironmentKeys
+            if key == EnvironmentKeys.ui.UI_AUTO_INIT:
                 return True
-            elif key == 'UI_WINDOW_STATE':
+            elif key == EnvironmentKeys.ui.UI_WINDOW_STATE:
                 return 'maximized'
             return default
 
@@ -511,21 +532,23 @@ class TestApplication(unittest.TestCase):
 
     def test_set_fullscreen_env_with_true(self):
         """Test _set_fullscreen_env sets environment variable with True."""
+        from pyrox.interfaces import EnvironmentKeys
         self.mock_get_env.side_effect = lambda key, default=None, cast_type=None: False
 
         app = Application()
         app._set_fullscreen_env(True)
 
-        self.mock_set_env.assert_called_once_with('UI_FULLSCREEN', 'True')
+        self.mock_set_env.assert_called_once_with(EnvironmentKeys.ui.UI_WINDOW_FULLSCREEN, 'True')
 
     def test_set_fullscreen_env_with_false(self):
         """Test _set_fullscreen_env sets environment variable with False."""
+        from pyrox.interfaces import EnvironmentKeys
         self.mock_get_env.side_effect = lambda key, default=None, cast_type=None: False
 
         app = Application()
         app._set_fullscreen_env(False)
 
-        self.mock_set_env.assert_called_once_with('UI_FULLSCREEN', 'False')
+        self.mock_set_env.assert_called_once_with(EnvironmentKeys.ui.UI_WINDOW_FULLSCREEN, 'False')
 
     def test_set_fullscreen_env_raises_on_invalid_type(self):
         """Test _set_fullscreen_env raises TypeError for non-boolean."""
@@ -539,12 +562,13 @@ class TestApplication(unittest.TestCase):
 
     def test_set_window_position_env_success(self):
         """Test _set_window_position_env sets environment variable."""
+        from pyrox.interfaces import EnvironmentKeys
         self.mock_get_env.side_effect = lambda key, default=None, cast_type=None: False
 
         app = Application()
         app._set_window_position_env((100, 200))
 
-        self.mock_set_env.assert_called_once_with('UI_WINDOW_POSITION', '(100, 200)')
+        self.mock_set_env.assert_called_once_with(EnvironmentKeys.ui.UI_WINDOW_POSITION, '(100, 200)')
 
     def test_set_window_position_env_raises_on_invalid_type(self):
         """Test _set_window_position_env raises ValueError for non-tuple."""
@@ -568,12 +592,13 @@ class TestApplication(unittest.TestCase):
 
     def test_set_window_size_env_success(self):
         """Test _set_window_size_env sets environment variable."""
+        from pyrox.interfaces import EnvironmentKeys
         self.mock_get_env.side_effect = lambda key, default=None, cast_type=None: False
 
         app = Application()
         app._set_window_size_env('800x600')
 
-        self.mock_set_env.assert_called_once_with('UI_WINDOW_SIZE', '800x600')
+        self.mock_set_env.assert_called_once_with(EnvironmentKeys.ui.UI_WINDOW_SIZE, '800x600')
 
     def test_set_window_size_env_raises_on_invalid_type(self):
         """Test _set_window_size_env raises TypeError for non-string."""
@@ -587,12 +612,13 @@ class TestApplication(unittest.TestCase):
 
     def test_set_window_state_env_success(self):
         """Test _set_window_state_env sets environment variable."""
+        from pyrox.interfaces import EnvironmentKeys
         self.mock_get_env.side_effect = lambda key, default=None, cast_type=None: False
 
         app = Application()
         app._set_window_state_env('maximized')
 
-        self.mock_set_env.assert_called_once_with('UI_WINDOW_STATE', 'maximized')
+        self.mock_set_env.assert_called_once_with(EnvironmentKeys.ui.UI_WINDOW_STATE, 'maximized')
 
     def test_set_window_state_env_raises_on_invalid_type(self):
         """Test _set_window_state_env raises TypeError for non-string."""
@@ -606,6 +632,7 @@ class TestApplication(unittest.TestCase):
 
     def test_set_geometry_env_with_all_values(self):
         """Test _set_geometry_env sets all geometry environment variables."""
+        from pyrox.interfaces import EnvironmentKeys
         self.mock_get_env.side_effect = lambda key, default=None, cast_type=None: True
 
         self.mock_window.get_size.return_value = (800, 600)
@@ -613,15 +640,21 @@ class TestApplication(unittest.TestCase):
         self.mock_window.get_state.return_value = 'maximized'
         self.mock_window.is_fullscreen.return_value = True
 
+        # Mock workspace sash methods
+        self.mock_workspace.get_log_window_height.return_value = 0.3
+        self.mock_workspace.get_sidebar_width.return_value = 0.2
+
         app = Application()
         app._set_geometry_env()
 
         # Check all set_env calls
         expected_calls = [
-            call('UI_WINDOW_SIZE', '800x600'),
-            call('UI_WINDOW_POSITION', '(100, 200)'),
-            call('UI_WINDOW_STATE', 'maximized'),
-            call('UI_FULLSCREEN', 'True'),
+            call(EnvironmentKeys.ui.UI_WINDOW_SIZE, '800x600'),
+            call(EnvironmentKeys.ui.UI_WINDOW_POSITION, '(100, 200)'),
+            call(EnvironmentKeys.ui.UI_WINDOW_STATE, 'maximized'),
+            call(EnvironmentKeys.ui.UI_WINDOW_FULLSCREEN, 'True'),
+            call(EnvironmentKeys.ui.UI_LOG_WINDOW_HEIGHT, '0.3'),
+            call(EnvironmentKeys.ui.UI_SIDEBAR_WIDTH, '0.2'),
         ]
         self.mock_set_env.assert_has_calls(expected_calls, any_order=True)
 
@@ -633,6 +666,10 @@ class TestApplication(unittest.TestCase):
         self.mock_window.get_position.return_value = None
         self.mock_window.get_state.return_value = None
         self.mock_window.is_fullscreen.return_value = None
+
+        # Mock workspace sash methods to return None
+        self.mock_workspace.get_log_window_height.return_value = None
+        self.mock_workspace.get_sidebar_width.return_value = None
 
         app = Application()
         app._set_geometry_env()
@@ -672,8 +709,6 @@ class TestApplication(unittest.TestCase):
     def test_build_calls_all_setup_methods(self):
         """Test build method calls all setup methods."""
         def get_env_impl(key, default=None, cast_type=None):
-            if key == 'UI_ICON_PATH':
-                return ''
             return False
 
         self.mock_get_env.side_effect = get_env_impl
@@ -687,7 +722,6 @@ class TestApplication(unittest.TestCase):
             app.build()
 
             mock_connect.assert_called_once()
-            self.mock_backend.set_icon.assert_called_once_with('')
             mock_restore.assert_called_once()
             self.mock_dir_service.build_directory.assert_called_once()
             mock_super_build.assert_called_once()
@@ -893,11 +927,15 @@ class TestApplication(unittest.TestCase):
         with patch('pyrox.models.abc.Runnable.build') as mock_super_build, \
                 patch('pyrox.models.abc.Runnable.start') as mock_super_start, \
                 patch.object(Application, 'stop') as mock_stop, \
+                patch.object(Application, '_connect_gui_attributes') as mock_connect, \
+                patch.object(Application, '_restore_geometry_env') as mock_restore, \
                 patch('gc.collect'):
 
             # Build phase
             app.build()
             mock_super_build.assert_called_once()
+            mock_connect.assert_called_once()
+            mock_restore.assert_called_once()
 
             # Start phase
             app.start()

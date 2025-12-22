@@ -12,24 +12,22 @@ class IGuiComponent(ABC):
     """
 
     @property
-    @abstractmethod
     def root(self) -> Any:
         """Get the underlying gui object.
 
         Returns:
             Any: The gui object specific to the GUI framework.
         """
-        raise NotImplementedError("root property must be implemented by subclass.")
+        return self.get_root()
 
     @root.setter
-    @abstractmethod
     def root(self, value: Any) -> None:
         """Set the underlying gui object.
 
         Args:
             value: The gui object specific to the GUI framework.
         """
-        raise NotImplementedError("root setter must be implemented by subclass.")
+        return self.set_root(value)
 
     @abstractmethod
     def config(self, **kwargs) -> None:
@@ -44,6 +42,24 @@ class IGuiComponent(ABC):
     def destroy(self) -> None:
         """Destroy the component and free resources."""
         raise NotImplementedError("destroy method must be implemented by subclass.")
+
+    @abstractmethod
+    def get_root(self) -> Any:
+        """Get the root GUI object.
+
+        Returns:
+            Any: The root GUI object.
+        """
+        raise NotImplementedError("get_root method must be implemented by subclass.")
+
+    @abstractmethod
+    def set_root(self, root: Any) -> None:
+        """Set the root GUI object.
+
+        Args:
+            root: The root GUI object.
+        """
+        raise NotImplementedError("set_root method must be implemented by subclass.")
 
     @abstractmethod
     def get_height(self) -> int:
@@ -115,3 +131,6 @@ class IGuiComponent(ABC):
     def update(self) -> None:
         """Update the component to reflect any changes."""
         raise NotImplementedError("update method must be implemented by subclass.")
+
+
+__all__ = ["IGuiComponent"]
