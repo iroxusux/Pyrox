@@ -38,10 +38,6 @@ class TkinterBackend(IGuiBackend):
     def framework_name(self) -> str:
         return "Tkinter"
 
-    @property
-    def framework(self) -> GuiFramework:
-        return GuiFramework.TKINTER
-
     def bind_hotkey(
         self,
         hotkey: str,
@@ -183,6 +179,9 @@ class TkinterBackend(IGuiBackend):
 
     def get_backend(self) -> Any:
         return self._tk
+
+    def get_framework(self) -> GuiFramework:
+        return GuiFramework.TKINTER
 
     def get_root_application_menu(self) -> Any:
         return self.get_root_application_gui_menu().menu

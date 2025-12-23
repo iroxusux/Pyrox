@@ -153,7 +153,7 @@ class Application(Runnable):
         )
         self.gui_backend.set_icon(
             EnvManager.get(
-                EnvironmentKeys.ui.UI_ICON_PATH,
+                EnvironmentKeys.core.APP_ICON,
                 '',
                 str
             )

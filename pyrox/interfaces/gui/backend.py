@@ -17,24 +17,22 @@ class IGuiBackend(ABC):
     """
 
     @property
-    @abstractmethod
     def framework_name(self) -> str:
         """Get the framework name.
 
         Returns:
             str: The name of the GUI framework this backend supports.
         """
-        raise NotImplementedError("framework_name property not implemented.")
+        return self.get_framework().value
 
     @property
-    @abstractmethod
     def framework(self) -> GuiFramework:
         """Get the framework enum.
 
         Returns:
             GuiFramework: The framework enum value.
         """
-        raise NotImplementedError("framework property must be implemented by subclass.")
+        return self.get_framework()
 
     @abstractmethod
     def bind_hotkey(self, hotkey: str, callback: Callable, **kwargs) -> None:
@@ -156,6 +154,15 @@ class IGuiBackend(ABC):
             Any: The GUI backend instance specific to the framework.
         """
         raise NotImplementedError("get_backend method must be implemented by subclass.")
+
+    @abstractmethod
+    def get_framework(self) -> GuiFramework:
+        """Get the GUI framework enum.
+
+        Returns:
+            GuiFramework: The GUI framework enum value.
+        """
+        raise NotImplementedError("get_framework method must be implemented by subclass.")
 
     @abstractmethod
     def get_root_application_menu(self) -> Any:
@@ -317,3 +324,6 @@ class IGuiBackend(ABC):
         i.e. Tkinter.Tk.update_idletasks() to update all background tasks.
         """
         raise NotImplementedError("update_framework_tasks method must be implemented by subclass.")
+
+
+__all__ = ['IGuiBackend']

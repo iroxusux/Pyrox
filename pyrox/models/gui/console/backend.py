@@ -28,10 +28,6 @@ class ConsoleBackend(IGuiBackend):
     def framework_name(self) -> str:
         return "Console"
 
-    @property
-    def framework(self) -> GuiFramework:
-        return GuiFramework.CONSOLE
-
     def bind_hotkey(
         self,
         hotkey: str,
@@ -74,6 +70,9 @@ class ConsoleBackend(IGuiBackend):
 
     def get_backend(self) -> Any:
         return None  # Console has no static backend manager class to interact with, unlike Tkinter which has 'Tk'.
+
+    def get_framework(self) -> GuiFramework:
+        return GuiFramework.CONSOLE
 
     def get_root_application_menu(self) -> Any:
         raise NotImplementedError("Console backend does not support application menu retrieval")

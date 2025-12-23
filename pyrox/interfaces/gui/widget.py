@@ -13,62 +13,82 @@ class IGuiWidget(IGuiComponent):
     """
 
     @property
-    @abstractmethod
     def parent(self) -> Optional['IGuiWidget']:
         """Get the parent widget.
 
         Returns:
             IGuiWidget: The parent widget.
         """
-        raise NotImplementedError("parent property must be implemented by subclass.")
+        return self.get_parent()
 
     @parent.setter
-    @abstractmethod
     def parent(self, value: Optional['IGuiWidget']) -> None:
         """Set the parent widget.
 
         Args:
             parent (IGuiWidget): The parent widget.
         """
-        raise NotImplementedError("parent setter must be implemented by subclass.")
+        return self.set_parent(value)
 
     @property
-    def root(self) -> Any:
-        """Get the underlying gui object.
-
-        Returns:
-            Any: The gui object specific to the GUI framework.
-        """
-        return self.widget
-
-    @root.setter
-    def root(self, value: Any) -> None:
-        """Set the underlying gui object.
-
-        Args:
-            value: The gui object specific to the GUI framework.
-        """
-        self.widget = value
-
-    @property
-    @abstractmethod
     def widget(self) -> Any:
         """Get the underlying widget object.
 
         Returns:
             Any: The widget object specific to the GUI framework.
         """
-        raise NotImplementedError("widget property must be implemented by subclass.")
+        return self.get_widget()
 
     @widget.setter
-    @abstractmethod
     def widget(self, value: Any) -> None:
         """Set the underlying widget object.
 
         Args:
             value: The widget object specific to the GUI framework.
         """
-        raise NotImplementedError("widget setter must be implemented by subclass.")
+        return self.set_widget(value)
+
+    def get_root(self) -> Any:
+        return self.get_widget()
+
+    def set_root(self, root: Any) -> None:
+        self.set_widget(root)
+
+    @abstractmethod
+    def get_widget(self) -> Any:
+        """Get the underlying widget object.
+
+        Returns:
+            Any: The widget object specific to the GUI framework.
+        """
+        raise NotImplementedError("get_widget method must be implemented by subclass.")
+
+    @abstractmethod
+    def set_widget(self, value: Any) -> None:
+        """Set the underlying widget object.
+
+        Args:
+            value: The widget object specific to the GUI framework.
+        """
+        raise NotImplementedError("set_widget method must be implemented by subclass.")
+
+    @abstractmethod
+    def get_parent(self) -> Optional['IGuiWidget']:
+        """Get the parent widget.
+
+        Returns:
+            IGuiWidget: The parent widget.
+        """
+        raise NotImplementedError("get_parent method must be implemented by subclass.")
+
+    @abstractmethod
+    def set_parent(self, parent: Optional['IGuiWidget']) -> None:
+        """Set the parent widget.
+
+        Args:
+            parent (IGuiWidget): The parent widget.
+        """
+        raise NotImplementedError("set_parent method must be implemented by subclass.")
 
     @abstractmethod
     def disable(self) -> None:
@@ -95,15 +115,6 @@ class IGuiWidget(IGuiComponent):
         raise NotImplementedError("get_name method must be implemented by subclass.")
 
     @abstractmethod
-    def get_parent(self) -> Optional['IGuiWidget']:
-        """Get the parent widget.
-
-        Returns:
-            IGuiWidget: The parent widget.
-        """
-        raise NotImplementedError("get_parent method must be implemented by subclass.")
-
-    @abstractmethod
     def pack(self, **kwargs) -> None:
         """Pack the widget into its parent container.
 
@@ -120,15 +131,6 @@ class IGuiWidget(IGuiComponent):
             propagate (bool): True to enable propagation, False to disable.
         """
         raise NotImplementedError("pack_propogate method must be implemented by subclass.")
-
-    @abstractmethod
-    def set_parent(self, parent: Optional['IGuiWidget']) -> None:
-        """Set the parent widget.
-
-        Args:
-            parent (IGuiWidget): The parent widget.
-        """
-        raise NotImplementedError("set_parent method must be implemented by subclass.")
 
     @abstractmethod
     def update_idletasks(self) -> None:
