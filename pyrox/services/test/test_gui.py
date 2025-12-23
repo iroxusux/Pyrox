@@ -29,12 +29,11 @@ class MockGuiBackend(IGuiBackend):
         self.windows_destroyed = []
 
     @property
-    def framework(self) -> GuiFramework:
-        return GuiFramework.CONSOLE
-
-    @property
     def framework_name(self) -> str:
         return "MockFramework"
+
+    def get_framework(self) -> GuiFramework:
+        return GuiFramework.CONSOLE
 
     def initialize(self) -> bool: return True
     def is_available(self) -> bool: return self.available
@@ -245,8 +244,7 @@ class TestGuiManager(unittest.TestCase):
             def get_root_application_menu(self) -> Any: return None
             def get_backend(self) -> Any: return None
             def get_root_window(self) -> Any: return None
-            @property
-            def framework(self): return GuiFramework.TKINTER
+            def get_framework(self): return GuiFramework.TKINTER
             @property
             def framework_name(self): return "Unavailable"
 

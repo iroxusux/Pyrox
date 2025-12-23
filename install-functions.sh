@@ -130,7 +130,7 @@ get_username() {
 # Function to get the working Python command
 get_python_command() {
     # Try different Python commands in order of preference
-    local python_commands=("python" "python3" "py")
+    local python_commands=("py" "python" "python3")
     local python_paths=(
         "/c/Program Files/Python313/python.exe"
         "/c/Program Files/Python312/python.exe"
@@ -159,7 +159,7 @@ get_python_command() {
     done
     
     # Fallback to python (might fail)
-    echo "python"
+    echo "py"
     return 1
 }
 

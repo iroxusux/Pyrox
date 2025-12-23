@@ -21,15 +21,11 @@ class TkinterGuiWidget(IGuiWidget):
     def parent(self, value: Optional[IGuiWidget]) -> None:
         self._parent = value
 
-    @property
-    def widget(self) -> Widget:
-        if not self._widget:
-            raise RuntimeError("Widget not initialized")
+    def get_widget(self) -> Optional[Widget]:
         return self._widget
 
-    @widget.setter
-    def widget(self, value: Widget) -> None:
-        if not isinstance(value, Widget):
+    def set_widget(self, value: Optional[Widget]) -> None:
+        if value and not isinstance(value, Widget):
             raise TypeError(f'Expected tkinter.Widget, got {type(value)}')
         self._widget = value
 
