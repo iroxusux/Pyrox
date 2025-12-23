@@ -393,6 +393,13 @@ class TestLoggingManager(unittest.TestCase):
                 # In test environment, stderr might be wrapped/redirected
                 self.assertIsNotNone(handler.stream)
 
+    def test_create_logger_none_name(self):
+        """Test creating logger with None as name."""
+        logger = LoggingManager._create_logger(None)  # type: ignore
+
+        self.assertIsInstance(logger, logging.Logger)
+        self.assertIn(logger.name, LoggingManager._curr_loggers)
+
     def test_get_or_create_logger_new_logger(self):
         """Test getting or creating a new logger."""
         logger_name = "new_logger"

@@ -352,8 +352,9 @@ class LoggingManager:
             cls._captured_stderr.register_callback(callback)
 
     @classmethod
-    def _create_logger(cls, name: str = __name__) -> logging.Logger:
+    def _create_logger(cls, name: Optional[str] = None) -> logging.Logger:
         """Create a logger that outputs to the captured stderr."""
+        name = name or __name__
         cls._curr_loggers[name] = cls._setup_standard_logger(name=name)
         return cls._curr_loggers[name]
 
