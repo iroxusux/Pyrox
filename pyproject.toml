@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "pyrox"
-version = "2.1.13"
+version = "2.1.14"
 authors = [
   { name="Brian LaFond", email="Brian.L.LaFond@gmail.com" },
 ]
@@ -42,7 +42,6 @@ dependencies = [
   "PyMuPDF",
   "pytest",
   "python-dotenv",
-  "pywin32",
   "tk",
   "tomli",
   "xmltodict",
