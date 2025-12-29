@@ -221,14 +221,15 @@ class TestTkinterBackend(unittest.TestCase):
         real_toplevel = MagicMock(spec=Toplevel)
 
         with patch('tkinter.Toplevel', return_value=real_toplevel) as mock_toplevel_class:
-            # Need to patch isinstance to accept our mock
-            with patch('pyrox.models.gui.tk.window.isinstance', return_value=True):
-                result = self.backend.create_gui_window(title="Secondary")
+            with patch('pyrox.services.theme.ThemeManager.ensure_theme_created'):
+                # Need to patch isinstance to accept our mock
+                with patch('pyrox.models.gui.tk.window.isinstance', return_value=True):
+                    result = self.backend.create_gui_window(title="Secondary")
 
-                # Verify Toplevel was called with the root gui as master
-                mock_toplevel_class.assert_called_once_with(master=mock_root_gui, title="Secondary")
-                # Verify the result is a TkinterGuiWindow
-                self.assertIsInstance(result, TkinterGuiWindow)
+                    # Verify Toplevel was called with the root gui as master
+                    mock_toplevel_class.assert_called_once_with(master=mock_root_gui, title="Secondary")
+                    # Verify the result is a TkinterGuiWindow
+                    self.assertIsInstance(result, TkinterGuiWindow)
 
     def test_create_application_gui_menu_success(self):
         """Test creating application GUI menu."""
