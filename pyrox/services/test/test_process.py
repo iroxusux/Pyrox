@@ -1,6 +1,7 @@
 """Unit tests for process.py module."""
 
 import os
+import sys
 import tempfile
 import unittest
 from unittest.mock import patch, MagicMock, call
@@ -49,6 +50,7 @@ class TestExecuteFileAsSubprocess(unittest.TestCase):
         mock_log.assert_called_once_with('pyrox.services.process')
         mock_log.return_value.error.assert_called_once_with(f"File not found: {self.test_file}")
 
+    @unittest.skipUnless(sys.platform == 'win32' or hasattr(os, 'startfile'), "Requires os.startfile (Windows only)")
     @patch('pyrox.services.process.log')
     @patch('sys.platform', 'win32')
     @patch('os.startfile')
@@ -64,6 +66,7 @@ class TestExecuteFileAsSubprocess(unittest.TestCase):
         mock_log.assert_called_once_with('pyrox.services.process')
         mock_log.return_value.info.assert_called_once_with(f"Successfully executed file: {self.test_file}")
 
+    @unittest.skipUnless(sys.platform == 'win32' or hasattr(os, 'startfile'), "Requires os.startfile (Windows only)")
     @patch('pyrox.services.process.log')
     @patch('sys.platform', 'win32')
     @patch('os.startfile')
@@ -183,6 +186,7 @@ class TestExecuteFileAsSubprocess(unittest.TestCase):
         mock_log.assert_called_once_with('pyrox.services.process')
         mock_log.return_value.error.assert_called_once_with(f"Failed to execute file {self.test_file}: {test_exception}")
 
+    @unittest.skipUnless(sys.platform == 'win32' or hasattr(os, 'startfile'), "Requires os.startfile (Windows only)")
     @patch('pyrox.services.process.log')
     @patch('sys.platform', 'win32')
     @patch('os.startfile')
@@ -199,6 +203,7 @@ class TestExecuteFileAsSubprocess(unittest.TestCase):
         mock_log.assert_called_once_with('pyrox.services.process')
         mock_log.return_value.error.assert_called_once_with(f"File not found: {empty_path}")
 
+    @unittest.skipUnless(sys.platform == 'win32' or hasattr(os, 'startfile'), "Requires os.startfile (Windows only)")
     @patch('pyrox.services.process.log')
     @patch('sys.platform', 'win32')
     @patch('os.startfile')
@@ -213,6 +218,7 @@ class TestExecuteFileAsSubprocess(unittest.TestCase):
         mock_isfile.assert_called_once_with(None)
         mock_startfile.assert_not_called()
 
+    @unittest.skipUnless(sys.platform == 'win32' or hasattr(os, 'startfile'), "Requires os.startfile (Windows only)")
     @patch('pyrox.services.process.log')
     @patch('sys.platform', 'win32')
     @patch('os.startfile')
@@ -268,6 +274,7 @@ class TestExecuteFileAsSubprocess(unittest.TestCase):
         mock_log.assert_called_once_with('pyrox.services.process')
         mock_log.return_value.info.assert_called_once_with(f"Successfully executed file: {long_path}")
 
+    @unittest.skipUnless(sys.platform == 'win32' or hasattr(os, 'startfile'), "Requires os.startfile (Windows only)")
     @patch('pyrox.services.process.log')
     @patch('sys.platform', 'win32')
     @patch('os.startfile')
@@ -334,6 +341,7 @@ class TestExecuteFileAsSubprocess(unittest.TestCase):
                 mock_popen.assert_called_once_with(['xdg-open', self.test_file])
                 mock_log.return_value.info.assert_called_once_with(f"Successfully executed file: {self.test_file}")
 
+    @unittest.skipUnless(sys.platform == 'win32' or hasattr(os, 'startfile'), "Requires os.startfile (Windows only)")
     @patch('pyrox.services.process.log')
     @patch('sys.platform', 'win32')
     @patch('os.startfile')

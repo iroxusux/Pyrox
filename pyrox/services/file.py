@@ -372,11 +372,13 @@ def save_file(
         print('no save mode!')
         return False
 
-    if not file_extension.startswith('.'):
-        file_extension = f'.{file_extension}'
+    # Only add extension if non-empty
+    if file_extension:
+        if not file_extension.startswith('.'):
+            file_extension = f'.{file_extension}'
 
-    if not file_path.endswith(file_extension):
-        file_path = f'{file_path}{file_extension}'
+        if not file_path.endswith(file_extension):
+            file_path = f'{file_path}{file_extension}'
 
     try:
         # This protects against encoding errors when writing bytes to a file

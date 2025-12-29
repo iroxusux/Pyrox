@@ -405,6 +405,10 @@ class LoggingManager:
         handler = PyroxHandler(stream)
         formatter = cls._get_default_formatter()
         handler.setFormatter(formatter)
+
+        if cls.curr_logging_level is None:
+            cls.curr_logging_level = logging.DEBUG
+
         handler.setLevel(cls.curr_logging_level)
         return handler
 
@@ -421,6 +425,11 @@ class LoggingManager:
         logger = logging.getLogger(name)
         cls._remove_all_handlers(logger)
         logger.addHandler(cls._get_standard_handler())
+
+        # Ensure curr_logging_level is set
+        if cls.curr_logging_level is None:
+            cls.curr_logging_level = logging.DEBUG
+
         logger.setLevel(cls.curr_logging_level)
         logger.propagate = False
         return logger
@@ -488,12 +497,18 @@ class LoggingManager:
             return cls.get_or_create_logger(name=caller.__class__.__name__)
 
     @classmethod
-    def set_logging_level(cls, log_level: int = logging.INFO) -> None:
+    def set_logging_level(
+        cls,
+        log_level: int = logging.INFO
+    ) -> None:
         """Set the logging level for all current loggers.
 
         Args:
             log_level: The logging level to set for all current loggers.
         """
+        if log_level is None:
+            log_level = logging.INFO
+
         EnvManager.set(
             EnvironmentKeys.logging.LOG_LEVEL,
             str(log_level)
