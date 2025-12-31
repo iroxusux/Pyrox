@@ -204,3 +204,58 @@ class IApplicationGuiMenu(IGuiMenu):
             IGuiMenu: The created View menu.
         """
         raise NotImplementedError("get_view_menu method must be implemented by subclass.")
+
+    def unsafe_get_edit_menu(self) -> IGuiMenu:
+        """Get the Edit menu, raising an error if not found.
+
+        Returns:
+            IGuiMenu: The Edit menu.
+        """
+        menu = self.get_edit_menu()
+        if menu is None:
+            raise RuntimeError("Edit menu not found.")
+        return menu
+
+    def unsafe_get_file_menu(self) -> IGuiMenu:
+        """Get the File menu, raising an error if not found.
+
+        Returns:
+            IGuiMenu: The File menu.
+        """
+        menu = self.get_file_menu()
+        if menu is None:
+            raise RuntimeError("File menu not found.")
+        return menu
+
+    def unsafe_get_help_menu(self) -> IGuiMenu:
+        """Get the Help menu, raising an error if not found.
+
+        Returns:
+            IGuiMenu: The Help menu.
+        """
+        menu = self.get_help_menu()
+        if menu is None:
+            raise RuntimeError("Help menu not found.")
+        return menu
+
+    def unsafe_get_tools_menu(self) -> IGuiMenu:
+        """Get the Tools menu, raising an error if not found.
+
+        Returns:
+            IGuiMenu: The Tools menu.
+        """
+        menu = self.get_tools_menu()
+        if menu is None:
+            raise RuntimeError("Tools menu not found.")
+        return menu
+
+    def unsafe_get_view_menu(self) -> IGuiMenu:
+        """Get the View menu, raising an error if not found.
+
+        Returns:
+            IGuiMenu: The View menu.
+        """
+        menu = self.get_view_menu()
+        if menu is None:
+            raise RuntimeError("View menu not found.")
+        return menu
