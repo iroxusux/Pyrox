@@ -148,6 +148,15 @@ class TkinterMenu(IGuiMenu, TkinterGuiWidget):
         self.menu.destroy()
         self._menu = None
 
+    def get_items(self) -> list[Any]:
+        items = []
+        length = self.menu.index('end')
+        if length is None:
+            return items
+        for index in range(length + 1):
+            items.append(self.menu.entrycget(index, 'label'))
+        return items
+
     def get_height(self) -> int:
         return self.menu.winfo_height()
 
