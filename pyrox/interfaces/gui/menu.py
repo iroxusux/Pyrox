@@ -138,6 +138,15 @@ class IGuiMenu(IGuiComponent):
         raise NotImplementedError("config_item method must be implemented by subclass.")
 
     @abstractmethod
+    def get_items(self) -> list:
+        """Get a list of all menu items.
+
+        Returns:
+            list: A list of menu item references.
+        """
+        raise NotImplementedError("get_items method must be implemented by subclass.")
+
+    @abstractmethod
     def remove_item(
         self,
         index: Union[int, str],

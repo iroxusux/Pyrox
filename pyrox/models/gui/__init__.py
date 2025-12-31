@@ -13,6 +13,7 @@ from .meta import ObjectEditField
 from .theme import DefaultTheme
 from .pyroxguiobject import PyroxGuiObject
 from .workspace import Workspace
+from .yamleditor import PyroxYamlEditor
 
 __all__ = (
     'console',
@@ -26,6 +27,7 @@ __all__ = (
     'PyroxContextMenu',
     'PyroxFrameContainer',
     'PyroxGuiObject',
+    'PyroxYamlEditor',
     'TaskFrame',
     'tk',
     'Workspace',
