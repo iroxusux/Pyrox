@@ -215,7 +215,7 @@ class HashList(Subscribable, Generic[T]):
         """
         for x in self._hashes:
             if getattr(self._hashes[x], attr_name, None) == attr_value:
-                return x
+                return self._hashes[x]
 
         return None
 
@@ -291,6 +291,26 @@ class HashList(Subscribable, Generic[T]):
 
     def get(self, key, default=None) -> Optional[T]:
         return self.hashes.get(key, default)
+
+    def insert(
+        self,
+        item: T,
+        index: int
+    ) -> None:
+        """Insert item at specific index in this hash.
+
+        Note:
+            This operation may reorder the internal dictionary to maintain insertion order.
+
+        Args:
+            item: Object to insert into this hash list.
+            index: Index at which to insert the object.
+        """
+        # Convert to list, insert, and rebuild the dictionary
+        items = list(self._hashes.values())
+        items.insert(index, item)
+        self._hashes = {getattr(i, self._hash_key): i for i in items}
+        self.unsafe_emit()
 
     def remove(
         self,
