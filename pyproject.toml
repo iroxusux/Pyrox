@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "pyrox"
-version = "2.2.101"
+version = "2.3.001"
 authors = [
   { name="Brian LaFond", email="Brian.L.LaFond@gmail.com" },
 ]

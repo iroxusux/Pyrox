@@ -377,7 +377,7 @@ class TestHashList(unittest.TestCase):
         # Note: Current implementation returns key, not object
         result = hash_list.by_attr('value', 20)
 
-        self.assertEqual(result, 'obj2')
+        self.assertEqual(result, self.test_obj2)
 
     def test_by_attr_not_found(self):
         """Test by_attr method when attribute not found."""
@@ -569,6 +569,24 @@ class TestHashList(unittest.TestCase):
         self.assertEqual(len(hash_list), 0)
         self.assertNotIn('obj1', hash_list.hashes)
         self.assertNotIn('obj2', hash_list.hashes)
+        callback.assert_called_once()
+
+    def test_insert_method(self):
+        """Test insert method."""
+        hash_list = HashList('name')
+        callback = MagicMock()
+        hash_list.subscribe(callback)
+
+        hash_list.append(self.test_obj1)
+        hash_list.append(self.test_obj3)
+        callback.reset_mock()
+
+        # Insert obj2 at index 1
+        hash_list.insert(self.test_obj2, 1)
+
+        self.assertEqual(len(hash_list), 3)
+        keys = list(hash_list.hashes.keys())
+        self.assertEqual(keys, ['obj1', 'obj2', 'obj3'])
         callback.assert_called_once()
 
 
