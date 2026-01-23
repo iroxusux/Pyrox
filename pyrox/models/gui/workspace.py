@@ -11,12 +11,12 @@ This module provides a workspace widget that mimics the VSCode interface with:
 import tkinter as tk
 from tkinter import ttk, TclError
 from typing import Dict, List, Optional, Callable, Any
-from pyrox.models.abc.runtime import Buildable
+from pyrox.models.protocols import Buildable
 from pyrox.models.gui.frame import TaskFrame
 from pyrox.models.gui.logframe import LogFrame
 from pyrox.models.gui.frame import PyroxFrameContainer
 from pyrox.models.gui.notebook import PyroxNotebook
-from pyrox.interfaces import EnvironmentKeys
+from pyrox.interfaces import EnvironmentKeys, IGuiFrame, IGuiWindow
 from pyrox.services import EnvManager, GuiManager, log
 
 
@@ -40,14 +40,13 @@ class Workspace(Buildable):
     ) -> None:
         """ Initialize the PyroxWorkspace.
         """
-        super().__init__(
-            name="PyroxWorkspace",
-            description="A VSCode-like workspace widget with sidebar organizer and main content area."
-        )
+        self.name = "PyroxWorkspace",
+        self.description = "A VSCode-like workspace widget with sidebar organizer and main content area."
 
-        self.iframework = GuiManager.unsafe_get_backend()
-        self.iwindow = self.iframework.get_root_gui_window()
-        self.imenu = self.iframework.get_root_application_gui_menu()
+        self._window = GuiManager.unsafe_get_backend().create_gui_frame(
+            master=GuiManager.unsafe_get_backend().get_root_window()
+        )
+        self._window.pack(fill='both', expand=True)
 
         self._main_paned_window = None
         self._log_paned_window = None
@@ -74,15 +73,6 @@ class Workspace(Buildable):
 
         # Callback tracking
         self._sash_callbacks: List[Callable] = []
-
-    @property
-    def framework(self) -> Any:
-        """Get the GUI framework backend.
-
-        Returns:
-            The GUI framework backend instance.
-        """
-        return self.iframework.framework
 
     @property
     def log_paned_window(self) -> ttk.PanedWindow:
@@ -149,16 +139,16 @@ class Workspace(Buildable):
         return self._status_label
 
     @property
-    def window(self) -> Any:
+    def window(self) -> IGuiWindow:
         """Get the main application window.
 
         Returns:
             The main application window instance.
         """
-        return self.iwindow.window
+        return self._window
 
     @property
-    def workspace_area(self) -> PyroxFrameContainer:
+    def workspace_area(self) -> IGuiFrame:
         """Get the workspace area.
 
         Returns:
@@ -188,12 +178,12 @@ class Workspace(Buildable):
         log(self).debug("Creating log window")
         self.log_window = LogFrame(self.log_paned_window)
         self.log_paned_window.add(self.log_window.frame.root)
-        self.iframework.schedule_event(20, self._set_initial_log_window_height)
+        GuiManager.unsafe_get_backend().schedule_event(20, self._set_initial_log_window_height)
 
     def _create_main_paned_window(self) -> None:
         """Create the main paned window for layout."""
         log(self).debug("Creating main paned window")
-        self._main_paned_window = ttk.PanedWindow(self.window, orient='horizontal')
+        self._main_paned_window = ttk.PanedWindow(self.window.root, orient='horizontal')
         self.main_paned_window.pack(fill='both', expand=True, pady=(0, 0))
 
     def _create_sidebar_organizer(self) -> None:
@@ -206,12 +196,12 @@ class Workspace(Buildable):
             max_tabs=10
         )
         self.main_paned_window.add(self.sidebar_organizer)
-        self.iframework.schedule_event(10, self._set_initial_sidebar_width)
+        GuiManager.unsafe_get_backend().schedule_event(10, self._set_initial_sidebar_width)
 
     def _create_status_bar(self) -> None:
         """Create the status bar at the bottom."""
         log(self).debug("Creating status bar")
-        self._status_bar = ttk.Frame(self.window)
+        self._status_bar = ttk.Frame(self.window.root)
         self.status_bar.pack(fill='x', side='bottom')
 
         # Status label
@@ -235,8 +225,10 @@ class Workspace(Buildable):
     def _create_workspace_area(self) -> None:
         """Create the main workspace area."""
         log(self).debug("Creating workspace area")
-        self._workspace_area = PyroxFrameContainer(master=self.log_paned_window)
-        self.log_paned_window.add(self.workspace_area.frame.root)
+        self._workspace_area = GuiManager.unsafe_get_backend().create_gui_frame(
+            master=self.log_paned_window,
+        )
+        self.log_paned_window.add(self.workspace_area.root)
 
     def _get_shown_frame(self) -> Optional[TaskFrame]:
         """Get the currently shown frame in the workspace.
@@ -719,8 +711,8 @@ class Workspace(Buildable):
         if not self.log_paned_window:
             raise RuntimeError("Log paned window not initialized")
 
-        self.iframework.update_framekwork_tasks()
-        total_height = self.window.winfo_height()
+        GuiManager.unsafe_get_backend().update_framekwork_tasks()
+        total_height = self.window.height
         log_height = int(total_height * perc_of_window)
         self.log_paned_window.sashpos(0, total_height - log_height)
         EnvManager.set(
@@ -733,8 +725,8 @@ class Workspace(Buildable):
         if not self.main_paned_window:
             raise RuntimeError("Main paned window not initialized")
 
-        self.iframework.update_framekwork_tasks()
-        total_width = self.window.winfo_width()
+        GuiManager.unsafe_get_backend().update_framekwork_tasks()
+        total_width = self.window.width
         sidebar_width = int(total_width * perc_of_window)
         self.main_paned_window.sashpos(0, sidebar_width)
         EnvManager.set(
@@ -840,222 +832,3 @@ Status: {info['status']['current_message']}
             command=info_window.destroy
         )
         close_btn.pack(pady=(0, 10))
-
-
-def create_demo_window():
-    """Create a demo window showing the PyroxWorkspace in action."""
-    workspace = Workspace()
-
-    class ExplorerWidget(PyroxFrameContainer):
-        """File explorer-like widget."""
-
-        def __init__(self, master):
-            super().__init__(master=master)
-
-            ttk.Label(self.frame.root, text="📁 Explorer", font=('Consolas', 12, 'bold')).pack(pady=5)
-
-            # Create a simple tree
-            tree = ttk.Treeview(self.frame.root, show='tree')
-            tree.pack(fill='both', expand=True, padx=5, pady=5)
-
-            # Add sample folders
-            root_folder = tree.insert('', 'end', text='📁 Project')
-            src_folder = tree.insert(root_folder, 'end', text='📁 src')
-            tree.insert(src_folder, 'end', text='📄 main.py')
-            tree.insert(src_folder, 'end', text='📄 utils.py')
-
-            docs_folder = tree.insert(root_folder, 'end', text='📁 docs')
-            tree.insert(docs_folder, 'end', text='📄 README.md')
-
-            tree.item(root_folder, open=True)
-            tree.item(src_folder, open=True)
-
-    class SearchWidget(PyroxFrameContainer):
-        """Search widget."""
-
-        def __init__(self, master):
-            super().__init__(master=master)
-
-            ttk.Label(self.frame.root, text="🔍 Search", font=('Consolas', 12, 'bold')).pack(pady=5)
-
-            # Search entry
-            search_frame = ttk.Frame(self.frame.root)
-            search_frame.pack(fill='x', padx=5, pady=5)
-
-            search_entry = ttk.Entry(search_frame)
-            search_entry.pack(fill='x')
-            search_entry.insert(0, "Search files...")
-
-            # Results area
-            results_frame = ttk.LabelFrame(self.frame.root, text="Results")
-            results_frame.pack(fill='both', expand=True, padx=5, pady=5)
-
-            results_list = tk.Listbox(results_frame)
-            results_list.pack(fill='both', expand=True, padx=5, pady=5)
-
-            # Add sample results
-            for i in range(10):
-                results_list.insert('end', f"match_{i+1}.py:42 - sample result")
-
-    class GitWidget(PyroxFrameContainer):
-        """Git/VCS widget."""
-
-        def __init__(self, master):
-            super().__init__(master=master)
-
-            ttk.Label(self.frame.root, text="🌿 Source Control", font=('Consolas', 12, 'bold')).pack(pady=5)
-
-            # Status
-            status_frame = ttk.LabelFrame(self.frame.root, text="Status")
-            status_frame.pack(fill='x', padx=5, pady=5)
-
-            ttk.Label(status_frame, text="Branch: main").pack(anchor='w', padx=5, pady=2)
-            ttk.Label(status_frame, text="Changes: 3 modified").pack(anchor='w', padx=5, pady=2)
-
-            # Changed files
-            changes_frame = ttk.LabelFrame(self.frame.root, text="Changes")
-            changes_frame.pack(fill='both', expand=True, padx=5, pady=5)
-
-            changes_tree = ttk.Treeview(changes_frame, columns=('status',), show='tree headings')
-            changes_tree.heading('#0', text='File')
-            changes_tree.heading('status', text='Status')
-            changes_tree.pack(fill='both', expand=True, padx=5, pady=5)
-
-            # Add sample changes
-            changes_tree.insert('', 'end', text='main.py', values=('Modified',))
-            changes_tree.insert('', 'end', text='utils.py', values=('Added',))
-            changes_tree.insert('', 'end', text='config.json', values=('Deleted',))
-
-    # Main workspace content
-    class MainEditor(TaskFrame):
-        """Main editor area."""
-
-        def __init__(self, master):
-            super().__init__(master=master)
-
-            # Editor tabs
-            editor_notebook = PyroxNotebook(self)
-            editor_notebook.pack(fill='both', expand=True, padx=5, pady=5)
-
-            # Add editor tabs
-            for i in range(3):
-                tab_id, tab_frame = editor_notebook.add_frame_tab(f"file_{i+1}.py")
-
-                # Add text widget to simulate editor
-                text_editor = tk.Text(
-                    tab_frame.frame.root,
-                    font=('Consolas', 10),
-                    bg='#101010',
-                    fg='#aaaaaa',
-                    insertbackground='#ffffff',
-                    wrap='none'
-                )
-                text_editor.pack(fill='both', expand=True, padx=5, pady=5)
-
-                # Add sample code
-                sample_code = f"""# File {i+1} - Sample Python Code
-def main():
-    print("Hello from file {i+1}")
-
-    # Sample function
-    result = calculate_something()
-    return result
-
-def calculate_something():
-    '''Sample calculation function'''
-    return 42 * (i + 1)
-
-if __name__ == "__main__":
-    main()
-"""
-                text_editor.insert('1.0', sample_code)
-
-        @property
-        def name(self) -> str:
-            return "MainEditor"
-
-    class TerminalWidget(TaskFrame):
-        """Terminal/console widget."""
-
-        def __init__(self, master):
-            super().__init__(master=master)
-
-            # Terminal output
-            terminal_text = tk.Text(
-                self,
-                font=('Consolas', 9),
-                bg='#000000',
-                fg='#00ff00',
-                insertbackground='#00ff00',
-                height=8
-            )
-            terminal_text.pack(fill='both', expand=True, padx=5, pady=5)
-
-            # Sample terminal output
-            terminal_output = """$ python main.py
-Starting application...
-Loading configuration...
-✓ Configuration loaded successfully
-✓ Database connection established
-✓ Server started on port 8000
-Ready to accept connections...
-$ """
-            terminal_text.insert('1.0', terminal_output)
-            terminal_text.see('end')
-
-        @property
-        def name(self) -> str:
-            return "TerminalWidget"
-
-    # Add sidebar widgets
-    explorer = ExplorerWidget(master=workspace.window)
-    search = SearchWidget(master=workspace.window)
-    git = GitWidget(master=workspace.window)
-
-    workspace.add_sidebar_widget(explorer.frame.root, "Explorer", "explorer", "📁", closeable=False)
-    workspace.add_sidebar_widget(search.frame.root, "Search", "search", "🔍")
-    workspace.add_sidebar_widget(git.frame.root, "Source Control", "git", "🌿")
-
-    # Add main workspace content
-    main_editor = MainEditor(master=workspace.workspace_area.frame.root)
-    terminal = TerminalWidget(master=workspace.workspace_area.frame.root)
-
-    workspace.add_workspace_task_frame(main_editor)
-    workspace.add_workspace_task_frame(terminal)
-
-    # View menu
-    view_menu = workspace.imenu.get_view_menu()
-    view_menu.add_item(label="Toggle Sidebar", command=workspace.toggle_sidebar)
-    view_menu.add_separator()
-    view_menu.add_item(label="Workspace Info", command=workspace._show_workspace_info)
-    view_menu.add_item(label="Clear Workspace", command=workspace.clear_workspace)
-    view_menu.add_item(label="Clear Sidebar", command=workspace.clear_sidebar)
-
-    # Set up callbacks
-    def on_sidebar_toggle_callback(visible: bool):
-        workspace.set_status(f"Sidebar {'shown' if visible else 'hidden'}")
-
-    def on_task_frame_mounted_callback(frame: TaskFrame, location: str):
-        workspace.set_status(f"Mounted {frame.name} to {location}")
-
-    workspace.on_sidebar_toggle = on_sidebar_toggle_callback
-    workspace.on_task_frame_mounted = on_task_frame_mounted_callback
-
-    # Keyboard shortcuts
-    workspace.iframework.bind_hotkey('Control-b', lambda: workspace.toggle_sidebar())
-    workspace.iframework.bind_hotkey('F1', lambda: workspace._show_workspace_info())
-
-    return workspace.window
-
-
-def only_create_workspace():
-    """Create a workspace instance without running the demo."""
-    workspace = Workspace()
-    return workspace
-
-
-if __name__ == "__main__":
-    # Run the demo
-    demo_window = create_demo_window()
-    # demo_window = only_create_workspace().window
-    demo_window.mainloop()

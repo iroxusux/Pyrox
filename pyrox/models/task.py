@@ -3,10 +3,11 @@
 Tasks are used to add additional functionality to the application via the toolbar
 in the main application frame.
 """
-from typing import Generic, Self, TypeVar
+from typing import Generic, TypeVar
 from pyrox.services.logging import log
-from .abc import FactoryTypeMeta, MetaFactory, Runnable
-from .application import Application
+from .abc import FactoryTypeMeta, MetaFactory
+from ..application import Application
+from .protocols import Runnable
 
 
 TApplication = TypeVar('TApplication', bound=Application)
@@ -38,7 +39,7 @@ class ApplicationTaskFactory(MetaFactory):
 class ApplicationTask(
     Runnable,
     Generic[TApplication],
-    metaclass=FactoryTypeMeta[type(Self), ApplicationTaskFactory]
+    metaclass=FactoryTypeMeta['ApplicationTask', ApplicationTaskFactory]
 ):
     """Application task to add additional functionality to the application.
 

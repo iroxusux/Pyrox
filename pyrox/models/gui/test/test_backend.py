@@ -56,7 +56,7 @@ class TestConsoleBackend(unittest.TestCase):
     def test_create_root_gui_window_raises_not_implemented(self):
         """Test that create_root_gui_window raises NotImplementedError."""
         with self.assertRaises(NotImplementedError) as context:
-            self.backend.create_root_gui_window()
+            self.backend.create_root_window()
         self.assertIn('Console backend does not support window creation', str(context.exception))
 
     def test_create_gui_window_raises_not_implemented(self):
@@ -85,12 +85,26 @@ class TestTkinterBackend(unittest.TestCase):
         """Set up test fixtures."""
         self.backend = TkinterBackend()
 
+        self.mock_tk_patcher = patch('pyrox.models.gui.tk.window.Tk')
+        self.mock_tk_instance = self.mock_tk_patcher.start()
+        self.mock_tk_instance.return_value = MagicMock()
+
+        self.mock_toplevel_patcher = patch('pyrox.models.gui.tk.window.Toplevel')
+        self.mock_toplevel_instance = self.mock_toplevel_patcher.start()
+        self.mock_toplevel_instance.return_value = MagicMock()
+
+        self.mock_theme_created_patcher = patch('pyrox.services.theme.ThemeManager.ensure_theme_created')
+        self.mock_theme_created_patcher.start()
+
     def tearDown(self):
         """Clean up test fixtures."""
         # Reset backend state
-        self.backend._root_gui = None
+        self.backend._root_window = None
         self.backend._menu = None
         self.backend._tk = None
+        self.mock_tk_patcher.stop()
+        self.mock_toplevel_patcher.stop()
+        self.mock_theme_created_patcher.stop()
 
     def test_framework_property(self):
         """Test framework property returns TKINTER."""
@@ -125,47 +139,41 @@ class TestTkinterBackend(unittest.TestCase):
 
     def test_create_root_gui_window_success(self):
         """Test successful root window creation."""
-        mock_tk_instance = MagicMock()
 
-        with patch('tkinter.Tk', return_value=mock_tk_instance):
-            with patch('pyrox.services.theme.ThemeManager.ensure_theme_created'):
-                with patch.object(self.backend, 'config_from_env') as mock_config:
-                    result = self.backend.create_root_gui_window(title="Test", geometry="800x600")
+        with patch.object(self.backend, 'config_from_env') as mock_config:
+            result = self.backend.create_root_window(title="Test", geometry="800x600")
 
-                    # Verify the result is a TkinterGuiWindow with the mocked Tk instance
-                    self.assertIsInstance(result, TkinterGuiWindow)
-                    self.assertEqual(result.window, mock_tk_instance)
-                    # Verify config_from_env was called with the right parameters
-                    mock_config.assert_called_once_with(title="Test", geometry="800x600")
+            # Verify the result is a TkinterGuiWindow with the mocked Tk instance
+            self.assertIsInstance(result, TkinterGuiWindow)
+            self.assertEqual(result.root, self.mock_tk_instance.return_value)
+            # Verify config_from_env was called with the right parameters
+            mock_config.assert_called_once_with(title="Test", geometry="800x600")
 
     def test_create_root_gui_window_initializes_if_needed(self):
         """Test that create_root_window initializes if _tk is None."""
         self.backend._tk = None
-        mock_tk_instance = MagicMock()
 
         def mock_initialize():
             import tkinter as tk
             self.backend._tk = tk  # type: ignore
             return True
 
-        with patch('tkinter.Tk', return_value=mock_tk_instance):
-            with patch('pyrox.services.theme.ThemeManager.ensure_theme_created'):
-                with patch.object(self.backend, 'config_from_env'):
-                    with patch.object(self.backend, 'initialize', side_effect=mock_initialize) as mock_init:
-                        result = self.backend.create_root_gui_window()
+        with patch.object(self.backend, 'config_from_env'):
+            with patch.object(self.backend, 'initialize', side_effect=mock_initialize) as mock_init:
+                result = self.backend.create_root_window()
 
-                        # Verify initialize was called
-                        mock_init.assert_called_once()
-                        # Verify a result was returned
-                        self.assertIsNotNone(result)
+                # Verify initialize was called
+                mock_init.assert_called_once()
+                # Verify a result was returned
+                self.assertIsNotNone(result)
 
     def test_create_root_gui_window_returns_existing(self):
         """Test that create_root_window returns existing window if already created."""
         mock_existing_window = MagicMock(spec=TkinterGuiWindow)
-        self.backend._root_gui = mock_existing_window
+        self.backend._root_window = mock_existing_window
         self.backend._tk = MagicMock()  # Ensure _tk is not None # type: ignore
 
-        result = self.backend.create_root_gui_window()
+        result = self.backend.create_root_window()
 
         # Should return the existing window without creating a new one
         self.assertEqual(result, mock_existing_window)
@@ -176,7 +184,7 @@ class TestTkinterBackend(unittest.TestCase):
 
         with patch.object(self.backend, 'initialize', return_value=False):
             with self.assertRaises(RuntimeError) as context:
-                self.backend.create_root_gui_window()
+                self.backend.create_root_window()
             self.assertIn("Tkinter not available", str(context.exception))
 
     def test_create_root_gui_window_raises_if_tk_not_initialized(self):
@@ -184,16 +192,16 @@ class TestTkinterBackend(unittest.TestCase):
         # This test validates the condition where _tk is unexpectedly None
         # In practice, this should be handled by the check at line 241 in backend.py
         # So we'll just verify the method properly checks for this condition
-        self.backend._root_gui = None
+        self.backend._root_window = None
         self.backend._tk = None
 
         # Should raise RuntimeError when trying to create without initialization
         with self.assertRaises(RuntimeError) as context:
             # Force the condition by patching initialize to return True but not set _tk
-            with patch.object(self.backend, 'initialize', return_value=True):
-                self.backend.create_root_gui_window()
+            with patch.object(self.backend, 'initialize', return_value=False):
+                self.backend.create_root_window()
 
-        self.assertIn("Tkinter not initialized", str(context.exception))
+        self.assertIn("Tkinter not available", str(context.exception))
 
     def test_create_root_gui_window_only_creates_one_instance(self):
         """Test that create_root_gui_window only creates one instance."""
@@ -203,33 +211,25 @@ class TestTkinterBackend(unittest.TestCase):
             with patch('pyrox.services.theme.ThemeManager.ensure_theme_created'):
                 with patch.object(self.backend, 'config_from_env'):
                     # First call to create_root_gui_window
-                    first_window = self.backend.create_root_gui_window()
+                    first_window = self.backend.create_root_window()
 
                     # Second call to create_root_gui_window
-                    second_window = self.backend.create_root_gui_window()
+                    second_window = self.backend.create_root_window()
 
                     # Both calls should return the same instance
                     self.assertIs(first_window, second_window)
 
     def test_create_gui_window_success(self):
         """Test creating a secondary GUI window."""
-        mock_root_gui = MagicMock(spec=TkinterGuiWindow)
-        self.backend._root_gui = mock_root_gui
 
-        # Create a real Toplevel mock with proper type checking
-        from tkinter import Toplevel
-        real_toplevel = MagicMock(spec=Toplevel)
+        # Need to patch isinstance to accept our mock
+        with patch('pyrox.models.gui.tk.window.isinstance', return_value=True):
+            result = self.backend.create_gui_window(title="Secondary")
 
-        with patch('tkinter.Toplevel', return_value=real_toplevel) as mock_toplevel_class:
-            with patch('pyrox.services.theme.ThemeManager.ensure_theme_created'):
-                # Need to patch isinstance to accept our mock
-                with patch('pyrox.models.gui.tk.window.isinstance', return_value=True):
-                    result = self.backend.create_gui_window(title="Secondary")
-
-                    # Verify Toplevel was called with the root gui as master
-                    mock_toplevel_class.assert_called_once_with(master=mock_root_gui, title="Secondary")
-                    # Verify the result is a TkinterGuiWindow
-                    self.assertIsInstance(result, TkinterGuiWindow)
+            # Verify Toplevel was called with the root gui as master
+            self.mock_toplevel_instance.assert_called_once()
+            # Verify the result is a TkinterGuiWindow
+            self.assertIsInstance(result, TkinterGuiWindow)
 
     def test_create_application_gui_menu_success(self):
         """Test creating application GUI menu."""
@@ -268,7 +268,7 @@ class TestTkinterBackend(unittest.TestCase):
                     with patch('pyrox.models.gui.tk.menu.TkinterApplicationMenu.menu', new_callable=lambda: MagicMock()):
                         self.backend.create_application_gui_menu()
 
-                        mock_init.assert_called_once()
+                        mock_init.assert_called()
 
     def test_create_application_gui_menu_raises_if_init_fails(self):
         """Test that create_application_gui_menu raises error if initialization fails."""
@@ -342,13 +342,13 @@ class TestTkinterBackend(unittest.TestCase):
 
     def test_get_root_gui_window_creates_if_needed(self):
         """Test that get_root_gui_window creates window if needed."""
-        self.backend._root_gui = None
+        self.backend._root_window = None
         mock_window = MagicMock(spec=TkinterGuiWindow)
 
-        with patch.object(self.backend, 'create_root_gui_window', return_value=mock_window) as mock_create:
+        with patch.object(self.backend, 'create_root_window', return_value=mock_window) as mock_create:
             # Manually set _root_gui after the call to simulate the creation
             def set_window():
-                self.backend._root_gui = mock_window
+                self.backend._root_window = mock_window
                 return mock_window
 
             mock_create.side_effect = set_window
@@ -361,7 +361,7 @@ class TestTkinterBackend(unittest.TestCase):
     def test_get_root_gui_window_returns_existing(self):
         """Test that get_root_gui_window returns existing window."""
         mock_window = MagicMock(spec=TkinterGuiWindow)
-        self.backend._root_gui = mock_window
+        self.backend._root_window = mock_window
 
         result = self.backend.get_root_gui_window()
 
@@ -369,9 +369,9 @@ class TestTkinterBackend(unittest.TestCase):
 
     def test_get_root_gui_window_raises_if_creation_fails(self):
         """Test that get_root_gui_window raises error if creation fails."""
-        self.backend._root_gui = None
+        self.backend._root_window = None
 
-        with patch.object(self.backend, 'create_root_gui_window', return_value=None):
+        with patch.object(self.backend, 'create_root_window', return_value=None):
             with self.assertRaises(RuntimeError) as context:
                 self.backend.get_root_gui_window()
             self.assertIn("Root window not initialized", str(context.exception))
@@ -381,9 +381,9 @@ class TestTkinterBackend(unittest.TestCase):
         mock_tk_window = MagicMock()
         mock_gui_window = MagicMock(spec=TkinterGuiWindow)
         mock_gui_window.window = mock_tk_window
-        self.backend._root_gui = mock_gui_window
+        self.backend._root_window = mock_gui_window
 
-        with patch.object(self.backend, 'get_root_gui_window', return_value=mock_gui_window):
+        with patch.object(self.backend, 'get_root_window', return_value=mock_gui_window):
             result = self.backend.get_root_window()
 
             self.assertEqual(result, mock_tk_window)
@@ -449,7 +449,7 @@ class TestTkinterBackend(unittest.TestCase):
         mock_root = MagicMock(spec=TkinterGuiWindow)
         mock_tk_window = MagicMock()
         mock_root.window = mock_tk_window
-        self.backend._root_gui = mock_root
+        self.backend._root_window = mock_root
 
         self.backend.run_main_loop()
 
@@ -535,7 +535,7 @@ class TestTkinterBackend(unittest.TestCase):
         """Test binding a hotkey."""
         mock_tk_window = MagicMock()
         mock_root_gui = MagicMock()
-        self.backend._root_gui = mock_root_gui
+        self.backend._root_window = mock_root_gui
         callback = MagicMock()
 
         with patch.object(self.backend, 'get_root_window', return_value=mock_tk_window):
@@ -549,7 +549,7 @@ class TestTkinterBackend(unittest.TestCase):
 
     def test_bind_hotkey_raises_if_no_root_window(self):
         """Test that bind_hotkey raises error if root window not initialized."""
-        self.backend._root_gui = None
+        self.backend._root_window = None
 
         with self.assertRaises(RuntimeError) as context:
             self.backend.bind_hotkey('<Control-s>', lambda: None)

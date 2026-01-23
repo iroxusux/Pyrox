@@ -55,7 +55,7 @@ class ConsoleBackend(IGuiBackend):
         """Console mode has no loading bar."""
         raise NotImplementedError("Console backend does not support window creation")
 
-    def create_root_gui_window(self, **kwargs) -> IGuiWindow:
+    def create_root_window(self, **kwargs) -> IGuiWindow:
         """Console mode has no window."""
         raise NotImplementedError("Console backend does not support window creation")
 
@@ -133,6 +133,9 @@ class ConsoleBackend(IGuiBackend):
     def set_icon(self, icon_path: str) -> None:
         raise NotImplementedError("Console backend does not support setting an app icon")
 
+    def get_title(self) -> str:
+        return 'Console Application'
+
     def set_title(self, title: str) -> None:
         print(f"Console backend: Setting title to '{title}' (no GUI effect).")
 
@@ -149,6 +152,15 @@ class ConsoleBackend(IGuiBackend):
         pass
 
     def update_framekwork_tasks(self) -> None:
+        pass
+
+    def focus_main_window(self) -> None:
+        pass
+
+    def save_window_geometry(self) -> None:
+        pass
+
+    def restore_window_geometry(self) -> None:
         pass
 
 

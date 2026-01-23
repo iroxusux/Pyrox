@@ -1,57 +1,25 @@
 """Gui Frame Interface Module.
 """
 from abc import abstractmethod
-from typing import Any, List
+from typing import Generic, List, TypeVar
 from .widget import IGuiWidget
 
+T = TypeVar('T')
+W = TypeVar('W')
 
-class IGuiFrame(IGuiWidget):
+
+class IGuiFrame(
+    Generic[T, W],
+    IGuiWidget[T]
+):
     """Interface for GUI frames/containers.
 
     Provides functionality for container widgets that can hold other
     GUI components with layout management capabilities.
     """
 
-    @property
     @abstractmethod
-    def frame(self) -> Any:
-        """Get the underlying frame object.
-
-        Returns:
-            Any: The frame object specific to the GUI framework.
-        """
-        raise NotImplementedError("frame property must be implemented by subclass.")
-
-    @frame.setter
-    @abstractmethod
-    def frame(self, value: Any) -> None:
-        """Set the underlying frame object.
-
-        Args:
-            value: The frame object specific to the GUI framework.
-        """
-        raise NotImplementedError("frame setter must be implemented by subclass.")
-
-    @property
-    def root(self) -> Any:
-        """Get the underlying gui object.
-
-        Returns:
-            Any: The gui object specific to the GUI framework.
-        """
-        return self.frame
-
-    @root.setter
-    def root(self, value: Any) -> None:
-        """Set the underlying gui object.
-
-        Args:
-            value: The gui object specific to the GUI framework.
-        """
-        self.frame = value
-
-    @abstractmethod
-    def add_child(self, child: IGuiWidget) -> None:
+    def add_child(self, child: W) -> None:
         """Add a child component to the frame.
 
         Args:
@@ -65,7 +33,7 @@ class IGuiFrame(IGuiWidget):
         raise NotImplementedError("clear_children method must be implemented by subclass.")
 
     @abstractmethod
-    def get_children(self) -> List[IGuiWidget]:
+    def get_children(self) -> List[W]:
         """Get all child components.
 
         Returns:
@@ -74,7 +42,7 @@ class IGuiFrame(IGuiWidget):
         raise NotImplementedError("get_children method must be implemented by subclass.")
 
     @abstractmethod
-    def remove_child(self, child: IGuiWidget) -> None:
+    def remove_child(self, child: W) -> None:
         """Remove a child component from the frame.
 
         Args:

@@ -1,7 +1,8 @@
-"""types module for pyrox"""
-from . import abc  # MUST COME FIRST
+"""models for pyrox"""
+from . import abc  # Must come first to register ABCs
+
+# ABCs and base classes
 from .abc import (
-    Buildable,
     FactoryTypeMeta,
     HashList,
     MetaFactory,
@@ -12,7 +13,9 @@ from .abc import (
     SupportsMetaData,
 )
 
-from . import gui
+from . import gui  # Must come second to register GUI components
+
+# GUI components
 from .gui import (
     LogFrame,
     PyroxFrameContainer,
@@ -21,28 +24,39 @@ from .gui import (
     Workspace,
 )
 
-from .application import Application
+# Task components
 from .task import ApplicationTask, ApplicationTaskFactory
 
+# Scene components
+from .scene import Scene, SceneObject, SceneObjectFactory
 
-__all__ = (
+
+__all__ = [
+    # ABCs and base classes
     'abc',
-    'Application',
-    'ApplicationTask',
-    'ApplicationTaskFactory',
-    'Buildable',
     'FactoryTypeMeta',
     'HashList',
-    'LogFrame',
     'MetaFactory',
-    'PyroxFrameContainer',
-    'PyroxGuiObject',
     'PyroxObject',
     'SafeList',
     'Subscribable',
     'SupportsFileLocation',
     'SupportsMetaData',
-    'TaskFrame',
+
+    # GUI components
     'gui',
+    'LogFrame',
+    'PyroxFrameContainer',
+    'PyroxGuiObject',
+    'TaskFrame',
     'Workspace',
-)
+
+    # Task components
+    'ApplicationTask',
+    'ApplicationTaskFactory',
+
+    # Scene components
+    'Scene',
+    'SceneObject',
+    'SceneObjectFactory',
+]

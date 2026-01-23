@@ -14,7 +14,7 @@ from . import gui  # MUST COME FOURTH, gui imports sub-systems which on some sys
 from .gui import GuiManager
 
 from . import file
-from .file import get_open_file
+from .file import get_open_file, PlatformDirectoryService
 
 from . import (
     archive,
@@ -67,4 +67,5 @@ __all__ = (
     'timer',
     'xml',
     'get_open_file',
+    'PlatformDirectoryService',
 )

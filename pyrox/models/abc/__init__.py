@@ -24,8 +24,6 @@ from .meta import (
 )
 
 from .runtime import (
-    Buildable,
-    Runnable,
     RuntimeDict
 )
 
@@ -44,7 +42,6 @@ from .stream import (
 
 
 __all__ = (
-    'Buildable',
     'EnforcesNaming',
     'FactoryTypeMeta',
     'FileStream',
@@ -54,7 +51,6 @@ __all__ = (
     'MultiStream',
     'NamedPyroxObject',
     'PyroxObject',
-    'Runnable',
     'RuntimeDict',
     'SafeList',
     'SimpleStream',

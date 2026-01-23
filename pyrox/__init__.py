@@ -7,7 +7,10 @@ from . import (
     interfaces,
     services,
     models,
+    application
 )
+
+from .application import Application
 
 
 def bootstrap() -> None:
@@ -24,4 +27,6 @@ __all__ = (
     'interfaces',
     'services',
     'models',
+    'application',
+    'Application',
 )

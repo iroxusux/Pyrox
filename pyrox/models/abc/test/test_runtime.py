@@ -3,34 +3,17 @@
 import unittest
 from unittest.mock import MagicMock
 
-from pyrox.models.abc.runtime import Buildable, Runnable, RuntimeDict
-from pyrox.models.abc.meta import NamedPyroxObject
+from pyrox.models.protocols import Buildable, Runnable
+from pyrox.models.abc.runtime import RuntimeDict
 
 
 class TestBuildable(unittest.TestCase):
     """Test cases for Buildable class."""
 
-    def test_init_inherits_from_named_pyrox_object(self):
-        """Test that Buildable inherits from NamedPyroxObject."""
-        obj = Buildable()
-
-        self.assertIsInstance(obj, NamedPyroxObject)
-        self.assertIsInstance(obj, Buildable)
-
     def test_init_default_values(self):
         """Test initialization with default values."""
         obj = Buildable()
 
-        self.assertFalse(obj.built)
-        self.assertEqual(obj.name, 'Buildable')
-        self.assertEqual(obj.description, '')
-
-    def test_init_with_kwargs(self):
-        """Test initialization with keyword arguments."""
-        obj = Buildable(name='TestBuildable', description='Test description')
-
-        self.assertEqual(obj.name, 'TestBuildable')
-        self.assertEqual(obj.description, 'Test description')
         self.assertFalse(obj.built)
 
     def test_built_property_initial_state(self):
@@ -94,14 +77,9 @@ class TestBuildable(unittest.TestCase):
         obj.refresh()
         self.assertEqual(obj.refresh_count, 2)
 
-    def test_slots_attribute(self):
-        """Test that __slots__ is properly defined."""
-        self.assertTrue(hasattr(Buildable, '__slots__'))
-        self.assertEqual(Buildable.__slots__, ('_built',))
-
     def test_build_lifecycle(self):
         """Test complete build lifecycle."""
-        obj = Buildable(name='LifecycleTest')
+        obj = Buildable()
 
         # Initial state
         self.assertFalse(obj.built)
@@ -125,7 +103,7 @@ class TestBuildable(unittest.TestCase):
                 super().build()
                 self.custom_property = "built"
 
-        obj = CustomBuildable(name='CustomTest')
+        obj = CustomBuildable()
 
         self.assertEqual(obj.custom_property, "custom")
         self.assertFalse(obj.built)
@@ -144,23 +122,12 @@ class TestRunnable(unittest.TestCase):
         obj = Runnable()
 
         self.assertIsInstance(obj, Buildable)
-        self.assertIsInstance(obj, NamedPyroxObject)
         self.assertIsInstance(obj, Runnable)
 
     def test_init_default_values(self):
         """Test initialization with default values."""
         obj = Runnable()
 
-        self.assertFalse(obj.built)
-        self.assertFalse(obj.running)
-        self.assertEqual(obj.name, 'Runnable')
-
-    def test_init_with_kwargs(self):
-        """Test initialization with keyword arguments."""
-        obj = Runnable(name='TestRunnable', description='Test runnable')
-
-        self.assertEqual(obj.name, 'TestRunnable')
-        self.assertEqual(obj.description, 'Test runnable')
         self.assertFalse(obj.built)
         self.assertFalse(obj.running)
 
@@ -171,47 +138,47 @@ class TestRunnable(unittest.TestCase):
         self.assertFalse(obj.running)
         self.assertIsInstance(obj.running, bool)
 
-    def test_start_method_not_built(self):
-        """Test start method when object is not built."""
+    def test_run_method_not_built(self):
+        """Test run method when object is not built."""
         obj = Runnable()
 
         self.assertFalse(obj.built)
         self.assertFalse(obj.running)
 
-        obj.start()
+        obj.run()
 
         self.assertTrue(obj.built)  # Should auto-build
         self.assertTrue(obj.running)
 
-    def test_start_method_already_built(self):
-        """Test start method when object is already built."""
+    def test_run_method_already_built(self):
+        """Test run method when object is already built."""
         obj = Runnable()
         obj.build()  # Pre-build
 
         self.assertTrue(obj.built)
         self.assertFalse(obj.running)
 
-        obj.start()
+        obj.run()
 
         self.assertTrue(obj.built)
         self.assertTrue(obj.running)
 
-    def test_start_method_multiple_calls(self):
+    def test_run_method_multiple_calls(self):
         """Test calling start method multiple times."""
         obj = Runnable()
 
-        obj.start()
+        obj.run()
         self.assertTrue(obj.built)
         self.assertTrue(obj.running)
 
-        obj.start()  # Call again
+        obj.run()  # Call again
         self.assertTrue(obj.built)
         self.assertTrue(obj.running)
 
     def test_stop_method(self):
         """Test stop method."""
         obj = Runnable()
-        obj.start()
+        obj.run()
 
         self.assertTrue(obj.running)
 
@@ -233,7 +200,7 @@ class TestRunnable(unittest.TestCase):
     def test_stop_method_multiple_calls(self):
         """Test calling stop method multiple times."""
         obj = Runnable()
-        obj.start()
+        obj.run()
 
         obj.stop()
         self.assertFalse(obj.running)
@@ -246,7 +213,7 @@ class TestRunnable(unittest.TestCase):
         obj = Runnable()
 
         # First cycle
-        obj.start()
+        obj.run()
         self.assertTrue(obj.built)
         self.assertTrue(obj.running)
 
@@ -255,18 +222,13 @@ class TestRunnable(unittest.TestCase):
         self.assertFalse(obj.running)
 
         # Second cycle (should not rebuild)
-        obj.start()
+        obj.run()
         self.assertTrue(obj.built)
         self.assertTrue(obj.running)
 
         obj.stop()
         self.assertTrue(obj.built)
         self.assertFalse(obj.running)
-
-    def test_slots_attribute(self):
-        """Test that __slots__ is properly defined."""
-        self.assertTrue(hasattr(Runnable, '__slots__'))
-        self.assertEqual(Runnable.__slots__, ('_running',))
 
     def test_build_method_from_parent(self):
         """Test that build method is inherited properly."""
@@ -295,11 +257,12 @@ class TestRunnable(unittest.TestCase):
                 self.stop_count = 0
                 self.build_count = 0
 
-            def start(self):
+            def run(self, stop_code: int = 0):
                 self.start_count += 1
-                super().start()
+                super().run()
+                return 0
 
-            def stop(self):
+            def stop(self, stop_code: int = 0):
                 self.stop_count += 1
                 super().stop()
 
@@ -310,7 +273,7 @@ class TestRunnable(unittest.TestCase):
         obj = CustomRunnable()
 
         # Test start
-        obj.start()
+        obj.run()
         self.assertEqual(obj.start_count, 1)
         self.assertEqual(obj.build_count, 1)  # Auto-build
         self.assertTrue(obj.running)
@@ -322,15 +285,14 @@ class TestRunnable(unittest.TestCase):
 
     def test_complete_lifecycle(self):
         """Test complete Runnable lifecycle."""
-        obj = Runnable(name='LifecycleTest')
+        obj = Runnable()
 
         # Initial state
-        self.assertEqual(obj.name, 'LifecycleTest')
         self.assertFalse(obj.built)
         self.assertFalse(obj.running)
 
         # Start (auto-builds)
-        obj.start()
+        obj.run()
         self.assertTrue(obj.built)
         self.assertTrue(obj.running)
 
@@ -345,7 +307,7 @@ class TestRunnable(unittest.TestCase):
         self.assertFalse(obj.running)
 
         # Restart
-        obj.start()
+        obj.run()
         self.assertTrue(obj.built)
         self.assertTrue(obj.running)
 
@@ -819,16 +781,15 @@ class TestIntegration(unittest.TestCase):
                 super().build()
                 self.build_data = "initialized"
 
-        obj = TestObject(name="IntegrationTest")
+        obj = TestObject()
 
         # Initial state
-        self.assertEqual(obj.name, "IntegrationTest")
         self.assertFalse(obj.built)
         self.assertFalse(obj.running)
         self.assertIsNone(obj.build_data)
 
         # Start should trigger build
-        obj.start()
+        obj.run()
         self.assertTrue(obj.built)
         self.assertTrue(obj.running)
         self.assertEqual(obj.build_data, "initialized")
@@ -846,7 +807,7 @@ class TestIntegration(unittest.TestCase):
                 if self.built and 'auto_refresh' in self.config and self.config['auto_refresh']:
                     self.refresh()
 
-        obj = ConfigurableBuildable(name="ConfigTest")
+        obj = ConfigurableBuildable()
 
         # Set initial config
         obj.config['setting1'] = 'value1'
@@ -876,16 +837,16 @@ class TestIntegration(unittest.TestCase):
                     'restart_on_change' in self.settings and
                         self.settings['restart_on_change']):
                     self.stop()
-                    self.start()
+                    self.run()
                     self.auto_restarts += 1
 
-        obj = ConfigurableRunnable(name="RestartTest")
+        obj = ConfigurableRunnable()
 
         # Configure for auto-restart
         obj.settings['restart_on_change'] = True
 
         # Start the object
-        obj.start()
+        obj.run()
         self.assertTrue(obj.running)
         self.assertEqual(obj.auto_restarts, 0)
 
@@ -910,22 +871,23 @@ class TestIntegration(unittest.TestCase):
                 super().build()
                 self.status_log.append("Object built")
 
-            def start(self):
-                super().start()
+            def run(self, stop_code: int = 0) -> int:
+                super().run()
                 self.status_log.append("Object started")
+                return 0
 
-            def stop(self):
+            def stop(self, stop_code: int = 0):
                 super().stop()
                 self.status_log.append("Object stopped")
 
             def refresh(self):
                 self.status_log.append("Object refreshed")
 
-        obj = ComplexObject(name="ComplexTest")
+        obj = ComplexObject()
 
         # Test complete lifecycle
         obj.runtime_data['config'] = 'initial'  # Data change while not running
-        obj.start()  # Should build and start
+        obj.run()  # Should build and start
         obj.runtime_data['config'] = 'updated'  # Data change while running
         obj.refresh()
         obj.stop()
@@ -953,7 +915,7 @@ class TestIntegration(unittest.TestCase):
             def _log_change(self, config_type):
                 self.change_log.append(f"{config_type}_config_changed")
 
-        obj = MultiConfigObject(name="MultiConfig")
+        obj = MultiConfigObject()
 
         # Test both configs
         obj.user_config['theme'] = 'dark'
@@ -982,12 +944,13 @@ class TestIntegration(unittest.TestCase):
                     self.error_count += 1
                     raise RuntimeError("Simulated config error")
 
-            def start(self):
-                super().start()
+            def run(self, stop_code: int = 0) -> int:
+                super().run()
                 if 'fail_on_start' in self.config and self.config['fail_on_start']:
                     raise RuntimeError("Start failed")
+                return 0
 
-        obj = ErrorProneObject(name="ErrorTest")
+        obj = ErrorProneObject()
 
         # Normal operation
         obj.config['normal_setting'] = 'value'
@@ -1006,7 +969,7 @@ class TestIntegration(unittest.TestCase):
         obj.config['recovery_setting'] = 'value'
 
         # Object should still be functional
-        obj.start()
+        obj.run()
         self.assertTrue(obj.running)
 
 

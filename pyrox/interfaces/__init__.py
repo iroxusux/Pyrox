@@ -24,6 +24,17 @@ Interface Categories:
 # Environment constants
 from .constants import EnvironmentKeys
 
+# Protocols
+from .protocols import (
+    IConfigurable,
+    INameable,
+    IDescribable,
+    IBuildable,
+    IRefreshable,
+    IResettable,
+    IRunnable,
+)
+
 # GUI interfaces
 from .gui import (
     IApplicationGuiMenu,
@@ -49,8 +60,6 @@ from .services import (
 from .application import (
     IApplication,
     IApplicationTask,
-    ITaskFactory,
-    ILifecycleManager,
 )
 
 # Event interfaces
@@ -69,10 +78,22 @@ from .integration import (
     IPluginManager,
 )
 
+# Scene interfaces
+from .scene import IScene, ISceneObject, ISceneObjectFactory
+
 
 __all__ = (
     # Environment Constants
     'EnvironmentKeys',
+
+    # Protocols
+    'IConfigurable',
+    'INameable',
+    'IDescribable',
+    'IBuildable',
+    'IRefreshable',
+    'IResettable',
+    'IRunnable',
 
     # GUI Interfaces
     'GuiFramework',
@@ -94,8 +115,6 @@ __all__ = (
     # Application Interfaces
     'IApplication',
     'IApplicationTask',
-    'ITaskFactory',
-    'ILifecycleManager',
 
     # Event Interfaces
     'IObserver',
@@ -108,4 +127,9 @@ __all__ = (
     'IBackendRegistry',
     'IDependencyInjector',
     'IPluginManager',
+
+    # Scene Interfaces
+    'IScene',
+    'ISceneObject',
+    'ISceneObjectFactory',
 )
