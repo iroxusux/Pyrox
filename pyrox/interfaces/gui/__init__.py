@@ -5,6 +5,7 @@ from .menu import IGuiMenu, IApplicationGuiMenu
 from .meta import GuiFramework
 from .widget import IGuiWidget
 from .window import IGuiWindow
+from .workspace import IWorkspace
 
 
 __all__ = [
@@ -15,5 +16,6 @@ __all__ = [
     'IGuiMenu',
     'IGuiWidget',
     'IGuiWindow',
+    'IWorkspace',
     'IApplicationGuiMenu',
 ]

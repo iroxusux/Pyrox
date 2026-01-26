@@ -33,18 +33,10 @@ from .protocols import (
     IRefreshable,
     IResettable,
     IRunnable,
-)
-
-# GUI interfaces
-from .gui import (
-    IApplicationGuiMenu,
-    GuiFramework,
-    IGuiBackend,
-    IGuiComponent,
-    IGuiFrame,
-    IGuiMenu,
-    IGuiWidget,
-    IGuiWindow,
+    ICoreRunnableMixin,
+    IHasFileLocation,
+    IHasDictMetaData,
+    ISupportsItemAccess,
 )
 
 # Service interfaces
@@ -78,6 +70,19 @@ from .integration import (
     IPluginManager,
 )
 
+# GUI interfaces
+from .gui import (
+    IApplicationGuiMenu,
+    GuiFramework,
+    IGuiBackend,
+    IGuiComponent,
+    IGuiFrame,
+    IGuiMenu,
+    IGuiWidget,
+    IGuiWindow,
+    IWorkspace,
+)
+
 # Scene interfaces
 from .scene import IScene, ISceneObject, ISceneObjectFactory
 
@@ -94,6 +99,10 @@ __all__ = (
     'IRefreshable',
     'IResettable',
     'IRunnable',
+    'ICoreRunnableMixin',
+    'IHasFileLocation',
+    'IHasDictMetaData',
+    'ISupportsItemAccess',
 
     # GUI Interfaces
     'GuiFramework',
@@ -104,6 +113,7 @@ __all__ = (
     'IGuiFrame',
     'IGuiComponent',
     'IApplicationGuiMenu',
+    'IWorkspace',
 
     # Service Interfaces
     'IEnvironmentManager',

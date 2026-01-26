@@ -11,39 +11,27 @@ from typing import (
 from pyrox.interfaces import (
     EnvironmentKeys,
     IApplication,
+    IApplicationTask,
     IGuiBackend,
+    IWorkspace,
 )
-from pyrox.models.protocols import (
-    Nameable,
-    Describable,
-    Buildable,
-    Runnable,
-)
+
 from pyrox.models.abc import meta
-from pyrox.services import GuiManager, LoggingManager, log, EnvManager
+
+from pyrox.models import (
+    ApplicationTaskFactory,
+    ServicesRunnableMixin,
+)
+
 from pyrox.models import Workspace
-from pyrox.services.file import PlatformDirectoryService
+from pyrox.services import EnvManager
 
 __all__ = ('Application',)
 
 
-def _bootstrap() -> None:
-    """Bootstrap the application environment."""
-    sys.excepthook = Application.except_hook
-
-    GuiManager.unsafe_get_backend().create_root_window()
-    GuiManager.unsafe_get_backend().create_application_gui_menu()
-    GuiManager.unsafe_get_backend().restore_window_geometry()
-    GuiManager.unsafe_get_backend().subscribe_to_window_change_event(
-        GuiManager.unsafe_get_backend().save_window_geometry
-    )
-
-
 class Application(
     IApplication,
-    Nameable,
-    Describable,
-    Runnable
+    ServicesRunnableMixin,
 ):
     """A main Application class to manage running application data and services.
 
@@ -60,79 +48,50 @@ class Application(
         is_gui_enabled: Whether GUI is enabled for this application.
     """
 
-    _env: type[EnvManager] = EnvManager
-    _gui_mgr: type[GuiManager] = GuiManager
-    _logging: type[LoggingManager] = LoggingManager
-    _directory: type[PlatformDirectoryService] = PlatformDirectoryService
-
     def __init__(
         self,
     ) -> None:
         # Initialize base classes
-        Nameable.__init__(self, name=EnvManager.get(
-            EnvironmentKeys.core.APP_NAME,
-            'Pyrox Application',
-            str))
-        Describable.__init__(self, description=EnvManager.get(
-            EnvironmentKeys.core.APP_DESCRIPTION,
-            'A Pyrox Application',
-            str
-        ))
-        Runnable.__init__(self)
+        ServicesRunnableMixin.__init__(
+            self,
+            name=EnvManager.get(
+                EnvironmentKeys.core.APP_NAME,
+                'Pyrox Application',
+                str),
+            description=EnvManager.get(
+                EnvironmentKeys.core.APP_DESCRIPTION,
+                'A Pyrox Application',
+                str
+            ))
 
         # Initialize application services
-        _bootstrap()
+        sys.excepthook = self.except_hook
+
+        self.gui.unsafe_get_backend().create_root_window()
+        self.gui.unsafe_get_backend().create_application_gui_menu()
+        self.gui.unsafe_get_backend().restore_window_geometry()
+        self.gui.unsafe_get_backend().subscribe_to_window_change_event(
+            self.gui.unsafe_get_backend().save_window_geometry
+        )
 
         # Set up logging
-        LoggingManager.register_callback_to_captured_streams(self.log_stream.write)
+        self.logging.register_callback_to_captured_streams(self.log_stream.write)
+        ApplicationTaskFactory.build_tasks(self)
 
         # Initialize workspace
         self._workspace = Workspace()
 
-    @property
-    def env(self) -> type[EnvManager]:
-        """The environment manager for this Application.
-
-        Returns:
-            type[EnvManager]: The environment manager class.
-        """
-        return self._env
+        # Initialize tasks
+        self._tasks: list[IApplicationTask] = []
 
     @property
-    def gui(self) -> IGuiBackend:
+    def gui_backend(self) -> IGuiBackend:
         """The GUI backend for this Application.
 
         Returns:
             IGuiBackend: The GUI backend instance.
         """
-        return self.gui_mgr.unsafe_get_backend()
-
-    @property
-    def gui_mgr(self) -> type[GuiManager]:
-        """The GUI manager for this Application.
-
-        Returns:
-            type[GuiManager]: The GUI manager class.
-        """
-        return self._gui_mgr
-
-    @property
-    def logging(self) -> type[LoggingManager]:
-        """The logging manager for this Application.
-
-        Returns:
-            type[LoggingManager]: The logging manager class.
-        """
-        return self._logging
-
-    @property
-    def directory(self) -> type[PlatformDirectoryService]:
-        """The directory service for this Application.
-
-        Returns:
-            type[PlatformDirectoryService]: The directory service class.
-        """
-        return self._directory
+        return self.gui.unsafe_get_backend()
 
     @property
     def log_stream(self) -> TextIOWrapper:
@@ -144,15 +103,6 @@ class Application(
             stream.SimpleStream: The SimpleStream instance.
         """
         return self.directory.get_log_file_stream()
-
-    @property
-    def workspace(self) -> Workspace:
-        """The main Workspace for this Application.
-
-        Returns:
-            Workspace: The main workspace instance.
-        """
-        return self._workspace
 
     def get_author(self) -> str:
         """Get the application author.
@@ -174,26 +124,42 @@ class Application(
         """
         return '1.0.0'  # Placeholder version until we get it from pyproject.toml
 
+    def get_workspace(self) -> IWorkspace:
+        """Get the application workspace object.
+
+        Returns:
+            Any: The application workspace.
+        """
+        return self._workspace
+
+    def set_workspace(self, workspace: IWorkspace) -> None:
+        """Set the application workspace object.
+
+        Args:
+            workspace: The application workspace to set.
+        """
+        self._workspace = workspace
+
     def hook_to_gui(self) -> None:
-        self.gui.reroute_excepthook(self.except_hook)
-        self.gui.subscribe_to_window_close_event(self.on_close)
-        self.gui.set_title(
-            EnvManager.get(
+        self.gui_backend.reroute_excepthook(self.except_hook)
+        self.gui_backend.subscribe_to_window_close_event(self.on_close)
+        self.gui_backend.set_title(
+            self.env.get(
                 EnvironmentKeys.core.APP_WINDOW_TITLE,
                 'Pyrox Application',
                 str
             )
         )
-        self.gui.set_icon(
-            EnvManager.get(
+        self.gui_backend.set_icon(
+            self.env.get(
                 EnvironmentKeys.core.APP_ICON,
                 '',
                 str
             )
         )
 
-    @staticmethod
     def except_hook(
+        self,
         exc_type: type,
         exc_value: Exception,
         traceback: Any
@@ -207,58 +173,81 @@ class Application(
         """
         if issubclass(exc_type, KeyboardInterrupt):
             return
-        log().error(
+        self.log().error(
             msg=f'Uncaught exception: {exc_value}',
             exc_info=(exc_type, exc_value, traceback)
         )
 
     def on_close(self) -> None:
         """Close this application."""
-        log(self).info('Closing application...')
+        self.log().info('Closing application...')
         self.stop()
         try:
             self.gui.quit_application()
         except Exception as e:
-            log(self).error(f'Error closing GUI: {e}')
+            self.log().error(f'Error closing GUI: {e}')
         finally:
             gc.collect()  # Process garbage collection for GUI elements
 
-    def _restore_log_window_height(self) -> None:
-        """Restore log window height from environment settings."""
-        log_window_height = EnvManager.get(
-            key=EnvironmentKeys.ui.UI_LOG_WINDOW_HEIGHT,
-            default=None,
-            cast_type=float
-        )
+    def register_task(
+        self,
+        task: IApplicationTask
+    ) -> None:
+        """Register an application task.
 
-        if log_window_height is None:
+        Args:
+            task: The application task to register.
+        """
+        if not isinstance(task, IApplicationTask):
+            raise TypeError('Task must implement IApplicationTask interface.')
+
+        if task in self._tasks:
+            self.log().warning('Task is already registered; skipping.')
             return
 
-        self.workspace.set_log_window_height(log_window_height)
+        self._tasks.append(task)
 
-    def _restore_main_window_sash(self) -> None:
-        """Restore main window sash position from environment settings."""
+    def unregister_task(
+        self,
+        task: IApplicationTask
+    ) -> None:
+        """Unregister an application task.
 
-        main_window_sash = EnvManager.get(
-            key=EnvironmentKeys.ui.UI_SIDEBAR_WIDTH,
-            default=None,
-            cast_type=float
-        )
-
-        if main_window_sash is None:
-            log(self).warning('No main window sash position found in environment; skipping restore.')
+        Args:
+            task: The application task to unregister.
+        """
+        if task not in self._tasks:
+            self.log().warning('Task is not registered; cannot unregister.')
             return
 
-        self.workspace.set_sidebar_width(main_window_sash)
+        self._tasks.remove(task)
 
-    def _restore_sash_positions(self) -> None:
-        """Restore sash positions from environment settings."""
-        self._restore_log_window_height()
-        self._restore_main_window_sash()
+    def get_tasks(self) -> list[IApplicationTask]:
+        """Get the list of registered application tasks.
 
-    def _restore_geometry_env(self) -> None:
-        """Restore window geometry settings from environment variables."""
-        self._restore_sash_positions()
+        Returns:
+            list[IApplicationTask]: The list of registered tasks.
+        """
+        return self._tasks
+
+    def set_tasks(
+        self,
+        tasks: list[IApplicationTask]
+    ) -> None:
+        """Set the list of registered application tasks.
+
+        Args:
+            tasks: The list of application tasks to set.
+        """
+        for task in tasks:
+            if not isinstance(task, IApplicationTask):
+                raise TypeError('All tasks must implement IApplicationTask interface.')
+
+        self._tasks = tasks
+
+    def clear_tasks(self) -> None:
+        """Clear all registered application tasks."""
+        self._tasks.clear()
 
     def _set_log_window_height_env(
         self,
@@ -300,26 +289,13 @@ class Application(
             str(width)
         )
 
-    def log(self, message: str) -> None:
-        """Post a message to the application log.
-
-        This method should be overridden to implement custom logging functionality.
-
-        Args:
-            message: Message to be sent to this Application's log file.
-        """
-        self.workspace.log_window.log(message)
-
     def build(self) -> None:
         """Build and initialize the application."""
-        if self._workspace:
-            self.workspace.build()
-            self.workspace.set_status('Building...')
-
+        self.workspace.build()
+        self.workspace.set_status('Building...')
         self.hook_to_gui()
-        self._restore_geometry_env()
-        Buildable.build(self)
-        self.workspace.set_status('Ready.')
+        self.workspace.set_status('Ready...')
+        super().build()
 
     def clear_log_file(self) -> None:
         """Clear the log file for this Application.
@@ -338,24 +314,25 @@ class Application(
         This method changes the cursor to a busy state, indicating that the application is processing.
         """
 
-        self.gui.update_cursor(meta.TK_CURSORS.WAIT.value)
+        self.gui_backend.update_cursor(meta.TK_CURSORS.WAIT.value)
 
     def set_app_state_normal(self) -> None:
         """Set the application state to normal.
 
         This method changes the cursor back to normal, indicating that the application is ready for user interaction.
         """
-        self.gui.update_cursor(meta.TK_CURSORS.DEFAULT.value)
+        self.gui_backend.update_cursor(meta.TK_CURSORS.DEFAULT.value)
 
     def run(self) -> int:
         """Start the application."""
-        Runnable.run(self)
-        self.gui.schedule_event(
+        self.build()
+        super().run()
+        self.gui_backend.schedule_event(
             100,
-            lambda: log(self).info('Ready...')
+            lambda: self.log().info('Ready...')
         )
-        self.gui.focus_main_window()
-        self.gui.run_main_loop()
+        self.gui_backend.focus_main_window()
+        self.gui_backend.run_main_loop()
         return 0
 
 

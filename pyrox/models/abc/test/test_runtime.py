@@ -3,7 +3,7 @@
 import unittest
 from unittest.mock import MagicMock
 
-from pyrox.models.protocols import Buildable, Runnable
+from pyrox.models.abc.protocols import Buildable, Runnable
 from pyrox.models.abc.runtime import RuntimeDict
 
 
@@ -117,18 +117,10 @@ class TestBuildable(unittest.TestCase):
 class TestRunnable(unittest.TestCase):
     """Test cases for Runnable class."""
 
-    def test_init_inherits_from_buildable(self):
-        """Test that Runnable inherits from Buildable."""
-        obj = Runnable()
-
-        self.assertIsInstance(obj, Buildable)
-        self.assertIsInstance(obj, Runnable)
-
     def test_init_default_values(self):
         """Test initialization with default values."""
         obj = Runnable()
 
-        self.assertFalse(obj.built)
         self.assertFalse(obj.running)
 
     def test_running_property_initial_state(self):
@@ -138,41 +130,14 @@ class TestRunnable(unittest.TestCase):
         self.assertFalse(obj.running)
         self.assertIsInstance(obj.running, bool)
 
-    def test_run_method_not_built(self):
-        """Test run method when object is not built."""
-        obj = Runnable()
-
-        self.assertFalse(obj.built)
-        self.assertFalse(obj.running)
-
-        obj.run()
-
-        self.assertTrue(obj.built)  # Should auto-build
-        self.assertTrue(obj.running)
-
-    def test_run_method_already_built(self):
-        """Test run method when object is already built."""
-        obj = Runnable()
-        obj.build()  # Pre-build
-
-        self.assertTrue(obj.built)
-        self.assertFalse(obj.running)
-
-        obj.run()
-
-        self.assertTrue(obj.built)
-        self.assertTrue(obj.running)
-
     def test_run_method_multiple_calls(self):
         """Test calling start method multiple times."""
         obj = Runnable()
 
         obj.run()
-        self.assertTrue(obj.built)
         self.assertTrue(obj.running)
 
         obj.run()  # Call again
-        self.assertTrue(obj.built)
         self.assertTrue(obj.running)
 
     def test_stop_method(self):
@@ -185,7 +150,6 @@ class TestRunnable(unittest.TestCase):
         obj.stop()
 
         self.assertFalse(obj.running)
-        self.assertTrue(obj.built)  # Should remain built
 
     def test_stop_method_when_not_running(self):
         """Test stop method when not running."""
@@ -214,39 +178,17 @@ class TestRunnable(unittest.TestCase):
 
         # First cycle
         obj.run()
-        self.assertTrue(obj.built)
         self.assertTrue(obj.running)
 
         obj.stop()
-        self.assertTrue(obj.built)
         self.assertFalse(obj.running)
 
         # Second cycle (should not rebuild)
         obj.run()
-        self.assertTrue(obj.built)
         self.assertTrue(obj.running)
 
         obj.stop()
-        self.assertTrue(obj.built)
         self.assertFalse(obj.running)
-
-    def test_build_method_from_parent(self):
-        """Test that build method is inherited properly."""
-        obj = Runnable()
-
-        self.assertFalse(obj.built)
-
-        obj.build()
-
-        self.assertTrue(obj.built)
-        self.assertFalse(obj.running)  # Should not affect running state
-
-    def test_refresh_method_from_parent(self):
-        """Test that refresh method is inherited properly."""
-        obj = Runnable()
-
-        # Should not raise any errors
-        obj.refresh()
 
     def test_inheritance_and_overriding(self):
         """Test inheritance from Runnable with method overriding."""
@@ -266,16 +208,11 @@ class TestRunnable(unittest.TestCase):
                 self.stop_count += 1
                 super().stop()
 
-            def build(self):
-                self.build_count += 1
-                super().build()
-
         obj = CustomRunnable()
 
         # Test start
         obj.run()
         self.assertEqual(obj.start_count, 1)
-        self.assertEqual(obj.build_count, 1)  # Auto-build
         self.assertTrue(obj.running)
 
         # Test stop
@@ -288,27 +225,18 @@ class TestRunnable(unittest.TestCase):
         obj = Runnable()
 
         # Initial state
-        self.assertFalse(obj.built)
         self.assertFalse(obj.running)
 
         # Start (auto-builds)
         obj.run()
-        self.assertTrue(obj.built)
         self.assertTrue(obj.running)
 
         # Stop
         obj.stop()
-        self.assertTrue(obj.built)
-        self.assertFalse(obj.running)
-
-        # Refresh
-        obj.refresh()
-        self.assertTrue(obj.built)
         self.assertFalse(obj.running)
 
         # Restart
         obj.run()
-        self.assertTrue(obj.built)
         self.assertTrue(obj.running)
 
 
@@ -770,30 +698,6 @@ class TestRuntimeDict(unittest.TestCase):
 class TestIntegration(unittest.TestCase):
     """Integration tests for runtime classes."""
 
-    def test_buildable_runnable_integration(self):
-        """Test Buildable and Runnable working together."""
-        class TestObject(Runnable):
-            def __init__(self, **kwargs):
-                super().__init__(**kwargs)
-                self.build_data = None
-
-            def build(self):
-                super().build()
-                self.build_data = "initialized"
-
-        obj = TestObject()
-
-        # Initial state
-        self.assertFalse(obj.built)
-        self.assertFalse(obj.running)
-        self.assertIsNone(obj.build_data)
-
-        # Start should trigger build
-        obj.run()
-        self.assertTrue(obj.built)
-        self.assertTrue(obj.running)
-        self.assertEqual(obj.build_data, "initialized")
-
     def test_runtime_dict_with_buildable_integration(self):
         """Test RuntimeDict used with Buildable objects."""
         class ConfigurableBuildable(Buildable):
@@ -867,10 +771,6 @@ class TestIntegration(unittest.TestCase):
             def _on_data_change(self):
                 self.status_log.append(f"Data changed while running: {self.running}")
 
-            def build(self):
-                super().build()
-                self.status_log.append("Object built")
-
             def run(self, stop_code: int = 0) -> int:
                 super().run()
                 self.status_log.append("Object started")
@@ -894,7 +794,6 @@ class TestIntegration(unittest.TestCase):
 
         expected_log = [
             "Data changed while running: False",  # Initial data change
-            "Object built",                       # Auto-build on start
             "Object started",                     # Start
             "Data changed while running: True",   # Data change while running
             "Object refreshed",                   # Manual refresh

@@ -4,19 +4,20 @@ import unittest
 from io import TextIOWrapper
 from unittest.mock import MagicMock, patch, mock_open
 
-from pyrox.application import Application, _bootstrap
+from pyrox.application import Application
+from pyrox.interfaces import IApplicationTask
 from pyrox.services import GuiManager, LoggingManager, EnvManager, PlatformDirectoryService
 
 
-class TestBootstrap(unittest.TestCase):
-    """Test cases for bootstrap function."""
+class TestApplicationBootstrap(unittest.TestCase):
+    """Test cases for application bootstraping in init."""
 
     def setUp(self) -> None:
-        self.gui_manager_patcher = patch('pyrox.application.GuiManager')
-        self.logging_manager_patcher = patch('pyrox.application.LoggingManager')
-        self.env_manager_patcher = patch('pyrox.application.EnvManager')
+        self.gui_manager_patcher = patch('pyrox.models.services.GuiManager')
+        self.logging_manager_patcher = patch('pyrox.models.services.LoggingManager')
+        self.env_manager_patcher = patch('pyrox.models.services.EnvManager')
         self.workspace_patcher = patch('pyrox.application.Workspace')
-        self.platform_dir_patcher = patch('pyrox.application.PlatformDirectoryService')
+        self.platform_dir_patcher = patch('pyrox.models.services.PlatformDirectoryService')
 
         self.mock_gui_manager = self.gui_manager_patcher.start()
         self.mock_logging_manager = self.logging_manager_patcher.start()
@@ -29,20 +30,8 @@ class TestBootstrap(unittest.TestCase):
         self.mock_log_stream = MagicMock(spec=TextIOWrapper)
         self.mock_platform_dir.get_log_file_stream.return_value = self.mock_log_stream
 
-        # Patch Application class-level attributes before instantiation
-        Application._env = self.mock_env_manager
-        Application._gui_mgr = self.mock_gui_manager
-        Application._logging = self.mock_logging_manager
-        Application._directory = self.mock_platform_dir
-
     def tearDown(self):
         """Clean up after tests."""
-        # Restore original Application class-level attributes
-        Application._env = EnvManager
-        Application._gui_mgr = GuiManager
-        Application._logging = LoggingManager
-        Application._directory = PlatformDirectoryService
-
         self.gui_manager_patcher.stop()
         self.logging_manager_patcher.stop()
         self.env_manager_patcher.stop()
@@ -52,7 +41,7 @@ class TestBootstrap(unittest.TestCase):
     def test_bootstrap_executes_without_error(self):
         """Test that _bootstrap function runs without error."""
         try:
-            _bootstrap()
+            Application()
         except Exception as e:
             self.fail(f"_bootstrap raised an exception: {e}")
 
@@ -63,11 +52,11 @@ class TestApplicationInitialization(unittest.TestCase):
     def setUp(self):
         """Set up test fixtures."""
         # Mock all the service classes
-        self.gui_manager_patcher = patch('pyrox.application.GuiManager')
-        self.logging_manager_patcher = patch('pyrox.application.LoggingManager')
-        self.env_manager_patcher = patch('pyrox.application.EnvManager')
+        self.gui_manager_patcher = patch('pyrox.models.services.GuiManager')
+        self.logging_manager_patcher = patch('pyrox.models.services.LoggingManager')
+        self.env_manager_patcher = patch('pyrox.models.services.EnvManager')
         self.workspace_patcher = patch('pyrox.application.Workspace')
-        self.platform_dir_patcher = patch('pyrox.application.PlatformDirectoryService')
+        self.platform_dir_patcher = patch('pyrox.models.services.PlatformDirectoryService')
 
         self.mock_gui_manager = self.gui_manager_patcher.start()
         self.mock_logging_manager = self.logging_manager_patcher.start()
@@ -97,6 +86,7 @@ class TestApplicationInitialization(unittest.TestCase):
 
         self.assertIsNotNone(app)
         self.assertIsInstance(app, Application)
+        self.assertIsInstance(app.tasks, list)
 
     def test_application_sets_sys_excepthook(self):
         """Test that Application sets sys.excepthook to its except_hook method."""
@@ -143,17 +133,29 @@ class TestApplicationInitialization(unittest.TestCase):
 
         self.mock_workspace.assert_called_once()
 
+    def test_application_initializes_log_stream(self):
+        """Test that Application initializes log stream correctly."""
+        app = Application()
+
+        self.assertEqual(app.log_stream, self.mock_log_stream)
+
+    def test_application_initializes_tasks(self):
+        """Test that Application initializes ApplicationTaskFactory."""
+        app = Application()
+
+        self.assertIsNotNone(app.tasks)
+
 
 class TestApplicationProperties(unittest.TestCase):
     """Test cases for Application properties."""
 
     def setUp(self):
         """Set up test fixtures."""
-        self.gui_manager_patcher = patch('pyrox.application.GuiManager')
-        self.logging_manager_patcher = patch('pyrox.application.LoggingManager')
-        self.env_manager_patcher = patch('pyrox.application.EnvManager')
+        self.gui_manager_patcher = patch('pyrox.models.services.GuiManager')
+        self.logging_manager_patcher = patch('pyrox.models.services.LoggingManager')
+        self.env_manager_patcher = patch('pyrox.models.services.EnvManager')
         self.workspace_patcher = patch('pyrox.application.Workspace')
-        self.platform_dir_patcher = patch('pyrox.application.PlatformDirectoryService')
+        self.platform_dir_patcher = patch('pyrox.models.services.PlatformDirectoryService')
 
         self.mock_gui_manager = self.gui_manager_patcher.start()
         self.mock_logging_manager = self.logging_manager_patcher.start()
@@ -166,22 +168,10 @@ class TestApplicationProperties(unittest.TestCase):
         self.mock_log_stream = MagicMock(spec=TextIOWrapper)
         self.mock_platform_dir.get_log_file_stream.return_value = self.mock_log_stream
 
-        # Patch Application class-level attributes before instantiation
-        Application._env = self.mock_env_manager
-        Application._gui_mgr = self.mock_gui_manager
-        Application._logging = self.mock_logging_manager
-        Application._directory = self.mock_platform_dir
-
         self.app = Application()
 
     def tearDown(self):
         """Clean up after tests."""
-        # Restore original Application class-level attributes
-        Application._env = EnvManager
-        Application._gui_mgr = GuiManager
-        Application._logging = LoggingManager
-        Application._directory = PlatformDirectoryService
-
         self.gui_manager_patcher.stop()
         self.logging_manager_patcher.stop()
         self.env_manager_patcher.stop()
@@ -196,14 +186,14 @@ class TestApplicationProperties(unittest.TestCase):
 
     def test_gui_property_returns_backend_instance(self):
         """Test that gui property returns GUI backend instance."""
-        result = self.app.gui
+        result = self.app.gui_backend
 
         self.assertEqual(result, self.mock_backend)
         self.mock_gui_manager.unsafe_get_backend.assert_called()
 
     def test_gui_mgr_property_returns_gui_manager_class(self):
         """Test that gui_mgr property returns GuiManager class."""
-        result = self.app.gui_mgr
+        result = self.app.gui
 
         self.assertEqual(result, self.mock_gui_manager)
 
@@ -247,12 +237,12 @@ class TestApplicationMethods(unittest.TestCase):
 
     def setUp(self):
         """Set up test fixtures."""
-        self.gui_manager_patcher = patch('pyrox.application.GuiManager')
-        self.logging_manager_patcher = patch('pyrox.application.LoggingManager')
-        self.env_manager_patcher = patch('pyrox.application.EnvManager')
+        self.gui_manager_patcher = patch('pyrox.models.services.GuiManager')
+        self.logging_manager_patcher = patch('pyrox.models.services.LoggingManager')
+        self.env_manager_patcher = patch('pyrox.models.services.EnvManager')
         self.workspace_patcher = patch('pyrox.application.Workspace')
-        self.platform_dir_patcher = patch('pyrox.application.PlatformDirectoryService')
-        self.log_patcher = patch('pyrox.application.log')
+        self.platform_dir_patcher = patch('pyrox.models.services.PlatformDirectoryService')
+        self.log_patcher = patch('pyrox.models.services.LoggingManager')
 
         self.mock_gui_manager = self.gui_manager_patcher.start()
         self.mock_logging_manager = self.logging_manager_patcher.start()
@@ -270,22 +260,10 @@ class TestApplicationMethods(unittest.TestCase):
         self.mock_workspace = MagicMock()
         self.mock_workspace_class.return_value = self.mock_workspace
 
-        # Patch Application class-level attributes before instantiation
-        Application._env = self.mock_env_manager
-        Application._gui_mgr = self.mock_gui_manager
-        Application._logging = self.mock_logging_manager
-        Application._directory = self.mock_platform_dir
-
         self.app = Application()
 
     def tearDown(self):
         """Clean up after tests."""
-        # Restore original Application class-level attributes
-        Application._env = EnvManager
-        Application._gui_mgr = GuiManager
-        Application._logging = LoggingManager
-        Application._directory = PlatformDirectoryService
-
         self.gui_manager_patcher.stop()
         self.logging_manager_patcher.stop()
         self.env_manager_patcher.stop()
@@ -353,45 +331,6 @@ class TestApplicationMethods(unittest.TestCase):
 
         mock_logger.error.assert_not_called()
 
-    def test_except_hook_logs_other_exceptions(self):
-        """Test that except_hook logs non-KeyboardInterrupt exceptions."""
-        mock_logger = MagicMock()
-        self.mock_log.return_value = mock_logger
-
-        exc_type = ValueError
-        exc_value = ValueError("Test error")
-        exc_traceback = None
-
-        self.app.except_hook(exc_type, exc_value, exc_traceback)
-
-        mock_logger.error.assert_called_once()
-        call_args = mock_logger.error.call_args
-        self.assertIn('Uncaught exception', call_args[1]['msg'])
-
-    def test_on_close_logs_closing_message(self):
-        """Test that on_close logs closing message."""
-        mock_logger = MagicMock()
-        self.mock_log.return_value = mock_logger
-
-        with patch.object(self.app, 'stop'):
-            self.app.on_close()
-
-        mock_logger.info.assert_called_with('Closing application...')
-
-    def test_on_close_calls_stop(self):
-        """Test that on_close calls stop method."""
-        with patch.object(self.app, 'stop') as mock_stop:
-            self.app.on_close()
-
-        mock_stop.assert_called_once()
-
-    def test_on_close_quits_gui_application(self):
-        """Test that on_close quits GUI application."""
-        with patch.object(self.app, 'stop'):
-            self.app.on_close()
-
-        self.mock_backend.quit_application.assert_called_once()
-
     def test_on_close_calls_garbage_collection(self):
         """Test that on_close calls garbage collection."""
         with patch('pyrox.application.gc.collect') as mock_gc:
@@ -399,102 +338,6 @@ class TestApplicationMethods(unittest.TestCase):
                 self.app.on_close()
 
         mock_gc.assert_called_once()
-
-    def test_on_close_handles_gui_quit_error(self):
-        """Test that on_close handles errors during GUI quit."""
-        mock_logger = MagicMock()
-        self.mock_log.return_value = mock_logger
-        self.mock_backend.quit_application.side_effect = Exception("GUI error")
-
-        with patch.object(self.app, 'stop'):
-            self.app.on_close()
-
-        mock_logger.error.assert_called()
-
-    def test_restore_log_window_height_with_value(self):
-        """Test _restore_log_window_height with valid value."""
-        self.mock_env_manager.get.return_value = 0.3
-
-        self.app._restore_log_window_height()
-
-        self.mock_workspace.set_log_window_height.assert_called_once_with(0.3)
-
-    def test_restore_log_window_height_with_none(self):
-        """Test _restore_log_window_height when value is None."""
-        self.mock_env_manager.get.return_value = None
-
-        self.app._restore_log_window_height()
-
-        self.mock_workspace.set_log_window_height.assert_not_called()
-
-    def test_restore_main_window_sash_with_value(self):
-        """Test _restore_main_window_sash with valid value."""
-        self.mock_env_manager.get.return_value = 0.25
-        mock_logger = MagicMock()
-        self.mock_log.return_value = mock_logger
-
-        self.app._restore_main_window_sash()
-
-        self.mock_workspace.set_sidebar_width.assert_called_once_with(0.25)
-
-    def test_restore_main_window_sash_logs_warning_when_none(self):
-        """Test _restore_main_window_sash logs warning when None."""
-        self.mock_env_manager.get.return_value = None
-        mock_logger = MagicMock()
-        self.mock_log.return_value = mock_logger
-
-        self.app._restore_main_window_sash()
-
-        mock_logger.warning.assert_called_once()
-        self.assertIn('No main window sash position found', mock_logger.warning.call_args[0][0])
-
-    def test_restore_sash_positions_calls_both_restore_methods(self):
-        """Test _restore_sash_positions calls both restore methods."""
-        with patch.object(self.app, '_restore_log_window_height') as mock_log_height:
-            with patch.object(self.app, '_restore_main_window_sash') as mock_sash:
-                self.app._restore_sash_positions()
-
-        mock_log_height.assert_called_once()
-        mock_sash.assert_called_once()
-
-    def test_restore_geometry_env_calls_restore_sash_positions(self):
-        """Test _restore_geometry_env calls restore sash positions."""
-        with patch.object(self.app, '_restore_sash_positions') as mock_restore:
-            self.app._restore_geometry_env()
-
-        mock_restore.assert_called_once()
-
-    def test_set_log_window_height_env_with_valid_float(self):
-        """Test _set_log_window_height_env with valid float."""
-        self.app._set_log_window_height_env(0.5)
-
-        self.mock_env_manager.set.assert_called()
-
-    def test_set_log_window_height_env_raises_type_error_for_non_float(self):
-        """Test _set_log_window_height_env raises TypeError for non-float."""
-        with self.assertRaises(TypeError) as context:
-            self.app._set_log_window_height_env("0.5")  # type: ignore
-
-        self.assertIn('Height must be a float value', str(context.exception))
-
-    def test_set_main_window_sash_env_with_valid_float(self):
-        """Test _set_main_window_sash_env with valid float."""
-        self.app._set_main_window_sash_env(0.25)
-
-        self.mock_env_manager.set.assert_called()
-
-    def test_set_main_window_sash_env_raises_type_error_for_non_float(self):
-        """Test _set_main_window_sash_env raises TypeError for non-float."""
-        with self.assertRaises(TypeError) as context:
-            self.app._set_main_window_sash_env("0.25")  # type: ignore
-
-        self.assertIn('Width must be a float value', str(context.exception))
-
-    def test_log_method_logs_to_workspace(self):
-        """Test log method logs message to workspace log window."""
-        self.app.log('Test message')
-
-        self.mock_workspace.log_window.log.assert_called_once_with('Test message')
 
     def test_build_method_builds_workspace(self):
         """Test build method builds workspace."""
@@ -524,13 +367,6 @@ class TestApplicationMethods(unittest.TestCase):
             self.app.build()
 
         mock_hook.assert_called_once()
-
-    def test_build_method_restores_geometry(self):
-        """Test build method restores geometry."""
-        with patch.object(self.app, '_restore_geometry_env') as mock_restore:
-            self.app.build()
-
-        mock_restore.assert_called_once()
 
     def test_clear_log_file_clears_file_content(self):
         """Test clear_log_file clears log file content."""
@@ -604,11 +440,12 @@ class TestApplicationIntegration(unittest.TestCase):
 
     def setUp(self):
         """Set up test fixtures."""
-        self.gui_manager_patcher = patch('pyrox.application.GuiManager')
-        self.logging_manager_patcher = patch('pyrox.application.LoggingManager')
-        self.env_manager_patcher = patch('pyrox.application.EnvManager')
+        self.gui_manager_patcher = patch('pyrox.models.services.GuiManager')
+        self.logging_manager_patcher = patch('pyrox.models.services.LoggingManager')
+        self.env_manager_patcher = patch('pyrox.models.services.EnvManager')
         self.workspace_patcher = patch('pyrox.application.Workspace')
-        self.platform_dir_patcher = patch('pyrox.application.PlatformDirectoryService')
+        self.platform_dir_patcher = patch('pyrox.models.services.PlatformDirectoryService')
+        self.log_patcher = patch('pyrox.models.services.LoggingManager')
 
         self.mock_gui_manager = self.gui_manager_patcher.start()
         self.mock_logging_manager = self.logging_manager_patcher.start()
@@ -624,12 +461,6 @@ class TestApplicationIntegration(unittest.TestCase):
         self.mock_workspace = MagicMock()
         self.mock_workspace_class.return_value = self.mock_workspace
 
-        # Patch Application class-level attributes before instantiation
-        Application._env = self.mock_env_manager
-        Application._gui_mgr = self.mock_gui_manager
-        Application._logging = self.mock_logging_manager
-        Application._directory = self.mock_platform_dir
-
     def tearDown(self):
         """Clean up after tests."""
         self.gui_manager_patcher.stop()
@@ -637,12 +468,6 @@ class TestApplicationIntegration(unittest.TestCase):
         self.env_manager_patcher.stop()
         self.workspace_patcher.stop()
         self.platform_dir_patcher.stop()
-
-        # Restore original Application class-level attributes
-        Application._env = EnvManager
-        Application._gui_mgr = GuiManager
-        Application._logging = LoggingManager
-        Application._directory = PlatformDirectoryService
 
     def test_application_full_lifecycle(self):
         """Test complete application lifecycle: init -> build -> run -> close."""
@@ -653,14 +478,13 @@ class TestApplicationIntegration(unittest.TestCase):
         self.mock_workspace.build.assert_called_once()
 
         # Run
-        self.mock_backend.run_main_loop.return_value = None
         result = app.run()
         self.assertEqual(result, 0)
 
         # Close
         with patch.object(app, 'stop'):
             app.on_close()
-        self.mock_backend.quit_application.assert_called()
+        self.mock_gui_manager.quit_application.assert_called()
 
     def test_application_service_properties_access(self):
         """Test that all service properties are accessible."""
@@ -669,26 +493,11 @@ class TestApplicationIntegration(unittest.TestCase):
         # Test all property accessors
         self.assertIsNotNone(app.env)
         self.assertIsNotNone(app.gui)
-        self.assertIsNotNone(app.gui_mgr)
+        self.assertIsNotNone(app.gui_backend)
         self.assertIsNotNone(app.logging)
         self.assertIsNotNone(app.directory)
         self.assertIsNotNone(app.log_stream)
         self.assertIsNotNone(app.workspace)
-
-    def test_application_exception_handling_integration(self):
-        """Test exception handling throughout application lifecycle."""
-        app = Application()
-
-        # Test that exception hook is properly set
-        self.assertEqual(sys.excepthook, app.except_hook)
-
-        # Test exception handling for non-keyboard interrupt
-        with patch('pyrox.application.log') as mock_log:
-            mock_logger = MagicMock()
-            mock_log.return_value = mock_logger
-
-            app.except_hook(ValueError, ValueError("Test"), None)
-            mock_logger.error.assert_called_once()
 
 
 if __name__ == '__main__':

@@ -1,8 +1,17 @@
 """models for pyrox"""
 from . import abc  # Must come first to register ABCs
 
-# ABCs and base classes
+# ABCs, protocols and base classes
 from .abc import (
+    # Protocol components
+    Buildable,
+    Nameable,
+    Describable,
+    Runnable,
+    Refreshable,
+    Resettable,
+    CoreRunnableMixin,
+
     FactoryTypeMeta,
     HashList,
     MetaFactory,
@@ -20,8 +29,19 @@ from .gui import (
     LogFrame,
     PyroxFrameContainer,
     PyroxGuiObject,
+    SceneViewerFrame,
     TaskFrame,
     Workspace,
+)
+
+
+# Services components
+from .services import (
+    SupportsEnvServices,
+    SupportsLoggingServices,
+    SupportsGUIServices,
+    PlatformDirectoryService,
+    ServicesRunnableMixin,
 )
 
 # Task components
@@ -33,6 +53,14 @@ from .scene import Scene, SceneObject, SceneObjectFactory
 
 __all__ = [
     # ABCs and base classes
+    # Protocol components
+    'Buildable',
+    'Nameable',
+    'Describable',
+    'Refreshable',
+    'Resettable',
+    'Runnable',
+    'CoreRunnableMixin',
     'abc',
     'FactoryTypeMeta',
     'HashList',
@@ -48,8 +76,16 @@ __all__ = [
     'LogFrame',
     'PyroxFrameContainer',
     'PyroxGuiObject',
+    'SceneViewerFrame',
     'TaskFrame',
     'Workspace',
+
+    # Services components
+    'SupportsEnvServices',
+    'SupportsLoggingServices',
+    'SupportsGUIServices',
+    'PlatformDirectoryService',
+    'ServicesRunnableMixin',
 
     # Task components
     'ApplicationTask',

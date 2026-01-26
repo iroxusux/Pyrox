@@ -7,7 +7,6 @@ allowing the framework to support multiple GUI frameworks through a unified inte
 from pathlib import Path
 from typing import Any, Callable, Union
 import tkinter as tk
-from tkinter import Toplevel
 
 from pyrox.interfaces import (
     EnvironmentKeys,
@@ -154,7 +153,7 @@ class TkinterBackend(IGuiBackend):
     def destroy_gui_frame(self, frame: IGuiFrame) -> None:
         if not isinstance(frame, TkinterGuiFrame):
             raise TypeError("Expected a TkinterGuiFrame instance")
-        frame.frame.destroy()
+        frame.root.destroy()
 
     def destroy_gui_menu(self, menu: IGuiMenu) -> None:
         if not isinstance(menu, TkinterMenu):

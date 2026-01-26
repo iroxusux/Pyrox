@@ -18,8 +18,20 @@ class GuiComponent(
     def config(self, *args, **kwargs) -> None:
         raise NotImplementedError("config method must be implemented by subclass.")
 
+    def destroy(self) -> None:
+        raise NotImplementedError("destroy method must be implemented by subclass.")
+
     def focus(self) -> None:
         raise NotImplementedError("focus method must be implemented by subclass.")
+
+    def initialize(self, **kwargs) -> bool:
+        raise NotImplementedError("initialize method must be implemented by subclass.")
+
+    def is_visible(self) -> bool:
+        raise NotImplementedError("is_visible method must be implemented by subclass.")
+
+    def set_visible(self, visible: bool) -> None:
+        raise NotImplementedError("set_visible method must be implemented by subclass.")
 
     def get_root(self) -> T:
         return self._root
@@ -50,3 +62,6 @@ class GuiComponent(
 
     def get_y(self) -> int:
         raise NotImplementedError("get_y method must be implemented by subclass.")
+
+    def update(self) -> None:
+        raise NotImplementedError("update method must be implemented by subclass.")

@@ -2,6 +2,7 @@
 from abc import ABCMeta
 from typing import (
     _ProtocolMeta,
+    Any,
     Protocol,
     runtime_checkable,
 )
@@ -254,6 +255,120 @@ class IRunnable(Protocol):
         ...
 
 
+class ICoreRunnableMixin(
+    INameable,
+    IDescribable,
+    IBuildable,
+    IRunnable,
+):
+    """Mixin class that acts as a core runnable with name and description.
+    """
+    pass
+
+
+@runtime_checkable
+class IHasFileLocation(Protocol):
+    """Protocol for objects that support file location."""
+
+    @property
+    def file_location(self) -> str:
+        """Get the file location of this object.
+
+        Returns:
+            str: The file location of this object.
+        """
+        return self.get_file_location()
+
+    @file_location.setter
+    def file_location(self, location: str) -> None:
+        """Set the file location of this object.
+
+        Args:
+            location (str): The file location to set.
+        """
+        self.set_file_location(location)
+
+    def get_file_location(self) -> str:
+        """Get the file location of this object.
+
+        Returns:
+            str: The file location of this object.
+        """
+        ...
+
+    def set_file_location(self, location: str) -> None:
+        """Set the file location of this object.
+
+        Args:
+            location (str): The file location to set.
+        """
+        ...
+
+
+@runtime_checkable
+class IHasDictMetaData(Protocol):
+    """Protocol for objects that support metadata."""
+
+    @property
+    def metadata(self) -> dict[str, Any]:
+        """Get the metadata of this object.
+
+        Returns:
+            dict: The metadata of this object.
+        """
+        return self.get_metadata()
+
+    @metadata.setter
+    def metadata(self, metadata: dict[str, Any]) -> None:
+        """Set the metadata of this object.
+
+        Args:
+            metadata (dict): The metadata to set.
+        """
+        self.set_metadata(metadata)
+
+    def get_metadata(self) -> dict[str, Any]:
+        """Get the metadata of this object.
+
+        Returns:
+            dict: The metadata of this object.
+        """
+        ...
+
+    def set_metadata(self, metadata: dict[str, Any]) -> None:
+        """Set the metadata of this object.
+
+        Args:
+            metadata (dict): The metadata to set.
+        """
+        ...
+
+
+@runtime_checkable
+class ISupportsItemAccess(Protocol):
+    """Protocol for objects that support item access."""
+
+    def __getitem__(self, key: str) -> object:
+        """Get an item by key.
+
+        Args:
+            key (str): The key of the item to get.
+
+        Returns:
+            object: The item associated with the key.
+        """
+        ...
+
+    def __setitem__(self, key: str, value: object) -> None:
+        """Set an item by key.
+
+        Args:
+            key (str): The key of the item to set.
+            value (object): The value to set for the key.
+        """
+        ...
+
+
 __all__ = [
     "IConfigurable",
     "IAuthored",
@@ -264,5 +379,8 @@ __all__ = [
     "IResettable",
     "IBuildable",
     "IRunnable",
-
+    "ICoreRunnableMixin",
+    "IHasFileLocation",
+    "IHasDictMetaData",
+    "ISupportsItemAccess",
 ]

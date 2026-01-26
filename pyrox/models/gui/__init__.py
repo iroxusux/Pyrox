@@ -10,8 +10,9 @@ from .frame import (
 )
 from .logframe import LogFrame
 from .meta import ObjectEditField
-from .theme import DefaultTheme
 from .pyroxguiobject import PyroxGuiObject
+from .sceneviewer import SceneViewerFrame
+from .theme import DefaultTheme
 from .workspace import Workspace
 from .yamleditor import PyroxYamlEditor
 
@@ -28,6 +29,7 @@ __all__ = (
     'PyroxFrameContainer',
     'PyroxGuiObject',
     'PyroxYamlEditor',
+    'SceneViewerFrame',
     'TaskFrame',
     'tk',
     'Workspace',

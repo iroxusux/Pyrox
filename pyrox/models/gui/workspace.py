@@ -11,16 +11,21 @@ This module provides a workspace widget that mimics the VSCode interface with:
 import tkinter as tk
 from tkinter import ttk, TclError
 from typing import Dict, List, Optional, Callable, Any
-from pyrox.models.protocols import Buildable
+from pyrox.models.services import ServicesRunnableMixin
+from pyrox.models.gui.default import GuiComponent
 from pyrox.models.gui.frame import TaskFrame
 from pyrox.models.gui.logframe import LogFrame
 from pyrox.models.gui.frame import PyroxFrameContainer
 from pyrox.models.gui.notebook import PyroxNotebook
-from pyrox.interfaces import EnvironmentKeys, IGuiFrame, IGuiWindow
+from pyrox.interfaces import EnvironmentKeys, IGuiFrame, IGuiWindow, IWorkspace
 from pyrox.services import EnvManager, GuiManager, log
 
 
-class Workspace(Buildable):
+class Workspace(
+    IWorkspace,
+    ServicesRunnableMixin,
+    GuiComponent
+):
     """
     A VSCode-like workspace widget with sidebar organizer and main content area.
 
@@ -38,10 +43,12 @@ class Workspace(Buildable):
     def __init__(
         self
     ) -> None:
-        """ Initialize the PyroxWorkspace.
-        """
-        self.name = "PyroxWorkspace",
-        self.description = "A VSCode-like workspace widget with sidebar organizer and main content area."
+        ServicesRunnableMixin.__init__(
+            self,
+            name="PyroxWorkspace",
+            description="A VSCode-like workspace widget with sidebar organizer and main content area."
+        )
+        GuiComponent.__init__(self)
 
         self._window = GuiManager.unsafe_get_backend().create_gui_frame(
             master=GuiManager.unsafe_get_backend().get_root_window()
@@ -54,6 +61,8 @@ class Workspace(Buildable):
         self._workspace_area = None
         self._status_bar = None
         self._status_label = None
+
+        self._panes: List[tk.Widget] = []
 
         # Widget tracking
         self._mounted_widgets: Dict[str, tk.Widget] = {}
@@ -421,6 +430,88 @@ class Workspace(Buildable):
         """Unset all frames in the view menubar.
         """
         [frame.shown_var.set(False) for frame in self._workspace_widgets.values()]
+
+    def add_panel(
+        self,
+        panel: tk.Widget,
+        position: str = 'left'
+    ) -> None:
+        """
+        Add a panel to the workspace.
+
+        Args:
+            panel: The panel widget to add
+            position: Position to add the panel ('left' or 'right')
+        """
+        if position == 'left':
+            self.main_paned_window.insert(0, panel)
+        elif position == 'right':
+            self.main_paned_window.add(panel)
+        else:
+            raise ValueError("Position must be 'left' or 'right'")
+
+    def remove_panel(
+        self,
+        panel: tk.Widget
+    ) -> None:
+        """
+        Remove a panel from the workspace.
+
+        Args:
+            panel: The panel widget to remove
+        """
+        self.main_paned_window.forget(panel)
+
+    def get_panels(self) -> List[tk.Widget]:
+        """
+        Get all panels in the workspace.
+
+        Returns:
+            List of panel widgets
+        """
+        return self.main_paned_window.panes()
+
+    def clear_panels(self) -> None:
+        """
+        Clear all panels from the workspace.
+        """
+        for pane in self.main_paned_window.panes():
+            self.main_paned_window.forget(pane)
+        self.panels.clear()
+
+    def set_panel_height(
+        self,
+        panel_id: str,
+        height: int
+    ) -> None:
+        """
+        Set the height of a specific panel.
+
+        Args:
+            panel_id: The ID of the panel
+            height: The height to set for the panel
+        """
+        for pane in self.log_paned_window.panes():
+            if str(pane) == panel_id:
+                index = self.log_paned_window.panes().index(pane)
+                total_height = self.log_paned_window.winfo_height()
+                if total_height > 0:
+                    sash_pos = total_height - height
+                    self.log_paned_window.sashpos(index - 1, sash_pos)
+                return
+        raise ValueError(f"Panel with ID '{panel_id}' not found")
+
+    def get_panel_height(self) -> float:
+        """
+        Get the height of the log window as a fraction of total height.
+
+        Returns:
+            Fractional height (0.0 to 1.0)
+        """
+        total_height = self.log_paned_window.winfo_height()
+        sash_pos = self.log_paned_window.sashpos(0)
+        log_height = total_height - sash_pos
+        return log_height / total_height if total_height > 0 else 0.0
 
     def add_sidebar_widget(
         self,

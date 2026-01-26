@@ -7,6 +7,7 @@ from . import (
     interfaces,
     services,
     models,
+    tasks,
     application
 )
 
@@ -27,6 +28,7 @@ __all__ = (
     'interfaces',
     'services',
     'models',
+    'tasks',
     'application',
     'Application',
 )

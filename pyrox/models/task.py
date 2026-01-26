@@ -1,16 +1,12 @@
 """Task module for pyrox applications.
 
 Tasks are used to add additional functionality to the application via the toolbar
-in the main application frame.
+in the main application frame or as background services.
 """
-from typing import Generic, TypeVar
+from pyrox.interfaces import IApplication, IApplicationTask
+from pyrox.models import ServicesRunnableMixin
 from pyrox.services.logging import log
 from .abc import FactoryTypeMeta, MetaFactory
-from ..application import Application
-from .protocols import Runnable
-
-
-TApplication = TypeVar('TApplication', bound=Application)
 
 
 class ApplicationTaskFactory(MetaFactory):
@@ -19,7 +15,7 @@ class ApplicationTaskFactory(MetaFactory):
     @classmethod
     def build_tasks(
         cls,
-        application: Application
+        application: IApplication
     ) -> None:
         """Build and register all available ApplicationTask types.
 
@@ -37,31 +33,26 @@ class ApplicationTaskFactory(MetaFactory):
 
 
 class ApplicationTask(
-    Runnable,
-    Generic[TApplication],
+    IApplicationTask,
+    ServicesRunnableMixin,
     metaclass=FactoryTypeMeta['ApplicationTask', ApplicationTaskFactory]
 ):
     """Application task to add additional functionality to the application.
 
     Normally, these tasks are injected into the application's main menu toolbar.
+    If not injected, the task is still available to run programmatically.
 
     Args:
         application: The parent application of this task.
-
-    Attributes:
-        application: The parent application of this task.
     """
-    __slots__ = ('_application',)
 
     supports_registering = False  # This class can't be used to match anything
 
     def __init__(
         self,
-        application: TApplication
+        application: IApplication
     ) -> None:
         super().__init__()
-        if self.__class__.__name__ == 'ApplicationTask':
-            raise TypeError('ApplicationTask is an abstract class and cannot be instantiated directly.')
         self._application = application
 
     def __init_subclass__(cls, **kwargs):
@@ -77,33 +68,37 @@ class ApplicationTask(
         """
         return ApplicationTaskFactory
 
-    @property
-    def application(self) -> TApplication:
-        """The parent application of this task.
+    def get_application(self) -> IApplication:
+        """Get the parent application of this task.
 
         Returns:
-            Application: The parent application instance.
+            TApplication: The parent application instance.
         """
         return self._application
 
-    @application.setter
-    def application(self, value: TApplication):
+    def set_application(
+        self,
+        application: IApplication
+    ) -> None:
         """Set the parent application for this task.
 
         Args:
-            value: The application instance to set.
-
-        Raises:
-            TypeError: If value is not an instance of Application.
+            application: The application instance to set.
         """
-        if not isinstance(value, Application):
-            raise TypeError('application must be an instance of Application')
-        self._application = value
+        self._application = application
 
     def inject(self) -> None:
         """Inject this task into the hosting application.
-
-        Raises:
-            NotImplementedError: This method should be overridden in a subclass.
         """
-        raise NotImplementedError('This method should be overridden in a subclass.')
+        pass
+
+    def uninject(self) -> None:
+        """Remove this task from the hosting application.
+        """
+        pass
+
+
+__all__ = (
+    'ApplicationTask',
+    'ApplicationTaskFactory',
+)
