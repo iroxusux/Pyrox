@@ -1,14 +1,52 @@
 """ file tasks
 """
+import importlib
 import sys
-from pyrox.models import ApplicationTask, SceneViewerFrame
+from pyrox.models import scene
+from pyrox.models.gui import sceneviewer
+from pyrox.models import ApplicationTask
 
 
 class FileTask(ApplicationTask):
 
     def _open_scene_viewer(self) -> None:
         """Open the Scene Viewer frame."""
-        scene_viewer = SceneViewerFrame(parent=self.application.workspace.workspace_area.root)
+        # Reload modules to ensure the latest changes are reflected
+        importlib.reload(scene)
+        importlib.reload(sceneviewer)
+
+        # Create a concrete SceneObject subclass for demonstration
+        class TestSceneObject(scene.SceneObject):
+            def __init__(self):
+                super().__init__(
+                    id="test_scene_object",
+                    name="Test Scene Object",
+                    scene_object_type="Cube",
+                    description="A test scene object for demonstration purposes."
+                )
+
+        # Create SceneObjectFactory
+        scene_object_factory = scene.SceneObjectFactory()
+        scene_object_factory.register(
+            'Cube',
+            scene.SceneObject
+        )
+
+        # Create Scene
+        s = scene.Scene(
+            name="Example Scene",
+            description="An example scene with a cube object.",
+            scene_object_factory=scene_object_factory
+        )
+
+        # Add a test scene object
+        test_object = TestSceneObject()
+        s.add_scene_object(test_object)
+
+        scene_viewer = sceneviewer.SceneViewerFrame(
+            parent=self.application.workspace.workspace_area.root,  # type: ignore
+            scene=s
+        )
         self.application.workspace.register_frame(scene_viewer)
 
     def inject(self) -> None:

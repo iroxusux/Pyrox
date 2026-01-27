@@ -100,6 +100,96 @@ class ISceneObject:
         """
         self.set_scene_object_type(scene_object_type)
 
+    @property
+    def x(self) -> float:
+        """Get the X position of the scene object."""
+        return self.get_x()
+
+    @x.setter
+    def x(self, x: float) -> None:
+        """Set the X position of the scene object."""
+        self.set_x(x)
+
+    @property
+    def y(self) -> float:
+        """Get the Y position of the scene object."""
+        return self.get_y()
+
+    @y.setter
+    def y(self, y: float) -> None:
+        """Set the Y position of the scene object."""
+        self.set_y(y)
+
+    @property
+    def z(self) -> float:
+        """Get the Z position of the scene object."""
+        return self.get_z()
+
+    @z.setter
+    def z(self, z: float) -> None:
+        """Set the Z position of the scene object."""
+        self.set_z(z)
+
+    @property
+    def pitch(self) -> float:
+        """Get the pitch rotation of the scene object."""
+        return self.get_pitch()
+
+    @pitch.setter
+    def pitch(self, pitch: float) -> None:
+        """Set the pitch rotation of the scene object."""
+        self.set_pitch(pitch)
+
+    @property
+    def yaw(self) -> float:
+        """Get the yaw rotation of the scene object."""
+        return self.get_yaw()
+
+    @yaw.setter
+    def yaw(self, yaw: float) -> None:
+        """Set the yaw rotation of the scene object."""
+        self.set_yaw(yaw)
+
+    @property
+    def roll(self) -> float:
+        """Get the roll rotation of the scene object."""
+        return self.get_roll()
+
+    @roll.setter
+    def roll(self, roll: float) -> None:
+        """Set the roll rotation of the scene object."""
+        self.set_roll(roll)
+
+    @property
+    def height(self) -> float:
+        """Get the height of the scene object."""
+        return self.get_height()
+
+    @height.setter
+    def height(self, height: float) -> None:
+        """Set the height of the scene object."""
+        self.set_height(height)
+
+    @property
+    def width(self) -> float:
+        """Get the width of the scene object."""
+        return self.get_width()
+
+    @width.setter
+    def width(self, width: float) -> None:
+        """Set the width of the scene object."""
+        self.set_width(width)
+
+    @property
+    def depth(self) -> float:
+        """Get the depth of the scene object."""
+        return self.get_depth()
+
+    @depth.setter
+    def depth(self, depth: float) -> None:
+        """Set the depth of the scene object."""
+        self.set_depth(depth)
+
     @abstractmethod
     def get_id(self) -> str:
         """Get the unique identifier of the scene object.
@@ -209,6 +299,126 @@ class ISceneObject:
         Args:
             delta_time: Time elapsed since last update in seconds
         """
+        ...
+
+    @abstractmethod
+    def get_x(self) -> float:
+        """Get the X position of the scene object."""
+        ...
+
+    @abstractmethod
+    def get_y(self) -> float:
+        """Get the Y position of the scene object."""
+        ...
+
+    @abstractmethod
+    def get_z(self) -> float:
+        """Get the Z position of the scene object."""
+        ...
+
+    @abstractmethod
+    def set_x(self, x: float) -> None:
+        """Set the X position of the scene object."""
+        ...
+
+    @abstractmethod
+    def set_y(self, y: float) -> None:
+        """Set the Y position of the scene object."""
+        ...
+
+    @abstractmethod
+    def set_z(self, z: float) -> None:
+        """Set the Z position of the scene object."""
+        ...
+
+    @abstractmethod
+    def get_position(self) -> tuple[float, float, float]:
+        """Get the (X, Y, Z) position of the scene object."""
+        ...
+
+    @abstractmethod
+    def set_position(self, x: float, y: float, z: float) -> None:
+        """Set the (X, Y, Z) position of the scene object."""
+        ...
+
+    @abstractmethod
+    def get_pitch(self) -> float:
+        """Get the pitch rotation of the scene object."""
+        ...
+
+    @abstractmethod
+    def get_yaw(self) -> float:
+        """Get the yaw rotation of the scene object."""
+        ...
+
+    @abstractmethod
+    def get_roll(self) -> float:
+        """Get the roll rotation of the scene object."""
+        ...
+
+    @abstractmethod
+    def set_pitch(self, pitch: float) -> None:
+        """Set the pitch rotation of the scene object."""
+        ...
+
+    @abstractmethod
+    def set_yaw(self, yaw: float) -> None:
+        """Set the yaw rotation of the scene object."""
+        ...
+
+    @abstractmethod
+    def set_roll(self, roll: float) -> None:
+        """Set the roll rotation of the scene object."""
+        ...
+
+    @abstractmethod
+    def get_rotation(self) -> tuple[float, float, float]:
+        """Get the (pitch, yaw, roll) rotation of the scene object."""
+        ...
+
+    @abstractmethod
+    def set_rotation(self, pitch: float, yaw: float, roll: float) -> None:
+        """Set the (pitch, yaw, roll) rotation of the scene object."""
+        ...
+
+    @abstractmethod
+    def get_height(self) -> float:
+        """Get the height of the scene object."""
+        ...
+
+    @abstractmethod
+    def set_height(self, height: float) -> None:
+        """Set the height of the scene object."""
+        ...
+
+    @abstractmethod
+    def get_width(self) -> float:
+        """Get the width of the scene object."""
+        ...
+
+    @abstractmethod
+    def set_width(self, width: float) -> None:
+        """Set the width of the scene object."""
+        ...
+
+    @abstractmethod
+    def get_depth(self) -> float:
+        """Get the depth of the scene object."""
+        ...
+
+    @abstractmethod
+    def set_depth(self, depth: float) -> None:
+        """Set the depth of the scene object."""
+        ...
+
+    @abstractmethod
+    def get_size(self) -> tuple[float, float, float]:
+        """Get the (width, height, depth) size of the scene object."""
+        ...
+
+    @abstractmethod
+    def set_size(self, width: float, height: float, depth: float) -> None:
+        """Set the (width, height, depth) size of the scene object."""
         ...
 
 
