@@ -11,20 +11,23 @@ This module provides a workspace widget that mimics the VSCode interface with:
 import tkinter as tk
 from tkinter import ttk, TclError
 from typing import Dict, List, Optional, Callable, Any
-from pyrox.models.services import ServicesRunnableMixin
-from pyrox.models.gui.default import GuiComponent
-from pyrox.models.gui.frame import TaskFrame
 from pyrox.models.gui.logframe import LogFrame
 from pyrox.models.gui.frame import PyroxFrameContainer
 from pyrox.models.gui.notebook import PyroxNotebook
-from pyrox.interfaces import EnvironmentKeys, IGuiFrame, IGuiWindow, IWorkspace
-from pyrox.services import EnvManager, GuiManager, log
+from pyrox.models.gui.tk.frame import TkinterGuiFrame
 
-
-class Workspace(
+from pyrox.interfaces import (
+    EnvironmentKeys,
+    IGuiFrame,
+    IGuiWindow,
     IWorkspace,
-    ServicesRunnableMixin,
-    GuiComponent
+    ITaskFrame
+)
+
+
+class TkWorkspace(
+    IWorkspace,
+    TkinterGuiFrame
 ):
     """
     A VSCode-like workspace widget with sidebar organizer and main content area.
@@ -41,19 +44,19 @@ class Workspace(
     """
 
     def __init__(
-        self
+        self,
+        master: Optional[tk.Widget] = None,
     ) -> None:
-        ServicesRunnableMixin.__init__(
+        TkinterGuiFrame.__init__(
             self,
             name="PyroxWorkspace",
-            description="A VSCode-like workspace widget with sidebar organizer and main content area."
+            description="A VSCode-like workspace widget with sidebar organizer and main content area.",
         )
-        GuiComponent.__init__(self)
-
-        self._window = GuiManager.unsafe_get_backend().create_gui_frame(
-            master=GuiManager.unsafe_get_backend().get_root_window()
+        self.initialize(
+            name="pyroxWorkspace",
+            master=master
         )
-        self._window.pack(fill='both', expand=True)
+        self.root.pack(fill='both', expand=True)
 
         self._main_paned_window = None
         self._log_paned_window = None
@@ -67,12 +70,12 @@ class Workspace(
         # Widget tracking
         self._mounted_widgets: Dict[str, tk.Widget] = {}
         self._sidebar_tabs: Dict[str, str] = {}  # widget_id -> tab_id mapping
-        self._workspace_widgets: Dict[str, TaskFrame] = {}
+        self._workspace_frames: Dict[str, ITaskFrame] = {}
 
         # Event callbacks
         self.on_sidebar_toggle: Optional[Callable[[bool], None]] = None
-        self.on_task_frame_mounted: Optional[Callable[[TaskFrame, str], None]] = None
-        self.on_task_frame_unmounted: Optional[Callable[[TaskFrame], None]] = None
+        self.on_task_frame_mounted: Optional[Callable[[ITaskFrame, str], None]] = None
+        self.on_task_frame_unmounted: Optional[Callable[[ITaskFrame], None]] = None
         self.on_sidebar_widget_mounted: Optional[Callable[[tk.Widget, str], None]] = None
         self.on_sidebar_widget_unmounted: Optional[Callable[[str], None]] = None
         self.on_workspace_changed: Optional[Callable[[str], None]] = None
@@ -112,7 +115,7 @@ class Workspace(
         Returns:
             The main application menu instance.
         """
-        return self.imenu.menu
+        return self.gui.unsafe_get_backend().get_root_application_menu()
 
     @property
     def sidebar_organizer(self) -> PyroxNotebook:
@@ -154,10 +157,10 @@ class Workspace(
         Returns:
             The main application window instance.
         """
-        return self._window
+        return self.gui.unsafe_get_backend().get_root_gui_window()
 
     @property
-    def workspace_area(self) -> IGuiFrame:
+    def workspace_area(self) -> IGuiFrame[tk.Frame, tk.Widget]:
         """Get the workspace area.
 
         Returns:
@@ -169,8 +172,8 @@ class Workspace(
 
     def _create_layout(self) -> None:
         """Create the main workspace layout."""
-        self._create_status_bar()
-        self._create_main_paned_window()
+        self._create_status_bar()  # Pack status bar first (side='bottom')
+        self._create_main_paned_window()  # Then pack main content (fill='both')
         self._create_sidebar_organizer()
         self._create_log_paned_window()
         self._create_workspace_area()
@@ -184,20 +187,20 @@ class Workspace(
     def _create_log_window(self) -> None:
         """Create a log window at the bottom.
         """
-        log(self).debug("Creating log window")
+        self.log().debug("Creating log window")
         self.log_window = LogFrame(self.log_paned_window)
         self.log_paned_window.add(self.log_window.frame.root)
-        GuiManager.unsafe_get_backend().schedule_event(20, self._set_initial_log_window_height)
+        self.gui.unsafe_get_backend().schedule_event(10, self._set_initial_log_window_height)
 
     def _create_main_paned_window(self) -> None:
         """Create the main paned window for layout."""
-        log(self).debug("Creating main paned window")
-        self._main_paned_window = ttk.PanedWindow(self.window.root, orient='horizontal')
-        self.main_paned_window.pack(fill='both', expand=True, pady=(0, 0))
+        self.log().debug("Creating main paned window")
+        self._main_paned_window = ttk.PanedWindow(self.root, orient='horizontal')
+        self.main_paned_window.pack(fill='both', expand=True)
 
     def _create_sidebar_organizer(self) -> None:
         """Create the sidebar organizer."""
-        log(self).debug("Creating sidebar organizer")
+        self.log().debug("Creating sidebar organizer")
         self._sidebar_organizer = PyroxNotebook(
             master=self.main_paned_window,
             enable_context_menu=True,
@@ -205,12 +208,12 @@ class Workspace(
             max_tabs=10
         )
         self.main_paned_window.add(self.sidebar_organizer)
-        GuiManager.unsafe_get_backend().schedule_event(10, self._set_initial_sidebar_width)
+        self.gui.unsafe_get_backend().schedule_event(100, self._set_initial_sidebar_width)
 
     def _create_status_bar(self) -> None:
         """Create the status bar at the bottom."""
-        log(self).debug("Creating status bar")
-        self._status_bar = ttk.Frame(self.window.root)
+        self.log().debug("Creating status bar")
+        self._status_bar = ttk.Frame(self.root)
         self.status_bar.pack(fill='x', side='bottom')
 
         # Status label
@@ -233,19 +236,19 @@ class Workspace(
 
     def _create_workspace_area(self) -> None:
         """Create the main workspace area."""
-        log(self).debug("Creating workspace area")
-        self._workspace_area = GuiManager.unsafe_get_backend().create_gui_frame(
+        self.log().debug("Creating workspace area")
+        self._workspace_area = self.gui.unsafe_get_backend().create_gui_frame(
             master=self.log_paned_window,
         )
         self.log_paned_window.add(self.workspace_area.root)
 
-    def _get_shown_frame(self) -> Optional[TaskFrame]:
+    def _get_shown_frame(self) -> Optional[ITaskFrame]:
         """Get the currently shown frame in the workspace.
 
         Returns:
             TaskFrame or None: The currently shown frame, or None if none is shown.
         """
-        for frame in self._workspace_widgets.values():
+        for frame in self._workspace_frames.values():
             if frame.shown:
                 return frame
         return None
@@ -256,49 +259,45 @@ class Workspace(
         if not self.workspace_area:
             raise RuntimeError("Workspace area not initialized")
 
-        for widget in self.workspace_area.frame.root.winfo_children():
+        for widget in self.workspace_area.root.winfo_children():
             widget.pack_forget()
 
     def _pack_frame_into_workspace(
         self,
-        frame: TaskFrame
+        frame: ITaskFrame
     ) -> None:
         """Pack a frame into the workspace area.
         Args:
             frame (TaskFrame): The frame to pack.
         """
-        if not self.workspace_area:
-            raise RuntimeError("Workspace area not initialized")
-
-        if not frame or not frame.winfo_exists():
+        if not frame or not frame.root.winfo_exists():
             raise ValueError("Frame must be a valid existing widget")
 
-        if frame.name not in self._workspace_widgets:
+        if frame.name not in self._workspace_frames:
             raise ValueError("Frame is not registered in the workspace")
 
-        frame.pack(in_=self.workspace_area.frame.root, fill='both', expand=True)
+        frame.pack(in_=self.workspace_area.root, fill='both', expand=True)
         self.set_status(f"Packed frame into workspace: {frame.name}")
 
     def _raise_frame(
         self,
-        frame: TaskFrame
+        frame: ITaskFrame[tk.Frame, tk.Widget]
     ) -> None:
         """Raise a frame to the top of the application.
 
         Args:
             frame (TaskFrame): The frame to raise.
         """
-        if not self.workspace_area:
-            raise RuntimeError("Workspace area not initialized")
 
-        if not frame or not frame.winfo_exists():
+        if not frame or not frame.root.winfo_exists():
             raise ValueError("Frame must be a valid existing widget")
 
-        if frame.name not in self._workspace_widgets:
+        if frame.name not in self._workspace_frames:
             raise ValueError("Frame is not registered in the workspace")
 
-        if frame.master != self.workspace_area.frame.root:
-            raise ValueError("Frame is not packed in the workspace area")
+        if frame.root.master != self.workspace_area.root:
+            frame.root.master = self.workspace_area.root
+            # raise ValueError("Frame is not packed in the workspace area")
 
         self._hide_frames()
         self._select_frame(frame)
@@ -307,27 +306,27 @@ class Workspace(
 
     def _raise_next_available_frame(self) -> None:
         """Raise the next available frame in the workspace."""
-        for widget_id, frame in self._workspace_widgets.items():
-            if frame.winfo_exists():
+        for widget_id, frame in self._workspace_frames.items():
+            if frame.root.winfo_exists():
                 self._raise_frame(frame)
                 return
 
     def _register_frame_to_view_menu(
         self,
-        frame: TaskFrame
+        frame: ITaskFrame
     ) -> None:
         """Register a frame to the view menubar."""
-        view_menu = GuiManager.unsafe_get_backend().get_root_application_gui_menu().get_view_menu()
+        view_menu = self.gui.unsafe_get_backend().get_root_application_gui_menu().get_view_menu()
         view_menu.add_checkbutton(
             label=frame.name,
-            variable=frame.shown_var,
+            variable=frame.shown,
             command=lambda f=frame: self._raise_frame(f),
             index='end',
         )
 
     def _register_workspace_frame(
         self,
-        frame: TaskFrame,
+        frame: ITaskFrame,
         raise_frame: bool = False,
     ) -> None:
         """Register a widget in the workspace tracking."""
@@ -337,16 +336,16 @@ class Workspace(
 
         frame.pack_forget()
 
-        if frame.name in self._workspace_widgets:
+        if frame.name in self._workspace_frames:
             raise ValueError(f"Widget ID '{frame.name}' already exists")
 
-        self._workspace_widgets[frame.name] = frame
+        self._workspace_frames[frame.name] = frame
 
         def destroy_func(frame):
             self._unregister_workspace_frame(frame)
 
-        if destroy_func not in frame.on_destroy:
-            frame.on_destroy.append(lambda frame: destroy_func(frame))
+        if destroy_func not in frame.on_destroy():
+            frame.on_destroy().append(lambda frame: destroy_func(frame))
 
         self._register_frame_to_view_menu(frame)
 
@@ -363,11 +362,11 @@ class Workspace(
 
     def _select_frame(
         self,
-        frame: TaskFrame
+        frame: ITaskFrame
     ) -> None:
         """Set the selected frame in the view menubar."""
         self._unset_frames_selected()
-        frame.shown_var.set(True)
+        frame.set_shown(True)
 
     def _setup_bindings(self) -> None:
         """Set up event bindings."""
@@ -381,8 +380,8 @@ class Workspace(
 
     def _set_initial_log_window_height(self) -> None:
         """Set the initial log window height."""
-        log(self).debug("Setting initial log window height")
-        height = EnvManager.get(
+        self.log().debug("Setting initial log window height")
+        height = self.env.get(
             EnvironmentKeys.ui.UI_LOG_WINDOW_HEIGHT,
             0.33,
             float
@@ -391,8 +390,8 @@ class Workspace(
 
     def _set_initial_sidebar_width(self) -> None:
         """Set the initial sidebar width."""
-        log(self).debug("Setting initial sidebar width")
-        width = EnvManager.get(
+        self.log().debug("Setting initial sidebar width")
+        width = self.env.get(
             EnvironmentKeys.ui.UI_SIDEBAR_WIDTH,
             0.33,
             float
@@ -401,11 +400,11 @@ class Workspace(
 
     def _unregister_frame_from_view_menu(
         self,
-        frame: TaskFrame
+        frame: ITaskFrame
     ) -> None:
         """Unregister a frame from the view menubar.
         """
-        view_menu = GuiManager.unsafe_get_backend().get_root_application_gui_menu().get_view_menu()
+        view_menu = self.gui.unsafe_get_backend().get_root_application_gui_menu().get_view_menu()
         try:
             view_menu.remove_item(frame.name)
         except TclError:
@@ -413,13 +412,13 @@ class Workspace(
 
     def _unregister_workspace_frame(
         self,
-        frame: TaskFrame
+        frame: ITaskFrame
     ) -> None:
         """Unregister a widget from the workspace tracking."""
         if frame.shown:
             self._hide_frames()
 
-        self._workspace_widgets.pop(frame.name, None)
+        self._workspace_frames.pop(frame.name, None)
         self._unregister_frame_from_view_menu(frame)
         self.set_status(f"Removed workspace frame: {frame.name}")
 
@@ -429,7 +428,86 @@ class Workspace(
     def _unset_frames_selected(self):
         """Unset all frames in the view menubar.
         """
-        [frame.shown_var.set(False) for frame in self._workspace_widgets.values()]
+        [frame.set_shown(False) for frame in self._workspace_frames.values()]
+
+    def register_frame(
+        self,
+        frame: ITaskFrame,
+        raise_frame: bool = True
+    ) -> None:
+        """Register a frame with the workspace.
+
+        Args:
+            frame (ITaskFrame): The frame to register.
+            raise_frame (bool): Whether to bring the frame to the front upon registration.
+        """
+        if not isinstance(frame, ITaskFrame):
+            raise ValueError("Only ITaskFrame instances can be registered in the workspace")
+
+        self._register_workspace_frame(frame, raise_frame)
+
+    def unregister_frame(
+        self,
+        frame: ITaskFrame
+    ) -> None:
+        """Unregister a frame from the workspace.
+
+        Args:
+            frame (ITaskFrame): The frame to unregister.
+        """
+        if not isinstance(frame, ITaskFrame):
+            raise ValueError("Only ITaskFrame instances can be unregistered from the workspace")
+
+        self._unregister_workspace_frame(frame)
+
+    def get_frame(
+        self,
+        frame_name: str
+    ) -> Optional[ITaskFrame]:
+        """Get a registered frame by its ID.
+
+        Args:
+            frame_name (str): The frame_name of the frame.
+
+        Returns:
+            ITaskFrame or None: The registered frame, or None if not found.
+        """
+        return self._workspace_frames.get(frame_name, None)
+
+    def get_frames(self) -> list[ITaskFrame]:
+        """Get all registered frames in the workspace.
+
+        Returns:
+            list[ITaskFrame]: List of registered frames.
+        """
+        return List[self._workspace_frames.values()]
+
+    def set_frames(
+        self,
+        frames: List[ITaskFrame]
+    ) -> None:
+        """Set the registered frames in the workspace.
+
+        Args:
+            frames (List[ITaskFrame]): List of frames to register.
+        """
+        self.clear_workspace()
+        for frame in frames:
+            self._register_workspace_frame(frame, raise_frame=False)
+
+    def raise_frame(
+        self,
+        frame: ITaskFrame
+    ) -> None:
+        """Raise a registered frame to the front of the workspace.
+
+        Args:
+            frame (ITaskFrame): The frame to raise.
+        """
+        if not isinstance(frame, ITaskFrame):
+            raise ValueError("Only ITaskFrame instances can be raised in the workspace")
+
+        self._raise_frame(frame)
 
     def add_panel(
         self,
@@ -587,7 +665,7 @@ class Workspace(
 
     def add_workspace_task_frame(
         self,
-        task_frame: TaskFrame,
+        task_frame: ITaskFrame,
         raise_frame: bool = True
     ) -> str:
         """
@@ -606,7 +684,7 @@ class Workspace(
         if task_frame is None:
             raise ValueError("task_frame must be provided")
 
-        if task_frame.name in self._workspace_widgets:
+        if task_frame.name in self._workspace_frames:
             raise ValueError(f"Widget ID '{task_frame.name}' already exists")
 
         self._register_workspace_frame(task_frame, raise_frame)
@@ -645,10 +723,10 @@ class Workspace(
                     removed = True
 
         # Check workspace widgets
-        elif widget_id in self._workspace_widgets:
-            widget = self._workspace_widgets[widget_id]
+        elif widget_id in self._workspace_frames:
+            widget = self._workspace_frames[widget_id]
             widget.destroy()
-            del self._workspace_widgets[widget_id]
+            del self._workspace_frames[widget_id]
             location = "workspace"
             removed = True
 
@@ -664,19 +742,19 @@ class Workspace(
 
         return removed
 
-    def get_widget(self, widget_id: str) -> Optional[tk.Widget]:
+    def get_widget(self, widget_id: str) -> Optional[tk.Widget | ITaskFrame]:
         """Get a widget by its ID."""
         if widget_id in self._mounted_widgets:
             return self._mounted_widgets[widget_id]
-        elif widget_id in self._workspace_widgets:
-            return self._workspace_widgets[widget_id]
+        elif widget_id in self._workspace_frames:
+            return self._workspace_frames[widget_id]
         return None
 
     def get_all_widget_ids(self) -> Dict[str, List[str]]:
         """Get all widget IDs organized by location."""
         return {
             'sidebar': list(self._mounted_widgets.keys()),
-            'workspace': list(self._workspace_widgets.keys())
+            'workspace': list(self._workspace_frames.keys())
         }
 
     def show_sidebar(self) -> None:
@@ -719,9 +797,9 @@ class Workspace(
             self.show_sidebar()
         return self.sidebar_visible
 
-    def set_status(self, message: str) -> None:
+    def set_status(self, status: str) -> None:
         """Set the status bar message."""
-        self._status_text.set(message)
+        self._status_text.set(status)
 
     def get_status(self) -> str:
         """Get the current status message."""
@@ -729,7 +807,7 @@ class Workspace(
 
     def clear_workspace(self) -> None:
         """Clear all widgets from the workspace area."""
-        for task_id, task_frame in list(self._workspace_widgets.items()):
+        for task_id, task_frame in list(self._workspace_frames.items()):
             self._unregister_workspace_frame(task_frame)
         self.set_status("Workspace cleared")
 
@@ -763,10 +841,10 @@ class Workspace(
                 'tab_count': self.sidebar_organizer.get_tab_count() if self.sidebar_organizer else 0
             },
             'workspace': {
-                'widget_count': len(self._workspace_widgets),
+                'widget_count': len(self._workspace_frames),
                 'area_size': (
-                    self.workspace_area.frame.root.winfo_width(),
-                    self.workspace_area.frame.root.winfo_height()
+                    self.workspace_area.root.winfo_width(),
+                    self.workspace_area.root.winfo_height()
                 ) if self.workspace_area else (0, 0)
             },
             'status': {
@@ -780,8 +858,8 @@ class Workspace(
         if not self.log_paned_window:
             return None
 
-        self.iframework.update_framekwork_tasks()
-        screen_height = self.window.winfo_height()
+        self.gui.unsafe_get_backend().update_framekwork_tasks()
+        screen_height = self.main_window.winfo_height()
         sash_pos = self.log_paned_window.sashpos(0)
         perc_of_window = (screen_height - sash_pos) / screen_height
         return perc_of_window
@@ -791,22 +869,19 @@ class Workspace(
         if not self.main_paned_window:
             return None
 
-        self.iframework.update_framekwork_tasks()
-        screen_width = self.window.winfo_width()
+        self.gui.unsafe_get_backend().update_framekwork_tasks()
+        screen_width = self.main_window.winfo_width()
         sash_pos = self.main_paned_window.sashpos(0)
         perc_of_window = sash_pos / screen_width
         return perc_of_window
 
     def set_log_window_height(self, perc_of_window: float) -> None:
         """Set the log window height as a percentage of the window height."""
-        if not self.log_paned_window:
-            raise RuntimeError("Log paned window not initialized")
-
-        GuiManager.unsafe_get_backend().update_framekwork_tasks()
+        self.gui.unsafe_get_backend().update_framekwork_tasks()
         total_height = self.window.height
         log_height = int(total_height * perc_of_window)
         self.log_paned_window.sashpos(0, total_height - log_height)
-        EnvManager.set(
+        self.env.set(
             EnvironmentKeys.ui.UI_LOG_WINDOW_HEIGHT,
             str(perc_of_window)
         )
@@ -816,11 +891,11 @@ class Workspace(
         if not self.main_paned_window:
             raise RuntimeError("Main paned window not initialized")
 
-        GuiManager.unsafe_get_backend().update_framekwork_tasks()
+        self.gui.unsafe_get_backend().update_framekwork_tasks()
         total_width = self.window.width
         sidebar_width = int(total_width * perc_of_window)
         self.main_paned_window.sashpos(0, sidebar_width)
-        EnvManager.set(
+        self.env.set(
             EnvironmentKeys.ui.UI_SIDEBAR_WIDTH,
             str(perc_of_window)
         )
@@ -894,13 +969,13 @@ Status: {info['status']['current_message']}
 """
 
         # Create info dialog
-        info_window = tk.Toplevel(self.window)
+        info_window = tk.Toplevel(self.window.root)
         info_window.title("Workspace Information")
         info_window.geometry("400x300")
         info_window.resizable(False, False)
 
         # Center the window
-        info_window.transient(self.window.winfo_toplevel())
+        info_window.transient(self.window.root.winfo_toplevel())
         info_window.grab_set()
 
         text_widget = tk.Text(

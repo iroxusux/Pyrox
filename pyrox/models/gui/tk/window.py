@@ -3,11 +3,11 @@
 from tkinter import Toplevel, Tk, Widget
 from typing import Tuple, Union
 from pyrox.models.gui.default import GuiWindow
-from .component import TkinterGuiComponent
+from .widget import TkinterGuiWidget
 
 
 class TkinterGuiWindow(
-    TkinterGuiComponent[Union[Tk, Toplevel]],
+    TkinterGuiWidget,
     GuiWindow[Union[Tk, Toplevel], Widget],
 ):
     """Tkinter implementation of IGuiWindow.

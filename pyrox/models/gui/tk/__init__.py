@@ -4,6 +4,7 @@ from . import backend
 from .backend import TkinterBackend
 from .frame import TkinterGuiFrame
 from .widget import TkinterGuiWidget
+from .workspace import TkWorkspace
 
 __all__ = (
     'backend',

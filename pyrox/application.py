@@ -23,7 +23,7 @@ from pyrox.models import (
     ServicesRunnableMixin,
 )
 
-from pyrox.models import Workspace
+from pyrox.models.gui.tk import TkWorkspace
 from pyrox.services import EnvManager
 
 __all__ = ('Application',)
@@ -52,40 +52,42 @@ class Application(
         self,
     ) -> None:
         # Initialize base classes
-        ServicesRunnableMixin.__init__(
-            self,
-            name=EnvManager.get(
-                EnvironmentKeys.core.APP_NAME,
-                'Pyrox Application',
-                str),
-            description=EnvManager.get(
-                EnvironmentKeys.core.APP_DESCRIPTION,
-                'A Pyrox Application',
-                str
-            ))
+        ServicesRunnableMixin.__init__(self)
 
         # Initialize application services
         sys.excepthook = self.except_hook
 
-        self.gui.unsafe_get_backend().create_root_window()
-        self.gui.unsafe_get_backend().create_application_gui_menu()
-        self.gui.unsafe_get_backend().restore_window_geometry()
-        self.gui.unsafe_get_backend().subscribe_to_window_change_event(
-            self.gui.unsafe_get_backend().save_window_geometry
-        )
+        # Initialize variable from .env
+        self.set_name(
+            self.env.get(
+                self.env_keys.core.APP_NAME,
+                'Pyrox Application',
+                str))
+        self.set_description(EnvManager.get(
+            self.env_keys.core.APP_DESCRIPTION,
+            'A Pyrox Application',
+            str))
+
+        # Initialize GUI backend
+        self.backend.create_root_window()
+        self.backend.create_application_gui_menu()
+        self.backend.restore_window_geometry()
+        self.backend.subscribe_to_window_change_event(self.backend.save_window_geometry)
 
         # Set up logging
         self.logging.register_callback_to_captured_streams(self.log_stream.write)
-        ApplicationTaskFactory.build_tasks(self)
 
-        # Initialize workspace
-        self._workspace = Workspace()
-
-        # Initialize tasks
+        # Initialize tasks list
         self._tasks: list[IApplicationTask] = []
 
+        # Initialize workspace
+        self._workspace = TkWorkspace(master=self.backend.get_root_window())
+
+        # Build default tasks
+        ApplicationTaskFactory.build_tasks(self)
+
     @property
-    def gui_backend(self) -> IGuiBackend:
+    def backend(self) -> IGuiBackend:
         """The GUI backend for this Application.
 
         Returns:
@@ -141,16 +143,16 @@ class Application(
         self._workspace = workspace
 
     def hook_to_gui(self) -> None:
-        self.gui_backend.reroute_excepthook(self.except_hook)
-        self.gui_backend.subscribe_to_window_close_event(self.on_close)
-        self.gui_backend.set_title(
+        self.backend.reroute_excepthook(self.except_hook)
+        self.backend.subscribe_to_window_close_event(self.on_close)
+        self.backend.set_title(
             self.env.get(
                 EnvironmentKeys.core.APP_WINDOW_TITLE,
                 'Pyrox Application',
                 str
             )
         )
-        self.gui_backend.set_icon(
+        self.backend.set_icon(
             self.env.get(
                 EnvironmentKeys.core.APP_ICON,
                 '',
@@ -249,50 +251,9 @@ class Application(
         """Clear all registered application tasks."""
         self._tasks.clear()
 
-    def _set_log_window_height_env(
-        self,
-        height: float,
-    ) -> None:
-        """Set log window height in environment variables.
-        This is a percentage of the screen full height.
-
-        Args:
-            height: Height of the log window in percentage of screen.
-
-        Raises:
-            TypeError: If height is not a float value.
-        """
-        if not isinstance(height, float):
-            raise TypeError('Height must be a float value.')
-        EnvManager.set(
-            EnvironmentKeys.ui.UI_LOG_WINDOW_HEIGHT,
-            str(height)
-        )
-
-    def _set_main_window_sash_env(
-        self,
-        width: float,
-    ) -> None:
-        """Set main window sash position in environment variables.
-        This is a percentage of the screen full width.
-
-        Args:
-            width: Width of the main window sash in percentage of screen.
-
-        Raises:
-            TypeError: If width is not a float value.
-        """
-        if not isinstance(width, float):
-            raise TypeError('Width must be a float value.')
-        EnvManager.set(
-            EnvironmentKeys.ui.UI_SIDEBAR_WIDTH,
-            str(width)
-        )
-
     def build(self) -> None:
         """Build and initialize the application."""
         self.workspace.build()
-        self.workspace.set_status('Building...')
         self.hook_to_gui()
         self.workspace.set_status('Ready...')
         super().build()
@@ -314,25 +275,25 @@ class Application(
         This method changes the cursor to a busy state, indicating that the application is processing.
         """
 
-        self.gui_backend.update_cursor(meta.TK_CURSORS.WAIT.value)
+        self.backend.update_cursor(meta.TK_CURSORS.WAIT.value)
 
     def set_app_state_normal(self) -> None:
         """Set the application state to normal.
 
         This method changes the cursor back to normal, indicating that the application is ready for user interaction.
         """
-        self.gui_backend.update_cursor(meta.TK_CURSORS.DEFAULT.value)
+        self.backend.update_cursor(meta.TK_CURSORS.DEFAULT.value)
 
     def run(self) -> int:
         """Start the application."""
         self.build()
         super().run()
-        self.gui_backend.schedule_event(
+        self.backend.schedule_event(
             100,
             lambda: self.log().info('Ready...')
         )
-        self.gui_backend.focus_main_window()
-        self.gui_backend.run_main_loop()
+        self.backend.focus_main_window()
+        self.backend.run_main_loop()
         return 0
 
 

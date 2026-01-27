@@ -2,7 +2,7 @@
 """
 from logging import Logger
 from typing import Any
-from pyrox.interfaces import IApplicationGuiMenu, IGuiMenu
+from pyrox.interfaces import IApplicationGuiMenu, IGuiMenu, EnvironmentKeys
 from pyrox.models import CoreRunnableMixin
 from pyrox.services import EnvManager, LoggingManager, GuiManager, PlatformDirectoryService
 
@@ -14,6 +14,11 @@ class SupportsEnvServices:
     def env(self) -> type[EnvManager]:
         """Access the EnvManager service."""
         return EnvManager
+
+    @property
+    def env_keys(self) -> type[EnvironmentKeys]:
+        """Access the EnvironmentKeys from EnvManager service."""
+        return EnvironmentKeys
 
 
 class SupportsLoggingServices:

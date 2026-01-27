@@ -8,9 +8,8 @@ class FileTask(ApplicationTask):
 
     def _open_scene_viewer(self) -> None:
         """Open the Scene Viewer frame."""
-        scene_viewer = SceneViewerFrame(parent=self.application.workspace)
-        scene_viewer.pack(fill='both', expand=True)
-        scene_viewer.focus_set()
+        scene_viewer = SceneViewerFrame(parent=self.application.workspace.workspace_area.root)
+        self.application.workspace.register_frame(scene_viewer)
 
     def inject(self) -> None:
         self.file_menu.add_item(

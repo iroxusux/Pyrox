@@ -1,19 +1,30 @@
 from typing import Generic, TypeVar
 from pyrox.interfaces import IGuiComponent
+from pyrox.models.services import ServicesRunnableMixin
 
 T = TypeVar('T')
 
 
 class GuiComponent(
     Generic[T],
-    IGuiComponent[T]
+    IGuiComponent[T],
+    ServicesRunnableMixin,
 ):
     """Base implementation of IGuiComponent.
     """
 
-    def __init__(self):
+    def __init__(
+        self,
+        name: str = "GuiComponent",
+        description: str = "Base GUI Component"
+    ) -> None:
         self._parent: T
         self._root: T
+        ServicesRunnableMixin.__init__(
+            self,
+            name=name,
+            description=description
+        )
 
     def config(self, *args, **kwargs) -> None:
         raise NotImplementedError("config method must be implemented by subclass.")
@@ -44,12 +55,6 @@ class GuiComponent(
 
     def set_parent(self, parent: T) -> None:
         self._parent = parent
-
-    def get_name(self) -> str:
-        raise NotImplementedError("get_name method must be implemented by subclass.")
-
-    def set_name(self, name: str) -> None:
-        raise NotImplementedError("set_name method must be implemented by subclass.")
 
     def get_height(self) -> int:
         raise NotImplementedError("get_height method must be implemented by subclass.")

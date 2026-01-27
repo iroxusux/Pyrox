@@ -30,8 +30,6 @@ from .gui import (
     PyroxFrameContainer,
     PyroxGuiObject,
     SceneViewerFrame,
-    TaskFrame,
-    Workspace,
 )
 
 
@@ -77,8 +75,6 @@ __all__ = [
     'PyroxFrameContainer',
     'PyroxGuiObject',
     'SceneViewerFrame',
-    'TaskFrame',
-    'Workspace',
 
     # Services components
     'SupportsEnvServices',

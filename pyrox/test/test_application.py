@@ -5,8 +5,6 @@ from io import TextIOWrapper
 from unittest.mock import MagicMock, patch, mock_open
 
 from pyrox.application import Application
-from pyrox.interfaces import IApplicationTask
-from pyrox.services import GuiManager, LoggingManager, EnvManager, PlatformDirectoryService
 
 
 class TestApplicationBootstrap(unittest.TestCase):
@@ -16,7 +14,7 @@ class TestApplicationBootstrap(unittest.TestCase):
         self.gui_manager_patcher = patch('pyrox.models.services.GuiManager')
         self.logging_manager_patcher = patch('pyrox.models.services.LoggingManager')
         self.env_manager_patcher = patch('pyrox.models.services.EnvManager')
-        self.workspace_patcher = patch('pyrox.application.Workspace')
+        self.workspace_patcher = patch('pyrox.application.TkWorkspace')
         self.platform_dir_patcher = patch('pyrox.models.services.PlatformDirectoryService')
 
         self.mock_gui_manager = self.gui_manager_patcher.start()
@@ -55,7 +53,7 @@ class TestApplicationInitialization(unittest.TestCase):
         self.gui_manager_patcher = patch('pyrox.models.services.GuiManager')
         self.logging_manager_patcher = patch('pyrox.models.services.LoggingManager')
         self.env_manager_patcher = patch('pyrox.models.services.EnvManager')
-        self.workspace_patcher = patch('pyrox.application.Workspace')
+        self.workspace_patcher = patch('pyrox.application.TkWorkspace')
         self.platform_dir_patcher = patch('pyrox.models.services.PlatformDirectoryService')
 
         self.mock_gui_manager = self.gui_manager_patcher.start()
@@ -154,7 +152,7 @@ class TestApplicationProperties(unittest.TestCase):
         self.gui_manager_patcher = patch('pyrox.models.services.GuiManager')
         self.logging_manager_patcher = patch('pyrox.models.services.LoggingManager')
         self.env_manager_patcher = patch('pyrox.models.services.EnvManager')
-        self.workspace_patcher = patch('pyrox.application.Workspace')
+        self.workspace_patcher = patch('pyrox.application.TkWorkspace')
         self.platform_dir_patcher = patch('pyrox.models.services.PlatformDirectoryService')
 
         self.mock_gui_manager = self.gui_manager_patcher.start()
@@ -186,7 +184,7 @@ class TestApplicationProperties(unittest.TestCase):
 
     def test_gui_property_returns_backend_instance(self):
         """Test that gui property returns GUI backend instance."""
-        result = self.app.gui_backend
+        result = self.app.backend
 
         self.assertEqual(result, self.mock_backend)
         self.mock_gui_manager.unsafe_get_backend.assert_called()
@@ -240,7 +238,7 @@ class TestApplicationMethods(unittest.TestCase):
         self.gui_manager_patcher = patch('pyrox.models.services.GuiManager')
         self.logging_manager_patcher = patch('pyrox.models.services.LoggingManager')
         self.env_manager_patcher = patch('pyrox.models.services.EnvManager')
-        self.workspace_patcher = patch('pyrox.application.Workspace')
+        self.workspace_patcher = patch('pyrox.application.TkWorkspace')
         self.platform_dir_patcher = patch('pyrox.models.services.PlatformDirectoryService')
         self.log_patcher = patch('pyrox.models.services.LoggingManager')
 
@@ -345,22 +343,6 @@ class TestApplicationMethods(unittest.TestCase):
 
         self.mock_workspace.build.assert_called_once()
 
-    def test_build_method_sets_building_status(self):
-        """Test build method sets building status."""
-        self.app.build()
-
-        # Check that set_status was called with 'Building...'
-        status_calls = [call[0][0] for call in self.mock_workspace.set_status.call_args_list]
-        self.assertIn('Building...', status_calls)
-
-    def test_build_method_sets_ready_status(self):
-        """Test build method sets ready status at the end."""
-        self.app.build()
-
-        # Check that final call was 'Ready.'
-        final_call = self.mock_workspace.set_status.call_args_list[-1][0][0]
-        self.assertEqual(final_call, 'Ready.')
-
     def test_build_method_hooks_to_gui(self):
         """Test build method hooks to GUI."""
         with patch.object(self.app, 'hook_to_gui') as mock_hook:
@@ -443,7 +425,7 @@ class TestApplicationIntegration(unittest.TestCase):
         self.gui_manager_patcher = patch('pyrox.models.services.GuiManager')
         self.logging_manager_patcher = patch('pyrox.models.services.LoggingManager')
         self.env_manager_patcher = patch('pyrox.models.services.EnvManager')
-        self.workspace_patcher = patch('pyrox.application.Workspace')
+        self.workspace_patcher = patch('pyrox.application.TkWorkspace')
         self.platform_dir_patcher = patch('pyrox.models.services.PlatformDirectoryService')
         self.log_patcher = patch('pyrox.models.services.LoggingManager')
 
@@ -493,7 +475,7 @@ class TestApplicationIntegration(unittest.TestCase):
         # Test all property accessors
         self.assertIsNotNone(app.env)
         self.assertIsNotNone(app.gui)
-        self.assertIsNotNone(app.gui_backend)
+        self.assertIsNotNone(app.backend)
         self.assertIsNotNone(app.logging)
         self.assertIsNotNone(app.directory)
         self.assertIsNotNone(app.log_stream)

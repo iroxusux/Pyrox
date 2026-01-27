@@ -3,6 +3,7 @@ Defines the IWorkspace interface for GUI workspaces.
 """
 from abc import abstractmethod
 from pyrox.interfaces.protocols import ICoreRunnableMixin
+from pyrox.interfaces.gui import ITaskFrame
 from .component import IGuiComponent
 
 
@@ -12,6 +13,15 @@ class IWorkspace(
 ):
     """Interface for a GUI Workspace.
     """
+
+    @property
+    def frames(self) -> list[ITaskFrame]:
+        """Get all registered frames in the workspace.
+
+        Returns:
+            list[ITaskFrame]: List of registered frames.
+        """
+        return self.get_frames()
 
     @property
     def panels(self) -> list[IGuiComponent]:
@@ -42,6 +52,80 @@ class IWorkspace(
             status (str): The status message to set.
         """
         self.set_status(status)
+
+    @abstractmethod
+    def get_frame(
+        self,
+        frame_name: str
+    ) -> ITaskFrame | None:
+        """Get a registered frame by name.
+
+        Args:
+            frame_name (str): The name of the frame to retrieve.
+
+        Returns:
+            ITaskFrame | None: The requested frame, or None if not found.
+        """
+        pass
+
+    @abstractmethod
+    def get_frames(self) -> list[ITaskFrame]:
+        """Get all registered frames in the workspace.
+
+        Returns:
+            list[ITaskFrame]: List of registered frames.
+        """
+        pass
+
+    @abstractmethod
+    def set_frames(
+        self,
+        frames: list[ITaskFrame]
+    ) -> None:
+        """Set the registered frames in the workspace.
+
+        Args:
+            frames (list[ITaskFrame]): List of frames to register.
+        """
+        pass
+
+    @abstractmethod
+    def register_frame(
+        self,
+        frame: ITaskFrame,
+        raise_frame: bool = True
+    ) -> None:
+        """Register a frame with the workspace.
+
+        Args:
+            frame (ITaskFrame): The frame to register.
+            raise_frame (bool): Whether to bring the frame to the front upon registration.
+        """
+        pass
+
+    @abstractmethod
+    def unregister_frame(
+        self,
+        frame: ITaskFrame
+    ) -> None:
+        """Unregister a frame from the workspace.
+
+        Args:
+            frame (ITaskFrame): The frame to unregister.
+        """
+        pass
+
+    @abstractmethod
+    def raise_frame(
+        self,
+        frame: ITaskFrame
+    ) -> None:
+        """Bring a registered frame to the front.
+
+        Args:
+            frame (ITaskFrame): The frame to raise.
+        """
+        pass
 
     @abstractmethod
     def add_panel(

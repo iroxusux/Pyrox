@@ -47,6 +47,11 @@ class IGuiWidget(
         raise NotImplementedError("pack_propogate method must be implemented by subclass.")
 
     @abstractmethod
+    def pack_forget(self) -> None:
+        """Forget the widget's packing configuration."""
+        raise NotImplementedError("pack_forget method must be implemented by subclass.")
+
+    @abstractmethod
     def update_idletasks(self) -> None:
         """Update the widget's idle tasks."""
         raise NotImplementedError("update_idletasks method must be implemented by subclass.")

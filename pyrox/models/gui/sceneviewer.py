@@ -8,14 +8,14 @@ from __future__ import annotations
 import tkinter as tk
 from tkinter import ttk
 from typing import Dict, Optional, Tuple, TYPE_CHECKING
-from pyrox.models.gui.frame import TaskFrame
+from pyrox.models.gui.tk.frame import TkinterTaskFrame
 from pyrox.services import log
 
 if TYPE_CHECKING:
     from pyrox.interfaces import IScene, ISceneObject
 
 
-class SceneViewerFrame(TaskFrame):
+class SceneViewerFrame(TkinterTaskFrame):
     """A 2D canvas-based scene viewer with pan and zoom support.
 
     This frame provides a visual canvas for rendering scene objects with
@@ -39,10 +39,9 @@ class SceneViewerFrame(TaskFrame):
 
     def __init__(
         self,
-        parent=None,
+        parent,
         name: str = "Scene Viewer",
-        scene: Optional[IScene] = None,
-        **kwargs
+        scene: Optional[IScene] = None
     ):
         """Initialize the SceneViewerFrame.
 
@@ -52,7 +51,10 @@ class SceneViewerFrame(TaskFrame):
             scene: Optional scene to load initially
             **kwargs: Additional arguments passed to TaskFrame
         """
-        super().__init__(parent, name=name, **kwargs)
+        super().__init__(
+            name=name,
+            parent=parent
+        )
 
         # Scene and rendering state
         self._scene: Optional[IScene] = scene
@@ -375,7 +377,7 @@ class SceneViewerFrame(TaskFrame):
             self._canvas_objects[obj_id] = canvas_id
 
             # Draw name label
-            label_id = self._canvas.create_text(
+            _ = self._canvas.create_text(
                 canvas_x + canvas_width / 2,
                 canvas_y - 10 * self._zoom_level,
                 text=scene_obj.name,

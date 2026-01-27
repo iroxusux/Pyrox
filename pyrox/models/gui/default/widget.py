@@ -33,9 +33,6 @@ class GuiWidget(
     def pack(self, **kwargs) -> None:
         raise NotImplementedError("pack method must be implemented by subclass.")
 
-    def pack_propagate(self, propagate: bool) -> None:
-        raise NotImplementedError("pack_propagate method must be implemented by subclass.")
-
     def set_visible(self, visible: bool) -> None:
         raise NotImplementedError("set_visible method must be implemented by subclass.")
 

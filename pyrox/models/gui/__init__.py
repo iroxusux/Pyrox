@@ -6,14 +6,12 @@ from .commandbar import PyroxCommandBar, CommandButton
 from .contextmenu import PyroxContextMenu, MenuItem as ContextMenuItem
 from .frame import (
     PyroxFrameContainer,
-    TaskFrame,
 )
 from .logframe import LogFrame
 from .meta import ObjectEditField
 from .pyroxguiobject import PyroxGuiObject
 from .sceneviewer import SceneViewerFrame
 from .theme import DefaultTheme
-from .workspace import Workspace
 from .yamleditor import PyroxYamlEditor
 
 __all__ = (
@@ -30,7 +28,5 @@ __all__ = (
     'PyroxGuiObject',
     'PyroxYamlEditor',
     'SceneViewerFrame',
-    'TaskFrame',
     'tk',
-    'Workspace',
 )

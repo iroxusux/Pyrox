@@ -45,6 +45,9 @@ class TkinterGuiWidget(
     def pack_propagate(self, propagate: bool) -> None:
         self.root.pack_propagate(propagate)
 
+    def pack_forget(self) -> None:
+        self.root.pack_forget()
+
     def set_visible(self, visible: bool) -> None:
         if visible:
             self.root.pack()
