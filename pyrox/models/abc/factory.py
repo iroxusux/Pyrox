@@ -5,6 +5,7 @@ import importlib
 import sys
 from typing import Any, Dict, Generic, List, Optional, Type, TypeVar, Union
 
+from pyrox.interfaces.protocols.meta import IFactoryMixinProtocolMeta
 from pyrox.services.logging import log
 
 
@@ -207,7 +208,7 @@ class MetaFactory(ABCMeta):
 F = TypeVar('F', bound=MetaFactory)
 
 
-class FactoryTypeMeta(ABCMeta, Generic[T, F]):
+class FactoryTypeMeta(IFactoryMixinProtocolMeta, Generic[T, F]):
     """Meta class for types that are used in factory patterns.
     """
     supporting_class: Optional[Type] = None  # The class that this type supports, if any. i.e., 'Controller'

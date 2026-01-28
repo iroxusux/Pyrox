@@ -10,8 +10,8 @@ Key Design Principles:
     - Interfaces contain only method signatures, no implementations
     - No imports from pyrox.services or pyrox.models modules
     - Pure abstractions with minimal external dependencies
-    - Support for dependency injection and plugin architectures
     - Forward-compatible design for future enhancements
+    - Properties used and implimented for attribute access where appropriate
 
 Interface Categories:
     - GUI: Backend, window, menu, and component abstractions
@@ -19,21 +19,46 @@ Interface Categories:
     - Application: Task, factory, and application lifecycle interfaces
     - Configuration: Settings, environment, and state management interfaces
     - Events: Observer patterns, subscriptions, and notification interfaces
-    - Integration: Dependency injection and registration patterns
 """
 # Environment constants
 from .constants import EnvironmentKeys
 
-# GUI interfaces
-from .gui import (
-    IApplicationGuiMenu,
-    GuiFramework,
-    IGuiBackend,
-    IGuiComponent,
-    IGuiFrame,
-    IGuiMenu,
-    IGuiWidget,
-    IGuiWindow,
+# Protocols
+from .protocols import (
+    # Meta imports to describe the base of everything
+    IConfigurable,
+    IAuthored,
+    IVersioned,
+    IHasId,
+    INameable,
+    IDescribable,
+    IRefreshable,
+    IResettable,
+    IBuildable,
+    IRunnable,
+    ICoreMixin,
+    ICoreRunnableMixin,
+    IHasFileLocation,
+    IHasDictMetaData,
+    ISupportsItemAccess,
+
+    # Coordinate imports for protocols that support points in a space.
+    ICoord2D,
+    IArea2D,
+    ICoord3D,
+    IArea3D,
+
+    # Spatial imports for protocols that support spatial objects.
+    ISpatial2D,
+    ISpatial3D,
+    IRotatable,
+
+    # Kinematic imports for protocols that support kinematic objects.
+    IVelocity2D,
+    IVelocity3D,
+    IAngularVelocity,
+    IKinematic2D,
+    IKinematic3D,
 )
 
 # Service interfaces
@@ -49,8 +74,6 @@ from .services import (
 from .application import (
     IApplication,
     IApplicationTask,
-    ITaskFactory,
-    ILifecycleManager,
 )
 
 # Event interfaces
@@ -69,10 +92,60 @@ from .integration import (
     IPluginManager,
 )
 
+# GUI interfaces
+from .gui import (
+    IApplicationGuiMenu,
+    GuiFramework,
+    IGuiBackend,
+    IGuiComponent,
+    IGuiFrame,
+    ITaskFrame,
+    IGuiMenu,
+    IGuiWidget,
+    IGuiWindow,
+    IWorkspace,
+)
+
+# Scene interfaces
+from .scene import IScene, ISceneObject, ISceneObjectFactory
+
 
 __all__ = (
     # Environment Constants
     'EnvironmentKeys',
+
+    # Protocols
+    # Meta protocols
+    'IConfigurable',
+    'IAuthored',
+    'IVersioned',
+    'IHasId',
+    'INameable',
+    'IDescribable',
+    'IBuildable',
+    'IRefreshable',
+    'IResettable',
+    'IRunnable',
+    'ICoreMixin',
+    'ICoreRunnableMixin',
+    'IHasFileLocation',
+    'IHasDictMetaData',
+    'ISupportsItemAccess',
+    # Coordinate protocols
+    'ICoord2D',
+    'IArea2D',
+    'ICoord3D',
+    'IArea3D',
+    # Spatial protocols
+    'ISpatial2D',
+    'ISpatial3D',
+    'IRotatable',
+    # Kinematic protocols
+    'IVelocity2D',
+    'IVelocity3D',
+    'IAngularVelocity',
+    'IKinematic2D',
+    'IKinematic3D',
 
     # GUI Interfaces
     'GuiFramework',
@@ -81,8 +154,10 @@ __all__ = (
     'IGuiWindow',
     'IGuiMenu',
     'IGuiFrame',
+    'ITaskFrame',
     'IGuiComponent',
     'IApplicationGuiMenu',
+    'IWorkspace',
 
     # Service Interfaces
     'IEnvironmentManager',
@@ -94,8 +169,6 @@ __all__ = (
     # Application Interfaces
     'IApplication',
     'IApplicationTask',
-    'ITaskFactory',
-    'ILifecycleManager',
 
     # Event Interfaces
     'IObserver',
@@ -108,4 +181,9 @@ __all__ = (
     'IBackendRegistry',
     'IDependencyInjector',
     'IPluginManager',
+
+    # Scene Interfaces
+    'IScene',
+    'ISceneObject',
+    'ISceneObjectFactory',
 )

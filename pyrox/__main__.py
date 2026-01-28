@@ -3,4 +3,4 @@
 import pyrox
 
 if __name__ == '__main__':
-    pyrox.models.Application().start()
+    pyrox.Application().run()

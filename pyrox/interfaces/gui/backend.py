@@ -17,6 +17,15 @@ class IGuiBackend(ABC):
     """
 
     @property
+    def main_window(self) -> IGuiWindow:
+        """Get the main application window.
+
+        Returns:
+            IGuiWindow: The main application window instance.
+        """
+        return self.get_root_gui_window()
+
+    @property
     def framework_name(self) -> str:
         """Get the framework name.
 
@@ -108,7 +117,7 @@ class IGuiBackend(ABC):
         raise NotImplementedError("create_gui_window method must be implemented by subclass.")
 
     @abstractmethod
-    def create_root_gui_window(self, **kwargs) -> IGuiWindow:
+    def create_root_window(self, **kwargs) -> IGuiWindow:
         """Create the application root window.
 
         Args:
@@ -147,6 +156,20 @@ class IGuiBackend(ABC):
         raise NotImplementedError("destroy_gui_window method must be implemented by subclass.")
 
     @abstractmethod
+    def focus_main_window(self) -> None:
+        """Focus the main application window."""
+        raise NotImplementedError("focus_main_window method must be implemented by subclass.")
+
+    @property
+    def backend(self) -> Any:
+        """Get the underlying GUI backend instance.
+
+        Returns:
+            Any: The GUI backend instance specific to the framework.
+        """
+        return self.get_backend()
+
+    @abstractmethod
     def get_backend(self) -> Any:
         """Get the underlying GUI backend instance.
 
@@ -154,6 +177,42 @@ class IGuiBackend(ABC):
             Any: The GUI backend instance specific to the framework.
         """
         raise NotImplementedError("get_backend method must be implemented by subclass.")
+
+    @property
+    def title(self) -> str:
+        """Get the application window title.
+
+        Returns:
+            str: The current window title.
+        """
+        return self.get_title()
+
+    @title.setter
+    def title(self, title: str) -> None:
+        """Set the application window title.
+
+        Args:
+            title: The new window title.
+        """
+        self.set_title(title)
+
+    @abstractmethod
+    def get_title(self) -> str:
+        """Get the application window title.
+
+        Returns:
+            str: The current window title.
+        """
+        raise NotImplementedError("get_title method must be implemented by subclass.")
+
+    @abstractmethod
+    def set_title(self, title: str) -> None:
+        """Set the application window title.
+
+        Args:
+            title: The new window title.
+        """
+        raise NotImplementedError("set_title method must be implemented by subclass.")
 
     @abstractmethod
     def get_framework(self) -> GuiFramework:
@@ -219,6 +278,18 @@ class IGuiBackend(ABC):
         raise NotImplementedError("is_available method must be implemented by subclass.")
 
     @abstractmethod
+    def save_window_geometry(self) -> None:
+        """Save window geometry.
+        """
+        raise NotImplementedError("save_window_geometry method must be implemented by subclass.")
+
+    @abstractmethod
+    def restore_window_geometry(self) -> None:
+        """Restore window geometry.
+        """
+        raise NotImplementedError("restore_window_geometry method must be implemented by subclass.")
+
+    @abstractmethod
     def prompt_user_yes_no(self, title: str, message: str) -> bool:
         """Show a yes/no dialog to the user.
 
@@ -276,15 +347,6 @@ class IGuiBackend(ABC):
             icon_path: Path to the icon file.
         """
         raise NotImplementedError("set_icon method must be implemented by subclass.")
-
-    @abstractmethod
-    def set_title(self, title: str) -> None:
-        """Set the application window title.
-
-        Args:
-            title: The new window title.
-        """
-        raise NotImplementedError("set_title method must be implemented by subclass.")
 
     @abstractmethod
     def setup_keybinds(self, **kwargs) -> None:

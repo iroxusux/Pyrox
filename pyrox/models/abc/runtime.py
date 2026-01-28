@@ -5,86 +5,10 @@ including buildable objects, runnable objects, and runtime dictionary management
 """
 from __future__ import annotations
 from typing import Any, Callable
-from pyrox.models.abc.meta import NamedPyroxObject
 
 __all__ = (
-    'Buildable',
-    'Runnable',
     'RuntimeDict',
 )
-
-
-class Buildable(NamedPyroxObject):
-    """Denotes object is 'buildable' and supports build and refresh methods.
-
-    This class provides a foundation for objects that have a build lifecycle,
-    tracking whether the object has been built and providing methods for
-    building and refreshing the object state.
-
-    Attributes:
-        built: Whether the object has previously been built.
-    """
-    __slots__ = ('_built',)
-
-    def __init__(self, **kwargs):
-        super().__init__(**kwargs)
-        self._built: bool = False
-
-    @property
-    def built(self) -> bool:
-        """Whether the object has previously been built.
-
-        Returns:
-            bool: True if the object has been built, False otherwise.
-        """
-        return self._built
-
-    def build(self) -> None:
-        """Build this object."""
-        self._built = True
-
-    def refresh(self) -> None:
-        """Refresh this object.
-
-        This method should be overridden by subclasses to implement
-        specific refresh behavior.
-        """
-
-
-class Runnable(Buildable):
-    """Denotes object is 'runnable' and supports run method.
-
-    This class extends Buildable to provide runtime state management,
-    tracking whether the object is currently running and providing
-    methods for starting and stopping execution.
-
-    Attributes:
-        running: Whether the object is currently in a running state.
-    """
-    __slots__ = ('_running', )
-
-    def __init__(self, **kwargs):
-        super().__init__(**kwargs)
-        self._running: bool = False
-
-    @property
-    def running(self) -> bool:
-        """Whether the object is currently in a running state.
-
-        Returns:
-            bool: True if the object is running, False otherwise.
-        """
-        return self._running
-
-    def start(self) -> None:
-        """Start this object."""
-        if self.built is False:
-            self.build()
-        self._running = True
-
-    def stop(self) -> None:
-        """Stop this object."""
-        self._running = False
 
 
 class RuntimeDict:

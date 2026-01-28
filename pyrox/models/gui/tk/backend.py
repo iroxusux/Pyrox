@@ -29,7 +29,8 @@ class TkinterBackend(IGuiBackend):
     """
 
     def __init__(self):
-        self._root_gui = None
+        self._after_id = None
+        self._root_window = None
         self._menu = None
         self._tk = None
         self._theme_name = "default"
@@ -54,7 +55,7 @@ class TkinterBackend(IGuiBackend):
         Raises:
             RuntimeError: If the root window is not initialized.
         """
-        if not self._root_gui:
+        if not self._root_window:
             raise RuntimeError("Root window not initialized")
 
         def on_key_event(event):
@@ -71,11 +72,8 @@ class TkinterBackend(IGuiBackend):
         This method can be expanded to read specific environment variables
         and apply configurations to the root window as needed.
         """
-        import tkinter as tk
-        if not isinstance(self.get_root_window(), tk.Tk):
-            raise RuntimeError("Root window is not a Tkinter Tk instance")
 
-        self.get_root_window().title(
+        self.set_title(
             EnvManager.get(
                 EnvironmentKeys.core.APP_WINDOW_TITLE,
                 default=kwargs.get('title', 'Pyrox Application')
@@ -101,12 +99,12 @@ class TkinterBackend(IGuiBackend):
         """Create and return a Tkinter application menu."""
         if not self._tk:
             if not self.initialize():
-                raise RuntimeError("Tkinter not available")
+                raise RuntimeError("Tkinter not available after initialization.")
 
         if not self._menu:
             self._menu = TkinterApplicationMenu()
             self._menu.initialize(
-                master=self.get_root_window(),
+                master=self.main_window.root,
                 **kwargs
             )
         self.get_root_window().config(menu=self._menu.menu)
@@ -126,42 +124,36 @@ class TkinterBackend(IGuiBackend):
 
     def create_gui_window(self, **kwargs) -> TkinterGuiWindow:
         """Create an unattached Tkinter GUI window."""
-        kwargs['master'] = self._root_gui
-        from tkinter import Toplevel
-        tk_window = Toplevel(**kwargs)
+        kwargs['master'] = self.main_window.root
         gui_window = TkinterGuiWindow()
-        gui_window.window = tk_window
+        gui_window.initialize(as_root=False, **kwargs)
         ThemeManager.ensure_theme_created()
         return gui_window
 
-    def create_root_gui_window(self, **kwargs) -> TkinterGuiWindow:
-        """Create and return a Tkinter root window."""
+    def create_root_window(self, **kwargs) -> TkinterGuiWindow:
         if not self._tk:
             if not self.initialize():
-                raise RuntimeError("Tkinter not available")
+                raise RuntimeError("Tkinter not available after initialization.")
 
-        if self._root_gui is not None:
-            return self._root_gui
-
-        if self._tk is None:
-            raise RuntimeError("Tkinter not initialized")
+        if self._root_window is not None:
+            return self._root_window
 
         title = kwargs.pop('title', 'Pyrox Application')
         geometry = kwargs.pop('geometry', '800x600')
 
-        self._root_gui = TkinterGuiWindow()
-        self._root_gui.initialize(as_root=True, **kwargs)
+        self._root_window = TkinterGuiWindow()
+        self._root_window.initialize(as_root=True, **kwargs)
         self.config_from_env(
             title=title,
             geometry=geometry,
         )
         ThemeManager.ensure_theme_created()
-        return self._root_gui
+        return self._root_window
 
     def destroy_gui_frame(self, frame: IGuiFrame) -> None:
         if not isinstance(frame, TkinterGuiFrame):
             raise TypeError("Expected a TkinterGuiFrame instance")
-        frame.frame.destroy()
+        frame.root.destroy()
 
     def destroy_gui_menu(self, menu: IGuiMenu) -> None:
         if not isinstance(menu, TkinterMenu):
@@ -176,6 +168,9 @@ class TkinterBackend(IGuiBackend):
         if not isinstance(window, TkinterGuiWindow):
             raise TypeError("Expected a TkinterGuiWindow instance")
         window.destroy()
+
+    def focus_main_window(self) -> None:
+        self.main_window.focus()
 
     def get_backend(self) -> Any:
         return self._tk
@@ -194,14 +189,14 @@ class TkinterBackend(IGuiBackend):
         return self._menu
 
     def get_root_gui_window(self) -> TkinterGuiWindow:
-        if not self._root_gui:
-            self.create_root_gui_window()
-        if not self._root_gui:
+        if not self._root_window:
+            self.create_root_window()
+        if not self._root_window:
             raise RuntimeError("Root window not initialized")
-        return self._root_gui
+        return self._root_window
 
     def get_root_window(self) -> Union[tk.Tk, tk.Toplevel]:
-        return self.get_root_gui_window().window
+        return self.get_root_gui_window().root
 
     def initialize(self) -> bool:
         """Initialize the Tkinter backend.
@@ -224,6 +219,89 @@ class TkinterBackend(IGuiBackend):
         except ImportError:
             return False
 
+    def _store_window_state(self) -> None:
+        """Store the current window state in environment variables.
+        """
+        if not self.main_window:
+            return
+
+        self._after_id = None  # Reset after_id since the event has fired
+
+        size = self.main_window.size
+        EnvManager.set(
+            EnvironmentKeys.ui.UI_WINDOW_SIZE,
+            f'{size[0]}x{size[1]}'
+        )
+
+        position = self.main_window.position
+        EnvManager.set(
+            EnvironmentKeys.ui.UI_WINDOW_POSITION,
+            str(position)
+        )
+
+        state = self.main_window.state
+        EnvManager.set(
+            EnvironmentKeys.ui.UI_WINDOW_STATE,
+            state
+        )
+
+        fullscreen = self.main_window.fullscreen
+        EnvManager.set(
+            EnvironmentKeys.ui.UI_WINDOW_FULLSCREEN,
+            str(fullscreen)
+        )
+
+    def save_window_geometry(self) -> None:
+        """Handle window resize events.
+        """
+        if self._after_id:  # If we've scheduled an event, cancel it
+            self.cancel_scheduled_event(self._after_id)
+
+        self._after_id = self.schedule_event(500, self._store_window_state)
+
+    def restore_window_geometry(self) -> None:
+        full_screen = EnvManager.get(
+            key=EnvironmentKeys.ui.UI_WINDOW_FULLSCREEN,
+            default=False,
+            cast_type=bool
+        )
+        if full_screen:
+            self.main_window.set_fullscreen(full_screen)
+
+        window_position = EnvManager.get(
+            key=EnvironmentKeys.ui.UI_WINDOW_POSITION,
+            default=None,
+            cast_type=tuple
+        )
+        if window_position and len(window_position) == 2:
+            self.main_window.set_geometry(
+                width=self.main_window.get_width(),
+                height=self.main_window.get_height(),
+                x=window_position[0],
+                y=window_position[1]
+            )
+
+        window_size = EnvManager.get(
+            key=EnvironmentKeys.ui.UI_WINDOW_SIZE,
+            default=None,
+            cast_type=str
+        )
+        if window_size:
+            window_size_arr = window_size.split('x')
+            if len(window_size_arr) == 2:
+                self.main_window.set_geometry(
+                    width=int(window_size_arr[0]),
+                    height=int(window_size_arr[1])
+                )
+
+        window_state = EnvManager.get(
+            key=EnvironmentKeys.ui.UI_WINDOW_STATE,
+            default='normal',
+            cast_type=str
+        )
+        if window_state:
+            self.main_window.set_state(window_state)
+
     def prompt_user_yes_no(self, title: str, message: str) -> bool:
         import tkinter.messagebox
         return tkinter.messagebox.askyesno(title, message)
@@ -237,11 +315,11 @@ class TkinterBackend(IGuiBackend):
 
     def run_main_loop(self, window: Any = None) -> None:
         """Start the Tkinter main loop."""
-        window = window or self._root_gui
+        window = window or self._root_window
         if not isinstance(window, TkinterGuiWindow):
             raise TypeError("Expected a TkinterGuiWindow instance")
 
-        window.window.mainloop()
+        window.root.mainloop()
 
     def schedule_event(self, delay_ms: int, callback: Callable[..., Any], **kwargs) -> Union[int, str]:
         """Schedule a callback to be called after a delay in milliseconds."""
@@ -251,13 +329,22 @@ class TkinterBackend(IGuiBackend):
         """Set the application icon for the Tkinter root window."""
         self.get_root_gui_window().set_icon(icon_path)
 
+    def get_title(self) -> str:
+        """Get the application window title.
+
+        Returns:
+            The current window title.
+        """
+        return self.main_window.get_title()
+
     def set_title(self, title: str) -> None:
         """Set the application window title.
 
         Args:
             title: The new window title.
         """
-        self.get_root_window().title(title)
+
+        self.main_window.set_title(title)
 
     def setup_keybinds(self, **kwargs) -> None:
         """Setup default keybindings for the Tkinter application."""

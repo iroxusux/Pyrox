@@ -38,21 +38,15 @@ class MockGuiBackend(IGuiBackend):
     def initialize(self) -> bool: return True
     def is_available(self) -> bool: return self.available
     def config_from_env(self) -> None: return None
+    def set_title(self, title: str) -> None: return None
+    def cancel_scheduled_event(self, event_id: int | str) -> None: return None
 
-    def set_title(self, title: str) -> None:
-        return None
-
-    def cancel_scheduled_event(self, event_id: int | str) -> None:
-        return None
-
-    def create_root_gui_window(self, **kwargs) -> Any:
+    def create_root_window(self, **kwargs) -> Any:
         window = f"MockWindow({kwargs})"
         self.windows_created.append(window)
         return window
 
-    def update_framekwork_tasks(self) -> None:
-        return None
-
+    def update_framekwork_tasks(self) -> None: return None
     def run_main_loop(self, window=None) -> None: self.main_loop_called = True
     def quit_application(self) -> None: self.quit_called = True
     def destroy_gui_window(self, window, **kwargs) -> None: self.windows_destroyed.append(window)
@@ -78,6 +72,10 @@ class MockGuiBackend(IGuiBackend):
     def setup_keybinds(self, **kwargs) -> None: pass
     def subscribe_to_window_change_event(self, callback: Callable[..., Any]) -> None: pass
     def subscribe_to_window_close_event(self, callback: Callable[..., Any]) -> None: pass
+    def focus_main_window(self) -> None: pass
+    def restore_window_geometry(self) -> None: pass
+    def save_window_geometry(self) -> None: pass
+    def get_title(self) -> str: return "Mock Title"
 
 
 class TestGuiFramework(unittest.TestCase):
@@ -222,7 +220,7 @@ class TestGuiManager(unittest.TestCase):
             def create_application_gui_menu(self, **kwargs) -> IApplicationGuiMenu: return None  # type: ignore
             def create_gui_frame(self, **kwargs) -> IGuiFrame: pass  # type: ignore
             def create_gui_menu(self, **kwargs) -> Any: return None
-            def create_root_gui_window(self, **kwargs): return None  # type: ignore
+            def create_root_window(self, **kwargs): return None  # type: ignore
             def get_framework_backend(self) -> Any: return None
             def get_root_application_gui_menu(self) -> IApplicationGuiMenu: pass  # type: ignore
             def get_root_gui_window(self): return None  # type: ignore
@@ -245,8 +243,12 @@ class TestGuiManager(unittest.TestCase):
             def get_backend(self) -> Any: return None
             def get_root_window(self) -> Any: return None
             def get_framework(self): return GuiFramework.TKINTER
+            def focus_main_window(self) -> None: pass
+            def restore_window_geometry(self) -> None: pass
+            def save_window_geometry(self) -> None: pass
             @property
             def framework_name(self): return "Unavailable"
+            def get_title(self) -> str: return "Unavailable Title"
 
         GuiManager._backends[GuiFramework.TKINTER] = UnavailableBackend
 
@@ -316,7 +318,7 @@ class TestGuiManager(unittest.TestCase):
         class CustomBackend(MockGuiBackend):
             def initialize(self): return True
             def is_available(self): return True
-            def create_root_gui_window(self, **kwargs): return None
+            def create_root_window(self, **kwargs): return None
             def run_main_loop(self, window=None): pass
             def quit_application(self): pass
             @property

@@ -5,7 +5,9 @@ import platformdirs
 import shutil
 import tkinter as tk
 from tkinter import filedialog
-from typing import Any, Optional
+from typing import Optional
+from io import TextIOWrapper
+
 from .env import EnvManager
 from pyrox.interfaces import EnvironmentKeys
 
@@ -24,50 +26,43 @@ class PlatformDirectoryService:
         user_log: The path to the user log directory for the application.
         user_log_file: The path to the application's log file.
     """
-    __slots__ = ('_app_name', '_author_name')
+
+    _log_file: Optional[TextIOWrapper] = None
 
     def __init__(
         self,
     ) -> None:
-        self.build_directory()
+        raise TypeError("PlatformDirectoryService is a static class and cannot be instantiated")
 
-    @property
-    def all_directories(self) -> dict:
-        """All directories for this service class.
+    @classmethod
+    def all_directories(cls) -> dict:
+        """All directories for this service manager.
 
         Returns:
-            dict: Dictionary of all directories for this service class.
+            dict: Dictionary of all directories for this service manager.
         """
         return {
-            'user_cache': self.user_cache,
-            'user_config': self.user_config,
-            'user_data': self.user_data,
-            'user_log': self.user_log
+            'user_cache': cls.get_user_cache(),
+            'user_config': cls.get_user_config(),
+            'user_data': cls.get_user_data(),
+            'user_log': cls.get_user_log()
         }
 
-    @property
-    def app_name(self) -> str:
-        """Application name supplied to this service class.
+    @classmethod
+    def get_app_name(cls) -> str:
+        """Application name from the application's .env file.
 
         Returns:
             str: The name of the application.
         """
-        if not hasattr(self, '_app_name') or self._app_name is None:
-            setattr(
-                self,
-                '_app_name',
-                EnvManager.get(
-                    EnvironmentKeys.core.APP_NAME,
-                    'Pyrox Application',
-                    str
-                )
-            )
-        if self._app_name is None:
-            raise ValueError('Application name cannot be None.')
-        return self._app_name
+        return EnvManager.get(
+            EnvironmentKeys.core.APP_NAME,
+            'Pyrox Application',
+            str
+        )
 
-    @property
-    def app_runtime_info_file(self) -> str:
+    @classmethod
+    def get_app_runtime_info_file(cls) -> str:
         """Application runtime info file path.
 
         This is the file where the application will store runtime information.
@@ -75,48 +70,41 @@ class PlatformDirectoryService:
         Returns:
             str: The path to the application's runtime info file.
         """
-        return os.path.join(self.user_data, f'{self._app_name}_runtime_info.json')
+        return os.path.join(cls.get_user_data(), f'{cls.get_app_name()}_runtime_info.json')
 
-    @property
-    def author_name(self) -> str:
+    @classmethod
+    def get_author_name(cls) -> str:
         """Author name supplied to this service class.
 
         Returns:
             str: The name of the author.
         """
-        if not hasattr(self, '_author_name') or self._author_name is None:
-            setattr(
-                self,
-                '_author_name',
-                EnvManager.get(
-                    EnvironmentKeys.core.APP_AUTHOR,
-                    'Pyrox Author',
-                    str)
-            )
-        if self._author_name is None:
-            raise ValueError('Author name cannot be None.')
-        return self._author_name
+        return EnvManager.get(
+            EnvironmentKeys.core.APP_AUTHOR,
+            'Pyrox Author',
+            str
+        )
 
-    @property
-    def user_cache(self) -> str:
+    @classmethod
+    def get_user_cache(cls) -> str:
         """User cache directory.
 
         Returns:
             str: The path to the user cache directory for the application.
         """
-        return platformdirs.user_cache_dir(self.app_name, self.author_name, ensure_exists=True)
+        return platformdirs.user_cache_dir(cls.get_app_name(), cls.get_author_name(), ensure_exists=True)
 
-    @property
-    def user_config(self) -> str:
+    @classmethod
+    def get_user_config(cls) -> str:
         """User config directory.
 
         Returns:
             str: The path to the user config directory for the application.
         """
-        return platformdirs.user_config_dir(self._app_name, self._author_name, ensure_exists=True)
+        return platformdirs.user_config_dir(cls.get_app_name(), cls.get_author_name(), ensure_exists=True)
 
-    @property
-    def user_data(self) -> str:
+    @classmethod
+    def get_user_data(cls) -> str:
         """User data directory.
 
         Example: 'C:/Users/JohnSmith/AppData/Local/JSmithEnterprises/MyApplication'
@@ -124,10 +112,10 @@ class PlatformDirectoryService:
         Returns:
             str: The path to the user data directory for the application.
         """
-        return platformdirs.user_data_dir(self._app_name, self._author_name, ensure_exists=True)
+        return platformdirs.user_data_dir(cls.get_app_name(), cls.get_author_name(), ensure_exists=True)
 
-    @property
-    def user_documents(self) -> str:
+    @classmethod
+    def get_user_documents(cls) -> str:
         """User documents directory.
 
         Returns:
@@ -135,8 +123,8 @@ class PlatformDirectoryService:
         """
         return platformdirs.user_documents_dir()
 
-    @property
-    def user_downloads(self) -> str:
+    @classmethod
+    def get_user_downloads(cls) -> str:
         """User downloads directory.
 
         Returns:
@@ -144,17 +132,17 @@ class PlatformDirectoryService:
         """
         return platformdirs.user_downloads_dir()
 
-    @property
-    def user_log(self) -> str:
+    @classmethod
+    def get_user_log(cls) -> str:
         """User log directory.
 
         Returns:
             str: The path to the user log directory for the application.
         """
-        return platformdirs.user_log_dir(self._app_name, self._author_name)
+        return platformdirs.user_log_dir(cls.get_app_name(), cls.get_author_name())
 
-    @property
-    def user_log_file(self) -> str:
+    @classmethod
+    def get_user_log_file(cls) -> str:
         """User log file path.
 
         This is the file where the application will log messages.
@@ -162,9 +150,13 @@ class PlatformDirectoryService:
         Returns:
             str: The path to the application's log file.
         """
-        return os.path.join(self.user_log, f'{self._app_name}.log')
+        return os.path.join(cls.get_user_log(), f'{cls.get_app_name()}.log')
 
-    def build_directory(self, as_refresh: bool = False) -> None:
+    @classmethod
+    def build_directory(
+        cls,
+        as_refresh: bool = False
+    ) -> None:
         """Build the directory for the parent application.
 
         Uses the supplied name for directory naming.
@@ -175,7 +167,7 @@ class PlatformDirectoryService:
         Raises:
             OSError: If the directory creation fails.
         """
-        for dir_path in self.all_directories.values():
+        for dir_path in cls.all_directories().values():
             if not os.path.isdir(dir_path):
                 try:
                     os.makedirs(dir_path, exist_ok=True)
@@ -188,14 +180,16 @@ class PlatformDirectoryService:
                     except OSError as e:
                         raise OSError(f'Failed to refresh directory {dir_path}: {e}') from e
 
-    def get_log_file_stream(self) -> Any:
+    @classmethod
+    def get_log_file_stream(cls) -> TextIOWrapper:
         """Get a SimpleStream for the user log file.
 
         Returns:
-            stream object: A stream object for the user log file.
+            TextIOWrapper: A stream object for the user log file.
         """
-        log_file = open(self.user_log_file, 'a', encoding='utf-8')
-        return log_file
+        if not cls._log_file:
+            cls._log_file = open(cls.get_user_log_file(), 'a', encoding='utf-8')
+        return cls._log_file
 
 
 def get_all_files_in_directory(

@@ -6,11 +6,21 @@ boundaries and extensible application design.
 """
 
 from __future__ import annotations
-from abc import ABC, abstractmethod
-from typing import Any, Dict, List, Type
+from abc import abstractmethod
+from typing import Any
+from .protocols import (
+    INameable,
+    IDescribable,
+    IRunnable,
+)
+from .gui import IWorkspace
 
 
-class IApplicationTask(ABC):
+class IApplicationTask(
+    INameable,
+    IDescribable,
+    IRunnable,
+):
     """Interface for application tasks.
 
     Defines the contract for tasks that can be executed within an application,
@@ -18,172 +28,69 @@ class IApplicationTask(ABC):
     """
 
     @property
-    @abstractmethod
-    def name(self) -> str:
-        """Get the task name.
+    def application(self) -> IApplication:
+        """Get the parent application of this task.
 
         Returns:
-            str: The name of this task.
+            IApplication: The parent application instance.
         """
-        pass
+        return self.get_application()
 
-    @property
-    @abstractmethod
-    def description(self) -> str:
-        """Get the task description.
-
-        Returns:
-            str: A description of what this task does.
-        """
-        pass
-
-    @abstractmethod
-    def execute(self, *args, **kwargs) -> Any:
-        """Execute the task.
+    @application.setter
+    def application(
+        self,
+        application: IApplication
+    ) -> None:
+        """Set the parent application for this task.
 
         Args:
-            *args: Positional arguments for task execution.
-            **kwargs: Keyword arguments for task execution.
-
-        Returns:
-            Any: Task execution result.
+            application: The application instance to set.
         """
-        pass
+        self.set_application(application)
 
     @abstractmethod
-    def can_execute(self) -> bool:
-        """Check if the task can be executed.
+    def get_application(self) -> IApplication:
+        """Get the parent application of this task.
 
         Returns:
-            bool: True if task can be executed, False otherwise.
+            IApplication: The parent application instance.
         """
-        pass
+        ...
 
     @abstractmethod
-    def get_status(self) -> str:
-        """Get the current task status.
-
-        Returns:
-            str: Current status (e.g., 'ready', 'running', 'completed', 'failed').
-        """
-        pass
-
-
-class ITaskFactory(ABC):
-    """Interface for task factories.
-
-    Provides functionality for creating and registering different types of tasks,
-    enabling extensible task systems.
-    """
-
-    @abstractmethod
-    def create_task(self, task_type: str, **kwargs) -> IApplicationTask:
-        """Create a task of the specified type.
+    def set_application(
+        self,
+        application: IApplication
+    ) -> None:
+        """Set the parent application for this task.
 
         Args:
-            task_type: The type of task to create.
-            **kwargs: Task creation parameters.
-
-        Returns:
-            IApplicationTask: The created task.
+            application: The application instance to set.
         """
-        pass
+        ...
 
     @abstractmethod
-    def register_task_type(self, task_type: str, task_class: Type[IApplicationTask]) -> None:
-        """Register a new task type.
-
-        Args:
-            task_type: The name of the task type.
-            task_class: The task class to register.
+    def inject(self) -> None:
+        """Inject this task into the application context.
+        This method should be overridden by subclasses to implement
+        specific injection behavior.
         """
-        pass
+        ...
 
     @abstractmethod
-    def get_available_task_types(self) -> List[str]:
-        """Get list of available task types.
-
-        Returns:
-            List[str]: List of registered task type names.
+    def uninject(self) -> None:
+        """Remove this task from the application context.
+        This method should be overridden by subclasses to implement
+        specific un-injection behavior.
         """
-        pass
-
-    @abstractmethod
-    def is_task_type_registered(self, task_type: str) -> bool:
-        """Check if a task type is registered.
-
-        Args:
-            task_type: The task type to check.
-
-        Returns:
-            bool: True if registered, False otherwise.
-        """
-        pass
+        ...
 
 
-class ILifecycleManager(ABC):
-    """Interface for application lifecycle management.
-
-    Provides functionality for managing application startup, shutdown,
-    and lifecycle events in a consistent manner.
-    """
-
-    @abstractmethod
-    def startup(self) -> bool:
-        """Execute application startup sequence.
-
-        Returns:
-            bool: True if startup was successful.
-        """
-        pass
-
-    @abstractmethod
-    def shutdown(self) -> bool:
-        """Execute application shutdown sequence.
-
-        Returns:
-            bool: True if shutdown was successful.
-        """
-        pass
-
-    @abstractmethod
-    def restart(self) -> bool:
-        """Restart the application.
-
-        Returns:
-            bool: True if restart was successful.
-        """
-        pass
-
-    @abstractmethod
-    def register_startup_hook(self, callback: Any) -> None:
-        """Register a callback to be called during startup.
-
-        Args:
-            callback: Function to call during startup.
-        """
-        pass
-
-    @abstractmethod
-    def register_shutdown_hook(self, callback: Any) -> None:
-        """Register a callback to be called during shutdown.
-
-        Args:
-            callback: Function to call during shutdown.
-        """
-        pass
-
-    @abstractmethod
-    def is_running(self) -> bool:
-        """Check if the application is currently running.
-
-        Returns:
-            bool: True if running, False otherwise.
-        """
-        pass
-
-
-class IApplication(ABC):
+class IApplication(
+    INameable,
+    IDescribable,
+    IRunnable,
+):
     """Interface for applications.
 
     Defines the contract for main application objects, providing a consistent
@@ -191,126 +98,167 @@ class IApplication(ABC):
     """
 
     @property
-    @abstractmethod
-    def name(self) -> str:
-        """Get the application name.
-
-        Returns:
-            str: The application name.
-        """
-        pass
-
-    @property
-    @abstractmethod
     def version(self) -> str:
         """Get the application version.
 
         Returns:
             str: The application version.
         """
-        pass
+        return self.get_version()
 
     @property
-    @abstractmethod
     def author(self) -> str:
         """Get the application author.
 
         Returns:
             str: The application author.
         """
-        pass
+        return self.get_author()
 
-    @abstractmethod
-    def initialize(self) -> bool:
-        """Initialize the application.
-
-        Returns:
-            bool: True if initialization was successful.
-        """
-        pass
-
-    @abstractmethod
-    def run(self) -> int:
-        """Run the application main loop.
+    @property
+    def tasks(self) -> list[IApplicationTask]:
+        """Get the list of registered application tasks.
 
         Returns:
-            int: Exit code (0 for success, non-zero for error).
+            list[IApplicationTask]: The list of registered tasks.
         """
-        pass
+        return self.get_tasks()
+
+    @property
+    def workspace(self) -> IWorkspace:
+        """Get the application workspace object.
+
+        Returns:
+            Any: The application workspace.
+        """
+        return self.get_workspace()
 
     @abstractmethod
-    def quit(self, exit_code: int = 0) -> None:
-        """Quit the application.
+    def on_close(self) -> None:
+        """Handle application close event.
+
+        This method should be overridden by subclasses to implement
+        specific cleanup and shutdown behavior.
+        """
+        ...
+
+    @abstractmethod
+    def except_hook(
+        self,
+        exc_type: type,
+        exc_value: Exception,
+        traceback: Any
+    ) -> None:
+        """Global exception hook for uncaught exceptions.
 
         Args:
-            exit_code: Exit code to return.
+            exc_type: The type of the exception.
+            exc_value: The exception instance.
+            traceback: The traceback object.
         """
-        pass
+        ...
 
     @abstractmethod
-    def get_task_factory(self) -> ITaskFactory:
-        """Get the application's task factory.
+    def get_version(self) -> str:
+        """Get the application version.
 
         Returns:
-            ITaskFactory: The task factory instance.
+            str: The application version.
         """
-        pass
+        ...
 
     @abstractmethod
-    def get_lifecycle_manager(self) -> ILifecycleManager:
-        """Get the application's lifecycle manager.
+    def get_author(self) -> str:
+        """Get the application author.
 
         Returns:
-            ILifecycleManager: The lifecycle manager instance.
+            str: The application author.
         """
-        pass
+        ...
 
     @abstractmethod
-    def execute_task(self, task_name: str, **kwargs) -> Any:
-        """Execute a task by name.
+    def hook_to_gui(self) -> None:
+        """Hook the application into the GUI framework.
 
-        Args:
-            task_name: Name of the task to execute.
-            **kwargs: Task execution parameters.
-
-        Returns:
-            Any: Task execution result.
+        This method should be overridden by subclasses to implement
+        specific GUI integration behavior.
         """
-        pass
+        ...
 
     @abstractmethod
-    def register_task(self, name: str, task: IApplicationTask) -> None:
+    def register_task(
+        self,
+        task: IApplicationTask
+    ) -> None:
         """Register a task with the application.
 
         Args:
-            name: Task name for registration.
-            task: The task to register.
+            task: The application task to register.
         """
-        pass
+        ...
 
     @abstractmethod
-    def get_config(self) -> Dict[str, Any]:
-        """Get application configuration.
-
-        Returns:
-            Dict[str, Any]: Application configuration dictionary.
-        """
-        pass
-
-    @abstractmethod
-    def set_config(self, key: str, value: Any) -> None:
-        """Set a configuration value.
+    def unregister_task(
+        self,
+        task: IApplicationTask
+    ) -> None:
+        """Unregister a task from the application.
 
         Args:
-            key: Configuration key.
-            value: Configuration value.
+            task: The application task to unregister.
         """
-        pass
+        ...
+
+    @abstractmethod
+    def get_tasks(self) -> list[IApplicationTask]:
+        """Get the list of registered application tasks.
+
+        Returns:
+            list[IApplicationTask]: The list of registered tasks.
+        """
+        ...
+
+    @abstractmethod
+    def set_tasks(
+        self,
+        tasks: list[IApplicationTask]
+    ) -> None:
+        """Set the list of registered application tasks.
+
+        Args:
+            tasks: The list of application tasks to set.
+        """
+        ...
+
+    @abstractmethod
+    def clear_tasks(self) -> None:
+        """Clear all registered application tasks.
+        """
+        ...
+
+    @abstractmethod
+    def get_workspace(self) -> Any:
+        """Get the application workspace object.
+
+        Returns:
+            Any: The application workspace.
+        """
+        ...
+
+    @abstractmethod
+    def set_workspace(
+        self,
+        workspace: Any
+    ) -> None:
+        """Set the application workspace object.
+
+        Args:
+            workspace: The application workspace to set.
+        """
+        ...
 
 
 __all__ = (
     'IApplicationTask',
-    'ITaskFactory',
-    'ILifecycleManager',
     'IApplication',
 )
