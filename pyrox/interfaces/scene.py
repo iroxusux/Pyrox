@@ -4,10 +4,13 @@ Scene management for field scene_object simulations.
 from abc import abstractmethod
 from pathlib import Path
 from typing import Dict, Optional, Type, Union
-from pyrox.interfaces import ISpatial2D
+from pyrox.interfaces import ICoreMixin, ISpatial2D
 
 
-class ISceneObject(ISpatial2D):
+class ISceneObject(
+    ICoreMixin,
+    ISpatial2D
+):
     """Object base class for scene elements.
     """
 

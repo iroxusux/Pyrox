@@ -81,6 +81,8 @@ class Spatial2D(
         self,
         x: float = 0.0,
         y: float = 0.0,
+        width: float = 0.0,
+        height: float = 0.0,
         roll: float = 0.0,
         pitch: float = 0.0,
         yaw: float = 0.0,
@@ -89,6 +91,8 @@ class Spatial2D(
             self,
             x=x,
             y=y,
+            width=width,
+            height=height,
         )
         Rotatable.__init__(
             self,
@@ -110,6 +114,9 @@ class Spatial3D(
         x: float = 0.0,
         y: float = 0.0,
         z: float = 0.0,
+        width: float = 0.0,
+        height: float = 0.0,
+        depth: float = 0.0,
         roll: float = 0.0,
         pitch: float = 0.0,
         yaw: float = 0.0,
@@ -119,6 +126,9 @@ class Spatial3D(
             x=x,
             y=y,
             z=z,
+            width=width,
+            height=height,
+            depth=depth,
         )
         Rotatable.__init__(
             self,

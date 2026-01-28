@@ -35,6 +35,15 @@ from .spatial import (
     IRotatable,
 )
 
+# Kinematic imports for protocols that support kinematic objects.
+from .kinematic import (
+    IVelocity2D,
+    IVelocity3D,
+    IAngularVelocity,
+    IKinematic2D,
+    IKinematic3D,
+)
+
 __all__ = [
     # Meta protocols
     "IAuthored",
@@ -63,4 +72,11 @@ __all__ = [
     "ISpatial2D",
     "ISpatial3D",
     "IRotatable",
+
+    # Kinematic protocols
+    "IVelocity2D",
+    "IVelocity3D",
+    "IAngularVelocity",
+    "IKinematic2D",
+    "IKinematic3D",
 ]

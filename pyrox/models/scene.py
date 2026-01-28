@@ -22,7 +22,14 @@ class SceneObject(
         name: str,
         scene_object_type: str,
         description: str = "",
-        properties: Optional[Dict] = None
+        properties: Optional[Dict] = None,
+        x: float = 0.0,
+        y: float = 0.0,
+        width: float = 10.0,
+        height: float = 10.0,
+        roll: float = 0.0,
+        pitch: float = 0.0,
+        yaw: float = 0.0,
     ):
         CoreMixin.__init__(
             self,
@@ -30,7 +37,16 @@ class SceneObject(
             name=name,
             description=description
         )
-        Spatial2D.__init__(self)
+        Spatial2D.__init__(
+            self,
+            x=x,
+            y=y,
+            width=width,
+            height=height,
+            roll=roll,
+            pitch=pitch,
+            yaw=yaw
+        )
         self._id = id
         self._name = name
         self._description = description

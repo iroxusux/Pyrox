@@ -1,9 +1,7 @@
 """Spacial object protocols that extend coordinate protocols.
 """
-from typing import Protocol, runtime_checkable, TypeVar
+from typing import Protocol, runtime_checkable
 from pyrox.interfaces.protocols.coord import IArea2D, IArea3D
-
-TArea2D = TypeVar("TArea2D", bound=IArea2D)
 
 
 @runtime_checkable

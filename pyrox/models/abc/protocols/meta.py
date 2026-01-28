@@ -344,9 +344,11 @@ class CoreRunnableMixin(
         name: str = "",
         description: str = ""
     ):
-        Buildable.__init__(self)
+
         Nameable.__init__(self, name)
         Describable.__init__(self, description)
+        Runnable.__init__(self)
+        Buildable.__init__(self)
 
 
 class HasFileLocation(IHasFileLocation):

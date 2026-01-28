@@ -139,6 +139,11 @@ class SceneViewerFrame(TkinterTaskFrame):
         self._selection_color: str = "#ffaa00"  # Orange highlight for selection
         self._selection_width: int = 3
 
+        # Properties panel state
+        self._properties_panel_visible: bool = False
+        self._properties_panel: Optional[ttk.Frame] = None
+        self._properties_widgets: Dict[str, tk.Widget] = {}
+
         # Drawing and manipulation state
         self._current_tool: str = "select"  # Current tool: select, rectangle, circle, line
         self._draw_start_x: Optional[float] = None
@@ -152,11 +157,9 @@ class SceneViewerFrame(TkinterTaskFrame):
         # Build the UI
         self._build_toolbar()
         self._build_canvas()
+        self._build_properties_panel()
         self._bind_events()
-
-        # Initial render if scene provided
-        if self._scene:
-            self.render_scene()
+        self.render_scene()
 
     def _build_toolbar(self) -> None:
         """Build the toolbar with viewer controls."""
@@ -273,15 +276,30 @@ class SceneViewerFrame(TkinterTaskFrame):
         )
         self._delete_btn.pack(side=tk.LEFT, padx=5)
 
+        # Separator
+        ttk.Separator(self._toolbar, orient=tk.VERTICAL).pack(side=tk.LEFT, fill=tk.Y, padx=10)
+
+        # Properties panel toggle
+        self._properties_var = tk.BooleanVar(value=self._properties_panel_visible)
+        self._properties_toggle = ttk.Checkbutton(
+            self._toolbar,
+            text="Properties Panel",
+            variable=self._properties_var,
+            command=self.toggle_properties_panel
+        )
+        self._properties_toggle.pack(side=tk.LEFT, padx=5)
+
         # TODO: Add toolbar buttons for:
         # - Snap to grid
-        # - Scene object properties panel toggle
 
     def _build_canvas(self) -> None:
         """Build the main canvas for rendering."""
         # Canvas container with scrollbars
-        canvas_frame = ttk.Frame(self.content_frame)
-        canvas_frame.pack(side=tk.TOP, fill=tk.BOTH, expand=True)
+        self._canvas_container = ttk.Frame(self.content_frame)
+        self._canvas_container.pack(side=tk.TOP, fill=tk.BOTH, expand=True)
+
+        canvas_frame = ttk.Frame(self._canvas_container)
+        canvas_frame.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
 
         # Create canvas
         self._canvas = tk.Canvas(
@@ -293,6 +311,27 @@ class SceneViewerFrame(TkinterTaskFrame):
 
         # TODO: Add scrollbars for large scenes
         # TODO: Add ruler/coordinate display
+
+    def _build_properties_panel(self) -> None:
+        """Build the properties panel for selected objects."""
+        self._properties_panel = ttk.Frame(self._canvas_container, width=250)
+        # Panel is initially hidden, will be packed when toggled
+
+        # Header
+        header = ttk.Label(
+            self._properties_panel,
+            text="Object Properties",
+            font=("TkDefaultFont", 10, "bold")
+        )
+        header.pack(side=tk.TOP, fill=tk.X, padx=10, pady=10)
+
+        ttk.Separator(self._properties_panel, orient=tk.HORIZONTAL).pack(
+            side=tk.TOP, fill=tk.X, padx=5
+        )
+
+        # Scrollable content area
+        self._properties_content = ttk.Frame(self._properties_panel)
+        self._properties_content.pack(side=tk.TOP, fill=tk.BOTH, expand=True, padx=10, pady=10)
 
     def _bind_events(self) -> None:
         """Bind mouse and keyboard events for interaction."""
@@ -853,7 +892,7 @@ class SceneViewerFrame(TkinterTaskFrame):
 
         self.clear_canvas()
         self.render_grid()
-        self.render_scene_objects
+        self.render_scene_objects()
 
         # Initialize previous state to current after initial render
         self.last_viewport.update(self.viewport)
@@ -1088,6 +1127,10 @@ class SceneViewerFrame(TkinterTaskFrame):
         else:
             self._selection_label.config(text=f"Selected: {count} objects")
 
+        # Update properties panel if visible
+        if self._properties_panel_visible:
+            self._update_properties_panel()
+
     def _update_object_appearance(self, obj_id: str) -> None:
         """Update visual appearance of an object based on selection state.
 
@@ -1199,6 +1242,13 @@ class SceneViewerFrame(TkinterTaskFrame):
         return self._canvas
 
     @property
+    def properties_panel(self) -> ttk.Frame:
+        """Get the properties panel frame."""
+        if not self._properties_panel:
+            raise RuntimeError("Properties panel not initialized")
+        return self._properties_panel
+
+    @property
     def scene(self) -> Optional[IScene]:
         """Get the current scene."""
         return self._scene
@@ -1212,6 +1262,126 @@ class SceneViewerFrame(TkinterTaskFrame):
     def last_viewport(self) -> SceneViewerViewPort:
         """Get the last viewport state."""
         return self._last_viewport
+
+    def toggle_properties_panel(self) -> None:
+        """Toggle the visibility of the properties panel."""
+        self._properties_panel_visible = self._properties_var.get()
+
+        if self._properties_panel_visible:
+            # Show properties panel
+            self.properties_panel.pack(side=tk.RIGHT, fill=tk.Y, padx=(5, 0))
+            self._update_properties_panel()
+        else:
+            # Hide properties panel
+            self.properties_panel.pack_forget()
+
+    def _update_properties_panel(self) -> None:
+        """Update the properties panel with selected object information."""
+        # Clear existing widgets
+        for widget in self._properties_content.winfo_children():
+            widget.destroy()
+        self._properties_widgets.clear()
+
+        if not self._selected_objects:
+            # No selection
+            no_selection_label = ttk.Label(
+                self._properties_content,
+                text="No object selected",
+                foreground="gray"
+            )
+            no_selection_label.pack(pady=20)
+            return
+
+        if len(self._selected_objects) > 1:
+            # Multiple selection
+            multi_label = ttk.Label(
+                self._properties_content,
+                text=f"{len(self._selected_objects)} objects selected",
+                foreground="gray"
+            )
+            multi_label.pack(pady=20)
+            return
+
+        # Single object selected
+        if not self._scene:
+            return
+
+        obj_id = next(iter(self._selected_objects))
+        scene_obj = self._scene.get_scene_object(obj_id)
+
+        if not scene_obj:
+            return
+
+        # Display object properties
+        props = scene_obj.properties
+
+        # Object ID
+        self._add_property_field("ID", obj_id, readonly=True)
+
+        # Object Type
+        obj_type = props.get("type", "unknown")
+        self._add_property_field("Type", obj_type, readonly=True)
+
+        # Position
+        x = props.get("x", 0)
+        y = props.get("y", 0)
+        self._add_property_field("X", str(x), readonly=True)
+        self._add_property_field("Y", str(y), readonly=True)
+
+        # Size (for rectangles)
+        if obj_type == "rectangle":
+            width = props.get("width", 0)
+            height = props.get("height", 0)
+            self._add_property_field("Width", str(width), readonly=True)
+            self._add_property_field("Height", str(height), readonly=True)
+
+        # Radius (for circles)
+        if obj_type == "circle":
+            radius = props.get("radius", 0)
+            self._add_property_field("Radius", str(radius), readonly=True)
+
+        # Color
+        color = props.get("color", "#4a9eff")
+        self._add_property_field("Color", color, readonly=True)
+
+    def _add_property_field(
+        self,
+        label: str,
+        value: str,
+        readonly: bool = False
+    ) -> None:
+        """Add a property field to the properties panel.
+
+        Args:
+            label: Property label
+            value: Property value
+            readonly: Whether the field is read-only
+        """
+        row_frame = ttk.Frame(self._properties_content)
+        row_frame.pack(side=tk.TOP, fill=tk.X, pady=2)
+
+        label_widget = ttk.Label(
+            row_frame,
+            text=f"{label}:",
+            width=10,
+            anchor=tk.W
+        )
+        label_widget.pack(side=tk.LEFT, padx=(0, 5))
+
+        if readonly:
+            value_widget = ttk.Label(
+                row_frame,
+                text=value,
+                anchor=tk.W,
+                foreground="#666666"
+            )
+            value_widget.pack(side=tk.LEFT, fill=tk.X, expand=True)
+        else:
+            value_widget = ttk.Entry(row_frame)
+            value_widget.insert(0, value)
+            value_widget.pack(side=tk.LEFT, fill=tk.X, expand=True)
+
+        self._properties_widgets[label] = value_widget
 
 
 __all__ = ['SceneViewerFrame']

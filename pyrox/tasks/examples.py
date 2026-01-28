@@ -2,38 +2,35 @@
 """
 import importlib
 import sys
-from pyrox.models import scene
-from pyrox.models.gui import sceneviewer
-from pyrox.models import ApplicationTask
+from pyrox import models
 
 
-class FileTask(ApplicationTask):
+class FileTask(models.ApplicationTask):
 
     def _open_scene_viewer(self) -> None:
         """Open the Scene Viewer frame."""
         # Reload modules to ensure the latest changes are reflected
-        importlib.reload(scene)
-        importlib.reload(sceneviewer)
+        importlib.reload(models)
 
         # Create a concrete SceneObject subclass for demonstration
-        class TestSceneObject(scene.SceneObject):
+        class TestSceneObject(models.scene.SceneObject):
             def __init__(self):
                 super().__init__(
                     id="test_scene_object",
                     name="Test Scene Object",
                     scene_object_type="Cube",
-                    description="A test scene object for demonstration purposes."
+                    description="A test scene object for demonstration purposes.",
                 )
 
         # Create SceneObjectFactory
-        scene_object_factory = scene.SceneObjectFactory()
+        scene_object_factory = models.scene.SceneObjectFactory()
         scene_object_factory.register(
             'Cube',
-            scene.SceneObject
+            models.scene.SceneObject
         )
 
         # Create Scene
-        s = scene.Scene(
+        s = models.scene.Scene(
             name="Example Scene",
             description="An example scene with a cube object.",
             scene_object_factory=scene_object_factory
@@ -43,7 +40,7 @@ class FileTask(ApplicationTask):
         test_object = TestSceneObject()
         s.add_scene_object(test_object)
 
-        scene_viewer = sceneviewer.SceneViewerFrame(
+        scene_viewer = models.gui.sceneviewer.SceneViewerFrame(
             parent=self.application.workspace.workspace_area.root,  # type: ignore
             scene=s
         )

@@ -52,6 +52,13 @@ from .protocols import (
     ISpatial2D,
     ISpatial3D,
     IRotatable,
+
+    # Kinematic imports for protocols that support kinematic objects.
+    IVelocity2D,
+    IVelocity3D,
+    IAngularVelocity,
+    IKinematic2D,
+    IKinematic3D,
 )
 
 # Service interfaces
@@ -133,6 +140,12 @@ __all__ = (
     'ISpatial2D',
     'ISpatial3D',
     'IRotatable',
+    # Kinematic protocols
+    'IVelocity2D',
+    'IVelocity3D',
+    'IAngularVelocity',
+    'IKinematic2D',
+    'IKinematic3D',
 
     # GUI Interfaces
     'GuiFramework',
