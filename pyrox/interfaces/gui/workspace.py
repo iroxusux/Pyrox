@@ -2,7 +2,7 @@
 Defines the IWorkspace interface for GUI workspaces.
 """
 from abc import abstractmethod
-from pyrox.interfaces.protocols import ICoreRunnableMixin
+from pyrox.interfaces.protocols.meta import ICoreRunnableMixin
 from pyrox.interfaces.gui import ITaskFrame
 from .component import IGuiComponent
 

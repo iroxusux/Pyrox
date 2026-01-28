@@ -3,13 +3,33 @@
 
 # Protocol components
 from .protocols import (
+    # Meta protocols
+    Configurable,
+    Authored,
+    Versioned,
+    HasId,
     Buildable,
     Nameable,
     Describable,
     Runnable,
     Refreshable,
     Resettable,
+    CoreMixin,
     CoreRunnableMixin,
+    HasFileLocation,
+    HasMetaDictData,
+    SupportsItemAccess,
+
+    # Coordinate protocols
+    Coord2D,
+    Area2D,
+    Coord3D,
+    Area3D,
+
+    # Spatial protocols
+    Spatial2D,
+    Spatial3D,
+    Rotatable,
 )
 
 # Meta components
@@ -18,7 +38,6 @@ from .meta import (
     SnowFlake,
     SupportsFileLocation,
     SupportsMetaData,
-    SupportsItemAccess
 )
 
 from .factory import (
@@ -53,13 +72,31 @@ from .stream import (
 
 __all__ = (
     # Protocol components
+    # Meta protocols
+    'Configurable',
+    'Authored',
+    'Versioned',
+    'HasId',
     'Buildable',
     'Nameable',
     'Describable',
     'Refreshable',
     'Resettable',
     'Runnable',
+    'CoreMixin',
     'CoreRunnableMixin',
+    'HasFileLocation',
+    'HasMetaDictData',
+    'SupportsItemAccess',
+    # Coordinate protocols
+    'Coord2D',
+    'Area2D',
+    'Coord3D',
+    'Area3D',
+    # Spatial protocols
+    'Spatial2D',
+    'Spatial3D',
+    'Rotatable',
 
     # Meta components
     'PyroxObject',

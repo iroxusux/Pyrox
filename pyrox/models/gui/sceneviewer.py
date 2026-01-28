@@ -851,22 +851,23 @@ class SceneViewerFrame(TkinterTaskFrame):
         if not self._scene:
             return
 
-        self._canvas.delete("all")
-        self._canvas_objects.clear()
-
-        # Render grid if enabled (render first so it's in background)
-        if self._grid_enabled:
-            self._render_grid()
-
-        # Render each scene object
-        for obj_id, scene_obj in self._scene.scene_objects.items():
-            self._render_scene_object(obj_id, scene_obj)
+        self.clear_canvas()
+        self.render_grid()
+        self.render_scene_objects
 
         # Initialize previous state to current after initial render
         self.last_viewport.update(self.viewport)
 
         # TODO: Add rendering order/layering support
         # TODO: Add scene background rendering
+
+    def render_scene_objects(self) -> None:
+        """Render all scene objects to the canvas."""
+        if not self._scene:
+            return
+
+        for obj_id, scene_obj in self._scene.scene_objects.items():
+            self._render_scene_object(obj_id, scene_obj)
 
     def _render_scene_object(
         self,
@@ -947,6 +948,11 @@ class SceneViewerFrame(TkinterTaskFrame):
                 font=("Arial", max(8, int(10 * self.viewport.zoom))),
                 tags=("scene_object_label", obj_id)
             )
+
+    def render_grid(self) -> None:
+        """Public method to render grid overlay."""
+        if self._grid_enabled:
+            self._render_grid()
 
     def _render_grid(self) -> None:
         """Render grid overlay on the canvas."""
@@ -1146,10 +1152,14 @@ class SceneViewerFrame(TkinterTaskFrame):
         # Remove from scene
         self._scene.remove_scene_object(obj_id)
 
-    def clear_scene(self) -> None:
-        """Clear all scene objects from the viewer."""
+    def clear_canvas(self) -> None:
+        """Clear all items from the canvas without affecting the scene."""
         self._canvas.delete("all")
         self._canvas_objects.clear()
+
+    def clear_scene(self) -> None:
+        """Clear all scene objects from the viewer."""
+        self.clear_canvas()
         if self._scene:
             self._scene.set_scene_objects({})
 

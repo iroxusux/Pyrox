@@ -42,6 +42,14 @@ class IConfigurable(Protocol):
         """
         ...
 
+    def set_config(self, config: dict) -> None:
+        """Set the configuration of the object.
+
+        Args:
+            config (dict): Configuration settings.
+        """
+        ...
+
 
 @runtime_checkable
 class IAuthored(Protocol):
@@ -64,6 +72,14 @@ class IAuthored(Protocol):
         """
         ...
 
+    def set_author(self, author: str) -> None:
+        """Set the author of this object.
+
+        Args:
+            author (str): The author to set.
+        """
+        ...
+
 
 @runtime_checkable
 class IVersioned(Protocol):
@@ -83,6 +99,44 @@ class IVersioned(Protocol):
 
         Returns:
             str: The version of this object.
+        """
+        ...
+
+    def set_version(self, version: str) -> None:
+        """Set the version of this object.
+
+        Args:
+            version (str): The version to set.
+        """
+        ...
+
+
+@runtime_checkable
+class IHasId(Protocol):
+    """Protocol for objects that have an ID."""
+
+    @property
+    def id(self) -> str:
+        """Get the ID of this object.
+
+        Returns:
+            str: The ID of this object.
+        """
+        return self.get_id()
+
+    def get_id(self) -> str:
+        """Get the ID of this object.
+
+        Returns:
+            str: The ID of this object.
+        """
+        ...
+
+    def set_id(self, id: str) -> None:
+        """Set the ID of this object.
+
+        Args:
+            id (str): The ID to set.
         """
         ...
 
@@ -255,6 +309,15 @@ class IRunnable(Protocol):
         ...
 
 
+class ICoreMixin(
+    IHasId,
+    INameable,
+    IDescribable,
+):
+    """Mixin class that acts as a core with name and description.
+    """
+
+
 class ICoreRunnableMixin(
     INameable,
     IDescribable,
@@ -263,7 +326,6 @@ class ICoreRunnableMixin(
 ):
     """Mixin class that acts as a core runnable with name and description.
     """
-    pass
 
 
 @runtime_checkable
@@ -379,6 +441,7 @@ __all__ = [
     "IResettable",
     "IBuildable",
     "IRunnable",
+    "ICoreMixin",
     "ICoreRunnableMixin",
     "IHasFileLocation",
     "IHasDictMetaData",

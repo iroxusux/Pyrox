@@ -5,9 +5,14 @@ import json
 from pathlib import Path
 from typing import Any, Dict, Optional, Type, Union
 from pyrox.interfaces import IScene, ISceneObject, ISceneObjectFactory
+from pyrox.models import CoreMixin, Spatial2D
 
 
-class SceneObject(ISceneObject):
+class SceneObject(
+        ISceneObject,
+        CoreMixin,
+        Spatial2D,
+):
     """Base class for scene objects.
     """
 
@@ -19,6 +24,13 @@ class SceneObject(ISceneObject):
         description: str = "",
         properties: Optional[Dict] = None
     ):
+        CoreMixin.__init__(
+            self,
+            id=id,
+            name=name,
+            description=description
+        )
+        Spatial2D.__init__(self)
         self._id = id
         self._name = name
         self._description = description
@@ -40,40 +52,6 @@ class SceneObject(ISceneObject):
             id (str): The unique identifier.
         """
         self._id = id
-
-    def get_name(self) -> str:
-        """Get the name of the scene object.
-
-        Returns:
-            str: The name of the scene object.
-        """
-        return self._name
-
-    def set_name(self, name: str) -> None:
-        """Set the name of the scene object.
-
-        Args:
-            name (str): The name of the scene object.
-        """
-        if not name or name.startswith(" "):
-            raise ValueError("Scene object name cannot be empty or start with a space.")
-        self._name = name
-
-    def get_description(self) -> str:
-        """Get the description of the scene object.
-
-        Returns:
-            str: The description of the scene object.
-        """
-        return self._description
-
-    def set_description(self, description: str) -> None:
-        """Set the description of the scene object.
-
-        Args:
-            description (str): The description of the scene object.
-        """
-        self._description = description
 
     def get_properties(self) -> Dict:
         """Get the properties of the scene object.
@@ -108,101 +86,6 @@ class SceneObject(ISceneObject):
             scene_object_type (str): The type of the scene object.
         """
         self._scene_object_type = scene_object_type
-
-    def get_position(self) -> tuple[float, float, float]:
-        """Get the position of the scene object as (x, y, z)."""
-        return self.x, self.y, self.z
-
-    def set_position(self, x: float, y: float, z: float) -> None:
-        """Set the position of the scene object."""
-        self.x = x
-        self.y = y
-        self.z = z
-
-    def get_x(self) -> float:
-        """Get the X position of the scene object."""
-        return self.properties.get("x", 0.0)
-
-    def set_x(self, x: float) -> None:
-        """Set the X position of the scene object."""
-        self.properties['x'] = x
-
-    def get_y(self) -> float:
-        """Get the Y position of the scene object."""
-        return self.properties.get("y", 0.0)
-
-    def set_y(self, y: float) -> None:
-        """Set the Y position of the scene object."""
-        self.properties['y'] = y
-
-    def get_z(self) -> float:
-        """Get the Z position of the scene object."""
-        return self.properties.get("z", 0.0)
-
-    def set_z(self, z: float) -> None:
-        """Set the Z position of the scene object."""
-        self.properties['z'] = z
-
-    def get_rotation(self) -> tuple[float, float, float]:
-        """Get the rotation of the scene object as (pitch, yaw, roll)."""
-        return self.pitch, self.yaw, self.roll
-
-    def set_rotation(self, pitch: float, yaw: float, roll: float) -> None:
-        """Set the rotation of the scene object."""
-        self.pitch = pitch
-        self.yaw = yaw
-        self.roll = roll
-
-    def get_pitch(self) -> float:
-        """Get the pitch rotation of the scene object."""
-        return self.properties.get("pitch", 0.0)
-
-    def set_pitch(self, pitch: float) -> None:
-        """Set the pitch rotation of the scene object."""
-        self.properties['pitch'] = pitch
-
-    def get_yaw(self) -> float:
-        """Get the yaw rotation of the scene object."""
-        return self.properties.get("yaw", 0.0)
-
-    def set_yaw(self, yaw: float) -> None:
-        """Set the yaw rotation of the scene object."""
-        self.properties['yaw'] = yaw
-
-    def get_roll(self) -> float:
-        """Get the roll rotation of the scene object."""
-        return self.properties.get("roll", 0.0)
-
-    def set_roll(self, roll: float) -> None:
-        """Set the roll rotation of the scene object."""
-        self.properties['roll'] = roll
-
-    def get_height(self) -> float:
-        """Get the height of the scene object."""
-        return self.properties.get("height", 0.0)
-
-    def set_height(self, height: float) -> None:
-        """Set the height of the scene object."""
-        self.properties['height'] = height
-
-    def get_width(self) -> float:
-        """Get the width of the scene object."""
-        return self.properties.get("width", 0.0)
-
-    def set_width(self, width: float) -> None:
-        """Set the width of the scene object."""
-        self.properties['width'] = width
-
-    def get_depth(self) -> float:
-        """Get the depth of the scene object."""
-        return self.properties.get("depth", 0.0)
-
-    def set_depth(self, depth: float) -> None:
-        """Set the depth of the scene object."""
-        self.properties['depth'] = depth
-
-    def get_size(self) -> tuple[float, float, float]:
-        return self.get_width(), self.get_height(), self.get_depth()
 
     def to_dict(self) -> dict:
         """Convert scene object to dictionary for JSON serialization."""

@@ -1,18 +1,149 @@
 """Protocol implementations for common object behaviors.
 """
-from typing import Any, Optional, Union
+from typing import Any, Optional
 from pyrox.interfaces import (
-    IBuildable,
-    IRunnable,
+    IConfigurable,
+    IAuthored,
+    IVersioned,
+    IHasId,
     INameable,
     IDescribable,
     IRefreshable,
     IResettable,
+    IBuildable,
+    IRunnable,
+    ICoreMixin,
     ICoreRunnableMixin,
     IHasFileLocation,
     IHasDictMetaData,
     ISupportsItemAccess,
 )
+
+
+class Configurable(IConfigurable):
+    """Denotes object is 'configurable' and supports configuration.
+
+    This class provides a foundation for objects that can be configured
+    with a dictionary of settings, implementing the IConfigurable protocol.
+    """
+
+    def __init__(
+        self,
+        config: Optional[dict[str, Any]] = None
+    ):
+        if config is not None:
+            self._config: dict[str, Any] = config
+        else:
+            self._config: dict[str, Any] = dict()
+
+    def configure(self, config: dict) -> None:
+        pass
+
+    def get_config(self) -> dict[str, Any]:
+        """Get the configuration of this object.
+
+        Returns:
+            dict: The configuration of this object.
+        """
+        return self._config
+
+    def set_config(self, config: dict[str, Any]) -> None:
+        """Set the configuration of this object.
+
+        Args:
+            config (dict): The configuration to set.
+        """
+        self._config = config
+
+
+class Authored(IAuthored):
+    """Denotes object is 'authored' and supports getting author information.
+
+    This class provides a foundation for objects that have author information,
+    implementing the IAuthored protocol.
+    """
+
+    def __init__(
+        self,
+        author: str = ""
+    ) -> None:
+        self._author: str = author
+
+    def get_author(self) -> str:
+        """Get the author of this object.
+
+        Returns:
+            str: The author of this object.
+        """
+        return self._author
+
+    def set_author(self, author: str) -> None:
+        """Set the author of this object.
+
+        Args:
+            author (str): The author to set.
+        """
+        self._author = author
+
+
+class Versioned(IVersioned):
+    """Denotes object is 'versioned' and supports getting version information.
+
+    This class provides a foundation for objects that have version information,
+    implementing the IVersioned protocol.
+    """
+
+    def __init__(
+        self,
+        version: str = ""
+    ) -> None:
+        self._version: str = version
+
+    def get_version(self) -> str:
+        """Get the version of this object.
+
+        Returns:
+            str: The version of this object.
+        """
+        return self._version
+
+    def set_version(self, version: str) -> None:
+        """Set the version of this object.
+
+        Args:
+            version (str): The version to set.
+        """
+        self._version = version
+
+
+class HasId(IHasId):
+    """Denotes object has an identifier.
+
+    This class provides a foundation for objects that have an ID property,
+    implementing the IHasId protocol.
+    """
+
+    def __init__(
+        self,
+        id: str = ""
+    ):
+        self._id: str = id
+
+    def get_id(self) -> str:
+        """Get the ID of this object.
+
+        Returns:
+            str: The ID of this object.
+        """
+        return self._id
+
+    def set_id(self, id: str) -> None:
+        """Set the ID of this object.
+
+        Args:
+            id (str): The ID to set.
+        """
+        self._id = id
 
 
 class Nameable(INameable):
@@ -178,6 +309,26 @@ class Runnable(IRunnable):
         return self._running
 
 
+class CoreMixin(
+    ICoreMixin,
+    HasId,
+    Nameable,
+    Describable,
+):
+    """Mixin class that acts as a core mixin with name and description.
+    """
+
+    def __init__(
+        self,
+        id: str = "",
+        name: str = "",
+        description: str = ""
+    ):
+        HasId.__init__(self, id)
+        Nameable.__init__(self, name)
+        Describable.__init__(self, description)
+
+
 class CoreRunnableMixin(
     ICoreRunnableMixin,
     Nameable,
@@ -293,12 +444,17 @@ class SupportsItemAccess(
 
 
 __all__ = (
+    'Configurable',
+    'Authored',
+    'Versioned',
+    'HasId',
     'Nameable',
     'Describable',
     'Refreshable',
     'Resettable',
     'Buildable',
     'Runnable',
+    'CoreMixin',
     'CoreRunnableMixin',
     'HasFileLocation',
     'HasMetaDictData',

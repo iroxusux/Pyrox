@@ -10,8 +10,8 @@ Key Design Principles:
     - Interfaces contain only method signatures, no implementations
     - No imports from pyrox.services or pyrox.models modules
     - Pure abstractions with minimal external dependencies
-    - Support for dependency injection and plugin architectures
     - Forward-compatible design for future enhancements
+    - Properties used and implimented for attribute access where appropriate
 
 Interface Categories:
     - GUI: Backend, window, menu, and component abstractions
@@ -19,24 +19,39 @@ Interface Categories:
     - Application: Task, factory, and application lifecycle interfaces
     - Configuration: Settings, environment, and state management interfaces
     - Events: Observer patterns, subscriptions, and notification interfaces
-    - Integration: Dependency injection and registration patterns
 """
 # Environment constants
 from .constants import EnvironmentKeys
 
 # Protocols
 from .protocols import (
+    # Meta imports to describe the base of everything
     IConfigurable,
+    IAuthored,
+    IVersioned,
+    IHasId,
     INameable,
     IDescribable,
-    IBuildable,
     IRefreshable,
     IResettable,
+    IBuildable,
     IRunnable,
+    ICoreMixin,
     ICoreRunnableMixin,
     IHasFileLocation,
     IHasDictMetaData,
     ISupportsItemAccess,
+
+    # Coordinate imports for protocols that support points in a space.
+    ICoord2D,
+    IArea2D,
+    ICoord3D,
+    IArea3D,
+
+    # Spatial imports for protocols that support spatial objects.
+    ISpatial2D,
+    ISpatial3D,
+    IRotatable,
 )
 
 # Service interfaces
@@ -93,17 +108,31 @@ __all__ = (
     'EnvironmentKeys',
 
     # Protocols
+    # Meta protocols
     'IConfigurable',
+    'IAuthored',
+    'IVersioned',
+    'IHasId',
     'INameable',
     'IDescribable',
     'IBuildable',
     'IRefreshable',
     'IResettable',
     'IRunnable',
+    'ICoreMixin',
     'ICoreRunnableMixin',
     'IHasFileLocation',
     'IHasDictMetaData',
     'ISupportsItemAccess',
+    # Coordinate protocols
+    'ICoord2D',
+    'IArea2D',
+    'ICoord3D',
+    'IArea3D',
+    # Spatial protocols
+    'ISpatial2D',
+    'ISpatial3D',
+    'IRotatable',
 
     # GUI Interfaces
     'GuiFramework',

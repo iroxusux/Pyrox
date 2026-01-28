@@ -5,7 +5,7 @@ import importlib
 import sys
 from typing import Any, Dict, Generic, List, Optional, Type, TypeVar, Union
 
-from pyrox.interfaces.protocols import IFactoryMixinProtocolMeta
+from pyrox.interfaces.protocols.meta import IFactoryMixinProtocolMeta
 from pyrox.services.logging import log
 
 
