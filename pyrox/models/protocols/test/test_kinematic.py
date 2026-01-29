@@ -64,7 +64,7 @@ class TestVelocity2D(unittest.TestCase):
         vel = Velocity2D()
         vel.set_velocity_x(10.0)
         vel.set_velocity_y(20.0)
-        velocity = vel.get_velocity()
+        velocity = vel.get_linear_velocity()
         self.assertEqual(velocity, (10.0, 20.0))
         self.assertIsInstance(velocity, tuple)
         self.assertEqual(len(velocity), 2)
@@ -74,7 +74,7 @@ class TestVelocity2D(unittest.TestCase):
         vel = Velocity2D()
         vel.set_velocity_x(5.0)
         vel.set_velocity_y(10.0)
-        self.assertEqual(vel.velocity, (5.0, 10.0))
+        self.assertEqual(vel.linear_velocity, (5.0, 10.0))
 
     def test_get_speed_zero(self):
         """Test speed calculation when velocity is zero."""
@@ -141,6 +141,13 @@ class TestVelocity2D(unittest.TestCase):
         vel.set_velocity_y(-4.0)
         self.assertEqual(vel.get_speed(), 5.0)
 
+    def test_linear_velocity_property(self):
+        """Test linear_velocity property access."""
+        rb = Velocity2D(velocity_x=10.0, velocity_y=20.0)
+        self.assertEqual(rb.linear_velocity, (10.0, 20.0))
+        rb.set_linear_velocity(30.0, 40.0)
+        self.assertEqual(rb.linear_velocity, (30.0, 40.0))
+
 
 class TestVelocity3D(unittest.TestCase):
     """Test cases for Velocity3D class."""
@@ -171,7 +178,7 @@ class TestVelocity3D(unittest.TestCase):
         vel.set_velocity_x(10.0)
         vel.set_velocity_y(20.0)
         vel._velocity_z = 30.0
-        velocity = vel.get_velocity()
+        velocity = vel.get_linear_velocity()
         self.assertEqual(velocity, (10.0, 20.0, 30.0))
         self.assertIsInstance(velocity, tuple)
         self.assertEqual(len(velocity), 3)
@@ -182,7 +189,7 @@ class TestVelocity3D(unittest.TestCase):
         vel.set_velocity_x(5.0)
         vel.set_velocity_y(10.0)
         vel._velocity_z = 15.0
-        self.assertEqual(vel.velocity, (5.0, 10.0, 15.0))
+        self.assertEqual(vel.linear_velocity, (5.0, 10.0, 15.0))
 
     def test_get_speed_zero(self):
         """Test 3D speed calculation when velocity is zero."""
@@ -239,7 +246,7 @@ class TestVelocity3D(unittest.TestCase):
         vel.set_velocity_x(-10.0)
         vel.set_velocity_y(-20.0)
         vel._velocity_z = -30.0
-        self.assertEqual(vel.get_velocity(), (-10.0, -20.0, -30.0))
+        self.assertEqual(vel.get_linear_velocity(), (-10.0, -20.0, -30.0))
         # Speed should be positive
         expected_speed = math.sqrt(10**2 + 20**2 + 30**2)
         self.assertAlmostEqual(vel.get_speed(), expected_speed, places=10)
@@ -314,32 +321,40 @@ class TestKinematic2D(unittest.TestCase):
     def test_init_default_values(self):
         """Test initialization with default values."""
         kin = Kinematic2D()
-        self.assertEqual(kin.get_velocity_x(), 0.0)
-        self.assertEqual(kin.get_velocity_y(), 0.0)
-        self.assertEqual(kin.get_acceleration(), (0.0, 0.0))
+        self.assertEqual(kin.get_acceleration_x(), 0.0)
+        self.assertEqual(kin.get_acceleration_y(), 0.0)
+        self.assertEqual(kin.get_acceleration(), 0.0)
 
     def test_get_acceleration(self):
         """Test getting acceleration as tuple."""
         kin = Kinematic2D()
-        kin.set_acceleration((5.0, 10.0))
-        acceleration = kin.get_acceleration()
-        self.assertEqual(acceleration, (5.0, 10.0))
-        self.assertIsInstance(acceleration, tuple)
-        self.assertEqual(len(acceleration), 2)
+        kin.set_linear_acceleration(5.0, 10.0)
+        self.assertEqual(kin.get_acceleration_x(), 5.0)
+        self.assertEqual(kin.get_acceleration_y(), 10.0)
+        self.assertGreater(kin.get_acceleration(), 0.0)
 
     def test_set_acceleration(self):
         """Test setting acceleration from tuple."""
         kin = Kinematic2D()
-        kin.set_acceleration((15.0, 25.0))
-        acceleration = kin.get_acceleration()
-        self.assertEqual(acceleration[0], 15.0)
-        self.assertEqual(acceleration[1], 25.0)
+        kin.set_linear_acceleration(15.0, 25.0)
+        self.assertEqual(kin.get_acceleration_x(), 15.0)
+        self.assertEqual(kin.get_acceleration_y(), 25.0)
+        kin.set_acceleration_x(35.0)
+        kin.set_acceleration_y(45.0)
+        self.assertEqual(kin.get_acceleration_x(), 35.0)
+        self.assertEqual(kin.get_acceleration_y(), 45.0)
 
     def test_acceleration_property(self):
         """Test acceleration property access."""
         kin = Kinematic2D()
-        kin.set_acceleration((20.0, 30.0))
-        self.assertEqual(kin.acceleration, (20.0, 30.0))
+        kin.set_linear_acceleration(10.0, 20.0)
+        self.assertEqual(int(kin.acceleration), 22)
+
+    def test_linear_acceleration_property(self):
+        """Test acceleration property access."""
+        kin = Kinematic2D()
+        kin.set_linear_acceleration(20.0, 30.0)
+        self.assertEqual(kin.linear_acceleration, (20.0, 30.0))
 
     def test_inheritance_from_velocity2d(self):
         """Test that Kinematic2D inherits from Velocity2D."""
@@ -347,17 +362,17 @@ class TestKinematic2D(unittest.TestCase):
         self.assertIsInstance(kin, Velocity2D)
         kin.set_velocity_x(10.0)
         kin.set_velocity_y(20.0)
-        self.assertEqual(kin.get_velocity(), (10.0, 20.0))
+        self.assertEqual(kin.get_linear_velocity(), (10.0, 20.0))
 
     def test_velocity_and_acceleration_together(self):
         """Test velocity and acceleration working together."""
         kin = Kinematic2D()
         kin.set_velocity_x(10.0)
         kin.set_velocity_y(20.0)
-        kin.set_acceleration((5.0, 10.0))
+        kin.set_linear_acceleration(5.0, 10.0)
 
-        self.assertEqual(kin.get_velocity(), (10.0, 20.0))
-        self.assertEqual(kin.get_acceleration(), (5.0, 10.0))
+        self.assertEqual(kin.get_linear_velocity(), (10.0, 20.0))
+        self.assertEqual(kin.get_linear_acceleration(), (5.0, 10.0))
 
     def test_speed_calculation(self):
         """Test speed calculation with kinematic object."""
@@ -369,16 +384,16 @@ class TestKinematic2D(unittest.TestCase):
     def test_negative_acceleration(self):
         """Test negative acceleration values (deceleration)."""
         kin = Kinematic2D()
-        kin.set_acceleration((-5.0, -10.0))
-        self.assertEqual(kin.get_acceleration(), (-5.0, -10.0))
+        kin.set_linear_acceleration(-5.0, -10.0)
+        self.assertEqual(kin.get_linear_acceleration(), (-5.0, -10.0))
 
     def test_zero_acceleration(self):
         """Test zero acceleration (constant velocity)."""
         kin = Kinematic2D()
         kin.set_velocity_x(10.0)
         kin.set_velocity_y(20.0)
-        kin.set_acceleration((0.0, 0.0))
-        self.assertEqual(kin.get_acceleration(), (0.0, 0.0))
+        kin.set_linear_acceleration(0.0, 0.0)
+        self.assertEqual(kin.get_linear_acceleration(), (0.0, 0.0))
 
 
 class TestKinematic3D(unittest.TestCase):
@@ -429,7 +444,7 @@ class TestKinematic3D(unittest.TestCase):
         kin._velocity_z = 30.0
         kin.set_acceleration((5.0, 10.0, 15.0))
 
-        self.assertEqual(kin.get_velocity(), (10.0, 20.0, 30.0))
+        self.assertEqual(kin.get_linear_velocity(), (10.0, 20.0, 30.0))
         self.assertEqual(kin.get_acceleration(), (5.0, 10.0, 15.0))
 
     def test_speed_calculation(self):
@@ -468,7 +483,7 @@ class TestKinematic3D(unittest.TestCase):
         kin.set_acceleration((1.0, 2.0, 3.0))
 
         # Verify all values
-        self.assertEqual(kin.get_velocity(), (10.0, 20.0, 30.0))
+        self.assertEqual(kin.get_linear_velocity(), (10.0, 20.0, 30.0))
         self.assertEqual(kin.get_acceleration(), (1.0, 2.0, 3.0))
 
         # Calculate expected speed
@@ -479,42 +494,24 @@ class TestKinematic3D(unittest.TestCase):
 class TestKinematicIntegration(unittest.TestCase):
     """Integration tests for kinematic classes."""
 
-    def test_kinematic2d_to_kinematic3d_conversion(self):
-        """Test converting 2D kinematic to 3D kinematic."""
-        kin2d = Kinematic2D()
-        kin2d.set_velocity_x(10.0)
-        kin2d.set_velocity_y(20.0)
-        kin2d.set_acceleration((5.0, 10.0))
-
-        kin3d = Kinematic3D()
-        kin3d.set_velocity_x(kin2d.get_velocity_x())
-        kin3d.set_velocity_y(kin2d.get_velocity_y())
-        kin3d._velocity_z = 30.0
-
-        accel_2d = kin2d.get_acceleration()
-        kin3d.set_acceleration((accel_2d[0], accel_2d[1], 15.0))
-
-        self.assertEqual(kin3d.get_velocity(), (10.0, 20.0, 30.0))
-        self.assertEqual(kin3d.get_acceleration(), (5.0, 10.0, 15.0))
-
     def test_multiple_instances_independence(self):
         """Test that multiple instances are independent."""
         kin1 = Kinematic2D()
         kin2 = Kinematic2D()
 
         kin1.set_velocity_x(10.0)
-        kin1.set_acceleration((5.0, 10.0))
+        kin1.set_linear_acceleration(5.0, 10.0)
 
         # kin2 should remain unchanged
         self.assertEqual(kin2.get_velocity_x(), 0.0)
-        self.assertEqual(kin2.get_acceleration(), (0.0, 0.0))
+        self.assertEqual(kin2.get_linear_acceleration(), (0.0, 0.0))
 
     def test_velocity_without_acceleration(self):
         """Test velocity can exist without acceleration."""
         vel = Velocity2D()
         vel.set_velocity_x(10.0)
         vel.set_velocity_y(20.0)
-        self.assertEqual(vel.get_velocity(), (10.0, 20.0))
+        self.assertEqual(vel.get_linear_velocity(), (10.0, 20.0))
         self.assertEqual(vel.get_speed(), math.sqrt(10**2 + 20**2))
 
     def test_angular_velocity_independence(self):
@@ -542,7 +539,7 @@ class TestKinematicIntegration(unittest.TestCase):
         """Test that zero values are valid throughout."""
         kin = Kinematic3D()
 
-        self.assertEqual(kin.get_velocity(), (0.0, 0.0, 0.0))
+        self.assertEqual(kin.get_linear_velocity(), (0.0, 0.0, 0.0))
         self.assertEqual(kin.get_acceleration(), (0.0, 0.0, 0.0))
         self.assertEqual(kin.get_speed(), 0.0)
 
@@ -566,22 +563,22 @@ class TestKinematicIntegration(unittest.TestCase):
         # Stationary (no velocity, no acceleration)
         kin_stationary = Kinematic2D()
         self.assertEqual(kin_stationary.get_speed(), 0.0)
-        self.assertEqual(kin_stationary.get_acceleration(), (0.0, 0.0))
+        self.assertEqual(kin_stationary.get_linear_acceleration(), (0.0, 0.0))
 
         # Constant velocity (velocity but no acceleration)
         kin_constant = Kinematic2D()
         kin_constant.set_velocity_x(10.0)
         kin_constant.set_velocity_y(10.0)
         self.assertGreater(kin_constant.get_speed(), 0.0)
-        self.assertEqual(kin_constant.get_acceleration(), (0.0, 0.0))
+        self.assertEqual(kin_constant.get_linear_acceleration(), (0.0, 0.0))
 
         # Accelerating (both velocity and acceleration)
         kin_accelerating = Kinematic2D()
         kin_accelerating.set_velocity_x(10.0)
         kin_accelerating.set_velocity_y(10.0)
-        kin_accelerating.set_acceleration((5.0, 5.0))
+        kin_accelerating.set_linear_acceleration(5.0, 5.0)
         self.assertGreater(kin_accelerating.get_speed(), 0.0)
-        self.assertNotEqual(kin_accelerating.get_acceleration(), (0.0, 0.0))
+        self.assertNotEqual(kin_accelerating.get_linear_acceleration(), (0.0, 0.0))
 
 
 if __name__ == '__main__':

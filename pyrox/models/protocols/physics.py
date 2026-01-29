@@ -309,13 +309,6 @@ class RigidBody2D(
     def set_moment_of_inertia(self, value: float) -> None:
         self._moment_of_inertia = value
 
-    def get_linear_velocity(self) -> Tuple[float, float]:
-        return (self._velocity_x, self._velocity_y)
-
-    def set_linear_velocity(self, vx: float, vy: float) -> None:
-        self._velocity_x = vx
-        self._velocity_y = vy
-
     def get_angular_velocity(self) -> float:
         return self._angular_velocity
 
@@ -379,14 +372,6 @@ class RigidBody2D(
         self.set_moment_of_inertia(value)
 
     @property
-    def linear_velocity(self) -> Tuple[float, float]:
-        return self.get_linear_velocity()
-
-    @linear_velocity.setter
-    def linear_velocity(self, value: Tuple[float, float]) -> None:
-        self.set_linear_velocity(value[0], value[1])
-
-    @property
     def angular_velocity(self) -> float:
         return self.get_angular_velocity()
 
@@ -413,10 +398,9 @@ class RigidBody2D(
 
 class PhysicsBody2D(
     IPhysicsBody2D,
-    IRigidBody2D,
     ICollider2D,
     IMaterial,
-    Kinematic2D
+    RigidBody2D
 ):
     """Complete standalone physics body implementation (2Dimensional).
 
@@ -491,12 +475,21 @@ class PhysicsBody2D(
         self._enabled = enabled
         self._sleeping = sleeping
 
-        # Create component objects
-        self._rigid_body = RigidBody2D(
+        RigidBody2D.__init__(
+            self,
+            x=x,
+            y=y,
+            width=width,
+            height=height,
+            roll=roll,
+            pitch=pitch,
+            yaw=yaw,
             mass=mass,
             moment_of_inertia=moment_of_inertia,
             velocity_x=velocity_x,
             velocity_y=velocity_y,
+            acceleration_x=acceleration_x,
+            acceleration_y=acceleration_y,
             angular_velocity=angular_velocity,
         )
 
@@ -523,9 +516,9 @@ class PhysicsBody2D(
         self._body_type = value
         # Update inverse mass for static bodies
         if value == BodyType.STATIC:
-            self._rigid_body._inverse_mass = 0.0
-        elif self._rigid_body._mass > 0:
-            self._rigid_body._inverse_mass = 1.0 / self._rigid_body._mass
+            self._inverse_mass = 0.0
+        elif self._mass > 0:
+            self._inverse_mass = 1.0 / self._mass
 
     def get_enabled(self) -> bool:
         return self._enabled
@@ -544,14 +537,6 @@ class PhysicsBody2D(
 
     def set_collider(self, collider: ICollider2D) -> None:
         self._collider = collider
-
-    def get_rigid_body(self) -> IRigidBody2D:
-        return self._rigid_body
-
-    def set_rigid_body(self, rigid_body: IRigidBody2D) -> None:
-        if not isinstance(rigid_body, RigidBody2D):
-            raise TypeError("rigid_body must be an instance of RigidBody2D")
-        self._rigid_body = rigid_body
 
     def get_material(self) -> IMaterial:
         return self._material
@@ -574,61 +559,6 @@ class PhysicsBody2D(
     def on_collision_exit(self, other: IPhysicsBody2D) -> None:
         """Called when collision ends. Override for custom behavior."""
         pass
-
-    # IRigidBody delegation
-
-    def get_mass(self) -> float:
-        return self._rigid_body.get_mass()
-
-    def set_mass(self, value: float) -> None:
-        self._rigid_body.set_mass(value)
-
-    def get_inverse_mass(self) -> float:
-        if self._body_type == BodyType.STATIC:
-            return 0.0
-        return self._rigid_body.get_inverse_mass()
-
-    def get_moment_of_inertia(self) -> float:
-        return self._rigid_body.get_moment_of_inertia()
-
-    def set_moment_of_inertia(self, value: float) -> None:
-        self._rigid_body.set_moment_of_inertia(value)
-
-    def get_linear_velocity(self) -> Tuple[float, float]:
-        return self._rigid_body.get_linear_velocity()
-
-    def set_linear_velocity(self, vx: float, vy: float) -> None:
-        self._rigid_body.set_linear_velocity(vx, vy)
-
-    def get_angular_velocity(self) -> float:
-        return self._rigid_body.get_angular_velocity()
-
-    def set_angular_velocity(self, value: float) -> None:
-        self._rigid_body.set_angular_velocity(value)
-
-    def get_force(self) -> Tuple[float, float]:
-        return self._rigid_body.get_force()
-
-    def set_force(self, fx: float, fy: float) -> None:
-        self._rigid_body.set_force(fx, fy)
-
-    def get_torque(self) -> float:
-        return self._rigid_body.get_torque()
-
-    def set_torque(self, value: float) -> None:
-        self._rigid_body.set_torque(value)
-
-    def apply_force(self, fx: float, fy: float) -> None:
-        self._rigid_body.apply_force(fx, fy)
-
-    def apply_impulse(self, jx: float, jy: float) -> None:
-        self._rigid_body.apply_impulse(jx, jy)
-
-    def apply_torque(self, torque: float) -> None:
-        self._rigid_body.apply_torque(torque)
-
-    def clear_forces(self) -> None:
-        self._rigid_body.clear_forces()
 
     # ICollider delegation
 
@@ -687,3 +617,9 @@ class PhysicsBody2D(
 
     def set_drag(self, value: float) -> None:
         self._material.set_drag(value)
+
+    # Properties for convenience
+    def get_inverse_mass(self) -> float:
+        if self._body_type == BodyType.STATIC:
+            return 0.0
+        return super().get_inverse_mass()

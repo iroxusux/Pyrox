@@ -5,7 +5,10 @@ from pyrox.interfaces import IVelocity2D, IVelocity3D, IAngularVelocity, IKinema
 from pyrox.models.protocols.spatial import Spatial2D, Spatial3D
 
 
-class Velocity2D(IVelocity2D):
+class Velocity2D(
+    IVelocity2D,
+    Spatial2D,
+):
     """Protocol for 2D velocity (linear motion)."""
 
     def __init__(
@@ -28,8 +31,12 @@ class Velocity2D(IVelocity2D):
     def set_velocity_y(self, value: float) -> None:
         self._velocity_y = value
 
-    def get_velocity(self) -> tuple[float, float]:
+    def get_linear_velocity(self) -> tuple[float, float]:
         return (self._velocity_x, self._velocity_y)
+
+    def set_linear_velocity(self, vx: float, vy: float) -> None:
+        self._velocity_x = vx
+        self._velocity_y = vy
 
     def get_speed(self) -> float:
         return (self._velocity_x ** 2 + self._velocity_y ** 2) ** 0.5
@@ -59,7 +66,7 @@ class Velocity3D(
     def set_velocity_z(self, value: float) -> None:
         self._velocity_z = value
 
-    def get_velocity(self) -> tuple[float, float, float]:  # type: ignore
+    def get_linear_velocity(self) -> tuple[float, float, float]:  # type: ignore
         return (self._velocity_x, self._velocity_y, self._velocity_z)
 
     def get_speed(self) -> float:
@@ -88,7 +95,6 @@ class AngularVelocity(IAngularVelocity):
 
 
 class Kinematic2D(
-    Spatial2D,
     Velocity2D,
     IKinematic2D,
 ):
@@ -130,24 +136,26 @@ class Kinematic2D(
         return self._acceleration_x
 
     def set_acceleration_x(self, value: float) -> None:
-        self._acceleration_x = value
+        self.set_linear_acceleration(value, self._acceleration_y)
 
     def get_acceleration_y(self) -> float:
         return self._acceleration_y
 
     def set_acceleration_y(self, value: float) -> None:
-        self._acceleration_y = value
+        self.set_linear_acceleration(self._acceleration_x, value)
 
-    def get_acceleration(self) -> tuple[float, float]:
+    def get_linear_acceleration(self) -> tuple[float, float]:
         return (self._acceleration_x, self._acceleration_y)
 
-    def set_acceleration(self, acceleration: tuple[float, float]) -> None:
-        self._acceleration_x = acceleration[0]
-        self._acceleration_y = acceleration[1]
+    def set_linear_acceleration(self, ax: float, ay: float) -> None:
+        self._acceleration_x = ax
+        self._acceleration_y = ay
+
+    def get_acceleration(self) -> float:
+        return (self._acceleration_x ** 2 + self._acceleration_y ** 2) ** 0.5
 
 
 class Kinematic3D(
-    Spatial3D,
     Velocity3D,
     IKinematic3D,
 ):

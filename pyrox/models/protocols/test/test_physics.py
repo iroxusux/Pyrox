@@ -239,7 +239,7 @@ class TestCollider(unittest.TestCase):
         self.assertFalse(col.is_trigger)
 
 
-class TestRigidBody(unittest.TestCase):
+class TestRigidBody2D(unittest.TestCase):
     """Test cases for RigidBody class."""
 
     def test_init_default_values(self):
@@ -291,12 +291,26 @@ class TestRigidBody(unittest.TestCase):
         rb = RigidBody2D()
         rb.set_linear_velocity(20.0, 15.0)
         self.assertEqual(rb.get_linear_velocity(), (20.0, 15.0))
+        rb.set_velocity_x(30.0)
+        self.assertEqual(rb.get_linear_velocity(), (30.0, 15.0))
+        rb.set_velocity_y(25.0)
+        self.assertEqual(rb.get_linear_velocity(), (30.0, 25.0))
 
     def test_set_angular_velocity(self):
         """Test setting angular velocity."""
         rb = RigidBody2D()
         rb.set_angular_velocity(3.14)
         self.assertEqual(rb.get_angular_velocity(), 3.14)
+
+    def test_set_linear_acceleration(self):
+        """Test setting linear acceleration."""
+        rb = RigidBody2D()
+        rb.set_linear_acceleration(2.0, 3.0)
+        self.assertEqual(rb.get_linear_acceleration(), (2.0, 3.0))
+        rb.set_acceleration_x(4.0)
+        self.assertEqual(rb.get_linear_acceleration(), (4.0, 3.0))
+        rb.set_acceleration_y(5.0)
+        self.assertEqual(rb.get_linear_acceleration(), (4.0, 5.0))
 
     def test_apply_force(self):
         """Test applying force accumulates."""
@@ -363,13 +377,6 @@ class TestRigidBody(unittest.TestCase):
         self.assertEqual(rb.mass, 3.0)
         rb.mass = 5.0
         self.assertEqual(rb.mass, 5.0)
-
-    def test_linear_velocity_property(self):
-        """Test linear_velocity property access."""
-        rb = RigidBody2D(velocity_x=10.0, velocity_y=20.0)
-        self.assertEqual(rb.linear_velocity, (10.0, 20.0))
-        rb.linear_velocity = (30.0, 40.0)
-        self.assertEqual(rb.linear_velocity, (30.0, 40.0))
 
     def test_angular_velocity_property(self):
         """Test angular_velocity property access."""

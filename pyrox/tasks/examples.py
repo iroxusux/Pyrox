@@ -3,6 +3,7 @@
 import importlib
 import sys
 from pyrox import models
+from pyrox.services.scene import SceneRunnerService
 
 
 class FileTask(models.ApplicationTask):
@@ -11,16 +12,6 @@ class FileTask(models.ApplicationTask):
         """Open the Scene Viewer frame."""
         # Reload modules to ensure the latest changes are reflected
         importlib.reload(models)
-
-        # Create a concrete SceneObject subclass for demonstration
-        class TestSceneObject(models.scene.SceneObject):
-            def __init__(self):
-                super().__init__(
-                    id="test_scene_object",
-                    name="Test Scene Object",
-                    scene_object_type="Cube",
-                    description="A test scene object for demonstration purposes.",
-                )
 
         # Create SceneObjectFactory
         scene_object_factory = models.scene.SceneObjectFactory()
@@ -36,15 +27,34 @@ class FileTask(models.ApplicationTask):
             scene_object_factory=scene_object_factory
         )
 
+        # Create a concrete SceneObject subclass for demonstration
+        class TestSceneObject(models.scene.PhysicsSceneObject):
+            def __init__(self):
+                super().__init__(
+                    id="test_scene_object",
+                    name="Test Scene Object",
+                    scene_object_type="Cube",
+                    description="A test scene object for demonstration purposes.",
+                )
+
         # Add a test scene object
         test_object = TestSceneObject()
         s.add_scene_object(test_object)
+
+        # Create SceneRunnerService
+        runner = SceneRunnerService(
+            app=self.application,
+            scene=s,
+            enable_physics=True
+        )
 
         scene_viewer = models.gui.sceneviewer.SceneViewerFrame(
             parent=self.application.workspace.workspace_area.root,  # type: ignore
             scene=s
         )
         self.application.workspace.register_frame(scene_viewer)
+
+        runner.run()
 
     def inject(self) -> None:
         self.file_menu.add_item(

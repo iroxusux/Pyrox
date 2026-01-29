@@ -97,9 +97,11 @@ class IRotatable(
         ...
 
 
+@runtime_checkable
 class ISpatial2D(
     IArea2D,
     IRotatable,
+    Protocol,
 ):
     """Protocol for 2D spatial objects."""
 
