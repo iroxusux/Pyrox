@@ -2,7 +2,7 @@
 
 import unittest
 
-from pyrox.models.abc.protocols.meta import (
+from pyrox.models.protocols.meta import (
     Configurable,
     Authored,
     Versioned,

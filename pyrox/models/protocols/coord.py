@@ -165,6 +165,18 @@ class Area2D(
         center_y = self.get_y() + self._height / 2
         return center_y
 
+    def get_bounds(self) -> tuple[float, float, float, float]:
+        """Get the bounding box as (left, top, right, bottom).
+
+        Returns:
+            tuple[float, float, float, float]: The bounding box.
+        """
+        left = self.get_x()
+        top = self.get_y()
+        right = left + self._width
+        bottom = top + self._height
+        return left, top, right, bottom
+
 
 class Coord3D(
     Coord2D,
@@ -302,6 +314,20 @@ class Area3D(
         center_x, center_y = super().get_center()
         center_z = self.get_center_z()
         return center_x, center_y, center_z
+
+    def get_bounds(self) -> tuple[float, float, float, float, float, float]:  # type: ignore[override]
+        """Get the bounding box as (left, top, front, right, bottom, back).
+
+        Returns:
+            tuple[float, float, float, float, float, float]: The bounding box.
+        """
+        left = self.get_x()
+        top = self.get_y()
+        front = self.get_z()
+        right = left + self._width
+        bottom = top + self._height
+        back = front + self._depth
+        return left, top, front, right, bottom, back
 
 
 __all__ = [

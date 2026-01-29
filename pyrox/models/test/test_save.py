@@ -8,7 +8,7 @@ from pathlib import Path
 from unittest.mock import patch
 import shutil
 
-from pyrox.models.abc.save import (
+from pyrox.models.save import (
     SupportsLoading,
     SupportsSaving,
     SupportsJsonLoading,

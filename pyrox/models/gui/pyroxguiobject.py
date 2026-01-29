@@ -8,7 +8,7 @@ from typing import Any, Optional, Self
 from .meta import ObjectEditField
 
 
-from ..abc.meta import PyroxObject
+from ..meta import PyroxObject
 
 
 __all__ = (

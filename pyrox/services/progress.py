@@ -12,7 +12,7 @@ from enum import Enum
 import threading
 import time
 
-from pyrox.models.abc.list import Subscribable
+from pyrox.models.list import Subscribable
 from pyrox.services import log
 
 

@@ -3,7 +3,7 @@
 import unittest
 from unittest.mock import MagicMock
 
-from pyrox.models.abc.list import (
+from pyrox.models.list import (
     Subscribable,
     HashList,
     SafeList,

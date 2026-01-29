@@ -10,7 +10,7 @@ import tempfile
 import threading
 import unittest
 from unittest.mock import patch, MagicMock
-from pyrox.models.abc.stream import FileStream
+from pyrox.models.stream import FileStream
 from pyrox.services.stream import (
     StreamManager,
     create_stream_to_file,

@@ -5,11 +5,11 @@ from typing import (
     runtime_checkable,
     Protocol,
 )
+from .spatial import ISpatial2D, ISpatial3D
 
 
-@runtime_checkable
 class IVelocity2D(
-    Protocol
+    ISpatial2D
 ):
     """Protocol for 2D velocity (linear motion)."""
 
@@ -41,10 +41,9 @@ class IVelocity2D(
     def get_speed(self) -> float: ...
 
 
-@runtime_checkable
 class IVelocity3D(
     IVelocity2D,
-    Protocol
+    ISpatial3D
 ):
     """Protocol for 3D velocity."""
 
@@ -71,10 +70,8 @@ class IAngularVelocity(Protocol):
     def set_angular_velocity(self, velocity: tuple[float, float, float]) -> None: ...
 
 
-@runtime_checkable
 class IKinematic2D(
-    IVelocity2D,
-    Protocol
+    IVelocity2D
 ):
     """Protocol for full 2D kinematic state (velocity + acceleration)."""
 
@@ -97,11 +94,9 @@ class IKinematic2D(
     def get_acceleration(self) -> tuple[float, float]: ...
 
 
-@runtime_checkable
 class IKinematic3D(
     IKinematic2D,
     IVelocity3D,
-    Protocol
 ):
     """Protocol for full 3D kinematic state."""
 

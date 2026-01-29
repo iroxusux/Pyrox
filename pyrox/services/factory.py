@@ -2,7 +2,7 @@
 """
 import importlib
 import sys
-from pyrox.models.abc.factory import MetaFactory
+from pyrox.models.factory import MetaFactory
 
 
 __all__ = [

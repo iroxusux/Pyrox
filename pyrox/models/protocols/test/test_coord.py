@@ -2,7 +2,7 @@
 
 import unittest
 
-from pyrox.models.abc.protocols.coord import (
+from pyrox.models.protocols.coord import (
     Coord2D,
     Area2D,
     Coord3D,

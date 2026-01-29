@@ -16,7 +16,7 @@ from pyrox.interfaces import (
     IWorkspace,
 )
 
-from pyrox.models.abc import meta
+from pyrox.models import meta
 
 from pyrox.models import (
     ApplicationTaskFactory,

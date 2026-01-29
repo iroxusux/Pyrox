@@ -1,4 +1,4 @@
-from pyrox.models.abc.meta import SliceableInt
+from pyrox.models.meta import SliceableInt
 
 
 def clear_bit(word: int,

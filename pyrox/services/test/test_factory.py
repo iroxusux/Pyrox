@@ -10,7 +10,7 @@ from unittest.mock import patch
 import types
 
 from pyrox.services.factory import reload_factory_module_while_preserving_registered_types
-from pyrox.models.abc.factory import MetaFactory
+from pyrox.models.factory import MetaFactory
 
 
 class TestReloadFactoryWhilePreservingRegisteredTypes(unittest.TestCase):

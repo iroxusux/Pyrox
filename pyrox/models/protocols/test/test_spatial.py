@@ -2,12 +2,12 @@
 
 import unittest
 
-from pyrox.models.abc.protocols.spatial import (
+from pyrox.models.protocols.spatial import (
     Rotatable,
     Spatial2D,
     Spatial3D,
 )
-from pyrox.models.abc.protocols.coord import (
+from pyrox.models.protocols.coord import (
     Area2D,
     Area3D,
 )

@@ -6,7 +6,7 @@ in the main application frame or as background services.
 from pyrox.interfaces import IApplication, IApplicationTask
 from pyrox.models import ServicesRunnableMixin
 from pyrox.services.logging import log
-from .abc import FactoryTypeMeta, MetaFactory
+from pyrox.models.factory import MetaFactory, FactoryTypeMeta
 
 
 class ApplicationTaskFactory(MetaFactory):

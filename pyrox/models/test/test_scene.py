@@ -6,7 +6,9 @@ import unittest
 from pathlib import Path
 from typing import Any, Dict
 from pyrox.interfaces import ISceneObject
-from pyrox.models.scene import Scene, SceneObject, SceneObjectFactory
+from pyrox.models.scene import Scene, SceneObject, PhysicsSceneObject, SceneObjectFactory
+from pyrox.models.protocols.physics import Material
+from pyrox.interfaces.protocols.physics import BodyType, ColliderType, CollisionLayer
 
 
 class TestScene(unittest.TestCase):
@@ -630,7 +632,7 @@ class TestSceneObject(unittest.TestCase):
 
     def test_inheritance_from_spatial2d(self):
         """Test that SceneObject inherits from Spatial2D."""
-        from pyrox.models.abc.protocols.spatial import Spatial2D
+        from pyrox.models.protocols.spatial import Spatial2D
         obj = SceneObject(id="test", name="Name", scene_object_type="Type")
 
         self.assertIsInstance(obj, Spatial2D)
@@ -894,6 +896,461 @@ class TestSceneObjectFactory(unittest.TestCase):
         factory.register("Type", self.TestObjectB)
         self.assertIn("Type", factory._registry)
         self.assertEqual(factory._registry["Type"], self.TestObjectB)
+
+
+class TestPhysicsSceneObject(unittest.TestCase):
+    """Test cases for PhysicsSceneObject class."""
+
+    def test_init_with_required_params(self):
+        """Test PhysicsSceneObject initialization with required parameters."""
+        obj = PhysicsSceneObject(
+            id="phys_001",
+            name="PhysicsObject",
+            scene_object_type="PhysicsType"
+        )
+
+        self.assertEqual(obj.id, "phys_001")
+        self.assertEqual(obj.name, "PhysicsObject")
+        self.assertEqual(obj.get_scene_object_type(), "PhysicsType")
+        self.assertEqual(obj.description, "")
+        self.assertEqual(obj.get_body_type(), BodyType.DYNAMIC)
+        self.assertEqual(obj.get_mass(), 1.0)
+
+    def test_init_with_all_params(self):
+        """Test PhysicsSceneObject initialization with all parameters."""
+        material = Material(density=2.0, restitution=0.8, friction=0.6, drag=0.2)
+        obj = PhysicsSceneObject(
+            id="phys_002",
+            name="FullPhysicsObject",
+            scene_object_type="FullPhysicsType",
+            description="Full physics object",
+            properties={"custom": "value"},
+            x=100.0,
+            y=200.0,
+            width=50.0,
+            height=75.0,
+            roll=10.0,
+            pitch=20.0,
+            yaw=30.0,
+            body_type=BodyType.STATIC,
+            mass=5.0,
+            material=material,
+            collider_type=ColliderType.CIRCLE,
+            collision_layer=CollisionLayer.PLAYER,
+            collision_mask=[CollisionLayer.TERRAIN, CollisionLayer.ENEMY],
+            is_trigger=True,
+        )
+
+        self.assertEqual(obj.id, "phys_002")
+        self.assertEqual(obj.name, "FullPhysicsObject")
+        self.assertEqual(obj.x, 100.0)
+        self.assertEqual(obj.y, 200.0)
+        self.assertEqual(obj.width, 50.0)
+        self.assertEqual(obj.height, 75.0)
+        self.assertEqual(obj.get_body_type(), BodyType.STATIC)
+        self.assertEqual(obj.get_mass(), 5.0)
+        self.assertEqual(obj.get_restitution(), 0.8)
+        self.assertEqual(obj.get_friction(), 0.6)
+        self.assertEqual(obj.get_collision_layer(), CollisionLayer.PLAYER)
+        self.assertTrue(obj.get_is_trigger())
+
+    def test_physics_body_delegation(self):
+        """Test that PhysicsSceneObject delegates physics methods."""
+        obj = PhysicsSceneObject(
+            id="phys_003",
+            name="DelegateTest",
+            scene_object_type="PhysicsType"
+        )
+
+        # Test rigid body methods
+        obj.set_mass(3.0)
+        self.assertEqual(obj.get_mass(), 3.0)
+
+        obj.set_linear_velocity(10.0, 20.0)
+        self.assertEqual(obj.get_linear_velocity(), (10.0, 20.0))
+
+        obj.apply_force(5.0, 10.0)
+        self.assertEqual(obj.get_force(), (5.0, 10.0))
+
+        # Test collider methods
+        obj.set_collision_layer(CollisionLayer.ENEMY)
+        self.assertEqual(obj.get_collision_layer(), CollisionLayer.ENEMY)
+
+        obj.set_is_trigger(True)
+        self.assertTrue(obj.get_is_trigger())
+
+        # Test material methods
+        obj.set_restitution(0.9)
+        self.assertEqual(obj.get_restitution(), 0.9)
+
+        obj.set_friction(0.7)
+        self.assertEqual(obj.get_friction(), 0.7)
+
+    def test_collision_detection(self):
+        """Test collision detection between physics scene objects."""
+        obj1 = PhysicsSceneObject(
+            id="obj1",
+            name="Object1",
+            scene_object_type="PhysicsType",
+            x=0.0,
+            y=0.0,
+            width=50.0,
+            height=50.0
+        )
+
+        obj2 = PhysicsSceneObject(
+            id="obj2",
+            name="Object2",
+            scene_object_type="PhysicsType",
+            x=25.0,
+            y=25.0,
+            width=50.0,
+            height=50.0
+        )
+
+        obj3 = PhysicsSceneObject(
+            id="obj3",
+            name="Object3",
+            scene_object_type="PhysicsType",
+            x=100.0,
+            y=100.0,
+            width=50.0,
+            height=50.0
+        )
+
+        self.assertTrue(obj1.check_collision(obj2))
+        self.assertFalse(obj1.check_collision(obj3))
+
+    def test_to_dict(self):
+        """Test PhysicsSceneObject.to_dict() method."""
+        material = Material(density=2.5, restitution=0.7, friction=0.5, drag=0.15)
+        obj = PhysicsSceneObject(
+            id="phys_dict",
+            name="DictPhysics",
+            scene_object_type="PhysicsDict",
+            description="Physics dict test",
+            properties={"key": "value"},
+            x=50.0,
+            y=100.0,
+            width=30.0,
+            height=40.0,
+            roll=5.0,
+            pitch=10.0,
+            yaw=15.0,
+            body_type=BodyType.KINEMATIC,
+            mass=2.0,
+            material=material,
+            collider_type=ColliderType.POLYGON,
+            collision_layer=CollisionLayer.TERRAIN,
+            is_trigger=True,
+        )
+
+        result = obj.to_dict()
+
+        self.assertIsInstance(result, dict)
+        self.assertEqual(result["id"], "phys_dict")
+        self.assertEqual(result["name"], "DictPhysics")
+        self.assertEqual(result["scene_object_type"], "PhysicsDict")
+        self.assertEqual(result["x"], 50.0)
+        self.assertEqual(result["y"], 100.0)
+        self.assertEqual(result["body_type"], "KINEMATIC")
+        self.assertEqual(result["mass"], 2.0)
+        self.assertEqual(result["collider_type"], "POLYGON")
+        self.assertEqual(result["collision_layer"], "TERRAIN")
+        self.assertTrue(result["is_trigger"])
+        self.assertEqual(result["restitution"], 0.7)
+        self.assertEqual(result["friction"], 0.5)
+
+    def test_from_dict(self):
+        """Test PhysicsSceneObject.from_dict() class method."""
+        data = {
+            "id": "from_dict_phys",
+            "name": "FromDictPhysics",
+            "scene_object_type": "PhysicsFromDict",
+            "description": "From dict physics",
+            "properties": {"loaded": True},
+            "x": 75.0,
+            "y": 125.0,
+            "width": 40.0,
+            "height": 60.0,
+            "roll": 12.0,
+            "pitch": 24.0,
+            "yaw": 36.0,
+            "body_type": "DYNAMIC",
+            "mass": 3.5,
+            "collider_type": "CIRCLE",
+            "collision_layer": "PLAYER",
+            "is_trigger": False,
+            "density": 2.0,
+            "restitution": 0.8,
+            "friction": 0.6,
+            "drag": 0.2,
+        }
+
+        obj = PhysicsSceneObject.from_dict(data)
+
+        self.assertEqual(obj.id, "from_dict_phys")
+        self.assertEqual(obj.name, "FromDictPhysics")
+        self.assertEqual(obj.x, 75.0)
+        self.assertEqual(obj.y, 125.0)
+        self.assertEqual(obj.get_body_type(), BodyType.DYNAMIC)
+        self.assertEqual(obj.get_mass(), 3.5)
+        self.assertEqual(obj.get_restitution(), 0.8)
+        self.assertEqual(obj.get_friction(), 0.6)
+        self.assertEqual(obj.get_collision_layer(), CollisionLayer.PLAYER)
+        self.assertFalse(obj.get_is_trigger())
+
+    def test_from_dict_with_defaults(self):
+        """Test PhysicsSceneObject.from_dict() with missing optional fields."""
+        data = {
+            "id": "minimal_phys",
+            "name": "MinimalPhysics",
+            "scene_object_type": "MinimalPhysicsType"
+        }
+
+        obj = PhysicsSceneObject.from_dict(data)
+
+        self.assertEqual(obj.id, "minimal_phys")
+        self.assertEqual(obj.name, "MinimalPhysics")
+        self.assertEqual(obj.get_body_type(), BodyType.DYNAMIC)
+        self.assertEqual(obj.get_mass(), 1.0)
+        self.assertEqual(obj.x, 0.0)
+        self.assertEqual(obj.y, 0.0)
+
+    def test_roundtrip_to_dict_from_dict(self):
+        """Test roundtrip conversion to/from dict for PhysicsSceneObject."""
+        material = Material(density=1.5, restitution=0.6, friction=0.7, drag=0.12)
+        original = PhysicsSceneObject(
+            id="roundtrip_phys",
+            name="RoundtripPhysics",
+            scene_object_type="RoundtripPhysicsType",
+            description="Roundtrip physics test",
+            properties={"value": 456},
+            x=80.0,
+            y=90.0,
+            width=35.0,
+            height=45.0,
+            body_type=BodyType.KINEMATIC,
+            mass=2.5,
+            material=material,
+            collider_type=ColliderType.CIRCLE,
+            collision_layer=CollisionLayer.PROJECTILE,
+            is_trigger=True,
+        )
+
+        data = original.to_dict()
+        loaded = PhysicsSceneObject.from_dict(data)
+
+        self.assertEqual(loaded.id, original.id)
+        self.assertEqual(loaded.name, original.name)
+        self.assertEqual(loaded.x, original.x)
+        self.assertEqual(loaded.y, original.y)
+        self.assertEqual(loaded.get_body_type(), original.get_body_type())
+        self.assertEqual(loaded.get_mass(), original.get_mass())
+        self.assertEqual(loaded.get_restitution(), original.get_restitution())
+        self.assertEqual(loaded.get_friction(), original.get_friction())
+        self.assertEqual(loaded.get_collision_layer(), original.get_collision_layer())
+        self.assertEqual(loaded.get_is_trigger(), original.get_is_trigger())
+
+    def test_update_method_exists(self):
+        """Test that update method exists and is callable."""
+        obj = PhysicsSceneObject(
+            id="update_test",
+            name="UpdateTest",
+            scene_object_type="PhysicsType"
+        )
+
+        self.assertTrue(hasattr(obj, 'update'))
+        self.assertTrue(callable(obj.update))
+        # Should not raise
+        obj.update(0.016)
+
+    def test_collision_callbacks_exist(self):
+        """Test that collision callback methods exist."""
+        obj = PhysicsSceneObject(
+            id="callback_test",
+            name="CallbackTest",
+            scene_object_type="PhysicsType"
+        )
+
+        self.assertTrue(hasattr(obj, 'on_collision_enter'))
+        self.assertTrue(hasattr(obj, 'on_collision_stay'))
+        self.assertTrue(hasattr(obj, 'on_collision_exit'))
+        self.assertTrue(callable(obj.on_collision_enter))
+        self.assertTrue(callable(obj.on_collision_stay))
+        self.assertTrue(callable(obj.on_collision_exit))
+
+    def test_material_properties(self):
+        """Test material property access."""
+        obj = PhysicsSceneObject(
+            id="material_test",
+            name="MaterialTest",
+            scene_object_type="PhysicsType"
+        )
+
+        obj.set_density(2.5)
+        self.assertEqual(obj.density, 2.5)
+
+        obj.set_restitution(0.9)
+        self.assertEqual(obj.restitution, 0.9)
+
+        obj.set_friction(0.8)
+        self.assertEqual(obj.friction, 0.8)
+
+        obj.set_drag(0.3)
+        self.assertEqual(obj.drag, 0.3)
+
+    def test_body_type_affects_inverse_mass(self):
+        """Test that body type affects inverse mass calculation."""
+        obj = PhysicsSceneObject(
+            id="mass_test",
+            name="MassTest",
+            scene_object_type="PhysicsType",
+            mass=2.0
+        )
+
+        # Dynamic body should have inverse mass
+        self.assertEqual(obj.get_inverse_mass(), 0.5)
+
+        # Static body should have zero inverse mass
+        obj.set_body_type(BodyType.STATIC)
+        self.assertEqual(obj.get_inverse_mass(), 0.0)
+
+        # Back to dynamic
+        obj.set_body_type(BodyType.DYNAMIC)
+        self.assertEqual(obj.get_inverse_mass(), 0.5)
+
+    def test_force_and_impulse_application(self):
+        """Test applying forces and impulses."""
+        obj = PhysicsSceneObject(
+            id="force_test",
+            name="ForceTest",
+            scene_object_type="PhysicsType",
+            mass=2.0
+        )
+
+        # Apply force
+        obj.apply_force(10.0, 20.0)
+        self.assertEqual(obj.get_force(), (10.0, 20.0))
+
+        # Apply impulse (should change velocity)
+        obj.apply_impulse(4.0, 6.0)
+        # impulse / mass = velocity change: (4.0/2.0, 6.0/2.0) = (2.0, 3.0)
+        self.assertEqual(obj.get_linear_velocity(), (2.0, 3.0))
+
+        # Clear forces
+        obj.clear_forces()
+        self.assertEqual(obj.get_force(), (0.0, 0.0))
+
+    def test_collision_layers_and_masks(self):
+        """Test collision layer and mask functionality."""
+        obj = PhysicsSceneObject(
+            id="layer_test",
+            name="LayerTest",
+            scene_object_type="PhysicsType",
+            collision_layer=CollisionLayer.PLAYER,
+            collision_mask=[CollisionLayer.TERRAIN, CollisionLayer.ENEMY]
+        )
+
+        self.assertEqual(obj.get_collision_layer(), CollisionLayer.PLAYER)
+
+        mask = obj.get_collision_mask()
+        self.assertIn(CollisionLayer.TERRAIN, mask)
+        self.assertIn(CollisionLayer.ENEMY, mask)
+        self.assertEqual(len(mask), 2)
+
+        # Update mask
+        obj.set_collision_mask([CollisionLayer.PROJECTILE])
+        mask = obj.get_collision_mask()
+        self.assertEqual(len(mask), 1)
+        self.assertIn(CollisionLayer.PROJECTILE, mask)
+
+    def test_integration_with_scene(self):
+        """Test PhysicsSceneObject integration with Scene."""
+        scene = Scene(name="Physics Scene")
+
+        obj1 = PhysicsSceneObject(
+            id="phys_obj_1",
+            name="PhysicsObj1",
+            scene_object_type="PhysicsType",
+            body_type=BodyType.DYNAMIC,
+            mass=1.5
+        )
+
+        obj2 = PhysicsSceneObject(
+            id="phys_obj_2",
+            name="PhysicsObj2",
+            scene_object_type="PhysicsType",
+            body_type=BodyType.STATIC,
+            mass=0.0
+        )
+
+        scene.add_scene_object(obj1)
+        scene.add_scene_object(obj2)
+
+        self.assertEqual(len(scene.scene_objects), 2)
+        self.assertIn("phys_obj_1", scene.scene_objects)
+        self.assertIn("phys_obj_2", scene.scene_objects)
+
+    def test_save_and_load_physics_scene(self):
+        """Test saving and loading scenes with PhysicsSceneObject."""
+        # Create scene with physics objects
+        original_scene = Scene(name="Physics Scene Test")
+
+        obj = PhysicsSceneObject(
+            id="save_phys",
+            name="SavePhysics",
+            scene_object_type="PhysicsType",
+            x=100.0,
+            y=200.0,
+            body_type=BodyType.DYNAMIC,
+            mass=2.0,
+            collision_layer=CollisionLayer.PLAYER
+        )
+
+        original_scene.add_scene_object(obj)
+
+        # Save to file
+        test_dir = tempfile.mkdtemp()
+        filepath = Path(test_dir) / "physics_scene.json"
+        original_scene.save(filepath)
+
+        # Load from file
+        factory = SceneObjectFactory()
+        factory.register("PhysicsType", PhysicsSceneObject)
+
+        loaded_scene = Scene.load(filepath, factory=factory)
+
+        # Verify
+        self.assertEqual(loaded_scene.name, "Physics Scene Test")
+        self.assertEqual(len(loaded_scene.scene_objects), 1)
+
+        loaded_obj = loaded_scene.get_scene_object("save_phys")
+        self.assertIsNotNone(loaded_obj)
+        self.assertIsInstance(loaded_obj, PhysicsSceneObject)
+        self.assertEqual(loaded_obj.x, 100.0)  # type: ignore
+        self.assertEqual(loaded_obj.y, 200.0)  # type: ignore
+        self.assertEqual(loaded_obj.get_mass(), 2.0)  # type: ignore
+
+        # Cleanup
+        import shutil
+        shutil.rmtree(test_dir)
+
+    def test_properties_dict_access(self):
+        """Test that properties dictionary works correctly."""
+        obj = PhysicsSceneObject(
+            id="props_test",
+            name="PropsTest",
+            scene_object_type="PhysicsType",
+            properties={"custom_data": "test", "number": 123}
+        )
+
+        self.assertEqual(obj.get_properties()["custom_data"], "test")
+        self.assertEqual(obj.get_properties()["number"], 123)
+
+        obj.set_properties({"new_key": "new_value"})
+        self.assertEqual(obj.get_properties()["new_key"], "new_value")
+        self.assertNotIn("custom_data", obj.get_properties())
 
 
 if __name__ == '__main__':

@@ -59,6 +59,17 @@ from .protocols import (
     IAngularVelocity,
     IKinematic2D,
     IKinematic3D,
+
+    # Physics imports for protocols that support physical objects.
+    BodyType,
+    ColliderType,
+    CollisionLayer,
+    IMaterial,
+    ICollider2D,
+    IPhysicsBody2D,
+    IRigidBody2D,
+    IRigidBody3D,
+    IPhysicsEngine,
 )
 
 # Service interfaces
@@ -146,6 +157,16 @@ __all__ = (
     'IAngularVelocity',
     'IKinematic2D',
     'IKinematic3D',
+    # Physics protocols
+    'BodyType',
+    'ColliderType',
+    'CollisionLayer',
+    'IMaterial',
+    'ICollider2D',
+    'IPhysicsBody2D',
+    'IRigidBody2D',
+    'IRigidBody3D',
+    'IPhysicsEngine',
 
     # GUI Interfaces
     'GuiFramework',

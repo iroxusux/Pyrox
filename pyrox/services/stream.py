@@ -9,7 +9,7 @@ import sys
 import threading
 from contextlib import contextmanager
 from typing import Optional, List, Any, Dict
-from pyrox.models.abc.stream import FileStream
+from pyrox.models.stream import FileStream
 
 
 __all__ = [

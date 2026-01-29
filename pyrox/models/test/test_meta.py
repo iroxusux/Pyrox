@@ -5,7 +5,7 @@ import re
 from pathlib import Path
 
 
-from pyrox.models.abc.meta import (
+from pyrox.models.meta import (
     _IdGenerator,
     ALLOWED_CHARS,
     ALLOWED_REV_CHARS,
