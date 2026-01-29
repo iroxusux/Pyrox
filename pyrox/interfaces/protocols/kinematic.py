@@ -8,8 +8,10 @@ from typing import (
 from .spatial import ISpatial2D, ISpatial3D
 
 
+@runtime_checkable
 class IVelocity2D(
-    ISpatial2D
+    ISpatial2D,
+    Protocol
 ):
     """Protocol for 2D velocity (linear motion)."""
 
@@ -24,9 +26,9 @@ class IVelocity2D(
         return self.get_velocity_y()
 
     @property
-    def velocity(self) -> tuple[float, float]:
+    def linear_velocity(self) -> tuple[float, float]:
         """Get velocity as (vx, vy)."""
-        return self.get_velocity()
+        return self.get_linear_velocity()
 
     @property
     def speed(self) -> float:
@@ -37,7 +39,8 @@ class IVelocity2D(
     def set_velocity_x(self, value: float) -> None: ...
     def get_velocity_y(self) -> float: ...
     def set_velocity_y(self, value: float) -> None: ...
-    def get_velocity(self) -> tuple[float, float]: ...
+    def get_linear_velocity(self) -> tuple[float, float]: ...
+    def set_linear_velocity(self, vx: float, vy: float) -> None: ...
     def get_speed(self) -> float: ...
 
 
@@ -54,7 +57,7 @@ class IVelocity3D(
 
     def get_velocity_z(self) -> float: ...
     def set_velocity_z(self, value: float) -> None: ...
-    def get_velocity(self) -> tuple[float, float, float]: ...  # type: ignore
+    def get_linear_velocity(self) -> tuple[float, float, float]: ...  # type: ignore
 
 
 @runtime_checkable
@@ -70,8 +73,10 @@ class IAngularVelocity(Protocol):
     def set_angular_velocity(self, velocity: tuple[float, float, float]) -> None: ...
 
 
+@runtime_checkable
 class IKinematic2D(
-    IVelocity2D
+    IVelocity2D,
+    Protocol,
 ):
     """Protocol for full 2D kinematic state (velocity + acceleration)."""
 
@@ -84,14 +89,21 @@ class IKinematic2D(
         return self.get_acceleration_y()
 
     @property
-    def acceleration(self) -> tuple[float, float]:
+    def acceleration(self) -> float:
         return self.get_acceleration()
+
+    @property
+    def linear_acceleration(self) -> tuple[float, float]:
+        """Linear acceleration (ax, ay) in m/s²."""
+        return self.get_linear_acceleration()
 
     def get_acceleration_x(self) -> float: ...
     def set_acceleration_x(self, value: float) -> None: ...
     def get_acceleration_y(self) -> float: ...
     def set_acceleration_y(self, value: float) -> None: ...
-    def get_acceleration(self) -> tuple[float, float]: ...
+    def get_linear_acceleration(self) -> tuple[float, float]: ...
+    def set_linear_acceleration(self, ax: float, ay: float) -> None: ...
+    def get_acceleration(self) -> float: ...
 
 
 class IKinematic3D(

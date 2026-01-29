@@ -237,35 +237,63 @@ class PhysicsEngineService(IPhysicsEngine):
             inv_mass = body.inverse_mass
 
             if inv_mass > 0:  # Skip if infinite mass
-                # Acceleration = Force / Mass
+                # 1. Calculate acceleration from forces (F = ma, so a = F/m)
                 ax = fx * inv_mass
                 ay = fy * inv_mass
 
-                # Update velocity
+                # 2. Store acceleration in body for external access
+                body.set_linear_acceleration(ax, ay)
+
+                # 3. Update velocity from acceleration (semi-implicit Euler)
                 vx, vy = body.linear_velocity
                 vx += ax * dt
                 vy += ay * dt
 
-                # Clamp to terminal velocity
+                # 4. Clamp to terminal velocity
                 speed = (vx**2 + vy**2)**0.5
                 if speed > self._environment.terminal_velocity:
                     scale = self._environment.terminal_velocity / speed
                     vx *= scale
                     vy *= scale
 
+                # 5. Store new velocity
                 body.set_linear_velocity(vx, vy)
 
-                # Clear forces for next step
+                # 6. Clear forces for next step
                 body.clear_forces()
+            else:
+                # Zero acceleration for infinite mass bodies
+                body.set_linear_acceleration(0.0, 0.0)
 
             # Integrate velocity -> position
             vx, vy = body.linear_velocity
             body.x += vx * dt
             body.y += vy * dt
 
-            # Integrate angular velocity -> rotation
-            angular_vel = body.angular_velocity
-            body.roll += angular_vel * dt
+            # Integrate torque -> angular acceleration -> angular velocity -> rotation
+            if hasattr(body, 'torque') and hasattr(body, 'moment_of_inertia'):
+                torque = body.torque
+                moi = body.moment_of_inertia
+
+                if moi > 0:
+                    # Angular acceleration = Torque / Moment of Inertia
+                    angular_accel = torque / moi
+
+                    # Update angular velocity
+                    angular_vel = body.angular_velocity
+                    angular_vel += angular_accel * dt
+                    body.set_angular_velocity(angular_vel)
+
+                    # Update rotation
+                    body.roll += angular_vel * dt
+                else:
+                    # No moment of inertia - just update rotation from current velocity
+                    angular_vel = body.angular_velocity
+                    body.roll += angular_vel * dt
+            else:
+                # Fallback for bodies without torque support
+                angular_vel = body.angular_velocity
+                body.roll += angular_vel * dt
 
     def _update_sleep_state(self) -> None:
         """Update sleep state for bodies to optimize performance.
