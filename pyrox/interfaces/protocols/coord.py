@@ -8,6 +8,7 @@ from typing import (
 )
 
 T = TypeVar("T", bound=tuple[float, ...])
+BT = TypeVar("BT", bound=tuple[float, float, float, float], covariant=True)
 
 
 @runtime_checkable
@@ -113,7 +114,7 @@ class ICoord2D(
 
 @runtime_checkable
 class IArea2D(
-    Generic[T],
+    Generic[T, BT],
     ICoord2D[T],
     Protocol
 ):
@@ -245,6 +246,14 @@ class IArea2D(
         """
         ...
 
+    def get_bounds(self) -> BT:
+        """Get the bounding box as (left, top, right, bottom).
+
+        Returns:
+            tuple[float, float, float, float]: The bounding box.
+        """
+        ...
+
 
 @runtime_checkable
 class ICoord3D(
@@ -306,7 +315,7 @@ class ICoord3D(
 
 @runtime_checkable
 class IArea3D(
-    IArea2D[tuple],
+    IArea2D[tuple, tuple],
     ICoord3D,
     Protocol,
 ):
@@ -366,6 +375,14 @@ class IArea3D(
 
         Returns:
             tuple[float, float, float]: The center (x, y, z) coordinate.
+        """
+        ...
+
+    def get_bounds(self) -> tuple[float, float, float, float, float, float]:
+        """Get the bounding box as (left, top, front, right, bottom, back).
+
+        Returns:
+            tuple[float, float, float, float, float, float]: The bounding box.
         """
         ...
 

@@ -98,7 +98,7 @@ class ISceneObject(
         ...
 
     @abstractmethod
-    def update(self, delta_time: float) -> None:
+    def update(self, dt: float) -> None:
         """
         Update the scene object.
 

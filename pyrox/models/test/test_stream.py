@@ -9,7 +9,7 @@ import threading
 import unittest
 from unittest.mock import MagicMock, patch, call
 
-from pyrox.models.abc.stream import FileStream, SimpleStream, MultiStream
+from pyrox.models.stream import FileStream, SimpleStream, MultiStream
 
 
 class TestSimpleStream(unittest.TestCase):

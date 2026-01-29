@@ -3,7 +3,7 @@ import sys
 import unittest
 from unittest.mock import MagicMock, patch
 
-from pyrox.models.abc.factory import (
+from pyrox.models.factory import (
     FactoryTypeMeta,
     MetaFactory,
 )
@@ -79,7 +79,7 @@ class TestMetaFactory(unittest.TestCase):
         self.TestFactory._registered_types['TestClass'] = TestClass
 
         with patch.object(sys, 'modules', {'test_module': mock_module}):
-            with patch('pyrox.models.abc.factory.importlib.reload') as mock_reload:
+            with patch('pyrox.models.factory.importlib.reload') as mock_reload:
                 with patch.object(self.TestFactory, 'register_type') as mock_register:
                     # Mock reload to return the module (this is what importlib.reload actually does)
                     mock_reload.return_value = mock_module
@@ -101,7 +101,7 @@ class TestMetaFactory(unittest.TestCase):
         mock_module = types.ModuleType('test_module')
 
         with patch.object(sys, 'modules', {'test_module': mock_module}):
-            with patch('pyrox.models.abc.factory.importlib.reload') as mock_reload:  # Patch in the specific module
+            with patch('pyrox.models.factory.importlib.reload') as mock_reload:  # Patch in the specific module
                 with patch.object(self.TestFactory, '_get_class_from_module', return_value=None):
 
                     with self.assertRaises(ImportError) as context:
@@ -694,7 +694,7 @@ class TestIntegration(unittest.TestCase):
         mock_module.TestType = TestType  # type: ignore
 
         with patch.object(sys, 'modules', {'test_module': mock_module}):
-            with patch('pyrox.models.abc.factory.importlib.reload') as mock_reload:
+            with patch('pyrox.models.factory.importlib.reload') as mock_reload:
                 # Test getting by supporting class (which triggers reload)
                 result = self.TestFactory.get_registered_type_by_supporting_class('TestClass', True)
 

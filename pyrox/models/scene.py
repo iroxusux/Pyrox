@@ -6,6 +6,8 @@ from pathlib import Path
 from typing import Any, Dict, Optional, Type, Union
 from pyrox.interfaces import IScene, ISceneObject, ISceneObjectFactory
 from pyrox.models import CoreMixin, Spatial2D
+from pyrox.models.protocols.physics import PhysicsBody2D, Material
+from pyrox.interfaces.protocols.physics import BodyType, ColliderType, CollisionLayer
 
 
 class SceneObject(
@@ -125,7 +127,7 @@ class SceneObject(
         )
         return scene_object
 
-    def update(self, delta_time: float) -> None:
+    def update(self, dt: float) -> None:
         """
         Update the scene object.
 
@@ -133,6 +135,165 @@ class SceneObject(
             delta_time: Time elapsed since last update in seconds
         """
         pass
+
+
+class PhysicsSceneObject(
+        SceneObject,
+        PhysicsBody2D,
+):
+    """Scene object with physics simulation capabilities.
+
+    Combines SceneObject with PhysicsMixin to create objects that can be
+    simulated in a physics engine with collision detection, forces, and
+    material properties.
+    """
+
+    def __init__(
+        self,
+        id: str,
+        name: str,
+        scene_object_type: str,
+        description: str = "",
+        properties: Optional[Dict] = None,
+        x: float = 0.0,
+        y: float = 0.0,
+        width: float = 10.0,
+        height: float = 10.0,
+        roll: float = 0.0,
+        pitch: float = 0.0,
+        yaw: float = 0.0,
+        # Physics parameters
+        body_type: BodyType = BodyType.DYNAMIC,
+        mass: float = 1.0,
+        material: Material | None = None,
+        collider_type: ColliderType = ColliderType.RECTANGLE,
+        collision_layer: CollisionLayer = CollisionLayer.DEFAULT,
+        collision_mask: list[CollisionLayer] | None = None,
+        is_trigger: bool = False,
+    ):
+        """Initialize physics scene object.
+
+        Args:
+            id: Unique identifier
+            name: Object name
+            scene_object_type: Type classification
+            description: Object description
+            properties: Additional properties dictionary
+            x, y: Position coordinates
+            width, height: Size dimensions
+            roll, pitch, yaw: Rotation angles
+            body_type: Physics body type (static, dynamic, kinematic)
+            mass: Mass in kilograms
+            material: Material properties (creates default if None)
+            collider_type: Collision shape type
+            collision_layer: Which layer this object is on
+            collision_mask: Which layers this object collides with
+            is_trigger: Whether this is a trigger (no physics response)
+        """
+        # Initiialize SceneObject first
+        SceneObject.__init__(
+            self,
+            id=id,
+            name=name,
+            scene_object_type=scene_object_type,
+            description=description,
+            properties=properties,
+            x=x,
+            y=y,
+            width=width,
+            height=height,
+            roll=roll,
+            pitch=pitch,
+            yaw=yaw
+        )
+
+        # Initialize PhysicsMixin
+        PhysicsBody2D.__init__(
+            self,
+            x=x,
+            y=y,
+            width=width,
+            height=height,
+            roll=roll,
+            pitch=pitch,
+            yaw=yaw,
+            body_type=body_type,
+            mass=mass,
+            material=material,
+            collider_type=collider_type,
+            collision_layer=collision_layer,
+            collision_mask=collision_mask,
+            is_trigger=is_trigger,
+        )
+
+        # Store additional scene object attributes
+        self._scene_object_type = scene_object_type
+        self._properties: Dict[str, Any] = properties if properties is not None else dict()
+
+    def to_dict(self) -> dict:
+        """Convert scene object to dictionary for JSON serialization."""
+        return {
+            "id": self.id,
+            "name": self.name,
+            "scene_object_type": self._scene_object_type,
+            "description": self.description,
+            "properties": self._properties,
+            "x": self.x,
+            "y": self.y,
+            "width": self.width,
+            "height": self.height,
+            "roll": self.roll,
+            "pitch": self.pitch,
+            "yaw": self.yaw,
+            # Physics properties
+            "body_type": self.body_type.name,
+            "mass": self.mass,
+            "collider_type": self._collider._collider_type.name,
+            "collision_layer": self.collision_layer.name,
+            "is_trigger": self.is_trigger,
+            # Material properties
+            "density": self.density,
+            "restitution": self.restitution,
+            "friction": self.friction,
+            "drag": self.drag,
+        }
+
+    @classmethod
+    def from_dict(cls, data: dict) -> "PhysicsSceneObject":
+        """Create physics scene object from dictionary."""
+        # Parse enum values
+        body_type = BodyType[data.get("body_type", "DYNAMIC")]
+        collider_type = ColliderType[data.get("collider_type", "RECTANGLE")]
+        collision_layer = CollisionLayer[data.get("collision_layer", "DEFAULT")]
+
+        # Create material
+        material = Material(
+            density=data.get("density", 1.0),
+            restitution=data.get("restitution", 0.3),
+            friction=data.get("friction", 0.5),
+            drag=data.get("drag", 0.1),
+        )
+
+        return cls(
+            id=data["id"],
+            name=data["name"],
+            scene_object_type=data["scene_object_type"],
+            description=data.get("description", ""),
+            properties=data.get("properties", {}),
+            x=data.get("x", 0.0),
+            y=data.get("y", 0.0),
+            width=data.get("width", 10.0),
+            height=data.get("height", 10.0),
+            roll=data.get("roll", 0.0),
+            pitch=data.get("pitch", 0.0),
+            yaw=data.get("yaw", 0.0),
+            body_type=body_type,
+            mass=data.get("mass", 1.0),
+            material=material,
+            collider_type=collider_type,
+            collision_layer=collision_layer,
+            is_trigger=data.get("is_trigger", False),
+        )
 
 
 class SceneObjectFactory(ISceneObjectFactory):

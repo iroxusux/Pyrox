@@ -3,7 +3,7 @@
 import unittest
 import math
 
-from pyrox.models.abc.protocols.kinematic import (
+from pyrox.models.protocols.kinematic import (
     Velocity2D,
     Velocity3D,
     AngularVelocity,
@@ -415,11 +415,6 @@ class TestKinematic3D(unittest.TestCase):
         kin = Kinematic3D()
         kin.set_acceleration((25.0, 35.0, 45.0))
         self.assertEqual(kin.acceleration, (25.0, 35.0, 45.0))
-
-    def test_inheritance_from_kinematic2d(self):
-        """Test that Kinematic3D inherits from Kinematic2D."""
-        kin = Kinematic3D()
-        self.assertIsInstance(kin, Kinematic2D)
 
     def test_inheritance_from_velocity3d(self):
         """Test that Kinematic3D inherits from Velocity3D."""

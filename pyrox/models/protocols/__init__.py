@@ -32,6 +32,14 @@ from .spatial import (
     Rotatable,
 )
 
+# Physics imports for physics simulation
+from .physics import (
+    Material,
+    Collider2D,
+    RigidBody2D,
+    PhysicsBody2D,
+)
+
 __all__ = [
     # Meta protocols
     "Configurable",
@@ -60,4 +68,10 @@ __all__ = [
     "Spatial2D",
     "Spatial3D",
     "Rotatable",
+
+    # Physics implementations
+    "Material",
+    "Collider2D",
+    "RigidBody2D",
+    "PhysicsBody2D",
 ]

@@ -3,8 +3,8 @@
 import unittest
 from unittest.mock import MagicMock
 
-from pyrox.models.abc.protocols import Buildable, Runnable
-from pyrox.models.abc.runtime import RuntimeDict
+from pyrox.models.protocols import Buildable, Runnable
+from pyrox.models.runtime import RuntimeDict
 
 
 class TestBuildable(unittest.TestCase):

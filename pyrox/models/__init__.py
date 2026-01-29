@@ -1,8 +1,7 @@
 """models for pyrox"""
-from . import abc  # Must come first to register ABCs
 
 # ABCs, protocols and base classes
-from .abc import (
+from .protocols import (
     # Protocol components
     # Meta components
     Configurable,
@@ -26,15 +25,23 @@ from .abc import (
     Spatial2D,
     Spatial3D,
     Rotatable,
+)
 
-    FactoryTypeMeta,
-    HashList,
-    MetaFactory,
+from .meta import (
     PyroxObject,
-    SafeList,
-    Subscribable,
     SupportsFileLocation,
     SupportsMetaData,
+)
+
+from .list import (
+    HashList,
+    SafeList,
+    Subscribable,
+)
+
+from .factory import (
+    FactoryTypeMeta,
+    MetaFactory,
 )
 
 from . import gui  # Must come second to register GUI components
@@ -61,7 +68,10 @@ from .services import (
 from .task import ApplicationTask, ApplicationTaskFactory
 
 # Scene components
-from .scene import Scene, SceneObject, SceneObjectFactory
+from .scene import Scene, SceneObject, SceneObjectFactory, PhysicsSceneObject
+
+# Physics components from protocols
+from .protocols.physics import Material, Collider2D, RigidBody2D, PhysicsBody2D
 
 
 __all__ = [
@@ -90,15 +100,19 @@ __all__ = [
     'Spatial3D',
     'Rotatable',
 
-    'abc',
-    'FactoryTypeMeta',
-    'HashList',
-    'MetaFactory',
+    # Base classes
     'PyroxObject',
-    'SafeList',
-    'Subscribable',
     'SupportsFileLocation',
     'SupportsMetaData',
+
+    # Factory components
+    'FactoryTypeMeta',
+    'MetaFactory',
+
+    # List components
+    'HashList',
+    'SafeList',
+    'Subscribable',
 
     # GUI components
     'gui',
@@ -122,4 +136,11 @@ __all__ = [
     'Scene',
     'SceneObject',
     'SceneObjectFactory',
+    'PhysicsSceneObject',
+
+    # Physics components
+    'Material',
+    'Collider2D',
+    'RigidBody2D',
+    'PhysicsBody2D',
 ]

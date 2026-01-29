@@ -2,7 +2,7 @@
 
 import unittest
 
-from pyrox.models.abc.network import Ipv4Address
+from pyrox.models.network import Ipv4Address
 
 
 class TestIpv4Address(unittest.TestCase):

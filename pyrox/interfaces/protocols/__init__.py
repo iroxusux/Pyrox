@@ -44,6 +44,20 @@ from .kinematic import (
     IKinematic3D,
 )
 
+# Physics imports for protocols that support physical objects.
+from .physics import (
+    BodyType,
+    ColliderType,
+    CollisionLayer,
+    IMaterial,
+    ICollider2D,
+    ICollider3D,
+    IPhysicsBody2D,
+    IRigidBody2D,
+    IRigidBody3D,
+    IPhysicsEngine,
+)
+
 __all__ = [
     # Meta protocols
     "IAuthored",
@@ -79,4 +93,16 @@ __all__ = [
     "IAngularVelocity",
     "IKinematic2D",
     "IKinematic3D",
+
+    # Physics protocols
+    "BodyType",
+    "ColliderType",
+    "CollisionLayer",
+    "IMaterial",
+    "ICollider2D",
+    "ICollider3D",
+    "IRigidBody2D",
+    "IRigidBody3D",
+    "IPhysicsBody2D",
+    "IPhysicsEngine",
 ]

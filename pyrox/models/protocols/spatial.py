@@ -1,6 +1,6 @@
 """Spacial object protocols that extend coordinate protocols.
 """
-from pyrox.models.abc.protocols.coord import Area2D, Area3D
+from pyrox.models.protocols.coord import Area2D, Area3D
 from pyrox.interfaces import IRotatable, ISpatial2D, ISpatial3D
 
 
