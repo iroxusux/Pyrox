@@ -52,6 +52,7 @@ from .protocols import (
     ISpatial2D,
     ISpatial3D,
     IRotatable,
+    IZoomable,
 
     # Kinematic imports for protocols that support kinematic objects.
     IVelocity2D,
@@ -118,6 +119,7 @@ from .gui import (
     IGuiWidget,
     IGuiWindow,
     IWorkspace,
+    IViewport,
 )
 
 # Scene interfaces
@@ -154,6 +156,7 @@ __all__ = (
     'ISpatial2D',
     'ISpatial3D',
     'IRotatable',
+    'IZoomable',
     # Kinematic protocols
     'IVelocity2D',
     'IVelocity3D',
@@ -184,6 +187,7 @@ __all__ = (
     'IGuiComponent',
     'IApplicationGuiMenu',
     'IWorkspace',
+    'IViewport',
 
     # Service Interfaces
     'IEnvironmentManager',

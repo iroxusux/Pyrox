@@ -30,6 +30,7 @@ from .spatial import (
     Spatial2D,
     Spatial3D,
     Rotatable,
+    Zoomable,
 )
 
 # Physics imports for physics simulation
@@ -68,6 +69,7 @@ __all__ = [
     "Spatial2D",
     "Spatial3D",
     "Rotatable",
+    "Zoomable",
 
     # Physics implementations
     "Material",

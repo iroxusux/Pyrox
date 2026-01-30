@@ -25,6 +25,7 @@ from .protocols import (
     Spatial2D,
     Spatial3D,
     Rotatable,
+    Zoomable,
 )
 
 from .meta import (
@@ -99,6 +100,7 @@ __all__ = [
     'Spatial2D',
     'Spatial3D',
     'Rotatable',
+    'Zoomable',
 
     # Base classes
     'PyroxObject',

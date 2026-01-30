@@ -98,6 +98,31 @@ class IRotatable(
 
 
 @runtime_checkable
+class IZoomable(
+    Protocol
+):
+    """Protocol for zoomable spatial objects."""
+
+    @property
+    def zoom(self) -> float:
+        """Get the zoom level of the spatial object."""
+        return self.get_zoom()
+
+    @zoom.setter
+    def zoom(self, zoom: float) -> None:
+        """Set the zoom level of the spatial object."""
+        self.set_zoom(zoom)
+
+    def get_zoom(self) -> float:
+        """Get the zoom level of the spatial object."""
+        ...
+
+    def set_zoom(self, zoom: float) -> None:
+        """Set the zoom level of the spatial object."""
+        ...
+
+
+@runtime_checkable
 class ISpatial2D(
     IArea2D,
     IRotatable,
@@ -116,5 +141,6 @@ class ISpatial3D(
 __all__ = [
     "ISpatial2D",
     "ISpatial3D",
-    "IRotatable"
+    "IRotatable",
+    "IZoomable",
 ]

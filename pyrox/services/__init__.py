@@ -46,6 +46,9 @@ from .physics import PhysicsEngineService
 # Scene imports
 from .scene import SceneRunnerService
 
+# Viewport imports
+from .viewport import ViewportPanningService
+
 # Other service imports
 from . import (
     archive,
@@ -98,6 +101,8 @@ __all__ = (
     'PhysicsEngineService',
     # Scene imports
     'SceneRunnerService',
+    # Viewport imports
+    'ViewportPanningService',
     # Other service imports
     'archive',
     'bit',
