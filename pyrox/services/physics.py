@@ -273,7 +273,7 @@ class PhysicsEngineService(IPhysicsEngine):
 
                 # 5. Apply velocity threshold to prevent infinite asymptotic decay
                 # If velocity is very small, snap to zero
-                velocity_threshold = 0.001  # 1 mm/s
+                velocity_threshold = 0.1  # 1 mm/s
                 if abs(vx) < velocity_threshold:
                     vx = 0.0
                 if abs(vy) < velocity_threshold:

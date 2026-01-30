@@ -60,6 +60,7 @@ class ExampleTask(models.ApplicationTask):
             scene=s
         )
         self.application.workspace.register_frame(scene_viewer)
+        scene_viewer.on_destroy().append(lambda *_, **__: runner.stop())
 
         # Register runner callback to update scene viewer
         runner.on_tick_callbacks.append(scene_viewer.render_scene)

@@ -104,8 +104,13 @@ class SceneRunnerService:
             self.physics_engine.step(time_delta)
 
         # Call on-tick callbacks
-        for callback in self._on_tick_callbacks:
-            callback()
+        for callback in self._on_tick_callbacks.copy():
+            try:
+                callback()
+            except Exception as e:
+                # Log error but continue
+                print(f"Error in on-tick callback: {e}")
+                self._on_tick_callbacks.remove(callback)
 
         # Schedule scene update on the main thread
         self._event_id = GuiManager.unsafe_get_backend().schedule_event(
