@@ -16,11 +16,14 @@ from .logging import (  # MUST COME SECOND, logging must be configured before ot
     LoggingManager
 )
 
+# Id imports
+from .id import IdGeneratorService
+
 # Theme imports
-from .theme import ThemeManager  # MUST COME THIRD, theme may be needed by gui on initialization
+from .theme import ThemeManager
 
 # GUI imports
-from .gui import GuiManager  # MUST COME FOURTH, gui imports sub-systems which on some systems needs to be loaded early
+from .gui import GuiManager
 
 # File imports
 from .file import (
@@ -77,6 +80,8 @@ __all__ = (
     # Logging imports
     'log',
     'LoggingManager',
+    # Id imports
+    'IdGeneratorService',
     # Theme imports
     'ThemeManager',
     # GUI imports

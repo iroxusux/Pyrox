@@ -274,15 +274,14 @@ class Application(
 
         This method changes the cursor to a busy state, indicating that the application is processing.
         """
-
-        self.backend.update_cursor(meta.TK_CURSORS.WAIT.value)
+        self.backend.update_cursor('wait')
 
     def set_app_state_normal(self) -> None:
         """Set the application state to normal.
 
         This method changes the cursor back to normal, indicating that the application is ready for user interaction.
         """
-        self.backend.update_cursor(meta.TK_CURSORS.DEFAULT.value)
+        self.backend.update_cursor('')
 
     def run(self) -> int:
         """Start the application."""
