@@ -248,7 +248,7 @@ class PhysicsSceneObject(
             # Physics properties
             "body_type": self.body_type.name,
             "mass": self.mass,
-            "collider_type": self._collider._collider_type.name,
+            "collider_type": self.collider.collider_type.name,
             "collision_layer": self.collision_layer.name,
             "is_trigger": self.is_trigger,
             # Material properties
@@ -294,6 +294,42 @@ class PhysicsSceneObject(
             collision_layer=collision_layer,
             is_trigger=data.get("is_trigger", False),
         )
+
+    def _compile_properties(self) -> None:
+        """Compile properties for physics simulation."""
+        self._properties = {
+            # Scene object properties
+            "id": self.id,
+            "name": self.name,
+            "description": self.description,
+            "scene_object_type": self._scene_object_type,
+            "x": self.x,
+            "y": self.y,
+            "width": self.width,
+            "height": self.height,
+            "roll": self.roll,
+            "pitch": self.pitch,
+            "yaw": self.yaw,
+            # Kinematic properties
+            "velocity_x": self.velocity_x,
+            "velocity_y": self.velocity_y,
+            "acceleration_x": self.acceleration_x,
+            "acceleration_y": self.acceleration_y,
+            # Physics properties
+            "body_type": self.body_type.name,
+            "mass": self.mass,
+            "collider_type": self.collider.collider_type.name,
+            "collision_layer": self.collision_layer.name,
+            "is_trigger": self.is_trigger,
+            "density": self.density,
+            "restitution": self.restitution,
+            "friction": self.friction,
+            "drag": self.drag,
+        }
+
+    def get_properties(self) -> Dict:
+        self._compile_properties()
+        return super().get_properties()
 
 
 class SceneObjectFactory(ISceneObjectFactory):

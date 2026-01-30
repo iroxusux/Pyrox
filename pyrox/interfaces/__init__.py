@@ -70,6 +70,9 @@ from .protocols import (
     IRigidBody2D,
     IRigidBody3D,
     IPhysicsEngine,
+
+    # Property imports for protocols that support properties.
+    IHasProperties,
 )
 
 # Service interfaces
@@ -167,6 +170,8 @@ __all__ = (
     'IRigidBody2D',
     'IRigidBody3D',
     'IPhysicsEngine',
+    # Property protocols
+    'IHasProperties',
 
     # GUI Interfaces
     'GuiFramework',

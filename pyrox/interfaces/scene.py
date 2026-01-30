@@ -50,6 +50,28 @@ class ISceneObject(
         """
         self.set_scene_object_type(scene_object_type)
 
+    def get_property(self, name: str) -> object:
+        """Get a property by name.
+
+        Args:
+            name (str): The name of the property.
+
+        Returns:
+            object: The value of the property.
+        """
+        return self.get_properties().get(name)
+
+    def set_property(self, name: str, value: object) -> None:
+        """Set a property by name.
+
+        Args:
+            name (str): The name of the property.
+            value (object): The value to set the property to.
+        """
+        props = self.get_properties()
+        props[name] = value
+        self.set_properties(props)
+
     @abstractmethod
     def get_properties(self) -> dict:
         """Get the properties of the scene object.

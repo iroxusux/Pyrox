@@ -58,6 +58,11 @@ from .physics import (
     IPhysicsEngine,
 )
 
+# Property imports for protocols that support properties.
+from .property import (
+    IHasProperties,
+)
+
 __all__ = [
     # Meta protocols
     "IAuthored",
@@ -105,4 +110,7 @@ __all__ = [
     "IRigidBody3D",
     "IPhysicsBody2D",
     "IPhysicsEngine",
+
+    # Property protocols
+    "IHasProperties",
 ]
