@@ -26,6 +26,13 @@ class IViewport(
         pass
 
     @abstractmethod
+    def reset(
+        self
+    ) -> None:
+        """Reset the viewport to its default state."""
+        pass
+
+    @abstractmethod
     def update(
         self,
         other: 'IViewport'

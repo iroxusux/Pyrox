@@ -15,7 +15,12 @@ from pyrox.interfaces import (
 from pyrox.models.gui.tk.frame import TkinterTaskFrame
 from pyrox.models.gui import TkPropertyPanel
 from pyrox.models.protocols import Area2D, Zoomable
-from pyrox.services import log, ViewportPanningService
+from pyrox.services import (
+    log,
+    ViewportPanningService,
+    ViewportZoomingService,
+    ViewportGriddingService
+)
 
 
 class SceneViewerViewPort(
@@ -68,6 +73,14 @@ class SceneViewerViewPort(
         delta_y = other.y - self.y
         delta_zoom = other.zoom - self.zoom
         return (delta_x, delta_y, delta_zoom)
+
+    def reset(
+        self
+    ) -> None:
+        """Reset the viewport to default state."""
+        self.x = 0.0
+        self.y = 0.0
+        self.zoom = 1.0
 
     def update(
         self,
@@ -133,12 +146,15 @@ class SceneViewerFrame(TkinterTaskFrame):
             viewport=self._viewport
         )
         self._viewport_panning_service.on_pan_callbacks.append(self._update_viewport)
-
-        # Grid configuration
-        self._grid_enabled: bool = True
-        self._grid_size: int = 50  # Grid spacing in scene units
-        self._grid_color: str = "#505050"
-        self._grid_line_width: int = 1
+        self._viewport_zooming_service = ViewportZoomingService(
+            canvas=None,
+            viewport=self._viewport
+        )
+        self._viewport_zooming_service.on_zoom_callbacks.append(self._update_viewport)
+        self._viewport_gridding_service = ViewportGriddingService(
+            canvas=None,
+            viewport=self._viewport
+        )
 
         # Selection state
         self._selected_objects: set[str] = set()  # Set of selected object IDs
@@ -187,7 +203,7 @@ class SceneViewerFrame(TkinterTaskFrame):
             self._toolbar,
             text="+",
             width=3,
-            command=self.zoom_in
+            command=self._viewport_zooming_service.zoom_in
         )
         self._zoom_in_btn.pack(side=tk.LEFT, padx=2)
 
@@ -195,7 +211,7 @@ class SceneViewerFrame(TkinterTaskFrame):
             self._toolbar,
             text="-",
             width=3,
-            command=self.zoom_out
+            command=self._viewport_zooming_service.zoom_out
         )
         self._zoom_out_btn.pack(side=tk.LEFT, padx=2)
 
@@ -217,7 +233,7 @@ class SceneViewerFrame(TkinterTaskFrame):
         ttk.Separator(self._toolbar, orient=tk.VERTICAL).pack(side=tk.LEFT, fill=tk.Y, padx=10)
 
         # Grid toggle
-        self._grid_var = tk.BooleanVar(value=self._grid_enabled)
+        self._grid_var = tk.BooleanVar(value=self._viewport_gridding_service.enabled)
         self._grid_toggle = ttk.Checkbutton(
             self._toolbar,
             text="Show Grid",
@@ -389,8 +405,8 @@ class SceneViewerFrame(TkinterTaskFrame):
     def _bind_events(self) -> None:
         """Bind mouse and keyboard events for interaction."""
         self._viewport_panning_service.set_canvas(self._canvas)
-        # Zoom with mouse wheel
-        self._canvas.bind("<MouseWheel>", self._on_mouse_wheel)
+        self._viewport_zooming_service.set_canvas(self._canvas)
+        self._viewport_gridding_service.set_canvas(self._canvas)
 
         # Left mouse button - context-dependent (select, draw, or drag)
         self._canvas.bind("<ButtonPress-1>", self._on_left_click)
@@ -404,48 +420,6 @@ class SceneViewerFrame(TkinterTaskFrame):
         self._canvas.bind("<Escape>", lambda e: self.clear_selection())
 
         # TODO: Add keyboard shortcuts (Ctrl+Z undo, Ctrl+D duplicate, etc.)
-
-    # def _on_pan_start(self, event: tk.Event) -> None:
-    #     """Handle pan gesture start."""
-    #     self._is_panning = True
-    #     self._pan_start_x = event.x
-    #     self._pan_start_y = event.y
-    #     self._canvas.config(cursor="fleur")
-
-    # def _on_pan_drag(self, event: tk.Event) -> None:
-    #     """Handle pan gesture dragging."""
-    #     if not self._is_panning or self._pan_start_x is None or self._pan_start_y is None:
-    #         return
-
-    #     dx = event.x - self._pan_start_x
-    #     dy = event.y - self._pan_start_y
-
-    #     self.viewport.x += dx
-    #     self.viewport.y += dy
-
-    #     self._pan_start_x = event.x
-    #     self._pan_start_y = event.y
-
-    #     self._update_viewport()
-
-    # def _on_pan_end(self, event: tk.Event) -> None:
-    #     """Handle pan gesture end."""
-    #     self._is_panning = False
-    #     self._pan_start_x = None
-    #     self._pan_start_y = None
-    #     self._canvas.config(cursor="")
-
-    def _on_mouse_wheel(self, event: tk.Event) -> None:
-        """Handle mouse wheel for zooming."""
-        # Get mouse position for zoom center
-        mouse_x = event.x
-        mouse_y = event.y
-
-        # Determine zoom direction
-        if event.delta > 0:
-            self.zoom_in(center_x=mouse_x, center_y=mouse_y)
-        else:
-            self.zoom_out(center_x=mouse_x, center_y=mouse_y)
 
     def _on_tool_change(self) -> None:
         """Handle tool selection change."""
@@ -578,7 +552,7 @@ class SceneViewerFrame(TkinterTaskFrame):
         self._drag_start_y = event.y
 
         # Redraw scene
-        self._full_redraw()
+        self.render_scene()
 
     def _on_drag_end(self, event: tk.Event) -> None:
         """Handle end of drag operation.
@@ -754,7 +728,7 @@ class SceneViewerFrame(TkinterTaskFrame):
                 raise TypeError("Factory did not return a valid ISceneObject")
 
             self.scene.add_scene_object(scene_obj)
-            self._full_redraw()
+            self.render_scene()
 
             log(self).info(f"Created {shape} object: {obj_id}")
         except Exception as e:
@@ -794,81 +768,16 @@ class SceneViewerFrame(TkinterTaskFrame):
         self.clear_selection()
 
         # Redraw
-        self._full_redraw()
+        self.render_scene()
 
         log(self).info(f"Deleted {len(to_delete)} object(s)")
 
-    def zoom_in(
-        self,
-        factor: float = 1.2,
-        center_x: Optional[int] = None,
-        center_y: Optional[int] = None
-    ) -> None:
-        """Zoom in on the canvas.
-
-        Args:
-            factor: Zoom multiplication factor
-            center_x: X coordinate to zoom toward (canvas coordinates)
-            center_y: Y coordinate to zoom toward (canvas coordinates)
-        """
-        new_zoom = min(self.viewport.zoom * factor, self.viewport.max_zoom)
-        self._apply_zoom(new_zoom, center_x, center_y)
-
-    def zoom_out(
-        self,
-        factor: float = 1.2,
-        center_x: Optional[int] = None,
-        center_y: Optional[int] = None
-    ) -> None:
-        """Zoom out on the canvas.
-
-        Args:
-            factor: Zoom division factor
-            center_x: X coordinate to zoom from (canvas coordinates)
-            center_y: Y coordinate to zoom from (canvas coordinates)
-        """
-        new_zoom = max(self.viewport.zoom / factor, self.viewport.min_zoom)
-        self._apply_zoom(new_zoom, center_x, center_y)
-
-    def _apply_zoom(
-        self,
-        new_zoom: float,
-        center_x: Optional[int] = None,
-        center_y: Optional[int] = None
-    ) -> None:
-        """Apply zoom level change.
-
-        Args:
-            new_zoom: New zoom level
-            center_x: X coordinate for zoom center
-            center_y: Y coordinate for zoom center
-        """
-        if new_zoom == self.viewport.zoom:
-            return
-
-        # If no center specified, use canvas center
-        if center_x is None or center_y is None:
-            center_x = self._canvas.winfo_width() // 2
-            center_y = self._canvas.winfo_height() // 2
-
-        # Adjust viewport to zoom toward the center point
-        zoom_ratio = new_zoom / self.viewport.zoom
-        self.viewport.x = center_x - (center_x - self.viewport.x) * zoom_ratio
-        self.viewport.y = center_y - (center_y - self.viewport.y) * zoom_ratio
-
-        self.viewport.zoom = new_zoom
-        self._zoom_label.config(text=f"{int(self.viewport.zoom * 100)}%")
-
-        self._update_viewport()
-
     def reset_view(self) -> None:
         """Reset viewport to default position and zoom."""
-        self.viewport.x = 0.0
-        self.viewport.y = 0.0
-        self.viewport.zoom = 1.0
-        self.last_viewport.update(self.viewport)
+        self.viewport.reset()
+        self.last_viewport.reset()
         self._zoom_label.config(text="100%")
-        self._full_redraw()
+        self.render_scene()
 
     def _update_viewport(self) -> None:
         """Update all canvas objects to reflect viewport changes.
@@ -911,14 +820,6 @@ class SceneViewerFrame(TkinterTaskFrame):
 
         # TODO: Implement viewport culling for large scenes
 
-    def _full_redraw(self) -> None:
-        """Force a complete redraw of the scene.
-
-        Use this when the scene contents have changed, not for viewport updates.
-        """
-        self._canvas.delete("all")
-        self.render_scene()
-
     def set_scene(self, scene: IScene) -> None:
         """Set the scene to be displayed.
 
@@ -929,7 +830,7 @@ class SceneViewerFrame(TkinterTaskFrame):
         self._canvas_objects.clear()
         # Reset viewport state when setting new scene
         self.last_viewport.update(self.viewport)
-        self._full_redraw()
+        self.render_scene()
 
     def get_scene(self) -> Optional[IScene]:
         """Get the currently displayed scene.
@@ -945,7 +846,8 @@ class SceneViewerFrame(TkinterTaskFrame):
             return
 
         self.clear_canvas()
-        self.render_grid()
+        self._viewport_gridding_service.render()
+        # self.render_grid()
         self.render_scene_objects()
 
         # Update property panel values (if visible) without rebuilding widgets
@@ -1046,61 +948,10 @@ class SceneViewerFrame(TkinterTaskFrame):
                 tags=("scene_object_label", obj_id)
             )
 
-    def render_grid(self) -> None:
-        """Public method to render grid overlay."""
-        if self._grid_enabled:
-            self._render_grid()
-
-    def _render_grid(self) -> None:
-        """Render grid overlay on the canvas."""
-        canvas_width = self._canvas.winfo_width()
-        canvas_height = self._canvas.winfo_height()
-
-        if canvas_width <= 1 or canvas_height <= 1:
-            # Canvas not yet rendered or minimized
-            return
-
-        # Calculate grid spacing in canvas coordinates
-        grid_spacing = self._grid_size * self.viewport.zoom
-
-        # Don't render grid if it's too dense (less than 5 pixels)
-        if grid_spacing < 5:
-            return
-
-        # Calculate starting positions based on viewport offset
-        # We want the grid to align with scene coordinates (0,0)
-        start_x = self.viewport.x % grid_spacing
-        start_y = self.viewport.y % grid_spacing
-
-        # Draw vertical lines
-        x = start_x
-        while x < canvas_width:
-            self._canvas.create_line(
-                x, 0, x, canvas_height,
-                fill=self._grid_color,
-                width=self._grid_line_width,
-                tags="grid"
-            )
-            x += grid_spacing
-
-        # Draw horizontal lines
-        y = start_y
-        while y < canvas_height:
-            self._canvas.create_line(
-                0, y, canvas_width, y,
-                fill=self._grid_color,
-                width=self._grid_line_width,
-                tags="grid"
-            )
-            y += grid_spacing
-
-        # Lower grid to background
-        self._canvas.tag_lower("grid")
-
     def toggle_grid(self) -> None:
         """Toggle grid visibility."""
-        self._grid_enabled = self._grid_var.get()
-        self._full_redraw()
+        self._viewport_gridding_service.toggle()
+        self.render_scene()
 
     def set_grid_size(self, size: int) -> None:
         """Set the grid spacing size.
@@ -1113,8 +964,8 @@ class SceneViewerFrame(TkinterTaskFrame):
             return
 
         self._grid_size = size
-        if self._grid_enabled:
-            self._full_redraw()
+        if self.render_scene:
+            self.render_scene()
 
     def select_object(self, obj_id: str, clear_previous: bool = False) -> None:
         """Select a scene object.
@@ -1545,7 +1396,7 @@ class SceneViewerFrame(TkinterTaskFrame):
         self._scene.add_scene_object(scene_obj)
 
         # Redraw
-        self._full_redraw()
+        self.render_scene()
 
         # Select the new object
         self.clear_selection()
@@ -1700,7 +1551,7 @@ class SceneViewerFrame(TkinterTaskFrame):
             new_value: New value for the property
         """
         # Redraw the scene to reflect the property change
-        self._full_redraw()
+        self.render_scene()
         log(self).info(f"Property '{property_name}' changed to: {new_value}")
 
 
