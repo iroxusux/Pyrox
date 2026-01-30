@@ -202,14 +202,26 @@ class PhysicsEngineService(IPhysicsEngine):
             # Apply gravity
             body.apply_force(gx * body.mass, gy * body.mass)
 
-            # Apply drag
+            # Apply drag (with clamping to prevent velocity reversal)
             vx, vy = body.linear_velocity
             drag_coef = body.material.drag
-            area = 1.0  # Default area, should be calculated from shape
-
             area = body.width * body.height
 
             drag_x, drag_y = self._environment.apply_drag_force((vx, vy), drag_coef, area)
+
+            # CRITICAL: Clamp drag force to prevent overcorrection
+            # Drag should never reverse velocity direction in a single timestep
+            # Maximum drag impulse = mass * velocity (to bring to zero)
+            if body.inverse_mass > 0:  # Only clamp for finite mass
+                max_impulse_x = abs(body.mass * vx / dt) if dt > 0 else float('inf')
+                max_impulse_y = abs(body.mass * vy / dt) if dt > 0 else float('inf')
+
+                # Clamp drag force magnitude per axis
+                if abs(drag_x) > max_impulse_x:
+                    drag_x = -max_impulse_x if vx > 0 else max_impulse_x
+                if abs(drag_y) > max_impulse_y:
+                    drag_y = -max_impulse_y if vy > 0 else max_impulse_y
+
             body.apply_force(drag_x, drag_y)
 
     def _integrate(self, dt: float) -> None:
@@ -259,14 +271,26 @@ class PhysicsEngineService(IPhysicsEngine):
                     vx *= scale
                     vy *= scale
 
-                # 5. Store new velocity
+                # 5. Apply velocity threshold to prevent infinite asymptotic decay
+                # If velocity is very small, snap to zero
+                velocity_threshold = 0.001  # 1 mm/s
+                if abs(vx) < velocity_threshold:
+                    vx = 0.0
+                if abs(vy) < velocity_threshold:
+                    vy = 0.0
+
+                # 6. Store new velocity
                 body.set_linear_velocity(vx, vy)
 
-                # 6. Clear forces for next step
+                # 7. Clear forces for next step
                 body.clear_forces()
             else:
                 # Zero acceleration for infinite mass bodies
                 body.set_linear_acceleration(0.0, 0.0)
+                # IMPORTANT: Clear forces even when mass is 0 to prevent accumulation
+                # If forces aren't cleared, they accumulate and cause massive spikes
+                # when mass changes from 0 to non-zero
+                body.clear_forces()
 
             # Integrate velocity -> position
             vx, vy = body.linear_velocity

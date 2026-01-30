@@ -130,7 +130,7 @@ class SceneViewerFrame(TkinterTaskFrame):
         self._is_panning: bool = False
 
         # Grid configuration
-        self._grid_enabled: bool = False
+        self._grid_enabled: bool = True
         self._grid_size: int = 50  # Grid spacing in scene units
         self._grid_color: str = "#505050"
         self._grid_line_width: int = 1
@@ -884,6 +884,10 @@ class SceneViewerFrame(TkinterTaskFrame):
         self.render_grid()
         self.render_scene_objects()
 
+        # Update property panel values (if visible) without rebuilding widgets
+        if self._properties_panel_visible and self._properties_panel:
+            self.properties_panel.update_values()
+
         # Initialize previous state to current after initial render
         self.last_viewport.update(self.viewport)
 
@@ -1256,16 +1260,19 @@ class SceneViewerFrame(TkinterTaskFrame):
     def toggle_properties_panel(self) -> None:
         """Toggle the visibility of the properties panel."""
         self._properties_panel_visible = self._properties_var.get()
+        panes = list(self._paned_window.panes())
 
         if self._properties_panel_visible:
             # Show properties panel in the paned window
             # Check if it's already added to avoid errors
-            if self.properties_panel not in self._paned_window.panes():
+            if str(self.properties_panel) not in panes:
+                self.properties_panel.master = self._paned_window
                 self._paned_window.add(self.properties_panel, weight=0)
             self._update_properties_panel()
         else:
             # Hide properties panel by removing from paned window
-            if self.properties_panel in self._paned_window.panes():
+            if str(self.properties_panel) in panes:
+                self.properties_panel.pack_forget()
                 self._paned_window.remove(self.properties_panel)
 
     def _update_properties_panel(self) -> None:

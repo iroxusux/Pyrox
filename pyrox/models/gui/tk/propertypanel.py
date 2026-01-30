@@ -127,7 +127,11 @@ class TkPropertyPanel(ttk.Frame):
         self.refresh()
 
     def refresh(self) -> None:
-        """Refresh the property panel display from the current object."""
+        """Refresh the property panel display from the current object.
+
+        This performs a full rebuild of all widgets. Use update_values() instead
+        for frequent updates to avoid flickering.
+        """
         # Clear existing widgets
         self._clear_properties()
 
@@ -148,6 +152,65 @@ class TkPropertyPanel(ttk.Frame):
 
         # Display all properties
         self._display_properties(properties)
+
+    def update_values(self) -> None:
+        """Update property values in existing widgets without rebuilding.
+
+        This is much more efficient than refresh() and doesn't cause flickering.
+        Only updates values for properties that have changed.
+        """
+        if not self._target_object:
+            return
+
+        # Get current properties
+        try:
+            properties = self._target_object.get_properties()
+        except Exception:
+            return
+
+        # Update each existing widget with new values
+        for prop_name, widget in self._property_widgets.items():
+            if prop_name not in properties:
+                continue
+
+            new_value = properties[prop_name]
+
+            # Skip updating if the widget currently has focus (user is editing)
+            if widget.focus_get() == widget:
+                continue
+
+            # Update based on widget type
+            if isinstance(widget, ttk.Label):
+                # Read-only label
+                current_text = widget.cget("text")
+                new_text = self._format_value(new_value)
+                if current_text != new_text:
+                    widget.config(text=new_text)
+            elif isinstance(widget, ttk.Entry):
+                # Entry widget - only update if value actually changed
+                current_value = widget.get()
+                new_text = self._format_value(new_value)
+                if current_value != new_text:
+                    # Save cursor position
+                    try:
+                        cursor_pos = widget.index(tk.INSERT)
+                    except tk.TclError:
+                        cursor_pos = 0
+
+                    widget.delete(0, tk.END)
+                    widget.insert(0, new_text)
+
+                    # Restore cursor position if possible
+                    try:
+                        widget.icursor(min(cursor_pos, len(new_text)))
+                    except tk.TclError:
+                        pass
+            elif isinstance(widget, ttk.Checkbutton):
+                # Checkbutton - update the variable
+                if hasattr(self, '_bool_vars') and prop_name in self._bool_vars:
+                    var = self._bool_vars[prop_name]
+                    if isinstance(new_value, bool) and var.get() != new_value:
+                        var.set(new_value)
 
     def _clear_properties(self) -> None:
         """Clear all property widgets from the panel."""

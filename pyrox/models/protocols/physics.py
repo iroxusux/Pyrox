@@ -299,6 +299,9 @@ class RigidBody2D(
             raise ValueError("Mass must be non-negative")
         self._mass = value
         self._inverse_mass = 1.0 / value if value > 0 else 0.0
+        # Clear accumulated forces when mass changes to prevent numerical instability
+        # This is critical when changing from mass=0 to mass>0
+        self.clear_forces()
 
     def get_inverse_mass(self) -> float:
         return self._inverse_mass

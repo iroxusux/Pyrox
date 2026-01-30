@@ -767,6 +767,26 @@ class TestSceneObject(unittest.TestCase):
         self.assertEqual(loaded.get_description(), original.get_description())
         self.assertEqual(loaded.get_properties(), original.get_properties())
 
+    def test_set_property_sets_attribute_and_dictionary(self):
+        """Test that set_property sets both attribute and properties dict."""
+        obj = SceneObject(id="test", name="Name", scene_object_type="Type")
+
+        obj.set_property("x", 10)
+
+        self.assertEqual(obj.get_x(), 10)
+        self.assertEqual(obj.properties.get("x"), 10)
+
+    def test_get_property_retrieves_attr_if_not_in_dict(self):
+        """Test that get_property retrieves attribute if not in properties dict."""
+        obj = SceneObject(id="test", name="Name", scene_object_type="Type")
+        obj.set_x(20)
+
+        self.assertNotIn("x", obj.properties)
+        value = obj.get_property("x")
+
+        self.assertEqual(value, 20)
+        self.assertIn("x", obj.properties)
+
 
 class TestSceneObjectFactory(unittest.TestCase):
     """Test cases for SceneObjectFactory class."""

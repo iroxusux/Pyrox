@@ -3,7 +3,7 @@
 import importlib
 import sys
 from pyrox import models
-from pyrox.services.scene import SceneRunnerService
+from pyrox.services import EnvironmentService, SceneRunnerService
 
 
 class ExampleTask(models.ApplicationTask):
@@ -41,10 +41,16 @@ class ExampleTask(models.ApplicationTask):
         test_object = TestSceneObject()
         s.add_scene_object(test_object)
 
+        # Create EnvironmentService
+        environment = EnvironmentService(
+            preset='top_down'
+        )
+
         # Create SceneRunnerService
         runner = SceneRunnerService(
             app=self.application,
             scene=s,
+            environment=environment,
             enable_physics=True
         )
 

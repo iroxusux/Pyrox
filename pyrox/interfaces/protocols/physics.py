@@ -48,20 +48,36 @@ class IMaterial(Protocol):
         """Mass per unit area (kg/m²) or volume (kg/m³)."""
         return self.get_density()
 
+    @density.setter
+    def density(self, value: float) -> None:
+        self.set_density(value)
+
     @property
     def restitution(self) -> float:
         """Bounciness (0.0 = no bounce, 1.0 = perfect bounce)."""
         return self.get_restitution()
+
+    @restitution.setter
+    def restitution(self, value: float) -> None:
+        self.set_restitution(value)
 
     @property
     def friction(self) -> float:
         """Surface friction coefficient (0.0 = ice, 1.0 = rubber)."""
         return self.get_friction()
 
+    @friction.setter
+    def friction(self, value: float) -> None:
+        self.set_friction(value)
+
     @property
     def drag(self) -> float:
         """Air/fluid resistance coefficient."""
         return self.get_drag()
+
+    @drag.setter
+    def drag(self, value: float) -> None:
+        self.set_drag(value)
 
     def get_density(self) -> float: ...
     def set_density(self, value: float) -> None: ...
@@ -95,6 +111,10 @@ class ICollider2D(IArea2D):
     def is_trigger(self) -> bool:
         """Whether this collider is a trigger (no physics response, only detection)."""
         return self.get_is_trigger()
+
+    @is_trigger.setter
+    def is_trigger(self, value: bool) -> None:
+        self.set_is_trigger(value)
 
     def get_collider_type(self) -> ColliderType: ...
     def set_collider_type(self, value: ColliderType) -> None: ...
@@ -137,6 +157,10 @@ class ICollider3D(IArea3D):
         """Whether this collider is a trigger (no physics response, only detection)."""
         return self.get_is_trigger()
 
+    @is_trigger.setter
+    def is_trigger(self, value: bool) -> None:
+        self.set_is_trigger(value)
+
     def get_collider_type(self) -> ColliderType: ...
     def set_collider_type(self, value: ColliderType) -> None: ...
     def get_collision_layer(self) -> CollisionLayer: ...
@@ -162,6 +186,10 @@ class IRigidBody2D(IKinematic2D):
     def mass(self) -> float:
         """Mass in kilograms."""
         return self.get_mass()
+
+    @mass.setter
+    def mass(self, value: float) -> None:
+        self.set_mass(value)
 
     @property
     def inverse_mass(self) -> float:
@@ -217,6 +245,10 @@ class IRigidBody3D(IKinematic3D):
     def mass(self) -> float:
         """Mass in kilograms."""
         return self.get_mass()
+
+    @mass.setter
+    def mass(self, value: float) -> None:
+        self.set_mass(value)
 
     @property
     def inverse_mass(self) -> float:
@@ -280,6 +312,10 @@ class IPhysicsBody2D(
         """Whether physics simulation is enabled for this body."""
         return self.get_enabled()
 
+    @enabled.setter
+    def enabled(self, value: bool) -> None:
+        self.set_enabled(value)
+
     @property
     def material(self) -> IMaterial:
         """The material properties of this physics body."""
@@ -294,6 +330,10 @@ class IPhysicsBody2D(
     def sleeping(self) -> bool:
         """Whether the body is sleeping (optimization for stationary objects)."""
         return self.get_sleeping()
+
+    @sleeping.setter
+    def sleeping(self, value: bool) -> None:
+        self.set_sleeping(value)
 
     def get_body_type(self) -> BodyType: ...
     def set_body_type(self, value: BodyType) -> None: ...

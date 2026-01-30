@@ -330,6 +330,15 @@ class IArea3D(
         """
         return self.get_depth()
 
+    @depth.setter
+    def depth(self, value: float) -> None:
+        """Set the depth.
+
+        Args:
+            value (float): The depth.
+        """
+        self.set_depth(value)
+
     def get_depth(self) -> float:
         """Get the depth.
 

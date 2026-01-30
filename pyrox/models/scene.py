@@ -71,6 +71,19 @@ class SceneObject(
         """
         self._id = id
 
+    def get_property(self, name: str) -> Any:
+        """Get a single property of the scene object.
+
+        Args:
+            name (str): The property name.
+
+        Returns:
+            Any: The property value, or None if not found.
+        """
+        if hasattr(self, name):
+            self._properties[name] = getattr(self, name)
+        return self._properties.get(name)
+
     def get_properties(self) -> Dict:
         """Get the properties of the scene object.
 
@@ -78,6 +91,18 @@ class SceneObject(
             Dict: The properties of the scene object.
         """
         return self._properties
+
+    def set_property(self, name: str, value: Any) -> None:
+        """Set a single property of the scene object.
+
+        Args:
+            key (str): The property key.
+            value (Any): The property value.
+        """
+        # Check to see if the property exists as an attribute of this object
+        if hasattr(self, name):
+            setattr(self, name, value)
+        self._properties[name] = value
 
     def set_properties(self, properties: Dict) -> None:
         """Set the properties of the scene object.
