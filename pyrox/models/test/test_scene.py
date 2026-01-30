@@ -20,7 +20,7 @@ class TestScene(unittest.TestCase):
         class TestSceneObject(SceneObject):
             """Test scene_object implementation."""
 
-            def update(self, delta_time: float) -> None:
+            def update(self, dt: float) -> None:
                 """Test implementation."""
                 pass
 
@@ -50,6 +50,10 @@ class TestScene(unittest.TestCase):
         self.assertEqual(scene.description, "")
         self.assertIsInstance(scene.scene_objects, dict)
         self.assertEqual(len(scene.scene_objects), 0)
+        self.assertIsInstance(scene.on_scene_object_added, list)
+        self.assertIsInstance(scene.on_scene_object_removed, list)
+        self.assertEqual(len(scene.on_scene_object_added), 0)
+        self.assertEqual(len(scene.on_scene_object_removed), 0)
 
     def test_init_with_params(self):
         """Test Scene initialization with parameters."""
@@ -431,6 +435,63 @@ class TestScene(unittest.TestCase):
 
         retrieved_factory = scene.get_scene_object_factory()
         self.assertEqual(retrieved_factory, factory)
+
+    def test_get_on_scene_object_added(self):
+        """Test Scene.get_on_scene_object_added() method."""
+        scene = Scene()
+
+        callbacks = scene.get_on_scene_object_added()
+        self.assertIsInstance(callbacks, list)
+        self.assertEqual(len(callbacks), 0)
+
+    def test_add_scene_object_calls_on_scene_object_added(self):
+        """Test that adding a scene_object calls the on_scene_object_added callbacks."""
+        scene = Scene()
+        called = []
+
+        def callback(so):
+            called.append(so.get_id())
+
+        scene.get_on_scene_object_added().append(callback)
+
+        scene_object = self.TestSceneObject(
+            id="dev_016",
+            scene_object_type="TestSceneObject",
+            name="CallbackDev"
+        )
+
+        scene.add_scene_object(scene_object)
+
+        self.assertIn("dev_016", called)
+
+    def test_get_on_scene_object_removed(self):
+        """Test Scene.get_on_scene_object_removed() method."""
+        scene = Scene()
+
+        callbacks = scene.get_on_scene_object_removed()
+        self.assertIsInstance(callbacks, list)
+        self.assertEqual(len(callbacks), 0)
+
+    def test_remove_scene_object_calls_on_scene_object_removed(self):
+        """Test that removing a scene_object calls the on_scene_object_removed callbacks."""
+        scene = Scene()
+        called = []
+
+        def callback(so):
+            called.append(so.get_id())
+
+        scene.get_on_scene_object_removed().append(callback)
+
+        scene_object = self.TestSceneObject(
+            id="dev_017",
+            scene_object_type="TestSceneObject",
+            name="CallbackDev"
+        )
+
+        scene.add_scene_object(scene_object)
+        scene.remove_scene_object("dev_017")
+
+        self.assertIn("dev_017", called)
 
 
 class TestSceneObject(unittest.TestCase):

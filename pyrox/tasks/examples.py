@@ -6,7 +6,7 @@ from pyrox import models
 from pyrox.services.scene import SceneRunnerService
 
 
-class FileTask(models.ApplicationTask):
+class ExampleTask(models.ApplicationTask):
 
     def _open_scene_viewer(self) -> None:
         """Open the Scene Viewer frame."""
@@ -48,11 +48,15 @@ class FileTask(models.ApplicationTask):
             enable_physics=True
         )
 
+        # Create and register SceneViewerFrame
         scene_viewer = models.gui.sceneviewer.SceneViewerFrame(
             parent=self.application.workspace.workspace_area.root,  # type: ignore
             scene=s
         )
         self.application.workspace.register_frame(scene_viewer)
+
+        # Register runner callback to update scene viewer
+        runner.on_tick_callbacks.append(scene_viewer.render_scene)
 
         runner.run()
 

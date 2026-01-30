@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import Optional
+from typing import Callable, Optional
 from pyrox.interfaces import IApplication, IScene, IPhysicsBody2D
 from pyrox.services import GuiManager
 from pyrox.services.physics import PhysicsEngineService
@@ -33,6 +33,8 @@ class SceneRunnerService:
         """
         self.app = app
         self.scene = scene
+        self.scene.on_scene_object_added.append(self.add_physics_body)
+        self.scene.on_scene_object_removed.append(self.remove_physics_body)
         self.update_interval_ms = 16  # ~60 FPS (16ms)
         self.current_time = datetime.now().timestamp()
 
@@ -50,6 +52,7 @@ class SceneRunnerService:
 
         self._is_running = False
         self._event_id = None
+        self._on_tick_callbacks: list[Callable] = []
 
     def _register_physics_bodies(self) -> None:
         """Register all physics-enabled scene objects with the physics engine."""
@@ -100,6 +103,10 @@ class SceneRunnerService:
         if self.enable_physics and self.physics_engine:
             self.physics_engine.step(time_delta)
 
+        # Call on-tick callbacks
+        for callback in self._on_tick_callbacks:
+            callback()
+
         # Schedule scene update on the main thread
         self._event_id = GuiManager.unsafe_get_backend().schedule_event(
             self.update_interval_ms,
@@ -116,7 +123,7 @@ class SceneRunnerService:
             raise ValueError("FPS must be between 1 and 240")
         self.update_interval_ms = int(1000 / fps)
 
-    def add_physics_body(self, body) -> None:
+    def add_physics_body(self, body: IPhysicsBody2D) -> None:
         """Add a physics body to the simulation.
 
         Args:
@@ -143,3 +150,12 @@ class SceneRunnerService:
         if self.physics_engine:
             return self.physics_engine.get_stats()
         return {}
+
+    @property
+    def on_tick_callbacks(self) -> list[Callable]:
+        """Get the list of on-tick callback functions.
+
+        Returns:
+            List of callback functions called each tick
+        """
+        return self._on_tick_callbacks

@@ -3,7 +3,7 @@ Scene management for field scene_object simulations.
 """
 from abc import abstractmethod
 from pathlib import Path
-from typing import Dict, Optional, Type, Union
+from typing import Callable, Dict, Optional, Type, Union
 from pyrox.interfaces import ICoreMixin, ISpatial2D
 
 
@@ -249,6 +249,26 @@ class IScene:
         """
         return self.get_scene_objects()
 
+    @property
+    def on_scene_object_added(self) -> list[Callable]:
+        """
+        Get the callback for when a scene_object is added.
+
+        Returns:
+            Callable or None: The callback function or None if not set.
+        """
+        return self.get_on_scene_object_added()
+
+    @property
+    def on_scene_object_removed(self) -> list[Callable]:
+        """
+        Get the callback for when a scene_object is removed.
+
+        Returns:
+            Callable or None: The callback function or None if not set.
+        """
+        return self.get_on_scene_object_removed()
+
     @abstractmethod
     def get_name(self) -> str:
         """Get the name of the scene."""
@@ -331,12 +351,32 @@ class IScene:
         ...
 
     @abstractmethod
+    def get_on_scene_object_added(self) -> list[Callable]:
+        """
+        Get the list of callbacks for when a scene_object is added.
+
+        Returns:
+            list[Callable]: The list of callback functions.
+        """
+        ...
+
+    @abstractmethod
     def remove_scene_object(self, scene_object_id: str) -> None:
         """
         Remove a scene_object from the scene.
 
         Args:
             scene_object_id: ID of scene_object to remove
+        """
+        ...
+
+    @abstractmethod
+    def get_on_scene_object_removed(self) -> list[Callable]:
+        """
+        Get the list of callbacks for when a scene_object is removed.
+
+        Returns:
+            list[Callable]: The list of callback functions.
         """
         ...
 

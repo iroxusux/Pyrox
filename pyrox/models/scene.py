@@ -3,7 +3,7 @@ Scene management for field scene_object simulations.
 """
 import json
 from pathlib import Path
-from typing import Any, Dict, Optional, Type, Union
+from typing import Any, Callable, Dict, Optional, Type, Union
 from pyrox.interfaces import IScene, ISceneObject, ISceneObjectFactory
 from pyrox.models import CoreMixin, Spatial2D
 from pyrox.models.protocols.physics import PhysicsBody2D, Material
@@ -297,7 +297,7 @@ class PhysicsSceneObject(
 
     def _compile_properties(self) -> None:
         """Compile properties for physics simulation."""
-        self._properties = {
+        self._properties.update({
             # Scene object properties
             "id": self.id,
             "name": self.name,
@@ -325,7 +325,7 @@ class PhysicsSceneObject(
             "restitution": self.restitution,
             "friction": self.friction,
             "drag": self.drag,
-        }
+        })
 
     def get_properties(self) -> Dict:
         self._compile_properties()
@@ -390,6 +390,8 @@ class Scene(IScene):
         self._description = description
         self._scene_objects: Dict[str, ISceneObject] = {}
         self._scene_object_factory = scene_object_factory
+        self._on_scene_object_added: list[Callable] = []
+        self._on_scene_object_removed: list[Callable] = []
 
     def get_name(self) -> str:
         """Get the name of the scene."""
@@ -425,6 +427,7 @@ class Scene(IScene):
             raise ValueError(f"Scene object with ID '{scene_object.id}' already exists in scene")
 
         self._scene_objects[scene_object.id] = scene_object
+        [callback(scene_object) for callback in self._on_scene_object_added]
 
     def remove_scene_object(
         self,
@@ -436,6 +439,10 @@ class Scene(IScene):
             scene_object_id: ID of the scene object to remove
         """
         if scene_object_id in self._scene_objects:
+            # Before the object is removed, call the callbacks
+            obj = self._scene_objects[scene_object_id]
+            [callback(obj) for callback in self._on_scene_object_removed]
+            # Remove the object
             del self._scene_objects[scene_object_id]
 
     def get_scene_object(
@@ -477,6 +484,12 @@ class Scene(IScene):
             factory: The scene object factory to set.
         """
         self._scene_object_factory = factory
+
+    def get_on_scene_object_added(self) -> list[Callable]:
+        return self._on_scene_object_added
+
+    def get_on_scene_object_removed(self) -> list[Callable]:
+        return self._on_scene_object_removed
 
     def update(self, delta_time: float) -> None:
         """

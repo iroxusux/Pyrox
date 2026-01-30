@@ -105,6 +105,9 @@ class PhysicsEngineService(IPhysicsEngine):
         Args:
             body: The physics body to register
         """
+        if not isinstance(body, IPhysicsBody2D):
+            raise TypeError("Body must implement IPhysicsBody2D protocol")
+
         if body not in self._bodies:
             self._bodies.append(body)
             self._collision.register_body(body)
