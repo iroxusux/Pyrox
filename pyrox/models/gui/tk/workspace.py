@@ -959,7 +959,7 @@ Status: {info['status']['current_message']}
         return self._main_paned_window
 
     @property
-    def menu(self) -> Any:
+    def app_menu(self) -> Any:
         """Get the main application menu.
 
         Returns:

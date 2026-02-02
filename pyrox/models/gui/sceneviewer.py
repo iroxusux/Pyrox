@@ -196,21 +196,23 @@ class SceneViewerFrame(TkinterTaskFrame):
         self._toolbar = ttk.Frame(self.content_frame)
         self._toolbar.pack(side=tk.TOP, fill=tk.X, padx=5, pady=5)
 
-        # Zoom menu items
-        self.gui.root_menu().view_menu.add_separator()
-        self.gui.root_menu().view_menu.add_item(
+        dropdown = self.gui.unsafe_get_backend().create_gui_menu(
+            master=self.gui.root_menu().view_menu.menu,
+        )
+        # Zoom controls
+        dropdown.add_item(
             label="+Zoom In",
             command=self._viewport_zooming_service.zoom_in,
             accelerator="Ctrl++",
             underline=0
         )
-        self.gui.root_menu().view_menu.add_item(
+        dropdown.add_item(
             label="-Zoom Out",
             command=self._viewport_zooming_service.zoom_out,
             accelerator="Ctrl+-",
             underline=0
         )
-        self.gui.root_menu().view_menu.add_item(
+        dropdown.add_item(
             label="Reset View",
             command=self.reset_view,
             accelerator="Ctrl+0",
@@ -218,12 +220,18 @@ class SceneViewerFrame(TkinterTaskFrame):
         )
 
         # Grid controls
-        self.gui.root_menu().view_menu.add_separator()
-        self.gui.root_menu().view_menu.add_checkbutton(
+        dropdown.add_separator()
+        dropdown.add_checkbutton(
             label="Show Grid",
             variable=tk.BooleanVar(value=self._viewport_gridding_service.enabled),
             command=self.toggle_grid,
             underline=0
+        )
+
+        # Apply to View menu
+        self.gui.root_menu().view_menu.add_submenu(
+            label="Scene Viewer",
+            submenu=dropdown
         )
 
         # Selection info
@@ -351,6 +359,13 @@ class SceneViewerFrame(TkinterTaskFrame):
             command=self.toggle_properties_panel
         )
         self._properties_toggle.pack(side=tk.LEFT, padx=5)
+
+        self.on_destroy().append(lambda _: self._teardown_toolbar(_, dropdown.menu))
+
+    def _teardown_toolbar(self, _, toolbar: tk.Menu) -> None:
+        """Teardown the toolbar and its menu items."""
+        self._toolbar.destroy()
+        # TODO: Impliment either removal of dropdown items or disabling them
 
     def _build_canvas(self) -> None:
         """Build the main canvas for rendering."""

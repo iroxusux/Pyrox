@@ -51,12 +51,12 @@ class SupportsGUIServices:
         return GuiManager.unsafe_get_backend().get_root_window()
 
     @property
-    def menu(self) -> IApplicationGuiMenu:
+    def app_menu(self) -> IApplicationGuiMenu:
         """Access the application's gui menu via GuiManager Service."""
-        return self.gui_menu
+        return self.gui_app_menu
 
     @property
-    def gui_menu(self) -> IApplicationGuiMenu:
+    def gui_app_menu(self) -> IApplicationGuiMenu:
         """Access the application's gui menu via GuiManager Service."""
         return GuiManager.unsafe_get_backend().get_root_application_gui_menu()
 
@@ -68,27 +68,27 @@ class SupportsGUIServices:
     @property
     def file_menu(self) -> IGuiMenu:
         """Access the application's file menu via GuiManager Service."""
-        return self.menu.get_file_menu()
+        return self.app_menu.get_file_menu()
 
     @property
     def edit_menu(self) -> IGuiMenu:
         """Access the application's edit menu via GuiManager Service."""
-        return self.menu.get_edit_menu()
+        return self.app_menu.get_edit_menu()
 
     @property
     def view_menu(self) -> IGuiMenu:
         """Access the application's view menu via GuiManager Service."""
-        return self.menu.get_view_menu()
+        return self.app_menu.get_view_menu()
 
     @property
     def help_menu(self) -> IGuiMenu:
         """Access the application's help menu via GuiManager Service."""
-        return self.menu.get_help_menu()
+        return self.app_menu.get_help_menu()
 
     @property
     def tools_menu(self) -> IGuiMenu:
         """Access the application's tools menu via GuiManager Service."""
-        return self.menu.get_tools_menu()
+        return self.app_menu.get_tools_menu()
 
 
 class SupportsPlatformDirectoryServices:
