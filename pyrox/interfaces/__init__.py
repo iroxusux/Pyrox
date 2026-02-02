@@ -76,6 +76,9 @@ from .protocols import (
     IHasProperties,
 )
 
+# Physics interfaces
+from .physics import IBasePhysicsBody
+
 # Service interfaces
 from .services import (
     IEnvironmentManager,
@@ -175,6 +178,9 @@ __all__ = (
     'IPhysicsEngine',
     # Property protocols
     'IHasProperties',
+
+    # Physics Interfaces
+    'IBasePhysicsBody',
 
     # GUI Interfaces
     'GuiFramework',

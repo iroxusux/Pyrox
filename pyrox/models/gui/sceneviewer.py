@@ -14,7 +14,9 @@ from pyrox.interfaces import (
 )
 from pyrox.models.gui.tk.frame import TkinterTaskFrame
 from pyrox.models.gui import TkPropertyPanel
+from pyrox.models.physics import PhysicsSceneFactory
 from pyrox.models.protocols import Area2D, Zoomable
+from pyrox.models.scene import SceneObjectFactory, SceneObject
 from pyrox.services import (
     log,
     ViewportPanningService,
@@ -1208,113 +1210,10 @@ class SceneViewerFrame(TkinterTaskFrame):
     def _initialize_object_templates(self) -> None:
         """Initialize object templates and populate palette."""
         # Define object templates
-        self._object_templates = {
-            "Static Collider": {
-                "scene_object_type": "PhysicsSceneObject",
-                "name": "Static Collider",
-                "description": "Static collision object",
-                "properties": {
-                    "shape": "rectangle",
-                    "fill": "gray",
-                    "outline": "black",
-                    "body_type": "static",
-                    "collider_type": "rectangle"
-                },
-                "width": 100.0,
-                "height": 20.0
-            },
-            "Conveyor Belt": {
-                "scene_object_type": "PhysicsSceneObject",
-                "name": "Conveyor",
-                "description": "Conveyor belt with surface velocity",
-                "properties": {
-                    "shape": "rectangle",
-                    "fill": "#4a90e2",
-                    "outline": "#2c5aa0",
-                    "body_type": "static",
-                    "collider_type": "rectangle",
-                    "is_conveyor": True,
-                    "surface_velocity": 50.0
-                },
-                "width": 200.0,
-                "height": 30.0
-            },
-            "Wall": {
-                "scene_object_type": "PhysicsSceneObject",
-                "name": "Wall",
-                "description": "Static wall",
-                "properties": {
-                    "shape": "rectangle",
-                    "fill": "#8b4513",
-                    "outline": "#654321",
-                    "body_type": "static",
-                    "collider_type": "rectangle"
-                },
-                "width": 20.0,
-                "height": 200.0
-            },
-            "Dynamic Box": {
-                "scene_object_type": "PhysicsSceneObject",
-                "name": "Box",
-                "description": "Dynamic physics box",
-                "properties": {
-                    "shape": "rectangle",
-                    "fill": "#ff6b6b",
-                    "outline": "#c92a2a",
-                    "body_type": "dynamic",
-                    "collider_type": "rectangle",
-                    "mass": 1.0
-                },
-                "width": 50.0,
-                "height": 50.0
-            },
-            "Actor/Sprite": {
-                "scene_object_type": "SceneObject",
-                "name": "Actor",
-                "description": "Sprite or actor object",
-                "properties": {
-                    "shape": "circle",
-                    "fill": "#51cf66",
-                    "outline": "#2f9e44",
-                    "actor_type": "player"
-                },
-                "width": 40.0,
-                "height": 40.0
-            },
-            "Spawner": {
-                "scene_object_type": "SceneObject",
-                "name": "Spawner",
-                "description": "Object spawner",
-                "properties": {
-                    "shape": "circle",
-                    "fill": "#ffd43b",
-                    "outline": "#fab005",
-                    "spawn_rate": 2.0,
-                    "spawn_object_type": "Box",
-                    "spawner": True
-                },
-                "width": 30.0,
-                "height": 30.0
-            },
-            "Trigger Zone": {
-                "scene_object_type": "PhysicsSceneObject",
-                "name": "Trigger",
-                "description": "Trigger zone for events",
-                "properties": {
-                    "shape": "rectangle",
-                    "fill": "",
-                    "outline": "#e599f7",
-                    "body_type": "static",
-                    "collider_type": "rectangle",
-                    "is_trigger": True
-                },
-                "width": 100.0,
-                "height": 100.0
-            }
-        }
+        self._templates = PhysicsSceneFactory.get_all_templates()
 
         # Populate palette with buttons
-        for template_name in self._object_templates.keys():
+        for template_name in self._templates.keys():
             btn = ttk.Button(
                 self._palette_content_frame,
                 text=template_name,
@@ -1344,7 +1243,7 @@ class SceneViewerFrame(TkinterTaskFrame):
         if not self._current_object_template or not self._scene:
             return
 
-        template = self._object_templates.get(self._current_object_template)
+        template = self._templates.get(self._current_object_template)
         if not template:
             return
 
@@ -1355,38 +1254,30 @@ class SceneViewerFrame(TkinterTaskFrame):
 
         # Generate unique ID
         self._object_counter += 1
-        obj_id = f"{template['name'].lower().replace(' ', '_')}_{self._object_counter:03d}"
+        obj_id = f"{template.name.lower().replace(' ', '_')}_{self._object_counter:03d}"
 
-        # Create object from template
-        from pyrox.models.scene import SceneObject, PhysicsSceneObject
+        # Create physics object from template
+        physics_obj = PhysicsSceneFactory.create_from_template(
+            template.name,
+            **template.default_kwargs
+        )
+        if not physics_obj:
+            raise RuntimeError(f"Failed to create object from template: {template.name}")
 
-        obj_type = template.get("scene_object_type", "SceneObject")
-        properties = template.get("properties", {}).copy()
+        scene_obj = SceneObject(
+            id=obj_id,
+            name=template.name,
+            scene_object_type=physics_obj.body_type,
+            description='',
+            physics_body=physics_obj,
+        )
 
-        if obj_type == "PhysicsSceneObject":
-            scene_obj = PhysicsSceneObject(
-                id=obj_id,
-                name=template["name"],
-                scene_object_type=obj_type,
-                description=template.get("description", ""),
-                properties=properties,
-                x=scene_x,
-                y=scene_y,
-                width=template.get("width", 50.0),
-                height=template.get("height", 50.0)
-            )
-        else:
-            scene_obj = SceneObject(
-                id=obj_id,
-                name=template["name"],
-                scene_object_type=obj_type,
-                description=template.get("description", ""),
-                properties=properties,
-                x=scene_x,
-                y=scene_y,
-                width=template.get("width", 50.0),
-                height=template.get("height", 50.0)
-            )
+        # Transform object into scene object
+        scene_obj = SceneObjectFactory.create_physics_scene_object(
+            id=obj_id,
+            name=template.name,
+            physics_body=physics_obj,
+        )
 
         # Add to scene
         self._scene.add_scene_object(scene_obj)
@@ -1400,7 +1291,7 @@ class SceneViewerFrame(TkinterTaskFrame):
         self._update_selection_display()
         self._update_properties_panel()
 
-        log(self).info(f"Placed {template['name']} at ({scene_x:.1f}, {scene_y:.1f})")
+        log(self).info(f"Placed {template.name} at ({scene_x:.1f}, {scene_y:.1f})")
 
     def toggle_design_mode(self) -> None:
         """Toggle design mode on/off."""

@@ -3,13 +3,14 @@ Scene management for field scene_object simulations.
 """
 from abc import abstractmethod
 from pathlib import Path
-from typing import Callable, Dict, Optional, Type, Union
-from pyrox.interfaces import ICoreMixin, ISpatial2D
+from typing import Callable, Dict, Optional, Protocol, Type, Union
+from pyrox.interfaces import IHasId, INameable, IBasePhysicsBody
 
 
 class ISceneObject(
-    ICoreMixin,
-    ISpatial2D
+        IHasId,
+        INameable,
+        Protocol
 ):
     """Object base class for scene elements.
     """
@@ -49,6 +50,15 @@ class ISceneObject(
             scene_object_type (str): The type of the scene object.
         """
         self.set_scene_object_type(scene_object_type)
+
+    @property
+    def physics_body(self) -> Optional[IBasePhysicsBody]:
+        """Get the physics body associated with this scene object.
+
+        Returns:
+            Optional[BasePhysicsBody]: The physics body, or None if not set.
+        """
+        return self.get_physics_body()
 
     def get_property(self, name: str) -> object:
         """Get a property by name.
@@ -110,6 +120,27 @@ class ISceneObject(
 
         Args:
             scene_object_type (str): The type of the scene object.
+        """
+        ...
+
+    @abstractmethod
+    def get_physics_body(self) -> Optional[IBasePhysicsBody]:
+        """Get the physics body associated with this scene object.
+
+        Returns:
+            Optional[BasePhysicsBody]: The physics body, or None if not set.
+        """
+        ...
+
+    @abstractmethod
+    def set_physics_body(
+        self,
+        physics_body: Optional[IBasePhysicsBody]
+    ) -> None:
+        """Set the physics body associated with this scene object.
+
+        Args:
+            physics_body (Optional[BasePhysicsBody]): The physics body to set, or None.
         """
         ...
 

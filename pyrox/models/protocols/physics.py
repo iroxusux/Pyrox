@@ -458,21 +458,6 @@ class PhysicsBody2D(
             width, height: Size dimensions
             material: Material properties (creates default if None)
         """
-        Kinematic2D.__init__(
-            self,
-            x=x,
-            y=y,
-            width=width,
-            height=height,
-            roll=roll,
-            pitch=pitch,
-            yaw=yaw,
-            velocity_x=velocity_x,
-            velocity_y=velocity_y,
-            acceleration_x=acceleration_x,
-            acceleration_y=acceleration_y,
-        )
-
         # Physics body state
         self._body_type = body_type
         self._enabled = enabled
