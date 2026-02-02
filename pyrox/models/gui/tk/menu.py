@@ -4,8 +4,7 @@ This module provides menu implementations for the Pyrox GUI framework,
 including abstract base classes and concrete implementations for various
 menu types and menu item management.
 """
-from __future__ import annotations
-from tkinter import Menu
+from tkinter import BooleanVar, Menu
 from typing import Any, Callable, Optional, Union
 from pyrox.interfaces import IApplicationGuiMenu, IGuiMenu
 from pyrox.models.gui.theme import DefaultTheme
@@ -55,30 +54,39 @@ class TkinterMenu(IGuiMenu, TkinterGuiWidget):
     def add_checkbutton(
         self,
         label: str,
-        variable: Any,
+        variable: BooleanVar,
         command: Callable[..., Any] | None = None,
         index: int | str = 'end',
         underline: int = -1,
         **kwargs
     ) -> None:
+        # Process binding info if provided
         self._process_binding_info(kwargs)
 
+        # Create a BooleanVar if a bool is provided
+        bool_variable = BooleanVar(master=self.menu)
+
+        # Set underline if specified
         if underline >= 0:
             kwargs['underline'] = underline
 
+        # Default command if none provided
         def default_command(): return None
         command = command or default_command
 
+        # Insert the checkbutton with the variable
         self.menu.insert_checkbutton(
             index,
             label=label,
+            variable=bool_variable,
             command=command,
-            variable=variable,
-            background=DefaultTheme.background,
-            foreground=DefaultTheme.foreground,
-            selectcolor=DefaultTheme.foreground_selected,
             **kwargs
         )
+
+        # Update the variable reference
+        bool_variable.set(variable if isinstance(variable, bool) else variable.get())
+        self.menu.update_idletasks()
+
         return None
 
     def add_item(

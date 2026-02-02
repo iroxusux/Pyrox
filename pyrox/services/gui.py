@@ -1,14 +1,19 @@
 """GUI framework management services for Pyrox.
 
 This module provides functionality to manage GUI frameworks and backends
-based on environment configuration. It supports multiple GUI frameworks
+based on environment configuration.
+It supports multiple GUI frameworks
 and provides a unified interface for GUI operations.
 """
-
-from __future__ import annotations
 from typing import Any, Dict, Optional, Type, Union
 from pyrox.services import EnvManager, log
-from pyrox.interfaces import EnvironmentKeys, IGuiBackend, GuiFramework
+from pyrox.interfaces import (
+    EnvironmentKeys,
+    IGuiBackend,
+    IGuiWindow,
+    IApplicationGuiMenu,
+    GuiFramework,
+)
 
 
 class GuiManager:
@@ -205,6 +210,20 @@ class GuiManager:
 
         # Initialize with new framework
         return cls.initialize(framework)
+
+    # --------------------------------------------------
+    # Helper methods for backend operations
+    # --------------------------------------------------
+
+    @classmethod
+    def root_window(cls) -> IGuiWindow:
+        """Get the root window of the GUI application."""
+        return cls.unsafe_get_backend().get_root_gui_window()
+
+    @classmethod
+    def root_menu(cls) -> IApplicationGuiMenu:
+        """Get the root menu of the GUI application."""
+        return cls.unsafe_get_backend().get_root_application_gui_menu()
 
 
 # Convenience functions for common operations

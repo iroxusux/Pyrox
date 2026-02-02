@@ -196,54 +196,35 @@ class SceneViewerFrame(TkinterTaskFrame):
         self._toolbar = ttk.Frame(self.content_frame)
         self._toolbar.pack(side=tk.TOP, fill=tk.X, padx=5, pady=5)
 
-        # Zoom controls
-        ttk.Label(self._toolbar, text="Zoom:").pack(side=tk.LEFT, padx=5)
-
-        self._zoom_in_btn = ttk.Button(
-            self._toolbar,
-            text="+",
-            width=3,
-            command=self._viewport_zooming_service.zoom_in
+        # Zoom menu items
+        self.gui.root_menu().view_menu.add_separator()
+        self.gui.root_menu().view_menu.add_item(
+            label="+Zoom In",
+            command=self._viewport_zooming_service.zoom_in,
+            accelerator="Ctrl++",
+            underline=0
         )
-        self._zoom_in_btn.pack(side=tk.LEFT, padx=2)
-
-        self._zoom_out_btn = ttk.Button(
-            self._toolbar,
-            text="-",
-            width=3,
-            command=self._viewport_zooming_service.zoom_out
+        self.gui.root_menu().view_menu.add_item(
+            label="-Zoom Out",
+            command=self._viewport_zooming_service.zoom_out,
+            accelerator="Ctrl+-",
+            underline=0
         )
-        self._zoom_out_btn.pack(side=tk.LEFT, padx=2)
-
-        self._reset_view_btn = ttk.Button(
-            self._toolbar,
-            text="Reset View",
-            command=self.reset_view
+        self.gui.root_menu().view_menu.add_item(
+            label="Reset View",
+            command=self.reset_view,
+            accelerator="Ctrl+0",
+            underline=0
         )
-        self._reset_view_btn.pack(side=tk.LEFT, padx=5)
 
-        # Zoom level display
-        self._zoom_label = ttk.Label(
-            self._toolbar,
-            text=f"{int(self.viewport.zoom * 100)}%"
+        # Grid controls
+        self.gui.root_menu().view_menu.add_separator()
+        self.gui.root_menu().view_menu.add_checkbutton(
+            label="Show Grid",
+            variable=tk.BooleanVar(value=self._viewport_gridding_service.enabled),
+            command=self.toggle_grid,
+            underline=0
         )
-        self._zoom_label.pack(side=tk.LEFT, padx=5)
-
-        # Separator
-        ttk.Separator(self._toolbar, orient=tk.VERTICAL).pack(side=tk.LEFT, fill=tk.Y, padx=10)
-
-        # Grid toggle
-        self._grid_var = tk.BooleanVar(value=self._viewport_gridding_service.enabled)
-        self._grid_toggle = ttk.Checkbutton(
-            self._toolbar,
-            text="Show Grid",
-            variable=self._grid_var,
-            command=self.toggle_grid
-        )
-        self._grid_toggle.pack(side=tk.LEFT, padx=5)
-
-        # Separator
-        ttk.Separator(self._toolbar, orient=tk.VERTICAL).pack(side=tk.LEFT, fill=tk.Y, padx=10)
 
         # Selection info
         self._selection_label = ttk.Label(
@@ -776,7 +757,7 @@ class SceneViewerFrame(TkinterTaskFrame):
         """Reset viewport to default position and zoom."""
         self.viewport.reset()
         self.last_viewport.reset()
-        self._zoom_label.config(text="100%")
+        # self._zoom_label.config(text="100%")
         self.render_scene()
 
     def _update_viewport(self) -> None:

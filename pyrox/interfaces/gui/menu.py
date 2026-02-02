@@ -268,3 +268,48 @@ class IApplicationGuiMenu(IGuiMenu):
         if menu is None:
             raise RuntimeError("View menu not found.")
         return menu
+
+    @property
+    def edit_menu(self) -> IGuiMenu:
+        """Get the Edit menu.
+
+        Returns:
+            IGuiMenu: The Edit menu.
+        """
+        return self.get_edit_menu()
+
+    @property
+    def file_menu(self) -> IGuiMenu:
+        """Get the File menu.
+
+        Returns:
+            IGuiMenu: The File menu.
+        """
+        return self.get_file_menu()
+
+    @property
+    def help_menu(self) -> IGuiMenu:
+        """Get the Help menu.
+
+        Returns:
+            IGuiMenu: The Help menu.
+        """
+        return self.get_help_menu()
+
+    @property
+    def tools_menu(self) -> IGuiMenu:
+        """Get the Tools menu.
+
+        Returns:
+            IGuiMenu: The Tools menu.
+        """
+        return self.get_tools_menu()
+
+    @property
+    def view_menu(self) -> IGuiMenu:
+        """Get the View menu.
+
+        Returns:
+            IGuiMenu: The View menu.
+        """
+        return self.get_view_menu()
