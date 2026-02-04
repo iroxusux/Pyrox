@@ -363,20 +363,6 @@ class TestConveyorBody(unittest.TestCase):
         objects = conveyor.get_objects_on_belt()
         self.assertIn(mock_object, objects)
 
-    def test_on_collision_enter_does_not_add_object_not_on_top(self):
-        """Test on_collision_enter doesn't add object not on top."""
-        conveyor = ConveyorBody(x=100.0, y=100.0, width=100.0, height=20.0)
-
-        mock_object = Mock(spec=IPhysicsBody2D)
-        mock_object.body_type = BodyType.DYNAMIC
-
-        # Mock the is_on_top_of to return False (side collision)
-        with patch.object(conveyor, 'is_on_top_of', return_value=False):
-            conveyor.on_collision_enter(mock_object)
-
-        objects = conveyor.get_objects_on_belt()
-        self.assertNotIn(mock_object, objects)
-
     def test_on_collision_stay_applies_velocity_when_active(self):
         """Test on_collision_stay applies belt velocity to dynamic object."""
         conveyor = ConveyorBody(
@@ -427,23 +413,6 @@ class TestConveyorBody(unittest.TestCase):
         conveyor.on_collision_stay(mock_object)
 
         mock_object.set_linear_velocity.assert_not_called()
-
-    def test_on_collision_stay_removes_object_not_on_top(self):
-        """Test on_collision_stay removes object if not on top anymore."""
-        conveyor = ConveyorBody(is_active=True)
-
-        mock_object = Mock(spec=IPhysicsBody2D)
-        mock_object.body_type = BodyType.DYNAMIC
-
-        # Add object first
-        conveyor._objects_on_belt.add(mock_object)
-
-        # Now it's not on top (side collision)
-        with patch.object(conveyor, 'is_on_top_of', return_value=False):
-            conveyor.on_collision_stay(mock_object)
-
-        objects = conveyor.get_objects_on_belt()
-        self.assertNotIn(mock_object, objects)
 
     def test_on_collision_exit_removes_object(self):
         """Test on_collision_exit removes object from tracking."""

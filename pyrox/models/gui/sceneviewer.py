@@ -18,7 +18,7 @@ from pyrox.models.gui.tk.frame import TkinterTaskFrame
 from pyrox.models.gui import TkPropertyPanel
 from pyrox.models.physics import PhysicsSceneFactory
 from pyrox.models.protocols import Area2D, Zoomable
-from pyrox.models.scene import Scene, SceneObjectFactory, SceneObject
+from pyrox.models.scene import Scene, SceneObject
 from pyrox.services import (
     log,
     ViewportPanningService,
@@ -351,46 +351,6 @@ class SceneViewerFrame(TkinterTaskFrame):
         # Separator
         ttk.Separator(self._toolbar, orient=tk.VERTICAL).pack(side=tk.LEFT, fill=tk.Y, padx=10)
 
-        # Drawing tools
-        ttk.Label(self._toolbar, text="Tool:").pack(side=tk.LEFT, padx=5)
-
-        self._tool_var = tk.StringVar(value=self._current_tool)
-
-        tools_frame = ttk.Frame(self._toolbar)
-        tools_frame.pack(side=tk.LEFT, padx=2)
-
-        ttk.Radiobutton(
-            tools_frame,
-            text="Select",
-            variable=self._tool_var,
-            value="select",
-            command=self._on_tool_change
-        ).pack(side=tk.LEFT, padx=2)
-
-        ttk.Radiobutton(
-            tools_frame,
-            text="Rectangle",
-            variable=self._tool_var,
-            value="rectangle",
-            command=self._on_tool_change
-        ).pack(side=tk.LEFT, padx=2)
-
-        ttk.Radiobutton(
-            tools_frame,
-            text="Circle",
-            variable=self._tool_var,
-            value="circle",
-            command=self._on_tool_change
-        ).pack(side=tk.LEFT, padx=2)
-
-        ttk.Radiobutton(
-            tools_frame,
-            text="Line",
-            variable=self._tool_var,
-            value="line",
-            command=self._on_tool_change
-        ).pack(side=tk.LEFT, padx=2)
-
     def _build_canvas(self) -> None:
         """Build the main canvas for rendering."""
         # Use PanedWindow for resizable split between canvas and properties panel
@@ -444,13 +404,6 @@ class SceneViewerFrame(TkinterTaskFrame):
             self._runner.on_scene_load_callbacks.append(self.set_scene)
 
         # TODO: Add keyboard shortcuts (Ctrl+Z undo, Ctrl+D duplicate, etc.)
-
-    def _on_tool_change(self) -> None:
-        """Handle tool selection change."""
-        self._current_tool = self._tool_var.get()
-        # Clear selection when switching to drawing tools
-        if self._current_tool != "select":
-            self.clear_selection()
 
     def _on_left_click(self, event: tk.Event) -> None:
         """Handle left mouse button press - context dependent on current tool.
@@ -1340,7 +1293,6 @@ class SceneViewerFrame(TkinterTaskFrame):
             self._current_object_template = None
             if self._current_tool == "place_object":
                 self._current_tool = "select"
-                self._tool_var.set("select")
                 self._canvas.config(cursor="")
             log(self).info("Design mode disabled")
 
@@ -1388,9 +1340,6 @@ class SceneViewerFrame(TkinterTaskFrame):
             filepath: Path to the scene file
         """
         # Create factory and register object types
-        factory = SceneObjectFactory()
-        factory.register("SceneObject", SceneObject)
-
         # Load scene
         loaded_scene = Scene.load(Path(filepath))
         self.set_scene(loaded_scene)

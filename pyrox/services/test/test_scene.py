@@ -10,7 +10,7 @@ from unittest.mock import Mock, patch
 from pyrox.services.scene import SceneRunnerService
 from pyrox.services.physics import PhysicsEngineService
 from pyrox.services.environment import EnvironmentService
-from pyrox.interfaces import IPhysicsBody2D
+from pyrox.interfaces import ISceneObject, IPhysicsBody2D
 
 
 class TestSceneRunnerService(unittest.TestCase):
@@ -88,16 +88,17 @@ class TestSceneRunnerService(unittest.TestCase):
     def test_register_physics_bodies_on_init(self):
         """Test that physics bodies are registered during initialization."""
         # Create mock physics bodies
-        body1 = Mock(spec=IPhysicsBody2D)
-        body1.get_bounds = Mock(return_value=(0.0, 0.0, 10.0, 10.0))
-        body2 = Mock(spec=IPhysicsBody2D)
-        body2.get_bounds = Mock(return_value=(0.0, 0.0, 10.0, 10.0))
-        non_physics_obj = Mock()
+        body1 = Mock(spec=ISceneObject)
+        body1.physics_body = Mock(spec=IPhysicsBody2D)
+        body1.physics_body.get_bounds = Mock(return_value=(0.0, 0.0, 10.0, 10.0))
+
+        body2 = Mock(spec=ISceneObject)
+        body2.physics_body = Mock(spec=IPhysicsBody2D)
+        body2.physics_body.get_bounds = Mock(return_value=(0.0, 0.0, 10.0, 10.0))
 
         self.mock_scene.get_scene_objects = Mock(return_value={
             'body1': body1,
             'body2': body2,
-            'other': non_physics_obj
         })
 
         runner = SceneRunnerService(
@@ -107,9 +108,8 @@ class TestSceneRunnerService(unittest.TestCase):
         )
 
         # Check that physics bodies were registered
-        self.assertIn(body1, runner.physics_engine.bodies)  # type: ignore
-        self.assertIn(body2, runner.physics_engine.bodies)  # type: ignore
-        self.assertNotIn(non_physics_obj, runner.physics_engine.bodies)  # type: ignore
+        self.assertIn(body1.physics_body, runner.physics_engine.bodies)  # type: ignore
+        self.assertIn(body2.physics_body, runner.physics_engine.bodies)  # type: ignore
 
     def test_register_physics_bodies_no_physics_engine(self):
         """Test _register_physics_bodies when physics engine is None."""
@@ -448,17 +448,23 @@ class TestSceneRunnerService(unittest.TestCase):
 
     def test_multiple_bodies_registration(self):
         """Test registering multiple physics bodies."""
-        body1 = Mock(spec=IPhysicsBody2D)
-        body1.get_bounds = Mock(return_value=(0.0, 0.0, 10.0, 10.0))
-        body2 = Mock(spec=IPhysicsBody2D)
-        body2.get_bounds = Mock(return_value=(0.0, 0.0, 10.0, 10.0))
-        body3 = Mock(spec=IPhysicsBody2D)
-        body3.get_bounds = Mock(return_value=(0.0, 0.0, 10.0, 10.0))
+        # Create mock scene objects with physics bodies
+        scene_obj1 = Mock(spec=ISceneObject)
+        scene_obj1.physics_body = Mock(spec=IPhysicsBody2D)
+        scene_obj1.physics_body.get_bounds = Mock(return_value=(0.0, 0.0, 10.0, 10.0))
+
+        scene_obj2 = Mock(spec=ISceneObject)
+        scene_obj2.physics_body = Mock(spec=IPhysicsBody2D)
+        scene_obj2.physics_body.get_bounds = Mock(return_value=(0.0, 0.0, 10.0, 10.0))
+
+        scene_obj3 = Mock(spec=ISceneObject)
+        scene_obj3.physics_body = Mock(spec=IPhysicsBody2D)
+        scene_obj3.physics_body.get_bounds = Mock(return_value=(0.0, 0.0, 10.0, 10.0))
 
         self.mock_scene.get_scene_objects = Mock(return_value={
-            'body1': body1,
-            'body2': body2,
-            'body3': body3
+            'body1': scene_obj1,
+            'body2': scene_obj2,
+            'body3': scene_obj3
         })
 
         runner = SceneRunnerService(
@@ -468,9 +474,9 @@ class TestSceneRunnerService(unittest.TestCase):
         )
 
         self.assertEqual(len(runner.physics_engine.bodies), 3)  # type: ignore
-        self.assertIn(body1, runner.physics_engine.bodies)  # type: ignore
-        self.assertIn(body2, runner.physics_engine.bodies)  # type: ignore
-        self.assertIn(body3, runner.physics_engine.bodies)  # type: ignore
+        self.assertIn(scene_obj1.physics_body, runner.physics_engine.bodies)  # type: ignore
+        self.assertIn(scene_obj2.physics_body, runner.physics_engine.bodies)  # type: ignore
+        self.assertIn(scene_obj3.physics_body, runner.physics_engine.bodies)  # type: ignore
 
     def test_run_sets_current_time(self):
         """Test that run() sets current_time."""

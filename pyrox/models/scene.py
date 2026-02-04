@@ -10,7 +10,7 @@ from pyrox.interfaces import (
     ISceneObject,
     ISceneObjectFactory
 )
-from pyrox.services import log
+
 from pyrox.models.protocols import (
     HasId,
     Nameable,
@@ -175,7 +175,7 @@ class SceneObject(
                 f"physics body template type '{data.get('name', '')}' is not registered. "
                 f"Available types: {PhysicsSceneFactory.get_all_templates().keys()}"
             )
-        body = body_template.body_class.from_dict(data)
+        body = body_template.body_class.from_dict(data.get("body", {}))
         if not body:
             raise ValueError("Failed to create physics body from dictionary")
 
@@ -253,44 +253,11 @@ class SceneObjectFactory(ISceneObjectFactory):
         raise ValueError("SceneObjectFactory cannot be instantiated directly. Use class methods only.")
 
     @classmethod
-    def register(
-        cls,
-        scene_object_type: str,
-        scene_object_class: Type[ISceneObject]
-    ) -> None:
-        if scene_object_type in SceneObjectFactory._registry:
-            log(SceneObjectFactory).warning(
-                f"scene_object type '{scene_object_type}' is already registered. Overwriting."
-            )
-
-        SceneObjectFactory._registry[scene_object_type] = scene_object_class
-
-    @classmethod
-    def unregister(
-        cls,
-        scene_object_type: str
-    ) -> None:
-        SceneObjectFactory._registry.pop(scene_object_type, None)
-
-    @classmethod
-    def get_registered_types(cls) -> list[str]:
-        return list(SceneObjectFactory._registry.keys())
-
-    @classmethod
     def create_scene_object(
         cls,
         data: dict
     ) -> ISceneObject:
-        scene_object_type = data.get("name")
-
-        if scene_object_type not in SceneObjectFactory._registry:
-            raise ValueError(
-                f"scene_object type '{scene_object_type}' is not registered. "
-                f"Available types: {SceneObjectFactory.get_registered_types()}"
-            )
-
-        scene_object_class = SceneObjectFactory._registry[scene_object_type]
-        return scene_object_class.from_dict(data)
+        return SceneObject.from_dict(data)
 
 
 class Scene(IScene):
@@ -466,27 +433,3 @@ class Scene(IScene):
             data = json.load(f)
 
         return cls.from_dict(data)
-
-
-def register_scene_object_from_physics_factory() -> None:
-    """Register all physics body templates as scene object types."""
-    for template in PhysicsSceneFactory.get_all_templates().values():
-
-        raise RuntimeError("This is where we are failing!")
-        # we are registering each physics body class as a scene object class, however, this is registering the physics body itself, not a scene object which wraps it.
-        # TODO: Fix this by creating a workflow to wrap the physics body in a scene object when registering.
-
-        SceneObjectFactory.register(
-            scene_object_type=template.name,
-            scene_object_class=template.body_class
-        )
-
-
-# Register base SceneObject type
-SceneObjectFactory.register(
-    scene_object_type="SceneObject",
-    scene_object_class=SceneObject
-)
-
-# Register all physics body templates as scene object types
-register_scene_object_from_physics_factory()

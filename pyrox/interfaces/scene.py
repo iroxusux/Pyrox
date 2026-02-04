@@ -9,7 +9,6 @@ from typing import (
     Optional,
     Protocol,
     runtime_checkable,
-    Type,
     Union
 )
 from pyrox.interfaces import (
@@ -257,45 +256,6 @@ class ISceneObjectFactory:
     Allows custom scene object types to be registered and instantiated
     from serialized data.
     """
-
-    @classmethod
-    @abstractmethod
-    def register(
-        cls,
-        scene_object_type: str,
-        scene_object_class: Type[ISceneObject]
-    ) -> None:
-        """
-        Register a scene_object type.
-
-        Args:
-            scene_object_type: String identifier for the scene_object type
-            scene_object_class: scene_object class to register
-
-        Raises:
-            ValueError: If scene_object_type is already registered
-        """
-        ...
-
-    @classmethod
-    @abstractmethod
-    def unregister(
-        cls,
-        scene_object_type: str
-    ) -> None:
-        """
-        Unregister a scene_object type.
-
-        Args:
-            scene_object_type: String identifier for the scene_object type
-        """
-        ...
-
-    @classmethod
-    @abstractmethod
-    def get_registered_types(cls) -> list[str]:
-        """Get list of all registered scene object types."""
-        ...
 
     @classmethod
     @abstractmethod

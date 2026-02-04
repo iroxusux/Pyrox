@@ -13,7 +13,18 @@ This file tracks outstanding tasks, bugs, and feature requests for the Pyrox pro
 
 ### 🔴 Critical
 
-None currently.
+#### Install Shell Script Failing On New Install
+**File:** `install.sh`  
+**Line:** 42 (according to log file)
+**Status:** Not started  
+**Description:** Install script is failing on unicode char map when initializing git hooks.  
+**Attempted Solutions:**
+- None so far
+
+**Next Steps:**
+- TBD
+
+---
 
 ### 🟡 High
 

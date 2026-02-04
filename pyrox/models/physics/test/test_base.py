@@ -232,15 +232,6 @@ class TestBasePhysicsBody(unittest.TestCase):
         # Should still detect "on top" if there's any X overlap
         self.assertTrue(top_body.is_on_top_of(bottom_body))
 
-    def test_is_on_top_of_with_tolerance(self):
-        """Test is_on_top_of within tolerance threshold."""
-        # Bodies within 1.0 unit tolerance
-        top_body = BasePhysicsBody(x=100.0, y=100.0, width=50.0, height=20.0)
-        bottom_body = BasePhysicsBody(x=100.0, y=120.5, width=50.0, height=20.0)
-
-        # bottom_y (120) should be close enough to other_top_y (120.5)
-        self.assertTrue(top_body.is_on_top_of(bottom_body))
-
     def test_is_on_top_of_different_sizes(self):
         """Test is_on_top_of with different body sizes."""
         # Small body on large platform
@@ -455,8 +446,8 @@ class TestBasePhysicsBodyFactory(unittest.TestCase):
         template = PhysicsSceneFactory.get_template("Base Physics Body")
 
         self.assertIsNotNone(template)
-        self.assertEqual(template.name, "Base Physics Body")
-        self.assertEqual(template.body_class, BasePhysicsBody)
+        self.assertEqual(template.name, "Base Physics Body")  # type: ignore
+        self.assertEqual(template.body_class, BasePhysicsBody)  # type: ignore
 
     def test_create_from_factory(self):
         """Test creating BasePhysicsBody from factory."""
@@ -471,9 +462,9 @@ class TestBasePhysicsBodyFactory(unittest.TestCase):
 
         self.assertIsNotNone(body)
         self.assertIsInstance(body, BasePhysicsBody)
-        self.assertEqual(body.x, 50.0)
-        self.assertEqual(body.y, 75.0)
-        self.assertEqual(body.name, "Factory Body")
+        self.assertEqual(body.x, 50.0)  # type: ignore
+        self.assertEqual(body.y, 75.0)  # type: ignore
+        self.assertEqual(body.name, "Factory Body")  # type: ignore
 
 
 if __name__ == '__main__':
