@@ -103,6 +103,15 @@ class IGuiMenu(IGuiComponent):
         raise NotImplementedError("add_separator method must be implemented by subclass.")
 
     @abstractmethod
+    def insert_separator(self, index: Union[int, str]) -> None:
+        """Insert a separator at a specific index.
+
+        Args:
+            index: The index at which to insert the separator.
+        """
+        raise NotImplementedError("insert_separator method must be implemented by subclass.")
+
+    @abstractmethod
     def add_submenu(
         self,
         label: str,
@@ -117,6 +126,24 @@ class IGuiMenu(IGuiComponent):
             **kwargs: Additional submenu properties.
         """
         raise NotImplementedError("add_submenu method must be implemented by subclass.")
+
+    @abstractmethod
+    def insert_submenu(
+        self,
+        index: Union[int, str],
+        label: str,
+        submenu: 'IGuiMenu',
+        **kwargs
+    ) -> None:
+        """Insert a submenu at a specific index.
+
+        Args:
+            index: The index at which to insert the submenu.
+            label: The submenu label.
+            submenu: The submenu to insert.
+            **kwargs: Additional submenu properties.
+        """
+        raise NotImplementedError("insert_submenu method must be implemented by subclass.")
 
     @abstractmethod
     def clear(self) -> None:

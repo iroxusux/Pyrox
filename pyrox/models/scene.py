@@ -10,13 +10,14 @@ from pyrox.interfaces import (
     ISceneObject,
     ISceneObjectFactory
 )
+from pyrox.services import log
 from pyrox.models.protocols import (
     HasId,
     Nameable,
     Describable,
 )
 
-from pyrox.models.physics.base import BasePhysicsBody
+from pyrox.models.physics.factory import PhysicsSceneFactory
 
 
 class SceneObject(
@@ -33,9 +34,9 @@ class SceneObject(
         id: str,
         name: str,
         scene_object_type: str,
+        physics_body: IBasePhysicsBody,
         description: str = "",
         properties: Optional[Dict] = None,
-        physics_body: Optional[BasePhysicsBody] = None,
     ):
         HasId.__init__(self, id)
         Nameable.__init__(self, name)
@@ -79,6 +80,7 @@ class SceneObject(
         Returns:
             Dict: The properties of the scene object.
         """
+        self._compile_properties()
         return self._properties
 
     def set_property(self, name: str, value: Any) -> None:
@@ -121,25 +123,72 @@ class SceneObject(
 
     def to_dict(self) -> dict:
         """Convert scene object to dictionary for JSON serialization."""
+        material = {
+            "density": self.physics_body.material.density,
+            "restitution": self.physics_body.material.restitution,
+            "friction": self.physics_body.material.friction,
+            "drag": self.physics_body.material.drag,
+        }
+        body = {
+            "name": self.name,
+            "tags": self.physics_body.tags,
+            "body_type": self.physics_body.body_type.name,
+            "enabled": self.physics_body.enabled,
+            "sleeping": self.physics_body.sleeping,
+            "mass": self.physics_body.mass,
+            "moment_of_inertia": self.physics_body.moment_of_inertia,
+            "velocity_x": self.physics_body.velocity_x,
+            "velocity_y": self.physics_body.velocity_y,
+            "acceleration_x": self.physics_body.acceleration_x,
+            "acceleration_y": self.physics_body.acceleration_y,
+            "angular_velocity": self.physics_body.angular_velocity,
+            "collider_type": self.physics_body.collider.collider_type.name,
+            "collision_layer": self.physics_body.collider.collision_layer.name,
+            "collision_mask": [m.name for m in self.physics_body.collider.collision_mask],
+            "is_trigger": self.physics_body.collider.is_trigger,
+            "x": self.physics_body.x,
+            "y": self.physics_body.y,
+            "width": self.physics_body.width,
+            "height": self.physics_body.height,
+            "roll": self.physics_body.roll,
+            "pitch": self.physics_body.pitch,
+            "yaw": self.physics_body.yaw,
+            "material": material,
+        }
+
         return {
             "id": self.id,
             "name": self.name,
             "scene_object_type": self._scene_object_type,
             "description": self._description,
-            "properties": self._properties,
+            "properties": self.properties,
+            "body": body,
+            "material": material,
         }
 
     @classmethod
     def from_dict(cls, data: dict) -> "SceneObject":
         """Create scene object from dictionary."""
-        scene_object = cls(
+        body_template = PhysicsSceneFactory.get_template(data.get("name", ""))
+        if not body_template:
+            raise ValueError(
+                f"physics body template type '{data.get('name', '')}' is not registered. "
+                f"Available types: {PhysicsSceneFactory.get_all_templates().keys()}"
+            )
+        body = body_template.body_class.from_dict(data)
+        if not body:
+            raise ValueError("Failed to create physics body from dictionary")
+
+        obj = cls(
             id=data["id"],
             name=data["name"],
             scene_object_type=data["scene_object_type"],
+            physics_body=body,
             description=data.get("description", ""),
             properties=data.get("properties", {})
         )
-        return scene_object
+
+        return obj
 
     def update(self, dt: float) -> None:
         """
@@ -150,11 +199,44 @@ class SceneObject(
         """
         pass
 
-    def get_physics_body(self) -> IBasePhysicsBody | None:
+    def get_physics_body(self) -> IBasePhysicsBody:
         return self._physics_body
 
-    def set_physics_body(self, physics_body: IBasePhysicsBody | None) -> None:
+    def set_physics_body(self, physics_body: IBasePhysicsBody) -> None:
         self._physics_body = physics_body
+
+    def _compile_properties(self) -> None:
+        """Compile properties for physics simulation."""
+        self._properties.update({
+            # Scene object properties
+            "id": self.id,
+            "name": self.name,
+            "description": self.description,
+            "scene_object_type": self._scene_object_type,
+            # Physics body properties
+            "x": self.x,
+            "y": self.y,
+            "width": self.width,
+            "height": self.height,
+            "roll": self.physics_body.roll,
+            "pitch": self.physics_body.pitch,
+            "yaw": self.physics_body.yaw,
+            "velocity_x": self.physics_body.velocity_x,
+            "velocity_y": self.physics_body.velocity_y,
+            "acceleration_x": self.physics_body.acceleration_x,
+            "acceleration_y": self.physics_body.acceleration_y,
+            "body_type": self.physics_body.body_type.name,
+            "mass": self.physics_body.mass,
+            # Collider properties
+            "collider_type": self.physics_body.collider.collider_type.name,
+            "collision_layer": self.physics_body.collider.collision_layer.name,
+            "is_trigger": self.physics_body.collider.is_trigger,
+            # Material properties
+            "density": self.physics_body.material.density,
+            "restitution": self.physics_body.material.restitution,
+            "friction": self.physics_body.material.friction,
+            "drag": self.physics_body.material.drag,
+        })
 
 
 class SceneObjectFactory(ISceneObjectFactory):
@@ -164,40 +246,50 @@ class SceneObjectFactory(ISceneObjectFactory):
     Allows custom scene_object types to be registered and instantiated
     from serialized data.
     """
+    _registry: Dict[str, Type[ISceneObject]] = {}
 
     def __init__(self):
         """Initialize the scene_object factory."""
-        self._registry: Dict[str, Type[ISceneObject]] = {}
+        raise ValueError("SceneObjectFactory cannot be instantiated directly. Use class methods only.")
 
+    @classmethod
     def register(
-        self,
+        cls,
         scene_object_type: str,
         scene_object_class: Type[ISceneObject]
     ) -> None:
-        if scene_object_type in self._registry:
-            raise ValueError(f"scene_object type '{scene_object_type}' is already registered")
-
-        self._registry[scene_object_type] = scene_object_class
-
-    def unregister(
-        self,
-        scene_object_type: str
-    ) -> None:
-        self._registry.pop(scene_object_type, None)
-
-    def get_registered_types(self) -> list[str]:
-        return list(self._registry.keys())
-
-    def create_scene_object(self, data: dict) -> ISceneObject:
-        scene_object_type = data.get("scene_object_type")
-
-        if scene_object_type not in self._registry:
-            raise ValueError(
-                f"scene_object type '{scene_object_type}' is not registered. "
-                f"Available types: {self.get_registered_types()}"
+        if scene_object_type in SceneObjectFactory._registry:
+            log(SceneObjectFactory).warning(
+                f"scene_object type '{scene_object_type}' is already registered. Overwriting."
             )
 
-        scene_object_class = self._registry[scene_object_type]
+        SceneObjectFactory._registry[scene_object_type] = scene_object_class
+
+    @classmethod
+    def unregister(
+        cls,
+        scene_object_type: str
+    ) -> None:
+        SceneObjectFactory._registry.pop(scene_object_type, None)
+
+    @classmethod
+    def get_registered_types(cls) -> list[str]:
+        return list(SceneObjectFactory._registry.keys())
+
+    @classmethod
+    def create_scene_object(
+        cls,
+        data: dict
+    ) -> ISceneObject:
+        scene_object_type = data.get("name")
+
+        if scene_object_type not in SceneObjectFactory._registry:
+            raise ValueError(
+                f"scene_object type '{scene_object_type}' is not registered. "
+                f"Available types: {SceneObjectFactory.get_registered_types()}"
+            )
+
+        scene_object_class = SceneObjectFactory._registry[scene_object_type]
         return scene_object_class.from_dict(data)
 
 
@@ -209,12 +301,10 @@ class Scene(IScene):
         self,
         name: str = "Untitled Scene",
         description: str = "",
-        scene_object_factory=None
     ):
         self._name = name
         self._description = description
         self._scene_objects: Dict[str, ISceneObject] = {}
-        self._scene_object_factory = scene_object_factory
         self._on_scene_object_added: list[Callable] = []
         self._on_scene_object_removed: list[Callable] = []
 
@@ -295,21 +385,6 @@ class Scene(IScene):
             raise ValueError("scene_objects must be a dictionary")
         self._scene_objects = scene_objects
 
-    def get_scene_object_factory(self):
-        """Get the object factory for loading scenes."""
-        return self._scene_object_factory
-
-    def set_scene_object_factory(
-        self,
-        factory: ISceneObjectFactory
-    ) -> None:
-        """Set the object factory for loading scenes.
-
-        Args:
-            factory: The scene object factory to set.
-        """
-        self._scene_object_factory = factory
-
     def get_on_scene_object_added(self) -> list[Callable]:
         return self._on_scene_object_added
 
@@ -340,20 +415,16 @@ class Scene(IScene):
     def from_dict(
         cls,
         data: dict,
-        factory: ISceneObjectFactory
     ) -> IScene:
         """Create scene from dictionary."""
         scene = cls(
             name=data.get("name", "Untitled Scene"),
             description=data.get("description", ""),
-            scene_object_factory=factory
         )
 
         # Load scene objects
         for scene_object_data in data.get("scene_objects", []):
-            if factory is None:
-                raise ValueError("scene_object_factory is required to load scene objects")
-            scene_object = factory.create_scene_object(scene_object_data)
+            scene_object = SceneObjectFactory.create_scene_object(scene_object_data)
             scene.add_scene_object(scene_object)
 
         return scene
@@ -375,7 +446,6 @@ class Scene(IScene):
     def load(
         cls,
         filepath: Union[str, Path],
-        factory: ISceneObjectFactory
     ) -> IScene:
         """
         Load scene from JSON file.
@@ -390,12 +460,33 @@ class Scene(IScene):
         Raises:
             ValueError: If scene_object_factory is not provided
         """
-        if factory is None:
-            raise ValueError("scene_object_factory is required to load scene")
-
         filepath = Path(filepath)
 
         with open(filepath, 'r') as f:
             data = json.load(f)
 
-        return cls.from_dict(data, factory=factory)
+        return cls.from_dict(data)
+
+
+def register_scene_object_from_physics_factory() -> None:
+    """Register all physics body templates as scene object types."""
+    for template in PhysicsSceneFactory.get_all_templates().values():
+
+        raise RuntimeError("This is where we are failing!")
+        # we are registering each physics body class as a scene object class, however, this is registering the physics body itself, not a scene object which wraps it.
+        # TODO: Fix this by creating a workflow to wrap the physics body in a scene object when registering.
+
+        SceneObjectFactory.register(
+            scene_object_type=template.name,
+            scene_object_class=template.body_class
+        )
+
+
+# Register base SceneObject type
+SceneObjectFactory.register(
+    scene_object_type="SceneObject",
+    scene_object_class=SceneObject
+)
+
+# Register all physics body templates as scene object types
+register_scene_object_from_physics_factory()

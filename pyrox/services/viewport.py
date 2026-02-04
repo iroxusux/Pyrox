@@ -366,6 +366,7 @@ class ViewportGriddingService:
         grid_color: str = "#505050",
         grid_line_width: int = 1,
         enabled: bool = True,
+        snap_enabled: bool = False,
         min_spacing_pixels: int = 5
     ):
         """Initialize the gridding service.
@@ -377,6 +378,7 @@ class ViewportGriddingService:
             grid_color: Color of grid lines (default: "#505050")
             grid_line_width: Width of grid lines in pixels (default: 1)
             enabled: Whether grid is initially enabled (default: True)
+            snap_enabled: Whether snap to grid is initially enabled (default: False)
             min_spacing_pixels: Minimum pixel spacing before hiding grid (default: 5)
         """
         self._canvas = canvas
@@ -385,8 +387,10 @@ class ViewportGriddingService:
         self._grid_color = grid_color
         self._grid_line_width = grid_line_width
         self._enabled = enabled
+        self._snap_enabled = snap_enabled
         self._min_spacing_pixels = min_spacing_pixels
         self._on_toggle_callbacks: list[Callable] = []
+        self._on_snap_toggle_callbacks: list[Callable] = []
 
     def render(self) -> None:
         """Render the grid if enabled."""
@@ -469,19 +473,46 @@ class ViewportGriddingService:
             for callback in self._on_toggle_callbacks:
                 callback(False)
 
-    def snap_to_grid(self, x: float, y: float) -> tuple[float, float]:
+    def snap_to_grid(self, x: float, y: float, force: bool = False) -> tuple[float, float]:
         """Snap scene coordinates to nearest grid point.
 
         Args:
             x: X coordinate in scene space
             y: Y coordinate in scene space
+            force: If True, snap regardless of snap_enabled state (default: False)
 
         Returns:
-            Tuple of (snapped_x, snapped_y) in scene space
+            Tuple of (snapped_x, snapped_y) in scene space.
+            If snap is disabled and force=False, returns original coordinates.
         """
+        if not force and not self._snap_enabled:
+            return (x, y)
+
         snapped_x = round(x / self._grid_size) * self._grid_size
         snapped_y = round(y / self._grid_size) * self._grid_size
         return (snapped_x, snapped_y)
+
+    def toggle_snap(self) -> None:
+        """Toggle snap to grid on/off."""
+        self._snap_enabled = not self._snap_enabled
+
+        # Notify listeners
+        for callback in self._on_snap_toggle_callbacks:
+            callback(self._snap_enabled)
+
+    def enable_snap(self) -> None:
+        """Enable snap to grid."""
+        if not self._snap_enabled:
+            self._snap_enabled = True
+            for callback in self._on_snap_toggle_callbacks:
+                callback(True)
+
+    def disable_snap(self) -> None:
+        """Disable snap to grid."""
+        if self._snap_enabled:
+            self._snap_enabled = False
+            for callback in self._on_snap_toggle_callbacks:
+                callback(False)
 
     # Getters and Setters
 
@@ -587,6 +618,25 @@ class ViewportGriddingService:
         """Get the list of callbacks to be called on toggle events."""
         return self._on_toggle_callbacks
 
+    def is_snap_enabled(self) -> bool:
+        """Check if snap to grid is enabled."""
+        return self._snap_enabled
+
+    def set_snap_enabled(self, enabled: bool) -> None:
+        """Enable or disable snap to grid.
+
+        Args:
+            enabled: True to enable, False to disable
+        """
+        if self._snap_enabled != enabled:
+            self._snap_enabled = enabled
+            for callback in self._on_snap_toggle_callbacks:
+                callback(enabled)
+
+    def get_on_snap_toggle_callbacks(self) -> list[Callable]:
+        """Get the list of callbacks to be called on snap toggle events."""
+        return self._on_snap_toggle_callbacks
+
     # Properties
 
     @property
@@ -632,3 +682,13 @@ class ViewportGriddingService:
     def on_toggle_callbacks(self) -> list[Callable]:
         """Get the list of callbacks to be called on toggle events."""
         return self._on_toggle_callbacks
+
+    @property
+    def snap_enabled(self) -> bool:
+        """Check if snap to grid is enabled."""
+        return self._snap_enabled
+
+    @property
+    def on_snap_toggle_callbacks(self) -> list[Callable]:
+        """Get the list of callbacks to be called on snap toggle events."""
+        return self._on_snap_toggle_callbacks

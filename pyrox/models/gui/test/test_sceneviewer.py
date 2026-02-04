@@ -2,6 +2,7 @@
 import unittest
 
 from pyrox.models.scene import Scene, SceneObject
+from pyrox.models.physics import BasePhysicsBody
 
 
 class TestSceneViewerCoordinates(unittest.TestCase):
@@ -70,7 +71,8 @@ class TestSceneManagement(unittest.TestCase):
             id="test1",
             name="Test Object",
             scene_object_type="rectangle",
-            properties={"x": 10, "y": 20, "shape": "rectangle"}
+            properties={"shape": "rectangle"},
+            physics_body=BasePhysicsBody(x=10, y=20)
         )
 
         self.assertEqual(obj.id, "test1")
@@ -80,8 +82,10 @@ class TestSceneManagement(unittest.TestCase):
     def test_scene_add_remove_objects(self):
         """Test adding and removing objects from scene."""
         scene = Scene(name="Test Scene")
-        obj1 = SceneObject(id="obj1", name="Object 1", scene_object_type="rect", properties={})
-        obj2 = SceneObject(id="obj2", name="Object 2", scene_object_type="circle", properties={})
+        obj1 = SceneObject(id="obj1", name="Object 1", scene_object_type="rect", properties={},
+                           physics_body=BasePhysicsBody())
+        obj2 = SceneObject(id="obj2", name="Object 2", scene_object_type="circle", properties={},
+                           physics_body=BasePhysicsBody())
 
         scene.add_scene_object(obj1)
         scene.add_scene_object(obj2)

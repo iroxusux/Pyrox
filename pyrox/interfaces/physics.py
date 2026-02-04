@@ -1,8 +1,8 @@
-
+from pyrox.interfaces import INameable
 from pyrox.interfaces.protocols.physics import IPhysicsBody2D
 
 
-class IBasePhysicsBody(IPhysicsBody2D):
+class IBasePhysicsBody(INameable, IPhysicsBody2D):
     """Interface class for custom physics bodies extending IPhysicsBody2D.
     Provides additional methods and properties for common physics body
     functionality.
@@ -10,6 +10,22 @@ class IBasePhysicsBody(IPhysicsBody2D):
     Intended for use in a physics environment where bodies may need to
     interact, be tagged, and have common checks performed.
     """
+
+    def get_tags(self) -> list[str]:
+        """Get the list of tags associated with this body.
+
+        Returns:
+            List of tags
+        """
+        ...
+
+    def set_tags(self, tags: list[str]) -> None:
+        """Set the list of tags for this body.
+
+        Args:
+            tags: List of tags to set
+        """
+        ...
 
     def has_tag(self, tag: str) -> bool:
         """Check if this body has a specific tag.
@@ -38,15 +54,23 @@ class IBasePhysicsBody(IPhysicsBody2D):
         """
         ...
 
-    def is_on_top_of(self, other: IPhysicsBody2D) -> bool:
-        """Check if this body is on top of another body.
-
-        Useful for conveyor belts, platforms, etc.
+    @classmethod
+    def from_dict(cls, data: dict) -> 'IBasePhysicsBody':
+        """Create a physics body from a dictionary representation.
 
         Args:
-            other: The other physics body
+            data: Dictionary with body properties
 
         Returns:
-            True if this body is resting on top of the other body
+            Instance of IBasePhysicsBody
         """
-        ...
+        raise NotImplementedError()
+
+    @property
+    def tags(self) -> list[str]:
+        """Get the list of tags associated with this body.
+
+        Returns:
+            List of tags
+        """
+        return self.get_tags()

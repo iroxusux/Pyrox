@@ -4,19 +4,21 @@ This module provides a Tkinter-based canvas frame for viewing and interacting
 with 2D scenes containing sprites and simple shapes. Supports panning, zooming,
 and integrates with the Scene workflow.
 """
+from pathlib import Path
 import tkinter as tk
-from tkinter import ttk
+from tkinter import filedialog, ttk
 from typing import Dict, Optional, Tuple
 from pyrox.interfaces import (
     IScene,
     ISceneObject,
+    ISceneRunnerService,
     IViewport
 )
 from pyrox.models.gui.tk.frame import TkinterTaskFrame
 from pyrox.models.gui import TkPropertyPanel
 from pyrox.models.physics import PhysicsSceneFactory
 from pyrox.models.protocols import Area2D, Zoomable
-from pyrox.models.scene import SceneObjectFactory, SceneObject
+from pyrox.models.scene import Scene, SceneObjectFactory, SceneObject
 from pyrox.services import (
     log,
     ViewportPanningService,
@@ -115,10 +117,13 @@ class SceneViewerFrame(TkinterTaskFrame):
         zoom_level: Current zoom level (1.0 = 100%)
     """
 
+    _application_menu_built: bool = False
+
     def __init__(
         self,
         parent,
         name: str = "Scene Viewer",
+        runner: Optional[ISceneRunnerService] = None,
         scene: Optional[IScene] = None
     ):
         """Initialize the SceneViewerFrame.
@@ -136,6 +141,7 @@ class SceneViewerFrame(TkinterTaskFrame):
 
         # Scene and rendering state
         self._scene: Optional[IScene] = scene
+        self._runner: Optional[ISceneRunnerService] = runner
         self._canvas_objects: Dict[str, int] = {}  # scene_object_id -> canvas_id
 
         # Viewport state for panning and zooming
@@ -157,6 +163,8 @@ class SceneViewerFrame(TkinterTaskFrame):
             canvas=None,
             viewport=self._viewport
         )
+        self._viewport_gridding_service.on_toggle_callbacks.append(self.render_scene)
+        self._viewport_gridding_service.on_snap_toggle_callbacks.append(self.render_scene)
 
         # Selection state
         self._selected_objects: set[str] = set()  # Set of selected object IDs
@@ -182,9 +190,14 @@ class SceneViewerFrame(TkinterTaskFrame):
         self._object_palette_visible: bool = False
         self._object_palette_frame: Optional[ttk.Frame] = None
         self._current_object_template: Optional[str] = None  # Selected object template
-        self._snap_to_grid: bool = False
+
+        # TODO: remove these following properties and abstract with services
+        self._design_mode_var: tk.BooleanVar = tk.BooleanVar()
+        self._object_palette_var: tk.BooleanVar = tk.BooleanVar()
+        self._properties_var: tk.BooleanVar = tk.BooleanVar()
 
         # Build the UI
+        self._build_application_menu()
         self._build_toolbar()
         self._build_canvas()
         self._build_properties_panel()
@@ -193,48 +206,140 @@ class SceneViewerFrame(TkinterTaskFrame):
         self._initialize_object_templates()
         self.render_scene()
 
-    def _build_toolbar(self) -> None:
-        """Build the toolbar with viewer controls."""
-        self._toolbar = ttk.Frame(self.content_frame)
-        self._toolbar.pack(side=tk.TOP, fill=tk.X, padx=5, pady=5)
+    def _build_application_menu(self) -> None:
+        """Build the application menu for the scene viewer."""
+        if SceneViewerFrame._application_menu_built:
+            return
 
-        dropdown = self.gui.unsafe_get_backend().create_gui_menu(
+        # ---------- File Menu ----------
+
+        scene_file_dropdown = self.gui.unsafe_get_backend().create_gui_menu(
+            master=self.gui.root_menu().file_menu.menu,
+            tearoff=0
+        )
+        # Scene save / load controls
+        scene_file_dropdown.add_item(
+            label="Save Scene",
+            command=self.save_scene_dialog,
+            accelerator="Ctrl+S",
+            underline=0
+        )
+        scene_file_dropdown.add_item(
+            label="Load Scene",
+            command=self.load_scene_dialog,
+            accelerator="Ctrl+O",
+            underline=0
+        )
+
+        # Apply to File menu
+        self.gui.root_menu().file_menu.insert_submenu(
+            index=0,
+            label="Scene Viewer",
+            submenu=scene_file_dropdown,
+        )
+        self.gui.root_menu().file_menu.insert_separator(1)
+
+        # ---------- Edit Menu ----------
+
+        scene_edit_dropdown = self.gui.unsafe_get_backend().create_gui_menu(
+            master=self.gui.root_menu().edit_menu.menu,
+            tearoff=0
+        )
+        # Delete selected objects
+        scene_edit_dropdown.add_item(
+            label="Delete Selected Objects",
+            command=self.delete_selected_objects,
+            accelerator="Del",
+            underline=7
+        )
+
+        # Apply to Edit menu
+        self.gui.root_menu().edit_menu.insert_submenu(
+            index=0,
+            label="Scene Viewer",
+            submenu=scene_edit_dropdown
+        )
+        self.gui.root_menu().edit_menu.insert_separator(1)
+
+        # ---------- View Menu ----------
+
+        scene_view_dropdown = self.gui.unsafe_get_backend().create_gui_menu(
             master=self.gui.root_menu().view_menu.menu,
+            tearoff=0
         )
         # Zoom controls
-        dropdown.add_item(
+        scene_view_dropdown.add_item(
             label="+Zoom In",
             command=self._viewport_zooming_service.zoom_in,
             accelerator="Ctrl++",
             underline=0
         )
-        dropdown.add_item(
+        scene_view_dropdown.add_item(
             label="-Zoom Out",
             command=self._viewport_zooming_service.zoom_out,
             accelerator="Ctrl+-",
             underline=0
         )
-        dropdown.add_item(
+        scene_view_dropdown.add_item(
             label="Reset View",
-            command=self.reset_view,
+            command=self._viewport_zooming_service.reset_zoom,
             accelerator="Ctrl+0",
             underline=0
         )
 
         # Grid controls
-        dropdown.add_separator()
-        dropdown.add_checkbutton(
+        scene_view_dropdown.add_separator()
+        scene_view_dropdown.add_checkbutton(
             label="Show Grid",
             variable=tk.BooleanVar(value=self._viewport_gridding_service.enabled),
-            command=self.toggle_grid,
+            command=self._viewport_gridding_service.toggle,
+            underline=0
+        )
+        scene_view_dropdown.add_checkbutton(
+            label="Snap to Grid",
+            variable=tk.BooleanVar(value=self._viewport_gridding_service.snap_enabled),
+            command=self._viewport_gridding_service.toggle_snap,
+            underline=0
+        )
+
+        # Design Mode controls
+        scene_view_dropdown.add_separator()
+        scene_view_dropdown.add_checkbutton(
+            label="Design Mode",
+            variable=self._design_mode_var,
+            command=self.toggle_design_mode,
+            underline=0
+        )
+        scene_view_dropdown.add_checkbutton(
+            label="Object Palette",
+            variable=self._object_palette_var,
+            command=self.toggle_object_palette,
+            underline=0
+        )
+
+        # Properties Panel toggle
+        scene_view_dropdown.add_separator()
+        scene_view_dropdown.add_checkbutton(
+            label="Properties Panel",
+            variable=self._properties_var,
+            command=self.toggle_properties_panel,
             underline=0
         )
 
         # Apply to View menu
-        self.gui.root_menu().view_menu.add_submenu(
+        self.gui.root_menu().view_menu.insert_submenu(
+            index=0,
             label="Scene Viewer",
-            submenu=dropdown
+            submenu=scene_view_dropdown
         )
+        self.gui.root_menu().view_menu.insert_separator(1)
+
+        SceneViewerFrame._application_menu_built = True
+
+    def _build_toolbar(self) -> None:
+        """Build the toolbar with viewer controls."""
+        self._toolbar = ttk.Frame(self.content_frame)
+        self._toolbar.pack(side=tk.TOP, fill=tk.X, padx=5, pady=5)
 
         # Selection info
         self._selection_label = ttk.Label(
@@ -286,89 +391,6 @@ class SceneViewerFrame(TkinterTaskFrame):
             command=self._on_tool_change
         ).pack(side=tk.LEFT, padx=2)
 
-        # Separator
-        ttk.Separator(self._toolbar, orient=tk.VERTICAL).pack(side=tk.LEFT, fill=tk.Y, padx=10)
-
-        # Delete button
-        self._delete_btn = ttk.Button(
-            self._toolbar,
-            text="Delete Selected",
-            command=self.delete_selected_objects
-        )
-        self._delete_btn.pack(side=tk.LEFT, padx=5)
-
-        # Separator
-        ttk.Separator(self._toolbar, orient=tk.VERTICAL).pack(side=tk.LEFT, fill=tk.Y, padx=10)
-
-        # Design Mode toggle
-        self._design_mode_var = tk.BooleanVar(value=self._design_mode)
-        self._design_mode_toggle = ttk.Checkbutton(
-            self._toolbar,
-            text="Design Mode",
-            variable=self._design_mode_var,
-            command=self.toggle_design_mode
-        )
-        self._design_mode_toggle.pack(side=tk.LEFT, padx=5)
-
-        # Object Palette toggle (only visible in design mode)
-        self._object_palette_var = tk.BooleanVar(value=self._object_palette_visible)
-        self._object_palette_toggle = ttk.Checkbutton(
-            self._toolbar,
-            text="Object Palette",
-            variable=self._object_palette_var,
-            command=self.toggle_object_palette,
-            state=tk.DISABLED  # Enabled when design mode is on
-        )
-        self._object_palette_toggle.pack(side=tk.LEFT, padx=5)
-
-        # Snap to grid
-        self._snap_var = tk.BooleanVar(value=self._snap_to_grid)
-        self._snap_toggle = ttk.Checkbutton(
-            self._toolbar,
-            text="Snap to Grid",
-            variable=self._snap_var,
-            command=self.toggle_snap_to_grid
-        )
-        self._snap_toggle.pack(side=tk.LEFT, padx=5)
-
-        # Separator
-        ttk.Separator(self._toolbar, orient=tk.VERTICAL).pack(side=tk.LEFT, fill=tk.Y, padx=10)
-
-        # Save/Load Scene buttons
-        self._save_scene_btn = ttk.Button(
-            self._toolbar,
-            text="Save Scene",
-            command=self.save_scene_dialog
-        )
-        self._save_scene_btn.pack(side=tk.LEFT, padx=2)
-
-        self._load_scene_btn = ttk.Button(
-            self._toolbar,
-            text="Load Scene",
-            command=self.load_scene_dialog
-        )
-        self._load_scene_btn.pack(side=tk.LEFT, padx=2)
-
-        # Separator
-        ttk.Separator(self._toolbar, orient=tk.VERTICAL).pack(side=tk.LEFT, fill=tk.Y, padx=10)
-
-        # Properties panel toggle
-        self._properties_var = tk.BooleanVar(value=self._properties_panel_visible)
-        self._properties_toggle = ttk.Checkbutton(
-            self._toolbar,
-            text="Properties Panel",
-            variable=self._properties_var,
-            command=self.toggle_properties_panel
-        )
-        self._properties_toggle.pack(side=tk.LEFT, padx=5)
-
-        self.on_destroy().append(lambda _: self._teardown_toolbar(_, dropdown.menu))
-
-    def _teardown_toolbar(self, _, toolbar: tk.Menu) -> None:
-        """Teardown the toolbar and its menu items."""
-        self._toolbar.destroy()
-        # TODO: Impliment either removal of dropdown items or disabling them
-
     def _build_canvas(self) -> None:
         """Build the main canvas for rendering."""
         # Use PanedWindow for resizable split between canvas and properties panel
@@ -416,6 +438,10 @@ class SceneViewerFrame(TkinterTaskFrame):
 
         # Deselect with Escape key
         self._canvas.bind("<Escape>", lambda e: self.clear_selection())
+
+        # Bind to runner events
+        if self._runner:
+            self._runner.on_scene_load_callbacks.append(self.set_scene)
 
         # TODO: Add keyboard shortcuts (Ctrl+Z undo, Ctrl+D duplicate, etc.)
 
@@ -535,15 +561,25 @@ class SceneViewerFrame(TkinterTaskFrame):
             for obj_id in self._selected_objects:
                 scene_obj = self._scene.scene_objects.get(obj_id)
                 if scene_obj:
+                    # Calculate new position
+                    new_x = scene_obj.x + scene_dx
+                    new_y = scene_obj.y + scene_dy
+
+                    # Apply snap to grid if enabled
+                    new_x, new_y = self._viewport_gridding_service.snap_to_grid(new_x, new_y)
+
                     # Update object position
-                    scene_obj.set_x(scene_obj.x + scene_dx)
-                    scene_obj.set_y(scene_obj.y + scene_dy)
+                    scene_obj.physics_body.set_x(new_x)
+                    scene_obj.physics_body.set_y(new_y)
 
                     props = scene_obj.properties
                     # For line objects, also update x2, y2
                     if props.get("shape") == "line":
-                        props["x2"] = props.get("x2", 0) + scene_dx
-                        props["y2"] = props.get("y2", 0) + scene_dy
+                        # Calculate line endpoint delta based on snapped position
+                        actual_dx = new_x - scene_obj.x
+                        actual_dy = new_y - scene_obj.y
+                        props["x2"] = props.get("x2", 0) + actual_dx
+                        props["y2"] = props.get("y2", 0) + actual_dy
 
         # Update drag start position
         self._drag_start_x = event.x
@@ -838,7 +874,10 @@ class SceneViewerFrame(TkinterTaskFrame):
         """
         return self._scene
 
-    def render_scene(self) -> None:
+    def render_scene(
+        self,
+        *_,
+    ) -> None:
         """Render the current scene to the canvas."""
         if not self._scene:
             return
@@ -1248,9 +1287,7 @@ class SceneViewerFrame(TkinterTaskFrame):
             return
 
         # Apply snap to grid if enabled
-        if self._snap_to_grid:
-            scene_x = round(scene_x / self._grid_size) * self._grid_size
-            scene_y = round(scene_y / self._grid_size) * self._grid_size
+        scene_x, scene_y = self._viewport_gridding_service.snap_to_grid(scene_x, scene_y)
 
         # Generate unique ID
         self._object_counter += 1
@@ -1267,15 +1304,8 @@ class SceneViewerFrame(TkinterTaskFrame):
         scene_obj = SceneObject(
             id=obj_id,
             name=template.name,
-            scene_object_type=physics_obj.body_type,
+            scene_object_type=template.body_class.__name__,
             description='',
-            physics_body=physics_obj,
-        )
-
-        # Transform object into scene object
-        scene_obj = SceneObjectFactory.create_physics_scene_object(
-            id=obj_id,
-            name=template.name,
             physics_body=physics_obj,
         )
 
@@ -1295,15 +1325,14 @@ class SceneViewerFrame(TkinterTaskFrame):
 
     def toggle_design_mode(self) -> None:
         """Toggle design mode on/off."""
-        self._design_mode = self._design_mode_var.get()
+        self._design_mode = not self._design_mode
+        self._design_mode_var.set(self._design_mode)
 
         if self._design_mode:
             # Enable design features
-            self._object_palette_toggle.config(state=tk.NORMAL)
             log(self).info("Design mode enabled")
         else:
             # Disable design features
-            self._object_palette_toggle.config(state=tk.DISABLED)
             self._object_palette_visible = False
             self._object_palette_var.set(False)
             if self._object_palette_frame:
@@ -1317,7 +1346,8 @@ class SceneViewerFrame(TkinterTaskFrame):
 
     def toggle_object_palette(self) -> None:
         """Toggle the object palette visibility."""
-        self._object_palette_visible = self._object_palette_var.get()
+        self._object_palette_visible = not self._object_palette_visible
+        self._object_palette_var.set(self._object_palette_visible)
 
         if self._object_palette_visible and self._object_palette_frame:
             self._object_palette_frame.pack(side=tk.LEFT, fill=tk.Y, padx=5, pady=5, before=self._canvas)
@@ -1326,8 +1356,8 @@ class SceneViewerFrame(TkinterTaskFrame):
 
     def toggle_snap_to_grid(self) -> None:
         """Toggle snap to grid on/off."""
-        self._snap_to_grid = self._snap_var.get()
-        log(self).info(f"Snap to grid: {'ON' if self._snap_to_grid else 'OFF'}")
+        self._viewport_gridding_service.toggle_snap()
+        log(self).info(f"Snap to grid: {'ON' if self._viewport_gridding_service.snap_enabled else 'OFF'}")
 
     def save_scene_dialog(self) -> None:
         """Open file dialog to save the current scene."""
@@ -1335,7 +1365,6 @@ class SceneViewerFrame(TkinterTaskFrame):
             log(self).warning("No scene to save")
             return
 
-        from tkinter import filedialog
         filepath = filedialog.asksaveasfilename(
             title="Save Scene",
             defaultextension=".json",
@@ -1343,16 +1372,33 @@ class SceneViewerFrame(TkinterTaskFrame):
         )
 
         if filepath:
-            try:
-                from pathlib import Path
-                self._scene.save(Path(filepath))
-                log(self).info(f"Scene saved to: {filepath}")
-            except Exception as e:
-                log(self).error(f"Failed to save scene: {e}")
+            if not self._runner:
+                try:
+                    self._scene.save(Path(filepath))
+                    log(self).info(f"Scene saved to: {filepath}")
+                except Exception as e:
+                    log(self).error(f"Failed to save scene: {e}")
+            else:
+                self._runner.save_scene(filepath)
+
+    def _load_from_scene_class(self, filepath: Path) -> None:
+        """Load a scene from a file using the scene's class method.
+
+        Args:
+            filepath: Path to the scene file
+        """
+        # Create factory and register object types
+        factory = SceneObjectFactory()
+        factory.register("SceneObject", SceneObject)
+
+        # Load scene
+        loaded_scene = Scene.load(Path(filepath))
+        self.set_scene(loaded_scene)
+        log(self).info(f"Scene loaded from: {filepath}")
 
     def load_scene_dialog(self) -> None:
         """Open file dialog to load a scene."""
-        from tkinter import filedialog
+
         filepath = filedialog.askopenfilename(
             title="Load Scene",
             defaultextension=".json",
@@ -1360,25 +1406,16 @@ class SceneViewerFrame(TkinterTaskFrame):
         )
 
         if filepath:
-            try:
-                from pathlib import Path
-                from pyrox.models.scene import Scene, SceneObjectFactory, SceneObject, PhysicsSceneObject
-
-                # Create factory and register object types
-                factory = SceneObjectFactory()
-                factory.register("SceneObject", SceneObject)
-                factory.register("PhysicsSceneObject", PhysicsSceneObject)
-
-                # Load scene
-                loaded_scene = Scene.load(Path(filepath), factory=factory)
-                self.set_scene(loaded_scene)
-                log(self).info(f"Scene loaded from: {filepath}")
-            except Exception as e:
-                log(self).error(f"Failed to load scene: {e}")
+            if not self._runner:
+                self._load_from_scene_class(Path(filepath))
+            else:
+                # Use runner to load scene
+                self._runner.load_scene(Path(filepath))
 
     def toggle_properties_panel(self) -> None:
         """Toggle the visibility of the properties panel."""
-        self._properties_panel_visible = self._properties_var.get()
+        self._properties_panel_visible = not self._properties_panel_visible
+        self._properties_var.set(self._properties_panel_visible)
         panes = list(self._paned_window.panes())
 
         if self._properties_panel_visible:

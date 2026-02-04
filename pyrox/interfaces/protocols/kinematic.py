@@ -48,6 +48,15 @@ class IVelocity2D(
         """Get velocity as (vx, vy)."""
         return self.get_linear_velocity()
 
+    @linear_velocity.setter
+    def linear_velocity(self, value: tuple[float, float]) -> None:
+        """Set velocity as (vx, vy).
+
+        Args:
+            value (tuple[float, float]): Velocity tuple.
+        """
+        self.set_linear_velocity(value[0], value[1])
+
     @property
     def speed(self) -> float:
         """Get scalar speed (magnitude of velocity)."""

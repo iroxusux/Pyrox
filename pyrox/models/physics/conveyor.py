@@ -38,10 +38,14 @@ class ConveyorBody(BasePhysicsBody):
         direction: float = 1.0,  # 1.0 = right, -1.0 = left
         belt_speed: float = 50.0,  # units per second
         is_active: bool = True,
+        x_axis: bool = True,
         body_type: BodyType = BodyType.STATIC,
         collision_layer: CollisionLayer = CollisionLayer.TERRAIN,
         collision_mask: List[CollisionLayer] | None = None,
+        is_trigger: bool = False,
         material: Material | None = None,
+        *args,
+        **kwargs
     ):
         """Initialize conveyor belt.
 
@@ -87,7 +91,7 @@ class ConveyorBody(BasePhysicsBody):
             collider_type=ColliderType.RECTANGLE,
             collision_layer=collision_layer,
             collision_mask=collision_mask,
-            is_trigger=False,
+            is_trigger=is_trigger,
             x=x,
             y=y,
             width=width,
@@ -98,6 +102,7 @@ class ConveyorBody(BasePhysicsBody):
         self.direction = direction
         self.belt_speed = belt_speed
         self.is_active = is_active
+        self._is_x_axis = x_axis
         self._objects_on_belt: Set[IPhysicsBody2D] = set()
 
     @property
@@ -109,7 +114,19 @@ class ConveyorBody(BasePhysicsBody):
         """
         if not self.is_active:
             return (0.0, 0.0)
-        return (self.direction * self.belt_speed, 0.0)
+        if self._is_x_axis:
+            return (self.direction * self.belt_speed, 0.0)
+        else:
+            return (0.0, self.direction * self.belt_speed)
+
+    @property
+    def is_x_axis(self) -> bool:
+        """Check if the conveyor moves along the X axis.
+
+        Returns:
+            True if X axis, False if Y axis
+        """
+        return self._is_x_axis
 
     def set_direction(self, direction: float) -> None:
         """Set the belt direction.
@@ -126,6 +143,22 @@ class ConveyorBody(BasePhysicsBody):
             speed: Speed in units/second (always positive)
         """
         self.belt_speed = abs(belt_speed)
+
+    def get_is_x_axis(self) -> bool:
+        """Check if the conveyor moves along the X axis.
+
+        Returns:
+            True if X axis, False if Y axis
+        """
+        return self._is_x_axis
+
+    def set_is_x_axis(self, x_axis: bool) -> None:
+        """Set whether the conveyor moves along the X axis.
+
+        Args:
+            x_axis: True for X axis, False for Y axis
+        """
+        self._is_x_axis = x_axis
 
     def toggle(self) -> None:
         """Toggle the conveyor on/off."""
@@ -146,7 +179,7 @@ class ConveyorBody(BasePhysicsBody):
             other: The colliding physics body
         """
         # Track objects that enter the conveyor
-        if self.is_on_top_of(other):
+        if other.is_on_top_of(self):
             self._objects_on_belt.add(other)
 
     def on_collision_stay(self, other: IPhysicsBody2D) -> None:
@@ -164,7 +197,7 @@ class ConveyorBody(BasePhysicsBody):
         if other.body_type != BodyType.DYNAMIC:
             return
 
-        if not self.is_on_top_of(other):
+        if not other.is_on_top_of(self):
             # Object is touching but not on top (side collision)
             self._objects_on_belt.discard(other)
             return
@@ -235,5 +268,33 @@ PhysicsSceneFactory.register_template(
         },
         category="Platforms",
         description="A conveyor belt that moves objects placed on top of it.",
+    )
+)
+
+
+# Register top-down conveyor template in factory
+PhysicsSceneFactory.register_template(
+    template_name="Top-Down Conveyor Belt",
+    template=PhysicsSceneTemplate(
+        name="Top-Down Conveyor Belt",
+        body_class=ConveyorBody,
+        default_kwargs={
+            "name": "Top-Down Conveyor",
+            "width": 200.0,
+            "height": 20.0,
+            "direction": 1.0,
+            "belt_speed": 50.0,
+            "is_active": True,
+            "body_type": BodyType.STATIC,
+            "collision_layer": CollisionLayer.TERRAIN,
+            "collision_mask": [
+                CollisionLayer.DEFAULT,
+                CollisionLayer.PLAYER,
+                CollisionLayer.ENEMY,
+            ],
+            "is_trigger": True,
+        },
+        category="Platforms",
+        description="A top-down conveyor belt that moves objects along the Y axis.",
     )
 )

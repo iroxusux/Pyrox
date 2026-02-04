@@ -389,7 +389,7 @@ class TestSceneRunnerService(unittest.TestCase):
         body = Mock(spec=IPhysicsBody2D)
         body.get_bounds = Mock(return_value=(0.0, 0.0, 10.0, 10.0))
         _ = self.mock_app,
-        runner.scene = self.mock_scene
+        runner.set_scene(self.mock_scene)
         runner.enable_physics = False
 
         body = Mock(spec=IPhysicsBody2D)

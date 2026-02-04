@@ -3,10 +3,25 @@ Scene management for field scene_object simulations.
 """
 from abc import abstractmethod
 from pathlib import Path
-from typing import Callable, Dict, Optional, Protocol, Type, Union
-from pyrox.interfaces import IHasId, INameable, IBasePhysicsBody
+from typing import (
+    Callable,
+    Dict,
+    Optional,
+    Protocol,
+    runtime_checkable,
+    Type,
+    Union
+)
+from pyrox.interfaces import (
+    IHasId,
+    INameable,
+    IRunnable,
+    IBasePhysicsBody,
+    IPhysicsBody2D,
+)
 
 
+@runtime_checkable
 class ISceneObject(
         IHasId,
         INameable,
@@ -52,7 +67,7 @@ class ISceneObject(
         self.set_scene_object_type(scene_object_type)
 
     @property
-    def physics_body(self) -> Optional[IBasePhysicsBody]:
+    def physics_body(self) -> IBasePhysicsBody:
         """Get the physics body associated with this scene object.
 
         Returns:
@@ -124,7 +139,7 @@ class ISceneObject(
         ...
 
     @abstractmethod
-    def get_physics_body(self) -> Optional[IBasePhysicsBody]:
+    def get_physics_body(self) -> IBasePhysicsBody:
         """Get the physics body associated with this scene object.
 
         Returns:
@@ -135,7 +150,7 @@ class ISceneObject(
     @abstractmethod
     def set_physics_body(
         self,
-        physics_body: Optional[IBasePhysicsBody]
+        physics_body: IBasePhysicsBody
     ) -> None:
         """Set the physics body associated with this scene object.
 
@@ -160,6 +175,80 @@ class ISceneObject(
         """
         ...
 
+    # ---------- Physics body convenience methods ----------
+
+    @property
+    def x(self) -> float:
+        """Get the x position of the physics body.
+
+        Returns:
+            float | None: The x position, or None if no physics body.
+        """
+        return self.physics_body.x
+
+    @x.setter
+    def x(self, value: float) -> None:
+        """Set the x position of the physics body.
+
+        Args:
+            value (float): The x position to set.
+        """
+        self.physics_body.set_x(value)
+
+    @property
+    def y(self) -> float:
+        """Get the y position of the physics body.
+
+        Returns:
+            float | None: The y position, or None if no physics body.
+        """
+        return self.physics_body.y
+
+    @y.setter
+    def y(self, value: float) -> None:
+        """Set the y position of the physics body.
+
+        Args:
+            value (float): The y position to set.
+        """
+        self.physics_body.set_y(value)
+
+    @property
+    def height(self) -> float:
+        """Get the height of the physics body.
+
+        Returns:
+            float | None: The height, or None if no physics body.
+        """
+        return self.physics_body.height
+
+    @height.setter
+    def height(self, value: float) -> None:
+        """Set the height of the physics body.
+
+        Args:
+            value (float): The height to set.
+        """
+        self.physics_body.set_height(value)
+
+    @property
+    def width(self) -> float:
+        """Get the width of the physics body.
+
+        Returns:
+            float | None: The width, or None if no physics body.
+        """
+        return self.physics_body.width
+
+    @width.setter
+    def width(self, value: float) -> None:
+        """Set the width of the physics body.
+
+        Args:
+            value (float): The width to set.
+        """
+        self.physics_body.set_width(value)
+
 
 class ISceneObjectFactory:
     """
@@ -169,9 +258,10 @@ class ISceneObjectFactory:
     from serialized data.
     """
 
+    @classmethod
     @abstractmethod
     def register(
-        self,
+        cls,
         scene_object_type: str,
         scene_object_class: Type[ISceneObject]
     ) -> None:
@@ -187,9 +277,10 @@ class ISceneObjectFactory:
         """
         ...
 
+    @classmethod
     @abstractmethod
     def unregister(
-        self,
+        cls,
         scene_object_type: str
     ) -> None:
         """
@@ -200,13 +291,15 @@ class ISceneObjectFactory:
         """
         ...
 
+    @classmethod
     @abstractmethod
-    def get_registered_types(self) -> list[str]:
+    def get_registered_types(cls) -> list[str]:
         """Get list of all registered scene object types."""
         ...
 
+    @classmethod
     @abstractmethod
-    def create_scene_object(self, data: dict) -> ISceneObject:
+    def create_scene_object(cls, data: dict) -> ISceneObject:
         """
         Create a scene_object instance from serialized data.
 
@@ -431,14 +524,12 @@ class IScene:
     def from_dict(
         cls,
         data: dict,
-        factory: ISceneObjectFactory
     ) -> "IScene":
         """
         Create scene from dictionary.
 
         Args:
             data: Dictionary containing scene data
-            factory: Scene object factory for creating scene objects
 
         Returns:
             Scene instance
@@ -459,19 +550,203 @@ class IScene:
     @abstractmethod
     def load(
         cls,
-        filepath: Union[str, Path],
-        factory: ISceneObjectFactory
+        filepath: Union[str, Path]
     ) -> "IScene":
         """
         Load scene from JSON file.
 
         Args:
             filepath: Path to the scene JSON file
-            factory: Scene object factory for creating scene objects
         Returns:
             Scene instance
         """
         ...
+
+
+class ISceneRunnerService(
+    IRunnable,
+    Protocol
+):
+    """ Service interface for running and managing scenes.
+    """
+
+    @abstractmethod
+    def get_scene(self) -> IScene:
+        """Get the scene being managed.
+
+        Returns:
+            IScene: The scene instance.
+        """
+        ...
+
+    @abstractmethod
+    def set_scene(self, scene: IScene) -> None:
+        """Set the scene to be managed.
+
+        Args:
+            scene (IScene): The scene instance to set.
+        """
+        ...
+
+    @abstractmethod
+    def load_scene(self, filepath: Union[str, Path]) -> None:
+        """Load a scene from a file.
+
+        Args:
+            filepath (Union[str, Path]): The path to the scene file.
+        """
+        ...
+
+    @abstractmethod
+    def save_scene(self, filepath: Union[str, Path]) -> None:
+        """Save the current scene to a file.
+
+        Args:
+            filepath (Union[str, Path]): The path to save the scene file.
+        """
+        ...
+
+    @abstractmethod
+    def get_physics_engine(self) -> Optional[object]:
+        """Get the physics engine being used.
+
+        Returns:
+            The physics engine instance, or None if physics is disabled.
+        """
+        ...
+
+    @abstractmethod
+    def set_physics_engine(self, physics_engine) -> None:
+        """Set the physics engine to be used.
+
+        Args:
+            physics_engine: The physics engine instance to set.
+        """
+        ...
+
+    @abstractmethod
+    def get_environment(self) -> Optional[object]:
+        """Get the environment service being used.
+
+        Returns:
+            The environment service instance, or None if physics is disabled.
+        """
+        ...
+
+    @abstractmethod
+    def set_environment(self, environment: object) -> None:
+        """Set the environment service to be used.
+
+        Args:
+            environment: The environment service instance to set.
+        """
+        ...
+
+    @abstractmethod
+    def set_update_rate(self, fps: float) -> None:
+        """Set the update rate for the scene runner.
+
+        Args:
+            fps (float): The desired frames per second.
+        """
+        ...
+
+    @abstractmethod
+    def get_update_rate(self) -> float:
+        """Get the current update rate for the scene runner.
+
+        Returns:
+            float: The current frames per second.
+        """
+        ...
+
+    @abstractmethod
+    def add_physics_body(self, body: Union[IBasePhysicsBody, IPhysicsBody2D]) -> None:
+        """Add a physics body to the simulation.
+
+        Args:
+            body: Object implementing IBasePhysicsBody protocol
+        """
+        ...
+
+    @abstractmethod
+    def remove_physics_body(self, body: IBasePhysicsBody) -> None:
+        """Remove a physics body from the simulation.
+
+        Args:
+            body: Object to remove
+        """
+        ...
+
+    @abstractmethod
+    def get_physics_stats(self) -> dict:
+        """Get physics engine statistics.
+
+        Returns:
+            Dictionary with physics stats, or empty dict if physics disabled
+        """
+        ...
+
+    def get_on_tick_callbacks(self) -> list[Callable]:
+        """Get the list of on-tick callback functions.
+
+        Returns:
+            List of callback functions called on each tick
+        """
+        ...
+
+    def get_on_scene_load_callbacks(self) -> list[Callable]:
+        """Get the list of on-scene-load callback functions.
+
+        Returns:
+            List of callback functions called on scene load
+        """
+        ...
+
+    @property
+    def on_tick_callbacks(self) -> list[Callable]:
+        """Get the list of on-tick callback functions.
+
+        Returns:
+            List of callback functions called on each tick
+        """
+        return self.get_on_tick_callbacks()
+
+    @property
+    def on_scene_load_callbacks(self) -> list[Callable]:
+        """Get the list of on-scene-load callback functions.
+
+        Returns:
+            List of callback functions called on scene load
+        """
+        return self.get_on_scene_load_callbacks()
+
+    @property
+    def scene(self) -> IScene:
+        """Get the scene being managed.
+
+        Returns:
+            IScene: The scene instance.
+        """
+        return self.get_scene()
+
+    @property
+    def physics_engine(self) -> Optional[object]:
+        """Get the physics engine being used.
+
+        Returns:
+            The physics engine instance, or None if physics is disabled.
+        """
+        return self.get_physics_engine()
+
+    @property
+    def environment(self) -> Optional[object]:
+        """Get the environment service being used.
+
+        Returns:
+            The environment service instance, or None if physics is disabled.
+        """
+        return self.get_environment()
 
 
 __all__ = ["IScene", "ISceneObject", "ISceneObjectFactory"]

@@ -3,7 +3,7 @@
 Provides concrete implementations of physics protocols that can be mixed
 into scene objects to add physics simulation capabilities.
 """
-from typing import Tuple, List
+from typing import List, Self, Tuple
 from pyrox.interfaces import (
     ISpatial2D,
     IPhysicsBody2D,
@@ -68,6 +68,22 @@ class Material(IMaterial):
         if value < 0:
             raise ValueError("Drag must be non-negative")
         self._drag = value
+
+    @classmethod
+    def from_dict(cls, data: dict) -> Self:
+        """Create Material from dictionary.
+
+        Args:
+            data: Dictionary with material properties
+        Returns:
+            Instance of IMaterial
+        """
+        return cls(
+            density=data.get('density', 1.0),
+            restitution=data.get('restitution', 0.3),
+            friction=data.get('friction', 0.5),
+            drag=data.get('drag', 0.1),
+        )
 
 
 class Collider2D(
@@ -437,7 +453,7 @@ class PhysicsBody2D(
         pitch: float = 0.0,
         yaw: float = 0.0,
         # Material parameters
-        material: Material | None = None,
+        material: IMaterial | None = None,
     ):
         """Initialize complete physics body.
 
@@ -459,6 +475,8 @@ class PhysicsBody2D(
             material: Material properties (creates default if None)
         """
         # Physics body state
+        if isinstance(body_type, str):
+            body_type = BodyType.from_str(body_type)
         self._body_type = body_type
         self._enabled = enabled
         self._sleeping = sleeping
@@ -480,6 +498,18 @@ class PhysicsBody2D(
             acceleration_y=acceleration_y,
             angular_velocity=angular_velocity,
         )
+
+        if isinstance(collider_type, str):
+            collider_type = ColliderType.from_str(collider_type)
+
+        if isinstance(collision_layer, str):
+            collision_layer = CollisionLayer.from_str(collision_layer)
+
+        if isinstance(collision_mask, list):
+            collision_mask = [
+                CollisionLayer.from_str(layer) if isinstance(layer, str) else layer
+                for layer in collision_mask
+            ]
 
         self._collider = Collider2D(
             parent=self,
@@ -611,3 +641,27 @@ class PhysicsBody2D(
         if self._body_type == BodyType.STATIC:
             return 0.0
         return super().get_inverse_mass()
+
+    def is_on_top_of(self, other: IPhysicsBody2D) -> bool:
+        """Check if this body is on top of another body.
+
+        Useful for conveyor belts, platforms, etc.
+
+        Args:
+            other: The other physics body
+
+        Returns:
+            True if this body is resting on top of the other body
+        """
+        # Get bounding boxes
+        min_x, min_y, max_x, max_y = self.get_bounds()
+        other_min_x, other_min_y, other_max_x, other_max_y = other.get_bounds()
+
+        # Check if horizontally aligned (overlapping in X)
+        if max_x < other_min_x or min_x > other_max_x:
+            return False
+
+        if max_y < other_min_y or min_y > other_max_y:
+            return False
+
+        return True

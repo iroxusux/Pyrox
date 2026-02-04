@@ -126,7 +126,12 @@ from .gui import (
 )
 
 # Scene interfaces
-from .scene import IScene, ISceneObject, ISceneObjectFactory
+from .scene import (
+    IScene,
+    ISceneObject,
+    ISceneObjectFactory,
+    ISceneRunnerService
+)
 
 
 __all__ = (
@@ -222,4 +227,5 @@ __all__ = (
     'IScene',
     'ISceneObject',
     'ISceneObjectFactory',
+    'ISceneRunnerService',
 )

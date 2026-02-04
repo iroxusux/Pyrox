@@ -130,6 +130,9 @@ class TkinterMenu(IGuiMenu, TkinterGuiWidget):
     def add_separator(self, index: Union[int, str] = 'end') -> None:
         self.menu.insert_separator(index)
 
+    def insert_separator(self, index: Union[int, str]) -> None:
+        self.menu.insert_separator(index)
+
     def add_submenu(
         self,
         label: str,
@@ -138,6 +141,21 @@ class TkinterMenu(IGuiMenu, TkinterGuiWidget):
     ) -> None:
         self._process_binding_info(kwargs)
         self.menu.add_cascade(
+            label=label,
+            menu=submenu.menu,
+            **kwargs
+        )
+
+    def insert_submenu(
+        self,
+        index: Union[int, str],
+        label: str,
+        submenu: IGuiMenu,
+        **kwargs
+    ) -> None:
+        self._process_binding_info(kwargs)
+        self.menu.insert_cascade(
+            index,
             label=label,
             menu=submenu.menu,
             **kwargs

@@ -81,10 +81,17 @@ from .services import (
 )
 
 # Task components
-from .task import ApplicationTask, ApplicationTaskFactory
+from .task import (
+    ApplicationTask,
+    ApplicationTaskFactory
+)
 
 # Scene components
-from .scene import Scene, SceneObject, SceneObjectFactory, PhysicsSceneObject
+from .scene import (
+    Scene,
+    SceneObject,
+    SceneObjectFactory
+)
 
 
 __all__ = [
@@ -149,7 +156,6 @@ __all__ = [
     'Scene',
     'SceneObject',
     'SceneObjectFactory',
-    'PhysicsSceneObject',
 
     # Physics components
     'Material',

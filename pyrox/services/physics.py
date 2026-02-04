@@ -205,7 +205,12 @@ class PhysicsEngineService(IPhysicsEngine):
             # Apply drag (with clamping to prevent velocity reversal)
             vx, vy = body.linear_velocity
             drag_coef = body.material.drag
-            area = body.width * body.height
+
+            # Scale area to reasonable physical units (game units -> m²)
+            # Assuming game units are roughly pixels, 100 pixels ≈ 1 meter
+            # So area needs to be scaled down by 100² = 10,000
+            area_scale_factor = 0.0001  # Converts pixel² to m²
+            area = body.width * body.height * area_scale_factor
 
             drag_x, drag_y = self._environment.apply_drag_force((vx, vy), drag_coef, area)
 
@@ -249,12 +254,11 @@ class PhysicsEngineService(IPhysicsEngine):
 
             # Integrate forces -> acceleration -> velocity
             fx, fy = body.force
-            inv_mass = body.inverse_mass
 
-            if inv_mass > 0:  # Skip if infinite mass
+            if body.inverse_mass > 0:  # Skip if infinite mass
                 # 1. Calculate acceleration from forces (F = ma, so a = F/m)
-                ax = fx * inv_mass
-                ay = fy * inv_mass
+                ax = fx * body.inverse_mass
+                ay = fy * body.inverse_mass
 
                 # 2. Store acceleration in body for external access
                 body.set_linear_acceleration(ax, ay)
@@ -271,18 +275,26 @@ class PhysicsEngineService(IPhysicsEngine):
                     vx *= scale
                     vy *= scale
 
-                # 5. Apply velocity threshold to prevent infinite asymptotic decay
-                # If velocity is very small, snap to zero
-                velocity_threshold = 0.1  # 1 mm/s
+                # 5. Apply linear damping (ground friction/rolling resistance)
+                # Reduces velocity by a fixed percentage per second
+                # Higher values = more friction (stops faster)
+                linear_damping = 0.50  # Retain 95% of velocity per second (5% loss)
+                damping_factor = linear_damping ** dt  # Apply per timestep
+                vx *= damping_factor
+                vy *= damping_factor
+
+                # 6. Apply velocity threshold to prevent infinite asymptotic decay
+                # If velocity is very small, snap to zero (concrete-like stop)
+                velocity_threshold = 2.0  # Stop when slower than 2 units/s
                 if abs(vx) < velocity_threshold:
                     vx = 0.0
                 if abs(vy) < velocity_threshold:
                     vy = 0.0
 
-                # 6. Store new velocity
+                # 7. Store new velocity
                 body.set_linear_velocity(vx, vy)
 
-                # 7. Clear forces for next step
+                # 8. Clear forces for next step
                 body.clear_forces()
             else:
                 # Zero acceleration for infinite mass bodies

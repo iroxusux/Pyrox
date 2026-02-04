@@ -2,8 +2,9 @@
 """
 import importlib
 import sys
+from pyrox import interfaces
 from pyrox import models
-from pyrox.services import EnvironmentService, SceneRunnerService
+from pyrox import services
 
 
 class ExampleTask(models.ApplicationTask):
@@ -11,43 +12,18 @@ class ExampleTask(models.ApplicationTask):
     def _open_scene_viewer(self) -> None:
         """Open the Scene Viewer frame."""
         # Reload modules to ensure the latest changes are reflected
+        importlib.reload(interfaces)
         importlib.reload(models)
-
-        # Create SceneObjectFactory
-        scene_object_factory = models.scene.SceneObjectFactory()
-        scene_object_factory.register(
-            'Cube',
-            models.scene.SceneObject
-        )
+        importlib.reload(services)
 
         # Create Scene
-        s = models.scene.Scene(
-            name="Example Scene",
-            description="An example scene with a cube object.",
-            scene_object_factory=scene_object_factory
-        )
-
-        # Create a concrete SceneObject subclass for demonstration
-        class TestSceneObject(models.scene.PhysicsSceneObject):
-            def __init__(self):
-                super().__init__(
-                    id="test_scene_object",
-                    name="Test Scene Object",
-                    scene_object_type="Cube",
-                    description="A test scene object for demonstration purposes.",
-                )
-
-        # Add a test scene object
-        test_object = TestSceneObject()
-        s.add_scene_object(test_object)
+        s = models.scene.Scene()
 
         # Create EnvironmentService
-        environment = EnvironmentService(
-            preset='top_down'
-        )
+        environment = services.EnvironmentService(preset='top_down')
 
         # Create SceneRunnerService
-        runner = SceneRunnerService(
+        runner = services.SceneRunnerService(
             app=self.application,
             scene=s,
             environment=environment,
@@ -57,7 +33,8 @@ class ExampleTask(models.ApplicationTask):
         # Create and register SceneViewerFrame
         scene_viewer = models.gui.sceneviewer.SceneViewerFrame(
             parent=self.application.workspace.workspace_area.root,  # type: ignore
-            scene=s
+            scene=s,
+            runner=runner,
         )
         self.application.workspace.register_frame(scene_viewer)
         scene_viewer.on_destroy().append(lambda *_, **__: runner.stop())

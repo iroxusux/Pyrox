@@ -9,14 +9,16 @@ from pyrox.interfaces import (
     BodyType,
     ColliderType,
     CollisionLayer,
-    IPhysicsBody2D,
+    IMaterial
 )
+from pyrox.models.protocols import Nameable
 from pyrox.models.protocols.physics import PhysicsBody2D, Material
 from .factory import PhysicsSceneTemplate, PhysicsSceneFactory
 
 
 class BasePhysicsBody(
     IBasePhysicsBody,
+    Nameable,
     PhysicsBody2D,
 ):
     """Base class for custom physics bodies.
@@ -54,7 +56,7 @@ class BasePhysicsBody(
         roll: float = 0.0,
         pitch: float = 0.0,
         yaw: float = 0.0,
-        material: Material | None = None,
+        material: IMaterial | None = None,
     ):
         """Initialize base physics body.
 
@@ -84,6 +86,7 @@ class BasePhysicsBody(
             yaw: Yaw rotation in degrees
             material: Material properties (creates default if None)
         """
+        Nameable.__init__(self=self, name=name)
         PhysicsBody2D.__init__(
             self=self,
             body_type=body_type,
@@ -110,8 +113,23 @@ class BasePhysicsBody(
             material=material,
         )
 
-        self.name = name
-        self.tags = tags or []
+        self._tags = tags or []
+
+    def get_tags(self) -> list[str]:
+        """Get the list of tags associated with this body.
+
+        Returns:
+            List of tags
+        """
+        return self._tags
+
+    def set_tags(self, tags: list[str]) -> None:
+        """Set the list of tags for this body.
+
+        Args:
+            tags: List of tags to set
+        """
+        self._tags = tags
 
     def has_tag(self, tag: str) -> bool:
         """Check if this body has a specific tag.
@@ -142,32 +160,43 @@ class BasePhysicsBody(
         if tag in self.tags:
             self.tags.remove(tag)
 
-    def is_on_top_of(self, other: IPhysicsBody2D) -> bool:
-        """Check if this body is on top of another body.
-
-        Useful for conveyor belts, platforms, etc.
+    @classmethod
+    def from_dict(cls, data: dict) -> 'BasePhysicsBody':
+        """Create a physics body from a dictionary representation.
 
         Args:
-            other: The other physics body
-
+            data: Dictionary with body properties
         Returns:
-            True if this body is resting on top of the other body
+            Instance of IBasePhysicsBody
         """
-        # Get bounding boxes
-        min_x, min_y, max_x, max_y = self.get_bounds()
-        other_min_x, other_min_y, other_max_x, other_max_y = other.get_bounds()
-
-        # Check if horizontally aligned (overlapping in X)
-        if max_x < other_min_x or min_x > other_max_x:
-            return False
-
-        # Check if this body's bottom is near the other's top
-        # Allow small tolerance for floating point errors
-        tolerance = 1.0
-        bottom_y = max_y
-        other_top_y = other_min_y
-
-        return abs(bottom_y - other_top_y) < tolerance and bottom_y <= other_top_y + tolerance
+        return cls(
+            name=data.get('name', ''),
+            tags=data.get('tags', []),
+            body_type=BodyType.from_str(data.get('body_type', 'DYNAMIC')),
+            enabled=data.get('enabled', True),
+            sleeping=data.get('sleeping', False),
+            mass=data.get('mass', 1.0),
+            moment_of_inertia=data.get('moment_of_inertia', 1.0),
+            velocity_x=data.get('velocity_x', 0.0),
+            velocity_y=data.get('velocity_y', 0.0),
+            acceleration_x=data.get('acceleration_x', 0.0),
+            acceleration_y=data.get('acceleration_y', 0.0),
+            angular_velocity=data.get('angular_velocity', 0.0),
+            collider_type=ColliderType.from_str(data.get('collider_type', 'RECTANGLE')),
+            collision_layer=CollisionLayer.from_str(data.get('collision_layer', 'DEFAULT')),
+            collision_mask=[
+                CollisionLayer.from_str(layer) for layer in data.get('collision_mask', [])
+            ] if data.get('collision_mask') else None,
+            is_trigger=data.get('is_trigger', False),
+            x=data.get('x', 0.0),
+            y=data.get('y', 0.0),
+            width=data.get('width', 10.0),
+            height=data.get('height', 10.0),
+            roll=data.get('roll', 0.0),
+            pitch=data.get('pitch', 0.0),
+            yaw=data.get('yaw', 0.0),
+            material=Material.from_dict(data['material']) if data.get('material') else None,
+        )
 
     def __repr__(self) -> str:
         """String representation of the body."""

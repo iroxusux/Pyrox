@@ -6,6 +6,7 @@ from typing import (
     List,
     Protocol,
     runtime_checkable,
+    Self,
     Tuple,
 )
 from enum import Enum, auto
@@ -20,12 +21,33 @@ class ColliderType(Enum):
     POLYGON = auto()
     NONE = auto()  # For non-collidable objects
 
+    @classmethod
+    def from_str(cls, value: str) -> 'ColliderType':
+        """Create ColliderType from string representation."""
+        mapping = {
+            'RECTANGLE': cls.RECTANGLE,
+            'CIRCLE': cls.CIRCLE,
+            'POLYGON': cls.POLYGON,
+            'NONE': cls.NONE,
+        }
+        return mapping[value.upper()]
+
 
 class BodyType(Enum):
     """Physics body types."""
     STATIC = auto()      # Does not move (walls, terrain)
     DYNAMIC = auto()     # Fully simulated (player, enemies, projectiles)
     KINEMATIC = auto()   # Moves but isn't affected by forces (moving platforms)
+
+    @classmethod
+    def from_str(cls, value: str) -> 'BodyType':
+        """Create BodyType from string representation."""
+        mapping = {
+            'STATIC': cls.STATIC,
+            'DYNAMIC': cls.DYNAMIC,
+            'KINEMATIC': cls.KINEMATIC,
+        }
+        return mapping[value.upper()]
 
 
 class CollisionLayer(Enum):
@@ -37,6 +59,20 @@ class CollisionLayer(Enum):
     TERRAIN = auto()
     TRIGGER = auto()      # Overlap detection only, no physics response
     TRANSPARENT = auto()  # Visual only, no collision
+
+    @classmethod
+    def from_str(cls, value: str) -> 'CollisionLayer':
+        """Create CollisionLayer from string representation."""
+        mapping = {
+            'DEFAULT': cls.DEFAULT,
+            'PLAYER': cls.PLAYER,
+            'ENEMY': cls.ENEMY,
+            'PROJECTILE': cls.PROJECTILE,
+            'TERRAIN': cls.TERRAIN,
+            'TRIGGER': cls.TRIGGER,
+            'TRANSPARENT': cls.TRANSPARENT,
+        }
+        return mapping[value.upper()]
 
 
 @runtime_checkable
@@ -87,6 +123,8 @@ class IMaterial(Protocol):
     def set_friction(self, value: float) -> None: ...
     def get_drag(self) -> float: ...
     def set_drag(self, value: float) -> None: ...
+    @classmethod
+    def from_dict(cls, data: dict) -> Self: ...
 
 
 class ICollider2D(IArea2D):
@@ -302,6 +340,10 @@ class IPhysicsBody2D(
         """The type of physics body."""
         return self.get_body_type()
 
+    @body_type.setter
+    def body_type(self, value: BodyType) -> None:
+        self.set_body_type(value)
+
     @property
     def collider(self) -> ICollider2D:
         """The collider associated with this physics body."""
@@ -351,6 +393,7 @@ class IPhysicsBody2D(
     def on_collision_enter(self, other: 'IPhysicsBody2D') -> None: ...
     def on_collision_stay(self, other: 'IPhysicsBody2D') -> None: ...
     def on_collision_exit(self, other: 'IPhysicsBody2D') -> None: ...
+    def is_on_top_of(self, other: 'IPhysicsBody2D') -> bool: ...
 
 
 @runtime_checkable
