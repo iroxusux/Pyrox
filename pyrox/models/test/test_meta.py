@@ -1,111 +1,14 @@
 """Unit tests for the meta module."""
 
 import pytest
-import re
-from pathlib import Path
 
 
 from pyrox.models.meta import (
-    _IdGenerator,
-    ALLOWED_CHARS,
-    ALLOWED_REV_CHARS,
-    ALLOWED_MOD_CHARS,
-    DEF_ICON,
     PyroxObject,
     SliceableInt,
     SnowFlake,
-    TK_CURSORS,
 )
-
-
-class TestConstants:
-    """Test constants defined in the meta module."""
-
-    def test_default_constants(self):
-        """Test that default constants are properly defined."""
-        assert isinstance(DEF_ICON, Path)
-        assert DEF_ICON.name == '_def.ico'
-
-    def test_regex_patterns(self):
-        """Test that regex patterns are compiled correctly."""
-        assert isinstance(ALLOWED_CHARS, re.Pattern)
-        assert isinstance(ALLOWED_REV_CHARS, re.Pattern)
-        assert isinstance(ALLOWED_MOD_CHARS, re.Pattern)
-
-        # Test what characters are allowed/disallowed
-        assert ALLOWED_CHARS.search('invalid!@#') is not None
-        assert ALLOWED_CHARS.search('valid_name123[]') is None
-
-        assert ALLOWED_REV_CHARS.search('1.2.3') is None
-        assert ALLOWED_REV_CHARS.search('1.2.3a') is not None
-
-        assert ALLOWED_MOD_CHARS.search('module_name:1.0') is None
-        assert ALLOWED_MOD_CHARS.search('module@name') is not None
-
-
-class TestTKCursors:
-    """Test the TK_CURSORS enum."""
-
-    def test_cursor_enum_values(self):
-        """Test that cursor enum has expected values."""
-        assert TK_CURSORS.ARROW.value == "arrow"
-        assert TK_CURSORS.CIRCLE.value == "circle"
-        assert TK_CURSORS.CLOCK.value == "clock"
-        assert TK_CURSORS.CROSS.value == "cross"
-        assert TK_CURSORS.DEFAULT.value == ""
-        assert TK_CURSORS.DOTBOX.value == "dotbox"
-        assert TK_CURSORS.EXCHANGE.value == "exchange"
-        assert TK_CURSORS.FLEUR.value == "fleur"
-        assert TK_CURSORS.HEART.value == "heart"
-        assert TK_CURSORS.MAN.value == "man"
-        assert TK_CURSORS.MOUSE.value == "mouse"
-        assert TK_CURSORS.PIRATE.value == "pirate"
-        assert TK_CURSORS.PLUS.value == "plus"
-        assert TK_CURSORS.SHUTTLE.value == "shuttle"
-        assert TK_CURSORS.SIZING.value == "sizing"
-        assert TK_CURSORS.SPIDER.value == "spider"
-        assert TK_CURSORS.SPRAYCAN.value == "spraycan"
-        assert TK_CURSORS.STAR.value == "star"
-        assert TK_CURSORS.TARGET.value == "target"
-        assert TK_CURSORS.TCROSS.value == "tcross"
-        assert TK_CURSORS.TREK.value == "trek"
-        assert TK_CURSORS.WAIT.value == "wait"
-
-    def test_cursor_enum_membership(self):
-        """Test cursor enum membership."""
-        assert TK_CURSORS.ARROW in TK_CURSORS
-        assert len(list(TK_CURSORS)) == 22
-
-
-class TestIdGenerator:
-    """Test the _IdGenerator class."""
-
-    def setup_method(self):
-        """Reset the counter before each test."""
-        _IdGenerator._ctr = 0
-
-    def test_get_id_increments(self):
-        """Test that get_id returns incremental values."""
-        first_id = _IdGenerator.get_id()
-        second_id = _IdGenerator.get_id()
-        third_id = _IdGenerator.get_id()
-
-        assert first_id == 1
-        assert second_id == 2
-        assert third_id == 3
-
-    def test_curr_value(self):
-        """Test curr_value returns current counter value."""
-        assert _IdGenerator.curr_value() == 0
-        _IdGenerator.get_id()
-        assert _IdGenerator.curr_value() == 1
-        _IdGenerator.get_id()
-        assert _IdGenerator.curr_value() == 2
-
-    def test_thread_safety_simulation(self):
-        """Test that multiple calls return unique values."""
-        ids = [_IdGenerator.get_id() for _ in range(100)]
-        assert len(set(ids)) == 100  # All IDs should be unique
+from pyrox.services import IdGeneratorService
 
 
 class TestSliceableInt:
@@ -187,7 +90,7 @@ class TestSnowFlake:
 
     def setup_method(self):
         """Reset the ID generator before each test."""
-        _IdGenerator._ctr = 0
+        IdGeneratorService._ctr = 0
 
     def test_unique_ids(self):
         """Test that each SnowFlake gets a unique ID."""
@@ -242,7 +145,7 @@ class TestPyroxObject:
 
     def setup_method(self):
         """Reset the ID generator before each test."""
-        _IdGenerator._ctr = 0
+        IdGeneratorService._ctr = 0
 
     def test_inheritance(self):
         """Test PyroxObject inheritance."""

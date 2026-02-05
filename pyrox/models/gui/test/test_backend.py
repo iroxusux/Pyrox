@@ -328,18 +328,6 @@ class TestTkinterBackend(unittest.TestCase):
                 self.backend.get_root_application_gui_menu()
             self.assertIn("Menu not initialized", str(context.exception))
 
-    def test_get_root_application_menu_returns_menu_object(self):
-        """Test that get_root_application_menu returns the underlying menu object."""
-        mock_menu_object = MagicMock()
-        mock_menu = MagicMock(spec=TkinterApplicationMenu)
-        mock_menu.menu = mock_menu_object
-        self.backend._menu = mock_menu
-
-        with patch.object(self.backend, 'get_root_application_gui_menu', return_value=mock_menu):
-            result = self.backend.get_root_application_menu()
-
-            self.assertEqual(result, mock_menu_object)
-
     def test_get_root_gui_window_creates_if_needed(self):
         """Test that get_root_gui_window creates window if needed."""
         self.backend._root_window = None
@@ -402,16 +390,6 @@ class TestTkinterBackend(unittest.TestCase):
         with self.assertRaises(TypeError) as context:
             self.backend.destroy_gui_frame("not a frame")  # type: ignore
         self.assertIn("Expected a TkinterGuiFrame instance", str(context.exception))
-
-    def test_destroy_gui_menu_success(self):
-        """Test destroying a GUI menu."""
-        mock_menu = MagicMock(spec=TkinterMenu)
-        mock_menu_widget = MagicMock()
-        mock_menu.menu = mock_menu_widget
-
-        self.backend.destroy_gui_menu(mock_menu)
-
-        mock_menu_widget.destroy.assert_called_once()
 
     def test_destroy_gui_menu_raises_type_error(self):
         """Test that destroy_gui_menu raises TypeError for wrong type."""

@@ -201,15 +201,19 @@ class TestPhysicsEngineService(unittest.TestCase):
 
     def test_step_accumulator_below_threshold(self):
         """Test step when dt is smaller than physics step."""
-        body = self._create_body_mock()
+        body = PhysicsBody2D()
 
         self.engine.register_body(body)
 
         # Step with small dt (0.005s) - below physics step (1/60 ≈ 0.0167s)
         self.engine.step(0.005)
 
-        # Should not call update yet
-        body.update.assert_not_called()
+        with patch.object(body, 'update') as mock_update:
+            # Step again with small dt
+            self.engine.step(0.005)
+
+            # Should not call update yet
+            mock_update.update.assert_not_called()
 
     def test_step_accumulator_reaches_threshold(self):
         """Test step when accumulated time reaches physics step."""

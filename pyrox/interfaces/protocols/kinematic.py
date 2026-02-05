@@ -20,15 +20,42 @@ class IVelocity2D(
         """Get the X component of velocity."""
         return self.get_velocity_x()
 
+    @velocity_x.setter
+    def velocity_x(self, value: float) -> None:
+        """Set the X component of velocity.
+
+        Args:
+            value (float): The X component of velocity.
+        """
+        self.set_velocity_x(value)
+
     @property
     def velocity_y(self) -> float:
         """Get the Y component of velocity."""
         return self.get_velocity_y()
 
+    @velocity_y.setter
+    def velocity_y(self, value: float) -> None:
+        """Set the Y component of velocity.
+
+        Args:
+            value (float): The Y component of velocity.
+        """
+        self.set_velocity_y(value)
+
     @property
     def linear_velocity(self) -> tuple[float, float]:
         """Get velocity as (vx, vy)."""
         return self.get_linear_velocity()
+
+    @linear_velocity.setter
+    def linear_velocity(self, value: tuple[float, float]) -> None:
+        """Set velocity as (vx, vy).
+
+        Args:
+            value (tuple[float, float]): Velocity tuple.
+        """
+        self.set_linear_velocity(value[0], value[1])
 
     @property
     def speed(self) -> float:
@@ -54,6 +81,15 @@ class IVelocity3D(
     def velocity_z(self) -> float:
         """Get the Z component of velocity."""
         return self.get_velocity_z()
+
+    @velocity_z.setter
+    def velocity_z(self, value: float) -> None:
+        """Set the Z component of velocity.
+
+        Args:
+            value (float): The Z component of velocity.
+        """
+        self.set_velocity_z(value)
 
     def get_velocity_z(self) -> float: ...
     def set_velocity_z(self, value: float) -> None: ...
@@ -84,9 +120,17 @@ class IKinematic2D(
     def acceleration_x(self) -> float:
         return self.get_acceleration_x()
 
+    @acceleration_x.setter
+    def acceleration_x(self, value: float) -> None:
+        self.set_acceleration_x(value)
+
     @property
     def acceleration_y(self) -> float:
         return self.get_acceleration_y()
+
+    @acceleration_y.setter
+    def acceleration_y(self, value: float) -> None:
+        self.set_acceleration_y(value)
 
     @property
     def acceleration(self) -> float:
@@ -115,6 +159,10 @@ class IKinematic3D(
     @property
     def acceleration_z(self) -> float:
         return self.get_acceleration_z()
+
+    @acceleration_z.setter
+    def acceleration_z(self, value: float) -> None:
+        self.set_acceleration_z(value)
 
     @property
     def acceleration(self) -> tuple[float, float, float]:  # type: ignore

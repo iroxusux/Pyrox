@@ -158,7 +158,7 @@ class TkinterBackend(IGuiBackend):
     def destroy_gui_menu(self, menu: IGuiMenu) -> None:
         if not isinstance(menu, TkinterMenu):
             raise TypeError("Expected a TkinterMenu instance")
-        menu.menu.destroy()
+        menu.app_menu.destroy()
 
     def destroy_gui_window(
         self,
@@ -179,7 +179,7 @@ class TkinterBackend(IGuiBackend):
         return GuiFramework.TKINTER
 
     def get_root_application_menu(self) -> Any:
-        return self.get_root_application_gui_menu().menu
+        return self.get_root_application_gui_menu().app_menu
 
     def get_root_application_gui_menu(self) -> TkinterApplicationMenu:
         if not self._menu:

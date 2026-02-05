@@ -25,26 +25,42 @@ from .protocols import (
     Spatial2D,
     Spatial3D,
     Rotatable,
+    Zoomable,
+    # Physics components
+    Material,
+    Collider2D,
+    RigidBody2D,
+    PhysicsBody2D
 )
 
+# Base classes
 from .meta import (
     PyroxObject,
     SupportsFileLocation,
     SupportsMetaData,
 )
 
+# List components
 from .list import (
     HashList,
     SafeList,
     Subscribable,
 )
 
+# Factory components
 from .factory import (
     FactoryTypeMeta,
     MetaFactory,
 )
 
-from . import gui  # Must come second to register GUI components
+# Concrete physics body implementations
+from .physics import (
+    BasePhysicsBody,
+    ConveyorBody,
+    CrateBody,
+    PhysicsSceneFactory,
+    PhysicsSceneTemplate,
+)
 
 # GUI components
 from .gui import (
@@ -65,13 +81,16 @@ from .services import (
 )
 
 # Task components
-from .task import ApplicationTask, ApplicationTaskFactory
+from .task import (
+    ApplicationTask,
+    ApplicationTaskFactory
+)
 
 # Scene components
-from .scene import Scene, SceneObject, SceneObjectFactory, PhysicsSceneObject
-
-# Physics components from protocols
-from .protocols.physics import Material, Collider2D, RigidBody2D, PhysicsBody2D
+from .scene import (
+    Scene,
+    SceneObject,
+)
 
 
 __all__ = [
@@ -99,6 +118,7 @@ __all__ = [
     'Spatial2D',
     'Spatial3D',
     'Rotatable',
+    'Zoomable',
 
     # Base classes
     'PyroxObject',
@@ -115,7 +135,6 @@ __all__ = [
     'Subscribable',
 
     # GUI components
-    'gui',
     'LogFrame',
     'PyroxFrameContainer',
     'PyroxGuiObject',
@@ -135,12 +154,17 @@ __all__ = [
     # Scene components
     'Scene',
     'SceneObject',
-    'SceneObjectFactory',
-    'PhysicsSceneObject',
 
     # Physics components
     'Material',
     'Collider2D',
     'RigidBody2D',
     'PhysicsBody2D',
+
+    # Concrete physics bodies
+    'BasePhysicsBody',
+    'ConveyorBody',
+    'CrateBody',
+    'PhysicsSceneFactory',
+    'PhysicsSceneTemplate',
 ]

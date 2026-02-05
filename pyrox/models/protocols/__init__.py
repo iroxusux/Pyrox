@@ -30,6 +30,7 @@ from .spatial import (
     Spatial2D,
     Spatial3D,
     Rotatable,
+    Zoomable,
 )
 
 # Physics imports for physics simulation
@@ -39,6 +40,9 @@ from .physics import (
     RigidBody2D,
     PhysicsBody2D,
 )
+
+# Connectable protocol for objects that can connect to each other
+from .connection import Connectable
 
 __all__ = [
     # Meta protocols
@@ -68,10 +72,14 @@ __all__ = [
     "Spatial2D",
     "Spatial3D",
     "Rotatable",
+    "Zoomable",
 
     # Physics implementations
     "Material",
     "Collider2D",
     "RigidBody2D",
     "PhysicsBody2D",
+
+    # Connectable protocol
+    "Connectable",
 ]

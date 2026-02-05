@@ -4,15 +4,36 @@ This module provides a Tkinter-based canvas frame for viewing and interacting
 with 2D scenes containing sprites and simple shapes. Supports panning, zooming,
 and integrates with the Scene workflow.
 """
+from pathlib import Path
 import tkinter as tk
-from tkinter import ttk
-from typing import Dict, Optional, Tuple
+from tkinter import filedialog, ttk
+from typing import Callable, Dict, Optional, Tuple
+from pyrox.interfaces import (
+    IScene,
+    ISceneObject,
+    ISceneRunnerService,
+    IViewport
+)
 from pyrox.models.gui.tk.frame import TkinterTaskFrame
-from pyrox.services import log
-from pyrox.interfaces import IScene, ISceneObject
+from pyrox.models.gui import TkPropertyPanel
+from pyrox.models.gui.contextmenu import PyroxContextMenu, MenuItem
+from pyrox.models.physics import PhysicsSceneFactory
+from pyrox.models.protocols import Area2D, Zoomable
+from pyrox.models.scene import Scene, SceneObject
+from pyrox.services import (
+    log,
+    ViewportPanningService,
+    ViewportZoomingService,
+    ViewportGriddingService,
+    ViewportStatusService
+)
 
 
-class SceneViewerViewPort:
+class SceneViewerViewPort(
+    IViewport,
+    Area2D,
+    Zoomable
+):
     """Viewport state for the SceneViewerFrame.
 
     Attributes:
@@ -29,11 +50,11 @@ class SceneViewerViewPort:
         max_zoom: float = 10.0,
         min_zoom: float = 0.1
     ):
-        self.x = x
-        self.y = y
-        self.zoom = zoom
+        Area2D.__init__(self, x, y)
+        Zoomable.__init__(self, zoom)
         self.max_zoom = max_zoom
         self.min_zoom = min_zoom
+        self._on_reset_callbacks: list[Callable] = []
 
     def __eq__(self, value: object) -> bool:
         if not isinstance(value, SceneViewerViewPort):
@@ -46,7 +67,7 @@ class SceneViewerViewPort:
 
     def get_delta(
         self,
-        viewport: 'SceneViewerViewPort'
+        other: IViewport,
     ) -> Tuple[float, float, float]:
         """Get the delta between this viewport and another.
 
@@ -55,23 +76,32 @@ class SceneViewerViewPort:
         Returns:
             Tuple of (delta_x, delta_y, delta_zoom)
         """
-        delta_x = viewport.x - self.x
-        delta_y = viewport.y - self.y
-        delta_zoom = viewport.zoom - self.zoom
+        delta_x = other.x - self.x
+        delta_y = other.y - self.y
+        delta_zoom = other.zoom - self.zoom
         return (delta_x, delta_y, delta_zoom)
+
+    def reset(
+        self
+    ) -> None:
+        """Reset the viewport to default state."""
+        self.x = 0.0
+        self.y = 0.0
+        self.zoom = 1.0
+        [callback() for callback in self._on_reset_callbacks]
 
     def update(
         self,
-        viewport: 'SceneViewerViewPort'
+        other: IViewport
     ) -> None:
-        """Update viewport properties.
+        self.x = other.x
+        self.y = other.y
+        self.zoom = other.zoom
 
-        Args:
-            viewport: Viewport to copy properties from
-        """
-        self.x = viewport.x
-        self.y = viewport.y
-        self.zoom = viewport.zoom
+    @property
+    def on_reset_callbacks(self) -> list[Callable]:
+        """Get the list of callbacks to be called on reset events."""
+        return self._on_reset_callbacks
 
 
 class SceneViewerFrame(TkinterTaskFrame):
@@ -96,10 +126,13 @@ class SceneViewerFrame(TkinterTaskFrame):
         zoom_level: Current zoom level (1.0 = 100%)
     """
 
+    _application_menu_built: bool = False
+
     def __init__(
         self,
         parent,
         name: str = "Scene Viewer",
+        runner: Optional[ISceneRunnerService] = None,
         scene: Optional[IScene] = None
     ):
         """Initialize the SceneViewerFrame.
@@ -117,22 +150,38 @@ class SceneViewerFrame(TkinterTaskFrame):
 
         # Scene and rendering state
         self._scene: Optional[IScene] = scene
+        self._runner: Optional[ISceneRunnerService] = runner
         self._canvas_objects: Dict[str, int] = {}  # scene_object_id -> canvas_id
 
         # Viewport state for panning and zooming
         self._viewport = SceneViewerViewPort()
         self._last_viewport = SceneViewerViewPort()
 
-        # Mouse interaction state
-        self._pan_start_x: Optional[int] = None
-        self._pan_start_y: Optional[int] = None
-        self._is_panning: bool = False
-
-        # Grid configuration
-        self._grid_enabled: bool = False
-        self._grid_size: int = 50  # Grid spacing in scene units
-        self._grid_color: str = "#505050"
-        self._grid_line_width: int = 1
+        # Viewport services
+        self._viewport_status_service = ViewportStatusService(
+            parent=self.content_frame,
+            canvas=None,
+            viewport=self._viewport
+        )
+        self._viewport_panning_service = ViewportPanningService(
+            canvas=None,
+            viewport=self._viewport,
+            status_service=self._viewport_status_service
+        )
+        self._viewport_panning_service.on_pan_callbacks.append(self._update_viewport)
+        self._viewport_zooming_service = ViewportZoomingService(
+            canvas=None,
+            viewport=self._viewport,
+            status_service=self._viewport_status_service
+        )
+        self._viewport_zooming_service.on_zoom_callbacks.append(self._update_viewport)
+        self._viewport_gridding_service = ViewportGriddingService(
+            canvas=None,
+            viewport=self._viewport,
+            status_service=self._viewport_status_service
+        )
+        self._viewport_gridding_service.on_toggle_callbacks.append(self.render_scene)
+        self._viewport_gridding_service.on_snap_toggle_callbacks.append(self.render_scene)
 
         # Selection state
         self._selected_objects: set[str] = set()  # Set of selected object IDs
@@ -141,8 +190,7 @@ class SceneViewerFrame(TkinterTaskFrame):
 
         # Properties panel state
         self._properties_panel_visible: bool = False
-        self._properties_panel: Optional[ttk.Frame] = None
-        self._properties_widgets: Dict[str, tk.Widget] = {}
+        self._properties_panel: Optional[TkPropertyPanel] = None
 
         # Drawing and manipulation state
         self._current_tool: str = "select"  # Current tool: select, rectangle, circle, line
@@ -154,66 +202,199 @@ class SceneViewerFrame(TkinterTaskFrame):
         self._is_dragging: bool = False
         self._object_counter: int = 0  # Counter for generating unique object IDs
 
+        # Design mode state
+        self._design_mode: bool = False
+        self._object_palette_visible: bool = False
+        self._object_palette_frame: Optional[ttk.Frame] = None
+        self._current_object_template: Optional[str] = None  # Selected object template
+
+        # Clipboard for copy/paste
+        self._clipboard_data: list[dict] = []
+
+        # TODO: remove these following properties and abstract with services
+        self._design_mode_var: tk.BooleanVar = tk.BooleanVar()
+        self._object_palette_var: tk.BooleanVar = tk.BooleanVar()
+        self._properties_var: tk.BooleanVar = tk.BooleanVar()
+
         # Build the UI
+        self._build_application_menu()
         self._build_toolbar()
         self._build_canvas()
+        self._build_status_bar()
         self._build_properties_panel()
+        self._build_object_palette()
+        self._build_context_menus()
         self._bind_events()
+        self._initialize_object_templates()
         self.render_scene()
+
+    def _build_application_menu(self) -> None:
+        """Build the application menu for the scene viewer."""
+        if SceneViewerFrame._application_menu_built:
+            return
+
+        # ---------- File Menu ----------
+
+        scene_file_dropdown = self.gui.unsafe_get_backend().create_gui_menu(
+            master=self.gui.root_menu().file_menu.menu,
+            tearoff=0
+        )
+        # Scene save / load controls
+        scene_file_dropdown.add_item(
+            label="Save Scene",
+            command=self.save_scene_dialog,
+            accelerator="Ctrl+S",
+            underline=0
+        )
+        scene_file_dropdown.add_item(
+            label="Load Scene",
+            command=self.load_scene_dialog,
+            accelerator="Ctrl+O",
+            underline=0
+        )
+
+        # Apply to File menu
+        self.gui.root_menu().file_menu.insert_submenu(
+            index=0,
+            label="Scene Viewer",
+            submenu=scene_file_dropdown,
+        )
+        self.gui.root_menu().file_menu.insert_separator(1)
+
+        # ---------- Edit Menu ----------
+
+        scene_edit_dropdown = self.gui.unsafe_get_backend().create_gui_menu(
+            master=self.gui.root_menu().edit_menu.menu,
+            tearoff=0
+        )
+        # Delete selected objects
+        scene_edit_dropdown.add_item(
+            label="Delete Selected Objects",
+            command=self.delete_selected_objects,
+            accelerator="Del",
+            underline=7
+        )
+
+        # Apply to Edit menu
+        self.gui.root_menu().edit_menu.insert_submenu(
+            index=0,
+            label="Scene Viewer",
+            submenu=scene_edit_dropdown
+        )
+        self.gui.root_menu().edit_menu.insert_separator(1)
+
+        # ---------- View Menu ----------
+
+        scene_view_dropdown = self.gui.unsafe_get_backend().create_gui_menu(
+            master=self.gui.root_menu().view_menu.menu,
+            tearoff=0
+        )
+        # Zoom controls
+        scene_view_dropdown.add_item(
+            label="+Zoom In",
+            command=self._viewport_zooming_service.zoom_in,
+            accelerator="Ctrl++",
+            underline=0
+        )
+        scene_view_dropdown.add_item(
+            label="-Zoom Out",
+            command=self._viewport_zooming_service.zoom_out,
+            accelerator="Ctrl+-",
+            underline=0
+        )
+        scene_view_dropdown.add_item(
+            label="Reset View",
+            command=self._viewport_zooming_service.reset_zoom,
+            accelerator="Ctrl+0",
+            underline=0
+        )
+
+        # Grid controls
+        scene_view_dropdown.add_separator()
+        scene_view_dropdown.add_checkbutton(
+            label="Show Grid",
+            variable=tk.BooleanVar(value=self._viewport_gridding_service.enabled),
+            command=self._viewport_gridding_service.toggle,
+            underline=0
+        )
+        scene_view_dropdown.add_checkbutton(
+            label="Snap to Grid",
+            variable=tk.BooleanVar(value=self._viewport_gridding_service.snap_enabled),
+            command=self._viewport_gridding_service.toggle_snap,
+            underline=0
+        )
+
+        # Design Mode controls
+        scene_view_dropdown.add_separator()
+        scene_view_dropdown.add_checkbutton(
+            label="Design Mode",
+            variable=self._design_mode_var,
+            command=self.toggle_design_mode,
+            underline=0
+        )
+        scene_view_dropdown.add_checkbutton(
+            label="Object Palette",
+            variable=self._object_palette_var,
+            command=self.toggle_object_palette,
+            underline=0
+        )
+
+        # Properties Panel toggle
+        scene_view_dropdown.add_separator()
+        scene_view_dropdown.add_checkbutton(
+            label="Properties Panel",
+            variable=self._properties_var,
+            command=self.toggle_properties_panel,
+            underline=0
+        )
+
+        # Apply to View menu
+        self.gui.root_menu().view_menu.insert_submenu(
+            index=0,
+            label="Scene Viewer",
+            submenu=scene_view_dropdown
+        )
+        self.gui.root_menu().view_menu.insert_separator(1)
+
+        SceneViewerFrame._application_menu_built = True
 
     def _build_toolbar(self) -> None:
         """Build the toolbar with viewer controls."""
         self._toolbar = ttk.Frame(self.content_frame)
         self._toolbar.pack(side=tk.TOP, fill=tk.X, padx=5, pady=5)
 
-        # Zoom controls
-        ttk.Label(self._toolbar, text="Zoom:").pack(side=tk.LEFT, padx=5)
-
-        self._zoom_in_btn = ttk.Button(
+        # Design Mode Toggle Button (with icon)
+        self._design_mode_btn = ttk.Button(
             self._toolbar,
-            text="+",
+            text="🎨",  # Design/paint palette emoji
             width=3,
-            command=self.zoom_in
+            command=self.toggle_design_mode
         )
-        self._zoom_in_btn.pack(side=tk.LEFT, padx=2)
+        self._design_mode_btn.pack(side=tk.LEFT, padx=2)
+        self._create_tooltip(self._design_mode_btn, "Toggle Design Mode")
 
-        self._zoom_out_btn = ttk.Button(
+        # Object Palette Toggle Button
+        self._object_palette_btn = ttk.Button(
             self._toolbar,
-            text="-",
+            text="🧰",  # Toolbox emoji
             width=3,
-            command=self.zoom_out
+            command=self.toggle_object_palette
         )
-        self._zoom_out_btn.pack(side=tk.LEFT, padx=2)
+        self._object_palette_btn.pack(side=tk.LEFT, padx=2)
+        self._create_tooltip(self._object_palette_btn, "Toggle Object Palette")
 
-        self._reset_view_btn = ttk.Button(
+        # Properties Panel Toggle Button
+        self._properties_panel_btn = ttk.Button(
             self._toolbar,
-            text="Reset View",
-            command=self.reset_view
+            text="📋",  # Clipboard emoji
+            width=3,
+            command=self.toggle_properties_panel
         )
-        self._reset_view_btn.pack(side=tk.LEFT, padx=5)
-
-        # Zoom level display
-        self._zoom_label = ttk.Label(
-            self._toolbar,
-            text=f"{int(self.viewport.zoom * 100)}%"
-        )
-        self._zoom_label.pack(side=tk.LEFT, padx=5)
+        self._properties_panel_btn.pack(side=tk.LEFT, padx=2)
+        self._create_tooltip(self._properties_panel_btn, "Toggle Properties Panel")
 
         # Separator
-        ttk.Separator(self._toolbar, orient=tk.VERTICAL).pack(side=tk.LEFT, fill=tk.Y, padx=10)
-
-        # Grid toggle
-        self._grid_var = tk.BooleanVar(value=self._grid_enabled)
-        self._grid_toggle = ttk.Checkbutton(
-            self._toolbar,
-            text="Show Grid",
-            variable=self._grid_var,
-            command=self.toggle_grid
-        )
-        self._grid_toggle.pack(side=tk.LEFT, padx=5)
-
-        # Separator
-        ttk.Separator(self._toolbar, orient=tk.VERTICAL).pack(side=tk.LEFT, fill=tk.Y, padx=10)
+        ttk.Separator(self._toolbar, orient=tk.VERTICAL).pack(side=tk.LEFT, fill=tk.Y, padx=5)
 
         # Selection info
         self._selection_label = ttk.Label(
@@ -225,85 +406,54 @@ class SceneViewerFrame(TkinterTaskFrame):
         # Separator
         ttk.Separator(self._toolbar, orient=tk.VERTICAL).pack(side=tk.LEFT, fill=tk.Y, padx=10)
 
-        # Drawing tools
-        ttk.Label(self._toolbar, text="Tool:").pack(side=tk.LEFT, padx=5)
+    def _create_tooltip(self, widget, text: str) -> None:
+        """Create a simple tooltip for a widget.
 
-        self._tool_var = tk.StringVar(value=self._current_tool)
+        Args:
+            widget: The widget to attach the tooltip to
+            text: The tooltip text to display
+        """
+        def on_enter(event):
+            # Create tooltip window
+            tooltip = tk.Toplevel()
+            tooltip.wm_overrideredirect(True)  # Remove window decorations
+            tooltip.wm_geometry(f"+{event.x_root + 10}+{event.y_root + 10}")
 
-        tools_frame = ttk.Frame(self._toolbar)
-        tools_frame.pack(side=tk.LEFT, padx=2)
+            label = tk.Label(
+                tooltip,
+                text=text,
+                background="#ffffe0",
+                relief=tk.SOLID,
+                borderwidth=1,
+                padx=5,
+                pady=2
+            )
+            label.pack()
 
-        ttk.Radiobutton(
-            tools_frame,
-            text="Select",
-            variable=self._tool_var,
-            value="select",
-            command=self._on_tool_change
-        ).pack(side=tk.LEFT, padx=2)
+            # Store reference to destroy later
+            widget._tooltip = tooltip
 
-        ttk.Radiobutton(
-            tools_frame,
-            text="Rectangle",
-            variable=self._tool_var,
-            value="rectangle",
-            command=self._on_tool_change
-        ).pack(side=tk.LEFT, padx=2)
+        def on_leave(event):
+            if hasattr(widget, '_tooltip'):
+                widget._tooltip.destroy()
+                delattr(widget, '_tooltip')
 
-        ttk.Radiobutton(
-            tools_frame,
-            text="Circle",
-            variable=self._tool_var,
-            value="circle",
-            command=self._on_tool_change
-        ).pack(side=tk.LEFT, padx=2)
-
-        ttk.Radiobutton(
-            tools_frame,
-            text="Line",
-            variable=self._tool_var,
-            value="line",
-            command=self._on_tool_change
-        ).pack(side=tk.LEFT, padx=2)
-
-        # Separator
-        ttk.Separator(self._toolbar, orient=tk.VERTICAL).pack(side=tk.LEFT, fill=tk.Y, padx=10)
-
-        # Delete button
-        self._delete_btn = ttk.Button(
-            self._toolbar,
-            text="Delete Selected",
-            command=self.delete_selected_objects
-        )
-        self._delete_btn.pack(side=tk.LEFT, padx=5)
-
-        # Separator
-        ttk.Separator(self._toolbar, orient=tk.VERTICAL).pack(side=tk.LEFT, fill=tk.Y, padx=10)
-
-        # Properties panel toggle
-        self._properties_var = tk.BooleanVar(value=self._properties_panel_visible)
-        self._properties_toggle = ttk.Checkbutton(
-            self._toolbar,
-            text="Properties Panel",
-            variable=self._properties_var,
-            command=self.toggle_properties_panel
-        )
-        self._properties_toggle.pack(side=tk.LEFT, padx=5)
-
-        # TODO: Add toolbar buttons for:
-        # - Snap to grid
+        widget.bind('<Enter>', on_enter)
+        widget.bind('<Leave>', on_leave)
 
     def _build_canvas(self) -> None:
         """Build the main canvas for rendering."""
-        # Canvas container with scrollbars
-        self._canvas_container = ttk.Frame(self.content_frame)
-        self._canvas_container.pack(side=tk.TOP, fill=tk.BOTH, expand=True)
+        # Use PanedWindow for resizable split between canvas and properties panel
+        self._paned_window = ttk.PanedWindow(self.content_frame, orient=tk.HORIZONTAL)
+        self._paned_window.pack(side=tk.TOP, fill=tk.BOTH, expand=True)
 
-        canvas_frame = ttk.Frame(self._canvas_container)
-        canvas_frame.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        # Canvas container
+        self._canvas_container = ttk.Frame(self._paned_window)
+        self._paned_window.add(self._canvas_container, weight=1)
 
         # Create canvas
         self._canvas = tk.Canvas(
-            canvas_frame,
+            self._canvas_container,
             bg="#727272",
             highlightthickness=0
         )
@@ -312,41 +462,112 @@ class SceneViewerFrame(TkinterTaskFrame):
         # TODO: Add scrollbars for large scenes
         # TODO: Add ruler/coordinate display
 
+    def _build_status_bar(self) -> None:
+        """Build the status bar at the bottom of the viewer."""
+        self._viewport_status_service.set_canvas(self._canvas)
+        self._viewport.on_reset_callbacks.append(
+            self._viewport_status_service.update_viewport_info
+        )
+        self._status_bar = self._viewport_status_service.build()
+        self._status_bar.pack(side=tk.BOTTOM, fill=tk.X)
+
     def _build_properties_panel(self) -> None:
         """Build the properties panel for selected objects."""
-        self._properties_panel = ttk.Frame(self._canvas_container, width=250)
-        # Panel is initially hidden, will be packed when toggled
-
-        # Header
-        header = ttk.Label(
-            self._properties_panel,
-            text="Object Properties",
-            font=("TkDefaultFont", 10, "bold")
+        self._properties_panel = TkPropertyPanel(
+            parent=self._paned_window,
+            title="Object Properties",
+            width=250,
+            on_property_changed=self._on_property_changed
         )
-        header.pack(side=tk.TOP, fill=tk.X, padx=10, pady=10)
+        # Panel is initially hidden, will be added to paned window when toggled
 
-        ttk.Separator(self._properties_panel, orient=tk.HORIZONTAL).pack(
-            side=tk.TOP, fill=tk.X, padx=5
-        )
+    def _build_context_menus(self) -> None:
+        """Build context menus for different contexts."""
+        # Context menu for empty canvas space
+        self._canvas_context_menu = PyroxContextMenu(self._canvas)
 
-        # Scrollable content area
-        self._properties_content = ttk.Frame(self._properties_panel)
-        self._properties_content.pack(side=tk.TOP, fill=tk.BOTH, expand=True, padx=10, pady=10)
+        # Context menu for selected objects
+        self._object_context_menu = PyroxContextMenu(self._canvas)
+
+        # Populate canvas context menu
+        self._canvas_context_menu.add_item(MenuItem(
+            id="paste",
+            label="Paste",
+            command=self._context_paste,
+            accelerator="Ctrl+V",
+            icon="📋"
+        ))
+        self._canvas_context_menu.add_item(MenuItem(
+            id="reset_view",
+            label="Reset View",
+            command=self._context_reset_view,
+            icon="🔄",
+            separator_before=True
+        ))
+        self._canvas_context_menu.add_item(MenuItem(
+            id="toggle_grid",
+            label="Toggle Grid",
+            command=self.toggle_grid,
+            icon="⊞"
+        ))
+        self._canvas_context_menu.add_item(MenuItem(
+            id="toggle_snap",
+            label="Toggle Snap to Grid",
+            command=self.toggle_snap_to_grid,
+            icon="🧲"
+        ))
+
+        # Populate object context menu
+        self._object_context_menu.add_item(MenuItem(
+            id="copy",
+            label="Copy",
+            command=self._context_copy,
+            accelerator="Ctrl+C",
+            icon="📄"
+        ))
+        self._object_context_menu.add_item(MenuItem(
+            id="cut",
+            label="Cut",
+            command=self._context_cut,
+            accelerator="Ctrl+X",
+            icon="✂️"
+        ))
+        self._object_context_menu.add_item(MenuItem(
+            id="duplicate",
+            label="Duplicate",
+            command=self._context_duplicate,
+            accelerator="Ctrl+D",
+            icon="⎘",
+            separator_after=True
+        ))
+        self._object_context_menu.add_item(MenuItem(
+            id="delete",
+            label="Delete",
+            command=self.delete_selected_objects,
+            accelerator="Del",
+            icon="🗑️"
+        ))
+        self._object_context_menu.add_item(MenuItem(
+            id="properties",
+            label="Properties",
+            command=self._context_show_properties,
+            icon="⚙️",
+            separator_before=True
+        ))
 
     def _bind_events(self) -> None:
         """Bind mouse and keyboard events for interaction."""
-        # Pan with middle mouse button
-        self._canvas.bind("<ButtonPress-2>", self._on_pan_start)
-        self._canvas.bind("<B2-Motion>", self._on_pan_drag)
-        self._canvas.bind("<ButtonRelease-2>", self._on_pan_end)
-
-        # Zoom with mouse wheel
-        self._canvas.bind("<MouseWheel>", self._on_mouse_wheel)
+        self._viewport_panning_service.set_canvas(self._canvas)
+        self._viewport_zooming_service.set_canvas(self._canvas)
+        self._viewport_gridding_service.set_canvas(self._canvas)
 
         # Left mouse button - context-dependent (select, draw, or drag)
         self._canvas.bind("<ButtonPress-1>", self._on_left_click)
         self._canvas.bind("<B1-Motion>", self._on_left_drag)
         self._canvas.bind("<ButtonRelease-1>", self._on_left_release)
+
+        # Right mouse button - context menu
+        self._canvas.bind("<ButtonPress-3>", self._on_right_click)
 
         # Delete key to remove selected objects
         self._canvas.bind("<Delete>", lambda e: self.delete_selected_objects())
@@ -354,56 +575,11 @@ class SceneViewerFrame(TkinterTaskFrame):
         # Deselect with Escape key
         self._canvas.bind("<Escape>", lambda e: self.clear_selection())
 
+        # Bind to runner events
+        if self._runner:
+            self._runner.on_scene_load_callbacks.append(self.set_scene)
+
         # TODO: Add keyboard shortcuts (Ctrl+Z undo, Ctrl+D duplicate, etc.)
-
-    def _on_pan_start(self, event: tk.Event) -> None:
-        """Handle pan gesture start."""
-        self._is_panning = True
-        self._pan_start_x = event.x
-        self._pan_start_y = event.y
-        self._canvas.config(cursor="fleur")
-
-    def _on_pan_drag(self, event: tk.Event) -> None:
-        """Handle pan gesture dragging."""
-        if not self._is_panning or self._pan_start_x is None or self._pan_start_y is None:
-            return
-
-        dx = event.x - self._pan_start_x
-        dy = event.y - self._pan_start_y
-
-        self.viewport.x += dx
-        self.viewport.y += dy
-
-        self._pan_start_x = event.x
-        self._pan_start_y = event.y
-
-        self._update_viewport()
-
-    def _on_pan_end(self, event: tk.Event) -> None:
-        """Handle pan gesture end."""
-        self._is_panning = False
-        self._pan_start_x = None
-        self._pan_start_y = None
-        self._canvas.config(cursor="")
-
-    def _on_mouse_wheel(self, event: tk.Event) -> None:
-        """Handle mouse wheel for zooming."""
-        # Get mouse position for zoom center
-        mouse_x = event.x
-        mouse_y = event.y
-
-        # Determine zoom direction
-        if event.delta > 0:
-            self.zoom_in(center_x=mouse_x, center_y=mouse_y)
-        else:
-            self.zoom_out(center_x=mouse_x, center_y=mouse_y)
-
-    def _on_tool_change(self) -> None:
-        """Handle tool selection change."""
-        self._current_tool = self._tool_var.get()
-        # Clear selection when switching to drawing tools
-        if self._current_tool != "select":
-            self.clear_selection()
 
     def _on_left_click(self, event: tk.Event) -> None:
         """Handle left mouse button press - context dependent on current tool.
@@ -411,11 +587,13 @@ class SceneViewerFrame(TkinterTaskFrame):
         Args:
             event: Mouse click event
         """
-        if self._current_tool == "select":
+        if self._current_tool == "place_object":
+            # Design mode - place object from template
+            scene_x = (event.x - self.viewport.x) / self.viewport.zoom
+            scene_y = (event.y - self.viewport.y) / self.viewport.zoom
+            self._place_object_from_template(scene_x, scene_y)
+        elif self._current_tool == "select":
             self._on_select_click(event)
-        else:
-            # Drawing mode
-            self._on_draw_start(event)
 
     def _on_left_drag(self, event: tk.Event) -> None:
         """Handle left mouse drag - drawing or object manipulation.
@@ -509,22 +687,32 @@ class SceneViewerFrame(TkinterTaskFrame):
             for obj_id in self._selected_objects:
                 scene_obj = self._scene.scene_objects.get(obj_id)
                 if scene_obj:
+                    # Calculate new position
+                    new_x = scene_obj.x + scene_dx
+                    new_y = scene_obj.y + scene_dy
+
+                    # Apply snap to grid if enabled
+                    new_x, new_y = self._viewport_gridding_service.snap_to_grid(new_x, new_y)
+
                     # Update object position
-                    scene_obj.set_x(scene_obj.x + scene_dx)
-                    scene_obj.set_y(scene_obj.y + scene_dy)
+                    scene_obj.physics_body.set_x(new_x)
+                    scene_obj.physics_body.set_y(new_y)
 
                     props = scene_obj.properties
                     # For line objects, also update x2, y2
                     if props.get("shape") == "line":
-                        props["x2"] = props.get("x2", 0) + scene_dx
-                        props["y2"] = props.get("y2", 0) + scene_dy
+                        # Calculate line endpoint delta based on snapped position
+                        actual_dx = new_x - scene_obj.x
+                        actual_dy = new_y - scene_obj.y
+                        props["x2"] = props.get("x2", 0) + actual_dx
+                        props["y2"] = props.get("y2", 0) + actual_dy
 
         # Update drag start position
         self._drag_start_x = event.x
         self._drag_start_y = event.y
 
         # Redraw scene
-        self._full_redraw()
+        self.render_scene()
 
     def _on_drag_end(self, event: tk.Event) -> None:
         """Handle end of drag operation.
@@ -700,7 +888,7 @@ class SceneViewerFrame(TkinterTaskFrame):
                 raise TypeError("Factory did not return a valid ISceneObject")
 
             self.scene.add_scene_object(scene_obj)
-            self._full_redraw()
+            self.render_scene()
 
             log(self).info(f"Created {shape} object: {obj_id}")
         except Exception as e:
@@ -740,81 +928,16 @@ class SceneViewerFrame(TkinterTaskFrame):
         self.clear_selection()
 
         # Redraw
-        self._full_redraw()
+        self.render_scene()
 
         log(self).info(f"Deleted {len(to_delete)} object(s)")
 
-    def zoom_in(
-        self,
-        factor: float = 1.2,
-        center_x: Optional[int] = None,
-        center_y: Optional[int] = None
-    ) -> None:
-        """Zoom in on the canvas.
-
-        Args:
-            factor: Zoom multiplication factor
-            center_x: X coordinate to zoom toward (canvas coordinates)
-            center_y: Y coordinate to zoom toward (canvas coordinates)
-        """
-        new_zoom = min(self.viewport.zoom * factor, self.viewport.max_zoom)
-        self._apply_zoom(new_zoom, center_x, center_y)
-
-    def zoom_out(
-        self,
-        factor: float = 1.2,
-        center_x: Optional[int] = None,
-        center_y: Optional[int] = None
-    ) -> None:
-        """Zoom out on the canvas.
-
-        Args:
-            factor: Zoom division factor
-            center_x: X coordinate to zoom from (canvas coordinates)
-            center_y: Y coordinate to zoom from (canvas coordinates)
-        """
-        new_zoom = max(self.viewport.zoom / factor, self.viewport.min_zoom)
-        self._apply_zoom(new_zoom, center_x, center_y)
-
-    def _apply_zoom(
-        self,
-        new_zoom: float,
-        center_x: Optional[int] = None,
-        center_y: Optional[int] = None
-    ) -> None:
-        """Apply zoom level change.
-
-        Args:
-            new_zoom: New zoom level
-            center_x: X coordinate for zoom center
-            center_y: Y coordinate for zoom center
-        """
-        if new_zoom == self.viewport.zoom:
-            return
-
-        # If no center specified, use canvas center
-        if center_x is None or center_y is None:
-            center_x = self._canvas.winfo_width() // 2
-            center_y = self._canvas.winfo_height() // 2
-
-        # Adjust viewport to zoom toward the center point
-        zoom_ratio = new_zoom / self.viewport.zoom
-        self.viewport.x = center_x - (center_x - self.viewport.x) * zoom_ratio
-        self.viewport.y = center_y - (center_y - self.viewport.y) * zoom_ratio
-
-        self.viewport.zoom = new_zoom
-        self._zoom_label.config(text=f"{int(self.viewport.zoom * 100)}%")
-
-        self._update_viewport()
-
     def reset_view(self) -> None:
         """Reset viewport to default position and zoom."""
-        self.viewport.x = 0.0
-        self.viewport.y = 0.0
-        self.viewport.zoom = 1.0
-        self.last_viewport.update(self.viewport)
-        self._zoom_label.config(text="100%")
-        self._full_redraw()
+        self.viewport.reset()
+        self.last_viewport.reset()
+        # self._zoom_label.config(text="100%")
+        self.render_scene()
 
     def _update_viewport(self) -> None:
         """Update all canvas objects to reflect viewport changes.
@@ -857,14 +980,6 @@ class SceneViewerFrame(TkinterTaskFrame):
 
         # TODO: Implement viewport culling for large scenes
 
-    def _full_redraw(self) -> None:
-        """Force a complete redraw of the scene.
-
-        Use this when the scene contents have changed, not for viewport updates.
-        """
-        self._canvas.delete("all")
-        self.render_scene()
-
     def set_scene(self, scene: IScene) -> None:
         """Set the scene to be displayed.
 
@@ -875,7 +990,7 @@ class SceneViewerFrame(TkinterTaskFrame):
         self._canvas_objects.clear()
         # Reset viewport state when setting new scene
         self.last_viewport.update(self.viewport)
-        self._full_redraw()
+        self.render_scene()
 
     def get_scene(self) -> Optional[IScene]:
         """Get the currently displayed scene.
@@ -885,14 +1000,22 @@ class SceneViewerFrame(TkinterTaskFrame):
         """
         return self._scene
 
-    def render_scene(self) -> None:
+    def render_scene(
+        self,
+        *_,
+    ) -> None:
         """Render the current scene to the canvas."""
         if not self._scene:
             return
 
         self.clear_canvas()
-        self.render_grid()
+        self._viewport_gridding_service.render()
+        # self.render_grid()
         self.render_scene_objects()
+
+        # Update property panel values (if visible) without rebuilding widgets
+        if self._properties_panel_visible and self._properties_panel:
+            self.properties_panel.update_values()
 
         # Initialize previous state to current after initial render
         self.last_viewport.update(self.viewport)
@@ -988,61 +1111,10 @@ class SceneViewerFrame(TkinterTaskFrame):
                 tags=("scene_object_label", obj_id)
             )
 
-    def render_grid(self) -> None:
-        """Public method to render grid overlay."""
-        if self._grid_enabled:
-            self._render_grid()
-
-    def _render_grid(self) -> None:
-        """Render grid overlay on the canvas."""
-        canvas_width = self._canvas.winfo_width()
-        canvas_height = self._canvas.winfo_height()
-
-        if canvas_width <= 1 or canvas_height <= 1:
-            # Canvas not yet rendered or minimized
-            return
-
-        # Calculate grid spacing in canvas coordinates
-        grid_spacing = self._grid_size * self.viewport.zoom
-
-        # Don't render grid if it's too dense (less than 5 pixels)
-        if grid_spacing < 5:
-            return
-
-        # Calculate starting positions based on viewport offset
-        # We want the grid to align with scene coordinates (0,0)
-        start_x = self.viewport.x % grid_spacing
-        start_y = self.viewport.y % grid_spacing
-
-        # Draw vertical lines
-        x = start_x
-        while x < canvas_width:
-            self._canvas.create_line(
-                x, 0, x, canvas_height,
-                fill=self._grid_color,
-                width=self._grid_line_width,
-                tags="grid"
-            )
-            x += grid_spacing
-
-        # Draw horizontal lines
-        y = start_y
-        while y < canvas_height:
-            self._canvas.create_line(
-                0, y, canvas_width, y,
-                fill=self._grid_color,
-                width=self._grid_line_width,
-                tags="grid"
-            )
-            y += grid_spacing
-
-        # Lower grid to background
-        self._canvas.tag_lower("grid")
-
     def toggle_grid(self) -> None:
         """Toggle grid visibility."""
-        self._grid_enabled = self._grid_var.get()
-        self._full_redraw()
+        self._viewport_gridding_service.toggle()
+        self.render_scene()
 
     def set_grid_size(self, size: int) -> None:
         """Set the grid spacing size.
@@ -1055,8 +1127,8 @@ class SceneViewerFrame(TkinterTaskFrame):
             return
 
         self._grid_size = size
-        if self._grid_enabled:
-            self._full_redraw()
+        if self.render_scene:
+            self.render_scene()
 
     def select_object(self, obj_id: str, clear_previous: bool = False) -> None:
         """Select a scene object.
@@ -1242,8 +1314,8 @@ class SceneViewerFrame(TkinterTaskFrame):
         return self._canvas
 
     @property
-    def properties_panel(self) -> ttk.Frame:
-        """Get the properties panel frame."""
+    def properties_panel(self) -> TkPropertyPanel:
+        """Get the properties panel."""
         if not self._properties_panel:
             raise RuntimeError("Properties panel not initialized")
         return self._properties_panel
@@ -1263,43 +1335,395 @@ class SceneViewerFrame(TkinterTaskFrame):
         """Get the last viewport state."""
         return self._last_viewport
 
+    def _build_object_palette(self) -> None:
+        """Build the object palette for design mode."""
+        # Palette frame (initially hidden, shown on left side of canvas)
+        self._object_palette_frame = ttk.Frame(self._canvas_container, width=200)
+        # Don't pack it yet - will be shown when toggled
+
+        # Palette title
+        title_label = ttk.Label(
+            self._object_palette_frame,
+            text="Object Palette",
+            font=("Arial", 10, "bold")
+        )
+        title_label.pack(side=tk.TOP, pady=5)
+
+        # Scrollable frame for object buttons
+        canvas_scroll = tk.Canvas(self._object_palette_frame, highlightthickness=0)
+        scrollbar = ttk.Scrollbar(
+            self._object_palette_frame,
+            orient=tk.VERTICAL,
+            command=canvas_scroll.yview
+        )
+        canvas_scroll.configure(yscrollcommand=scrollbar.set)
+
+        scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+        canvas_scroll.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+
+        palette_content = ttk.Frame(canvas_scroll)
+        canvas_scroll.create_window((0, 0), window=palette_content, anchor=tk.NW)
+
+        # Object template buttons will be populated in _initialize_object_templates
+        self._palette_content_frame = palette_content
+
+        def _configure_scroll(event):
+            canvas_scroll.configure(scrollregion=canvas_scroll.bbox("all"))
+
+        palette_content.bind("<Configure>", _configure_scroll)
+
+    def _initialize_object_templates(self) -> None:
+        """Initialize object templates and populate palette."""
+        # Define object templates
+        self._templates = PhysicsSceneFactory.get_all_templates()
+
+        # Populate palette with buttons
+        for template_name in self._templates.keys():
+            btn = ttk.Button(
+                self._palette_content_frame,
+                text=template_name,
+                command=lambda name=template_name: self._select_object_template(name)
+            )
+            btn.pack(side=tk.TOP, fill=tk.X, padx=5, pady=2)
+
+    def _select_object_template(self, template_name: str) -> None:
+        """Select an object template for placement.
+
+        Args:
+            template_name: Name of the template to select
+        """
+        self._current_object_template = template_name
+        # Switch to placement mode
+        self._current_tool = "place_object"
+        self._canvas.config(cursor="crosshair")
+        log(self).info(f"Selected template: {template_name}. Click on canvas to place.")
+
+    def _place_object_from_template(self, scene_x: float, scene_y: float) -> None:
+        """Place an object from the current template at the given position.
+
+        Args:
+            scene_x: X coordinate in scene space
+            scene_y: Y coordinate in scene space
+        """
+        if not self._current_object_template or not self._scene:
+            return
+
+        template = self._templates.get(self._current_object_template)
+        if not template:
+            return
+
+        # Apply snap to grid if enabled
+        scene_x, scene_y = self._viewport_gridding_service.snap_to_grid(scene_x, scene_y)
+        template.default_kwargs['x'] = scene_x
+        template.default_kwargs['y'] = scene_y
+
+        # Generate unique ID
+        self._object_counter += 1
+        obj_id = f"{template.name.lower().replace(' ', '_')}_{self._object_counter:03d}"
+
+        # Create physics object from template
+        physics_obj = PhysicsSceneFactory.create_from_template(
+            template.name,
+            **template.default_kwargs
+        )
+        if not physics_obj:
+            raise RuntimeError(f"Failed to create object from template: {template.name}")
+
+        scene_obj = SceneObject(
+            id=obj_id,
+            name=template.name,
+            scene_object_type=template.body_class.__name__,
+            description='',
+            physics_body=physics_obj,
+        )
+
+        # Add to scene
+        self._scene.add_scene_object(scene_obj)
+
+        # Redraw
+        self.render_scene()
+
+        # Select the new object
+        self.clear_selection()
+        self._selected_objects.add(obj_id)
+        self._update_selection_display()
+        self._update_properties_panel()
+
+        log(self).info(f"Placed {template.name} at ({scene_x:.1f}, {scene_y:.1f})")
+
+    def toggle_design_mode(self) -> None:
+        """Toggle design mode on/off."""
+        self._design_mode = not self._design_mode
+        self._design_mode_var.set(self._design_mode)
+
+        if self._design_mode:
+            # Enable design features
+            self._design_mode_btn.config(text="🎨✓")  # Show checkmark when active
+            log(self).info("Design mode enabled")
+        else:
+            # Disable design features
+            self._design_mode_btn.config(text="🎨")
+            self._object_palette_visible = False
+            self._object_palette_var.set(False)
+            if self._object_palette_frame:
+                self._object_palette_frame.pack_forget()
+            self._current_object_template = None
+            if self._current_tool == "place_object":
+                self._current_tool = "select"
+                self._canvas.config(cursor="")
+            log(self).info("Design mode disabled")
+
+    def toggle_object_palette(self) -> None:
+        """Toggle the object palette visibility."""
+        self._object_palette_visible = not self._object_palette_visible
+        self._object_palette_var.set(self._object_palette_visible)
+
+        if self._object_palette_visible and self._object_palette_frame:
+            self._object_palette_frame.pack(side=tk.LEFT, fill=tk.Y, padx=5, pady=5, before=self._canvas)
+        elif self._object_palette_frame:
+            self._object_palette_frame.pack_forget()
+
+    def toggle_snap_to_grid(self) -> None:
+        """Toggle snap to grid on/off."""
+        self._viewport_gridding_service.toggle_snap()
+        log(self).info(f"Snap to grid: {'ON' if self._viewport_gridding_service.snap_enabled else 'OFF'}")
+
+    # ==================== Context Menu Handlers ====================
+
+    def _on_right_click(self, event: tk.Event) -> None:
+        """Handle right-click to show context menu.
+
+        Args:
+            event: Mouse click event
+        """
+        # Find what was clicked
+        canvas_items = self._canvas.find_overlapping(
+            event.x - 2, event.y - 2,
+            event.x + 2, event.y + 2
+        )
+
+        # Filter out grid items
+        canvas_items = [item for item in canvas_items if "grid" not in self._canvas.gettags(item)]
+
+        # Check if we clicked on a scene object
+        clicked_obj_id = None
+        for obj_id, canvas_id in self._canvas_objects.items():
+            if canvas_id in canvas_items:
+                clicked_obj_id = obj_id
+                break
+
+        if clicked_obj_id:
+            # Clicked on an object - ensure it's selected
+            if clicked_obj_id not in self._selected_objects:
+                self.select_object(clicked_obj_id, clear_previous=True)
+
+            # Show object context menu
+            self._object_context_menu.post(event.x_root, event.y_root)
+        else:
+            # Clicked on empty space - show canvas context menu
+            self._canvas_context_menu.post(event.x_root, event.y_root)
+
+    def _context_copy(self) -> None:
+        """Copy selected objects to clipboard."""
+        if not self._scene:
+            log(self).warning("No scene loaded to copy from")
+            return
+
+        if not self._selected_objects:
+            log(self).warning("No objects selected to copy")
+            return
+
+        # Store selected object data for paste
+        self._clipboard_data = []
+        for obj_id in self._selected_objects:
+            obj = self._scene.get_scene_object(obj_id)
+            if obj:
+                self._clipboard_data.append(obj.to_dict())
+
+        log(self).info(f"Copied {len(self._clipboard_data)} object(s)")
+
+    def _context_cut(self) -> None:
+        """Cut selected objects to clipboard."""
+        self._context_copy()
+        self.delete_selected_objects()
+
+    def _context_paste(self) -> None:
+        """Paste objects from clipboard."""
+        if not hasattr(self, '_clipboard_data') or not self._clipboard_data:
+            log(self).warning("Nothing to paste")
+            return
+
+        # Get mouse position relative to viewport for paste location
+        mouse_x = self._canvas.winfo_pointerx() - self._canvas.winfo_rootx()
+        mouse_y = self._canvas.winfo_pointery() - self._canvas.winfo_rooty()
+        scene_x = (mouse_x - self.viewport.x) / self.viewport.zoom
+        scene_y = (mouse_y - self.viewport.y) / self.viewport.zoom
+
+        # Calculate offset from first object
+        if self._clipboard_data:
+            first_obj_x = self._clipboard_data[0]['body']['x']
+            first_obj_y = self._clipboard_data[0]['body']['y']
+            offset_x = scene_x - first_obj_x
+            offset_y = scene_y - first_obj_y
+
+            # Paste objects with offset
+            for obj_data in self._clipboard_data:
+                obj_data['body']['x'] += offset_x
+                obj_data['body']['y'] += offset_y
+                self._paste_object_data(obj_data)
+
+        log(self).info(f"Pasted {len(self._clipboard_data)} object(s)")
+
+    def _context_duplicate(self) -> None:
+        """Duplicate selected objects."""
+        if not self._scene:
+            log(self).warning("No scene loaded to duplicate from")
+            return
+
+        if not self._selected_objects:
+            log(self).warning("No objects selected to duplicate")
+            return
+
+        objects_to_duplicate = list(self._selected_objects)
+        self.clear_selection()
+
+        for obj_id in objects_to_duplicate:
+            obj = self._scene.get_scene_object(obj_id)
+            if obj:
+                obj_data = obj.to_dict()
+                # Offset the duplicate slightly
+                obj_data['body']['x'] += 20
+                obj_data['body']['y'] += 20
+                new_obj = self._paste_object_data(obj_data)
+                if new_obj:
+                    self.select_object(new_obj.id, clear_previous=False)
+
+        log(self).info(f"Duplicated {len(objects_to_duplicate)} object(s)")
+
+    def _context_show_properties(self) -> None:
+        """Show properties panel for selected object."""
+        if not self._properties_panel_visible:
+            self.toggle_properties_panel()
+
+    def _context_reset_view(self) -> None:
+        """Reset viewport to default position and zoom."""
+        self.viewport.reset()
+        self.render_scene()
+        log(self).info("View reset to default")
+
+    def _paste_object_data(self, obj_data: dict) -> Optional[ISceneObject]:
+        """Helper to paste object data into scene.
+
+        Args:
+            obj_data: Dictionary containing object data
+
+        Returns:
+            Created scene object or None
+        """
+        if not self._scene:
+            log(self).warning("Cannot paste object: no scene loaded")
+            return None
+
+        try:
+            from pyrox.services import IdGeneratorService
+
+            # Generate new ID
+            obj_data['id'] = IdGeneratorService.get_id()
+
+            # Create object from data
+            new_obj = SceneObject.from_dict(obj_data)
+            self._scene.add_scene_object(new_obj)
+
+            return new_obj
+        except Exception as e:
+            log(self).error(f"Failed to paste object: {e}")
+            return None
+
+    # ==================== Scene Management ====================
+
+    def save_scene_dialog(self) -> None:
+        """Open file dialog to save the current scene."""
+        if not self._scene:
+            log(self).warning("No scene to save")
+            return
+
+        filepath = filedialog.asksaveasfilename(
+            title="Save Scene",
+            defaultextension=".json",
+            filetypes=[("JSON files", "*.json"), ("All files", "*.*")]
+        )
+
+        if filepath:
+            if not self._runner:
+                try:
+                    self._scene.save(Path(filepath))
+                    log(self).info(f"Scene saved to: {filepath}")
+                except Exception as e:
+                    log(self).error(f"Failed to save scene: {e}")
+            else:
+                self._runner.save_scene(filepath)
+
+    def _load_from_scene_class(self, filepath: Path) -> None:
+        """Load a scene from a file using the scene's class method.
+
+        Args:
+            filepath: Path to the scene file
+        """
+        # Create factory and register object types
+        # Load scene
+        loaded_scene = Scene.load(Path(filepath))
+        self.set_scene(loaded_scene)
+        log(self).info(f"Scene loaded from: {filepath}")
+
+    def load_scene_dialog(self) -> None:
+        """Open file dialog to load a scene."""
+
+        filepath = filedialog.askopenfilename(
+            title="Load Scene",
+            defaultextension=".json",
+            filetypes=[("JSON files", "*.json"), ("All files", "*.*")]
+        )
+
+        if filepath:
+            if not self._runner:
+                self._load_from_scene_class(Path(filepath))
+            else:
+                # Use runner to load scene
+                self._runner.load_scene(Path(filepath))
+
     def toggle_properties_panel(self) -> None:
         """Toggle the visibility of the properties panel."""
-        self._properties_panel_visible = self._properties_var.get()
+        self._properties_panel_visible = not self._properties_panel_visible
+        self._properties_var.set(self._properties_panel_visible)
+        panes = list(self._paned_window.panes())
 
         if self._properties_panel_visible:
-            # Show properties panel
-            self.properties_panel.pack(side=tk.RIGHT, fill=tk.Y, padx=(5, 0))
+            # Show properties panel in the paned window
+            # Check if it's already added to avoid errors
+            if str(self.properties_panel) not in panes:
+                self.properties_panel.master = self._paned_window
+                self._paned_window.add(self.properties_panel, weight=0)
             self._update_properties_panel()
         else:
-            # Hide properties panel
-            self.properties_panel.pack_forget()
+            # Hide properties panel by removing from paned window
+            if str(self.properties_panel) in panes:
+                self.properties_panel.pack_forget()
+                self._paned_window.remove(self.properties_panel)
 
     def _update_properties_panel(self) -> None:
         """Update the properties panel with selected object information."""
-        # Clear existing widgets
-        for widget in self._properties_content.winfo_children():
-            widget.destroy()
-        self._properties_widgets.clear()
+        if not self._properties_panel:
+            return
 
         if not self._selected_objects:
             # No selection
-            no_selection_label = ttk.Label(
-                self._properties_content,
-                text="No object selected",
-                foreground="gray"
-            )
-            no_selection_label.pack(pady=20)
+            self._properties_panel.set_object(None)
             return
 
         if len(self._selected_objects) > 1:
-            # Multiple selection
-            multi_label = ttk.Label(
-                self._properties_content,
-                text=f"{len(self._selected_objects)} objects selected",
-                foreground="gray"
-            )
-            multi_label.pack(pady=20)
+            # Multiple selection - show count
+            self._properties_panel.set_title(f"Properties ({len(self._selected_objects)} selected)")
+            self._properties_panel.set_object(None)
             return
 
         # Single object selected
@@ -1312,76 +1736,26 @@ class SceneViewerFrame(TkinterTaskFrame):
         if not scene_obj:
             return
 
-        # Display object properties
-        props = scene_obj.properties
+        # Set title with object ID
+        self._properties_panel.set_title(f"Properties: {obj_id}")
 
-        # Object ID
-        self._add_property_field("ID", obj_id, readonly=True)
+        # Define which properties should be read-only
+        # For now, make specific properties editable based on your needs
+        readonly_props = {"id", "type"}  # ID and type are typically read-only
 
-        # Object Type
-        obj_type = props.get("type", "unknown")
-        self._add_property_field("Type", obj_type, readonly=True)
+        # Set the object to display
+        self._properties_panel.set_object(scene_obj, readonly_properties=readonly_props)
 
-        # Position
-        x = props.get("x", 0)
-        y = props.get("y", 0)
-        self._add_property_field("X", str(x), readonly=True)
-        self._add_property_field("Y", str(y), readonly=True)
-
-        # Size (for rectangles)
-        if obj_type == "rectangle":
-            width = props.get("width", 0)
-            height = props.get("height", 0)
-            self._add_property_field("Width", str(width), readonly=True)
-            self._add_property_field("Height", str(height), readonly=True)
-
-        # Radius (for circles)
-        if obj_type == "circle":
-            radius = props.get("radius", 0)
-            self._add_property_field("Radius", str(radius), readonly=True)
-
-        # Color
-        color = props.get("color", "#4a9eff")
-        self._add_property_field("Color", color, readonly=True)
-
-    def _add_property_field(
-        self,
-        label: str,
-        value: str,
-        readonly: bool = False
-    ) -> None:
-        """Add a property field to the properties panel.
+    def _on_property_changed(self, property_name: str, new_value) -> None:
+        """Handle property changes from the properties panel.
 
         Args:
-            label: Property label
-            value: Property value
-            readonly: Whether the field is read-only
+            property_name: Name of the property that changed
+            new_value: New value for the property
         """
-        row_frame = ttk.Frame(self._properties_content)
-        row_frame.pack(side=tk.TOP, fill=tk.X, pady=2)
-
-        label_widget = ttk.Label(
-            row_frame,
-            text=f"{label}:",
-            width=10,
-            anchor=tk.W
-        )
-        label_widget.pack(side=tk.LEFT, padx=(0, 5))
-
-        if readonly:
-            value_widget = ttk.Label(
-                row_frame,
-                text=value,
-                anchor=tk.W,
-                foreground="#666666"
-            )
-            value_widget.pack(side=tk.LEFT, fill=tk.X, expand=True)
-        else:
-            value_widget = ttk.Entry(row_frame)
-            value_widget.insert(0, value)
-            value_widget.pack(side=tk.LEFT, fill=tk.X, expand=True)
-
-        self._properties_widgets[label] = value_widget
+        # Redraw the scene to reflect the property change
+        self.render_scene()
+        log(self).info(f"Property '{property_name}' changed to: {new_value}")
 
 
 __all__ = ['SceneViewerFrame']

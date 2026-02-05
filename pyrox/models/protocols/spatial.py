@@ -1,7 +1,7 @@
 """Spacial object protocols that extend coordinate protocols.
 """
 from pyrox.models.protocols.coord import Area2D, Area3D
-from pyrox.interfaces import IRotatable, ISpatial2D, ISpatial3D
+from pyrox.interfaces import IRotatable, ISpatial2D, ISpatial3D, IZoomable
 
 
 class Rotatable(
@@ -68,6 +68,36 @@ class Rotatable(
     def set_roll(self, roll: float) -> None:
         """Set the roll rotation of the scene object."""
         self._roll = roll
+
+
+class Zoomable(IZoomable):
+    """Protocol for zoomable spatial objects."""
+
+    def __init__(
+        self,
+        zoom: float = 1.0,
+    ) -> None:
+        super().__init__()
+        self._zoom = zoom
+
+    def get_zoom(self) -> float:
+        """Get the zoom level of this object.
+
+        Returns:
+            float: The zoom level of this object.
+        """
+        return self._zoom
+
+    def set_zoom(
+        self,
+        zoom: float
+    ) -> None:
+        """Set the zoom level of this object.
+
+        Args:
+            zoom (float): The zoom level to set.
+        """
+        self._zoom = zoom
 
 
 class Spatial2D(
@@ -142,4 +172,5 @@ __all__ = [
     "Spatial2D",
     "Spatial3D",
     "Rotatable",
+    "Zoomable",
 ]

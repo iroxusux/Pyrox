@@ -6,6 +6,7 @@ from typing import (
     List,
     Protocol,
     runtime_checkable,
+    Self,
     Tuple,
 )
 from enum import Enum, auto
@@ -20,12 +21,33 @@ class ColliderType(Enum):
     POLYGON = auto()
     NONE = auto()  # For non-collidable objects
 
+    @classmethod
+    def from_str(cls, value: str) -> 'ColliderType':
+        """Create ColliderType from string representation."""
+        mapping = {
+            'RECTANGLE': cls.RECTANGLE,
+            'CIRCLE': cls.CIRCLE,
+            'POLYGON': cls.POLYGON,
+            'NONE': cls.NONE,
+        }
+        return mapping[value.upper()]
+
 
 class BodyType(Enum):
     """Physics body types."""
     STATIC = auto()      # Does not move (walls, terrain)
     DYNAMIC = auto()     # Fully simulated (player, enemies, projectiles)
     KINEMATIC = auto()   # Moves but isn't affected by forces (moving platforms)
+
+    @classmethod
+    def from_str(cls, value: str) -> 'BodyType':
+        """Create BodyType from string representation."""
+        mapping = {
+            'STATIC': cls.STATIC,
+            'DYNAMIC': cls.DYNAMIC,
+            'KINEMATIC': cls.KINEMATIC,
+        }
+        return mapping[value.upper()]
 
 
 class CollisionLayer(Enum):
@@ -37,6 +59,22 @@ class CollisionLayer(Enum):
     TERRAIN = auto()
     TRIGGER = auto()      # Overlap detection only, no physics response
     TRANSPARENT = auto()  # Visual only, no collision
+    UI = auto()           # In-scene UI elements, never collides with anything
+
+    @classmethod
+    def from_str(cls, value: str) -> 'CollisionLayer':
+        """Create CollisionLayer from string representation."""
+        mapping = {
+            'DEFAULT': cls.DEFAULT,
+            'PLAYER': cls.PLAYER,
+            'ENEMY': cls.ENEMY,
+            'PROJECTILE': cls.PROJECTILE,
+            'TERRAIN': cls.TERRAIN,
+            'TRIGGER': cls.TRIGGER,
+            'TRANSPARENT': cls.TRANSPARENT,
+            'UI': cls.UI,
+        }
+        return mapping[value.upper()]
 
 
 @runtime_checkable
@@ -48,20 +86,36 @@ class IMaterial(Protocol):
         """Mass per unit area (kg/m²) or volume (kg/m³)."""
         return self.get_density()
 
+    @density.setter
+    def density(self, value: float) -> None:
+        self.set_density(value)
+
     @property
     def restitution(self) -> float:
         """Bounciness (0.0 = no bounce, 1.0 = perfect bounce)."""
         return self.get_restitution()
+
+    @restitution.setter
+    def restitution(self, value: float) -> None:
+        self.set_restitution(value)
 
     @property
     def friction(self) -> float:
         """Surface friction coefficient (0.0 = ice, 1.0 = rubber)."""
         return self.get_friction()
 
+    @friction.setter
+    def friction(self, value: float) -> None:
+        self.set_friction(value)
+
     @property
     def drag(self) -> float:
         """Air/fluid resistance coefficient."""
         return self.get_drag()
+
+    @drag.setter
+    def drag(self, value: float) -> None:
+        self.set_drag(value)
 
     def get_density(self) -> float: ...
     def set_density(self, value: float) -> None: ...
@@ -71,6 +125,8 @@ class IMaterial(Protocol):
     def set_friction(self, value: float) -> None: ...
     def get_drag(self) -> float: ...
     def set_drag(self, value: float) -> None: ...
+    @classmethod
+    def from_dict(cls, data: dict) -> Self: ...
 
 
 class ICollider2D(IArea2D):
@@ -95,6 +151,10 @@ class ICollider2D(IArea2D):
     def is_trigger(self) -> bool:
         """Whether this collider is a trigger (no physics response, only detection)."""
         return self.get_is_trigger()
+
+    @is_trigger.setter
+    def is_trigger(self, value: bool) -> None:
+        self.set_is_trigger(value)
 
     def get_collider_type(self) -> ColliderType: ...
     def set_collider_type(self, value: ColliderType) -> None: ...
@@ -137,6 +197,10 @@ class ICollider3D(IArea3D):
         """Whether this collider is a trigger (no physics response, only detection)."""
         return self.get_is_trigger()
 
+    @is_trigger.setter
+    def is_trigger(self, value: bool) -> None:
+        self.set_is_trigger(value)
+
     def get_collider_type(self) -> ColliderType: ...
     def set_collider_type(self, value: ColliderType) -> None: ...
     def get_collision_layer(self) -> CollisionLayer: ...
@@ -162,6 +226,10 @@ class IRigidBody2D(IKinematic2D):
     def mass(self) -> float:
         """Mass in kilograms."""
         return self.get_mass()
+
+    @mass.setter
+    def mass(self, value: float) -> None:
+        self.set_mass(value)
 
     @property
     def inverse_mass(self) -> float:
@@ -218,6 +286,10 @@ class IRigidBody3D(IKinematic3D):
         """Mass in kilograms."""
         return self.get_mass()
 
+    @mass.setter
+    def mass(self, value: float) -> None:
+        self.set_mass(value)
+
     @property
     def inverse_mass(self) -> float:
         """Inverse mass (0 for infinite mass/static bodies)."""
@@ -270,6 +342,10 @@ class IPhysicsBody2D(
         """The type of physics body."""
         return self.get_body_type()
 
+    @body_type.setter
+    def body_type(self, value: BodyType) -> None:
+        self.set_body_type(value)
+
     @property
     def collider(self) -> ICollider2D:
         """The collider associated with this physics body."""
@@ -279,6 +355,10 @@ class IPhysicsBody2D(
     def enabled(self) -> bool:
         """Whether physics simulation is enabled for this body."""
         return self.get_enabled()
+
+    @enabled.setter
+    def enabled(self, enabled: bool) -> None:
+        self.set_enabled(enabled)
 
     @property
     def material(self) -> IMaterial:
@@ -295,10 +375,14 @@ class IPhysicsBody2D(
         """Whether the body is sleeping (optimization for stationary objects)."""
         return self.get_sleeping()
 
+    @sleeping.setter
+    def sleeping(self, value: bool) -> None:
+        self.set_sleeping(value)
+
     def get_body_type(self) -> BodyType: ...
     def set_body_type(self, value: BodyType) -> None: ...
     def get_enabled(self) -> bool: ...
-    def set_enabled(self, value: bool) -> None: ...
+    def set_enabled(self, enabled: bool) -> None: ...
     def get_collider(self) -> ICollider2D: ...
     def set_collider(self, collider: ICollider2D) -> None: ...
     def get_rigid_body(self) -> IRigidBody2D: ...
@@ -311,6 +395,7 @@ class IPhysicsBody2D(
     def on_collision_enter(self, other: 'IPhysicsBody2D') -> None: ...
     def on_collision_stay(self, other: 'IPhysicsBody2D') -> None: ...
     def on_collision_exit(self, other: 'IPhysicsBody2D') -> None: ...
+    def is_on_top_of(self, other: 'IPhysicsBody2D') -> bool: ...
 
 
 @runtime_checkable

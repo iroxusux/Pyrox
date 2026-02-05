@@ -24,6 +24,20 @@ from pyrox.interfaces import (
     ITaskFrame
 )
 
+# ---- Display map to help visualize what the layout should look like ----
+# +-----------------------------------------------------+
+# |                    Menu Bar                         |
+# +----------------------+------------------------------+
+# |      Sidebar         |        Workspace Area        |
+# |   (PyroxNotebook)    |   (Dynamic TaskFrames)       |
+# |                      |                              |
+# |                      |                              |
+# |                      |                              |
+# |                      |                              |
+# +----------------------+------------------------------+
+# |                   Status Bar                        |
+# +-----------------------------------------------------+
+
 
 class TkWorkspace(
     IWorkspace,
@@ -86,96 +100,13 @@ class TkWorkspace(
         # Callback tracking
         self._sash_callbacks: List[Callable] = []
 
-    @property
-    def log_paned_window(self) -> ttk.PanedWindow:
-        """Get the log paned window.
-
-        Returns:
-            ttk.PanedWindow: The log paned window instance.
-        """
-        if not self._log_paned_window:
-            raise RuntimeError("Log paned window not initialized")
-        return self._log_paned_window
-
-    @property
-    def main_paned_window(self) -> ttk.PanedWindow:
-        """Get the main paned window.
-
-        Returns:
-            ttk.PanedWindow: The main paned window instance.
-        """
-        if not self._main_paned_window:
-            raise RuntimeError("Main paned window not initialized")
-        return self._main_paned_window
-
-    @property
-    def menu(self) -> Any:
-        """Get the main application menu.
-
-        Returns:
-            The main application menu instance.
-        """
-        return self.gui.unsafe_get_backend().get_root_application_menu()
-
-    @property
-    def sidebar_organizer(self) -> PyroxNotebook:
-        """Get the sidebar organizer.
-
-        Returns:
-            PyroxNotebook: The sidebar organizer instance.
-        """
-        if not self._sidebar_organizer:
-            raise RuntimeError("Sidebar organizer not initialized")
-        return self._sidebar_organizer
-
-    @property
-    def status_bar(self) -> ttk.Frame:
-        """Get the status bar.
-
-        Returns:
-            ttk.Frame: The status bar instance.
-        """
-        if not self._status_bar:
-            raise RuntimeError("Status bar not initialized")
-        return self._status_bar
-
-    @property
-    def status_label(self) -> ttk.Label:
-        """Get the status label.
-
-        Returns:
-            ttk.Label: The status label instance.
-        """
-        if not self._status_label:
-            raise RuntimeError("Status label not initialized")
-        return self._status_label
-
-    @property
-    def window(self) -> IGuiWindow:
-        """Get the main application window.
-
-        Returns:
-            The main application window instance.
-        """
-        return self.gui.unsafe_get_backend().get_root_gui_window()
-
-    @property
-    def workspace_area(self) -> IGuiFrame[tk.Frame, tk.Widget]:
-        """Get the workspace area.
-
-        Returns:
-            PyroxFrameContainer: The workspace area instance.
-        """
-        if not self._workspace_area:
-            raise RuntimeError("Workspace area not initialized")
-        return self._workspace_area
-
     def _create_layout(self) -> None:
         """Create the main workspace layout."""
         self._create_status_bar()  # Pack status bar first (side='bottom')
         self._create_main_paned_window()  # Then pack main content (fill='both')
         self._create_sidebar_organizer()
         self._create_log_paned_window()
+        self._create_workspace_paned_window()
         self._create_workspace_area()
         self._create_log_window()
 
@@ -234,13 +165,19 @@ class TkWorkspace(
         )
         info_button.pack(side='right', padx=(2, 5))
 
+    def _create_workspace_paned_window(self) -> None:
+        """Create the main workspace paned window."""
+        self.log().debug("Creating workspace paned window")
+        self._workspace_paned_window = ttk.PanedWindow(self.log_paned_window, orient='horizontal')
+        self.log_paned_window.add(self._workspace_paned_window)
+
     def _create_workspace_area(self) -> None:
         """Create the main workspace area."""
         self.log().debug("Creating workspace area")
         self._workspace_area = self.gui.unsafe_get_backend().create_gui_frame(
-            master=self.log_paned_window,
+            master=self.workspace_paned_window,
         )
-        self.log_paned_window.add(self.workspace_area.root)
+        self.workspace_paned_window.add(self.workspace_area.root)
 
     def _get_shown_frame(self) -> Optional[ITaskFrame]:
         """Get the currently shown frame in the workspace.
@@ -998,3 +935,98 @@ Status: {info['status']['current_message']}
             command=info_window.destroy
         )
         close_btn.pack(pady=(0, 10))
+
+    @property
+    def log_paned_window(self) -> ttk.PanedWindow:
+        """Get the log paned window.
+
+        Returns:
+            ttk.PanedWindow: The log paned window instance.
+        """
+        if not self._log_paned_window:
+            raise RuntimeError("Log paned window not initialized")
+        return self._log_paned_window
+
+    @property
+    def main_paned_window(self) -> ttk.PanedWindow:
+        """Get the main paned window.
+
+        Returns:
+            ttk.PanedWindow: The main paned window instance.
+        """
+        if not self._main_paned_window:
+            raise RuntimeError("Main paned window not initialized")
+        return self._main_paned_window
+
+    @property
+    def app_menu(self) -> Any:
+        """Get the main application menu.
+
+        Returns:
+            The main application menu instance.
+        """
+        return self.gui.unsafe_get_backend().get_root_application_menu()
+
+    @property
+    def sidebar_organizer(self) -> PyroxNotebook:
+        """Get the sidebar organizer.
+
+        Returns:
+            PyroxNotebook: The sidebar organizer instance.
+        """
+        if not self._sidebar_organizer:
+            raise RuntimeError("Sidebar organizer not initialized")
+        return self._sidebar_organizer
+
+    @property
+    def status_bar(self) -> ttk.Frame:
+        """Get the status bar.
+
+        Returns:
+            ttk.Frame: The status bar instance.
+        """
+        if not self._status_bar:
+            raise RuntimeError("Status bar not initialized")
+        return self._status_bar
+
+    @property
+    def status_label(self) -> ttk.Label:
+        """Get the status label.
+
+        Returns:
+            ttk.Label: The status label instance.
+        """
+        if not self._status_label:
+            raise RuntimeError("Status label not initialized")
+        return self._status_label
+
+    @property
+    def window(self) -> IGuiWindow:
+        """Get the main application window.
+
+        Returns:
+            The main application window instance.
+        """
+        return self.gui.unsafe_get_backend().get_root_gui_window()
+
+    @property
+    def workspace_paned_window(self) -> ttk.PanedWindow:
+        """Get the workspace paned window.
+
+        Returns:
+            ttk.PanedWindow: The workspace paned window instance.
+        """
+        if not self._workspace_paned_window:
+            raise RuntimeError("Workspace paned window not initialized")
+        return self._workspace_paned_window
+
+    @property
+    def workspace_area(self) -> IGuiFrame[tk.Frame, tk.Widget]:
+        """Get the workspace area.
+
+        Returns:
+            PyroxFrameContainer: The workspace area instance.
+        """
+        if not self._workspace_area:
+            raise RuntimeError("Workspace area not initialized")
+        return self._workspace_area

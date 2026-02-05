@@ -33,6 +33,7 @@ from .spatial import (
     ISpatial2D,
     ISpatial3D,
     IRotatable,
+    IZoomable,
 )
 
 # Kinematic imports for protocols that support kinematic objects.
@@ -56,6 +57,17 @@ from .physics import (
     IRigidBody2D,
     IRigidBody3D,
     IPhysicsEngine,
+)
+
+# Property imports for protocols that support properties.
+from .property import (
+    IHasProperties,
+)
+
+# Connectable protocols
+from .connection import (
+    IConnectable,
+    Connection,
 )
 
 __all__ = [
@@ -86,6 +98,7 @@ __all__ = [
     "ISpatial2D",
     "ISpatial3D",
     "IRotatable",
+    "IZoomable",
 
     # Kinematic protocols
     "IVelocity2D",
@@ -105,4 +118,11 @@ __all__ = [
     "IRigidBody3D",
     "IPhysicsBody2D",
     "IPhysicsEngine",
+
+    # Property protocols
+    "IHasProperties",
+
+    # Connectable protocols
+    "IConnectable",
+    "Connection",
 ]

@@ -2,6 +2,7 @@
 import unittest
 
 from pyrox.models.scene import Scene, SceneObject
+from pyrox.models.physics import BasePhysicsBody
 
 
 class TestSceneViewerCoordinates(unittest.TestCase):
@@ -67,32 +68,35 @@ class TestSceneManagement(unittest.TestCase):
     def test_scene_object_creation(self):
         """Test creating scene objects."""
         obj = SceneObject(
-            id="test1",
             name="Test Object",
             scene_object_type="rectangle",
-            properties={"x": 10, "y": 20, "shape": "rectangle"}
+            properties={"shape": "rectangle"},
+            physics_body=BasePhysicsBody(x=10, y=20)
         )
 
-        self.assertEqual(obj.id, "test1")
         self.assertEqual(obj.name, "Test Object")
         self.assertEqual(obj.properties["x"], 10)
+        self.assertEqual(obj.properties["y"], 20)
+        self.assertIsNotNone(obj.id)
 
     def test_scene_add_remove_objects(self):
         """Test adding and removing objects from scene."""
         scene = Scene(name="Test Scene")
-        obj1 = SceneObject(id="obj1", name="Object 1", scene_object_type="rect", properties={})
-        obj2 = SceneObject(id="obj2", name="Object 2", scene_object_type="circle", properties={})
+        obj1 = SceneObject(name="Object 1", scene_object_type="rect", properties={},
+                           physics_body=BasePhysicsBody())
+        obj2 = SceneObject(name="Object 2", scene_object_type="circle", properties={},
+                           physics_body=BasePhysicsBody())
 
         scene.add_scene_object(obj1)
         scene.add_scene_object(obj2)
 
         self.assertEqual(len(scene.scene_objects), 2)
-        self.assertIn("obj1", scene.scene_objects)
+        self.assertIn(obj1.id, scene.scene_objects)
 
-        scene.remove_scene_object("obj1")
+        scene.remove_scene_object(obj1.id)
 
         self.assertEqual(len(scene.scene_objects), 1)
-        self.assertNotIn("obj1", scene.scene_objects)
+        self.assertNotIn(obj1.id, scene.scene_objects)
 
 
 class TestZoomLogic(unittest.TestCase):

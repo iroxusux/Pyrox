@@ -52,6 +52,7 @@ from .protocols import (
     ISpatial2D,
     ISpatial3D,
     IRotatable,
+    IZoomable,
 
     # Kinematic imports for protocols that support kinematic objects.
     IVelocity2D,
@@ -70,7 +71,17 @@ from .protocols import (
     IRigidBody2D,
     IRigidBody3D,
     IPhysicsEngine,
+
+    # Property imports for protocols that support properties.
+    IHasProperties,
+
+    # Connectable protocols
+    IConnectable,
+    Connection,
 )
+
+# Physics interfaces
+from .physics import IBasePhysicsBody
 
 # Service interfaces
 from .services import (
@@ -115,10 +126,16 @@ from .gui import (
     IGuiWidget,
     IGuiWindow,
     IWorkspace,
+    IViewport,
 )
 
 # Scene interfaces
-from .scene import IScene, ISceneObject, ISceneObjectFactory
+from .scene import (
+    IScene,
+    ISceneObject,
+    ISceneObjectFactory,
+    ISceneRunnerService
+)
 
 
 __all__ = (
@@ -151,6 +168,7 @@ __all__ = (
     'ISpatial2D',
     'ISpatial3D',
     'IRotatable',
+    'IZoomable',
     # Kinematic protocols
     'IVelocity2D',
     'IVelocity3D',
@@ -167,6 +185,14 @@ __all__ = (
     'IRigidBody2D',
     'IRigidBody3D',
     'IPhysicsEngine',
+    # Property protocols
+    'IHasProperties',
+    # Connectable protocols
+    'IConnectable',
+    'Connection',
+
+    # Physics Interfaces
+    'IBasePhysicsBody',
 
     # GUI Interfaces
     'GuiFramework',
@@ -179,6 +205,7 @@ __all__ = (
     'IGuiComponent',
     'IApplicationGuiMenu',
     'IWorkspace',
+    'IViewport',
 
     # Service Interfaces
     'IEnvironmentManager',
@@ -207,4 +234,5 @@ __all__ = (
     'IScene',
     'ISceneObject',
     'ISceneObjectFactory',
+    'ISceneRunnerService',
 )

@@ -216,7 +216,8 @@ class EnvironmentService:
         vx, vy = velocity
         speed = (vx**2 + vy**2)**0.5
 
-        if speed < 0.001:  # Avoid division by zero
+        # Skip drag calculation for very small velocities to prevent asymptotic decay
+        if speed < 0.01:  # 1 cm/s - below this, drag has negligible effect
             return (0.0, 0.0)
 
         # Drag magnitude
