@@ -1,28 +1,27 @@
-"""
-Scene management for field scene_object simulations.
+""" Scene management for field scene_object simulations.
 """
 import json
 from pathlib import Path
-from typing import Any, Callable, Dict, Optional, Type, Union
+from typing import Any, Callable, Dict, Optional, Union
 from pyrox.interfaces import (
     IBasePhysicsBody,
     IScene,
     ISceneObject,
-    ISceneObjectFactory
 )
 
+from pyrox.interfaces.protocols.connection import Connection
+
 from pyrox.models.protocols import (
-    HasId,
     Nameable,
     Describable,
 )
+from pyrox.models.connection import ConnectionRegistry
 
 from pyrox.models.physics.factory import PhysicsSceneFactory
 
 
 class SceneObject(
         ISceneObject,
-        HasId,
         Nameable,
         Describable,
 ):
@@ -31,7 +30,6 @@ class SceneObject(
 
     def __init__(
         self,
-        id: str,
         name: str,
         scene_object_type: str,
         physics_body: IBasePhysicsBody,
@@ -39,7 +37,6 @@ class SceneObject(
         properties: Optional[Dict] = None,
         parent: Optional['SceneObject'] = None,
     ):
-        HasId.__init__(self, id)
         Nameable.__init__(self, name)
         Describable.__init__(self, description)
         self._scene_object_type = scene_object_type
@@ -56,23 +53,6 @@ class SceneObject(
         self._clickable: bool = False  # Whether this object responds to clicks
 
     # Properties and serialization methods
-
-    def get_id(self) -> str:
-        """Get the unique identifier of the scene object.
-
-        Returns:
-            str: The unique identifier.
-        """
-        return self._id
-
-    def set_id(self, id: str) -> None:
-        """Set the unique identifier of the scene object.
-
-        Args:
-            id (str): The unique identifier.
-        """
-        self._id = id
-
     def get_property(self, name: str) -> Any:
         """Get a single property of the scene object.
 
@@ -143,6 +123,7 @@ class SceneObject(
         }
         body = {
             "name": self.name,
+            "id": self.physics_body.id,
             "tags": self.physics_body.tags,
             "body_type": self.physics_body.body_type.name,
             "enabled": self.physics_body.enabled,
@@ -169,9 +150,9 @@ class SceneObject(
         }
 
         return {
-            "id": self.id,
             "name": self.name,
             "scene_object_type": self._scene_object_type,
+            "id": self.id,
             "description": self._description,
             "properties": self.properties,
             "body": body,
@@ -192,7 +173,6 @@ class SceneObject(
             raise ValueError("Failed to create physics body from dictionary")
 
         obj = cls(
-            id=data["id"],
             name=data["name"],
             scene_object_type=data["scene_object_type"],
             physics_body=body,
@@ -370,26 +350,26 @@ class SceneObject(
             "drag": self.physics_body.material.drag,
         })
 
+    # IConnectable interface
 
-class SceneObjectFactory(ISceneObjectFactory):
-    """
-    Factory for registering and creating scene_object instances.
+    def get_connections(self) -> list[Connection]:
+        return self.physics_body.get_connections()
 
-    Allows custom scene_object types to be registered and instantiated
-    from serialized data.
-    """
-    _registry: Dict[str, Type[ISceneObject]] = {}
+    def set_connections(self, connections: list[Connection]) -> None:
+        self.physics_body.set_connections(connections)
 
-    def __init__(self):
-        """Initialize the scene_object factory."""
-        raise ValueError("SceneObjectFactory cannot be instantiated directly. Use class methods only.")
+    def get_outputs(self) -> dict[str, Any]:
+        return self.physics_body.get_outputs()
 
-    @classmethod
-    def create_scene_object(
-        cls,
-        data: dict
-    ) -> ISceneObject:
-        return SceneObject.from_dict(data)
+    def get_inputs(self) -> dict[str, Any]:
+        return self.physics_body.get_inputs()
+
+    # IHasId interface
+    def get_id(self) -> str:
+        return self.physics_body.id
+
+    def set_id(self, id: str) -> None:
+        raise NotImplementedError("ID cannot be changed after creation")
 
 
 class Scene(IScene):
@@ -406,6 +386,9 @@ class Scene(IScene):
         self._scene_objects: Dict[str, ISceneObject] = {}
         self._on_scene_object_added: list[Callable] = []
         self._on_scene_object_removed: list[Callable] = []
+
+        # Connection registry
+        self.connection_registry = ConnectionRegistry()
 
     def get_name(self) -> str:
         """Get the name of the scene."""
@@ -508,6 +491,7 @@ class Scene(IScene):
             "scene_objects": [
                 scene_object.to_dict() for scene_object in self._scene_objects.values()
             ],
+            "connections": self.connection_registry.serialize()["connections"],
         }
 
     @classmethod
@@ -523,8 +507,20 @@ class Scene(IScene):
 
         # Load scene objects
         for scene_object_data in data.get("scene_objects", []):
-            scene_object = SceneObjectFactory.create_scene_object(scene_object_data)
+            scene_object = SceneObject.from_dict(scene_object_data)
             scene.add_scene_object(scene_object)
+            scene.connection_registry.register_object(
+                scene_object.id, scene_object
+            )
+
+        # Load connections
+        for conn_data in data.get("connections", []):
+            scene.connection_registry.connect(
+                source_id=conn_data["source"],
+                output_name=conn_data["output"],
+                target_id=conn_data["target"],
+                input_name=conn_data["input"],
+            )
 
         return scene
 

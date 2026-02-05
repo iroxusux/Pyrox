@@ -64,6 +64,12 @@ from .property import (
     IHasProperties,
 )
 
+# Connectable protocols
+from .connection import (
+    IConnectable,
+    Connection,
+)
+
 __all__ = [
     # Meta protocols
     "IAuthored",
@@ -115,4 +121,8 @@ __all__ = [
 
     # Property protocols
     "IHasProperties",
+
+    # Connectable protocols
+    "IConnectable",
+    "Connection",
 ]

@@ -3,6 +3,7 @@ from . import console
 from . import tk
 
 from .commandbar import PyroxCommandBar, CommandButton
+from .connectioneditor import ConnectionEditor
 from .contextmenu import PyroxContextMenu, MenuItem as ContextMenuItem
 from .frame import (
     PyroxFrameContainer,
@@ -18,6 +19,7 @@ from .yamleditor import PyroxYamlEditor
 __all__ = (
     'console',
     'CommandButton',
+    'ConnectionEditor',
     'ContextMenuItem',
     'DefaultTheme',
     'LogFrame',

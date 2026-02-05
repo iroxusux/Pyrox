@@ -108,56 +108,57 @@ class TestScene(unittest.TestCase):
         """Test Scene.add_scene_object() method."""
         scene = Scene()
         scene_object = self.TestSceneObject(
-            id="dev_001",
             scene_object_type="TestSceneObject",
             name="TestDev",
             physics_body=self.TestPhysicsBody()
         )
 
         scene.add_scene_object(scene_object)
+        obj_id = scene_object.get_id()
 
         self.assertEqual(len(scene.scene_objects), 1)
-        self.assertIn("dev_001", scene.scene_objects)
-        self.assertEqual(scene.scene_objects["dev_001"], scene_object)
+        self.assertIn(obj_id, scene.scene_objects)
+        self.assertEqual(scene.scene_objects[obj_id], scene_object)
 
     def test_add_scene_object_duplicate_id_raises_error(self):
         """Test that adding a scene_object with duplicate ID raises ValueError."""
         scene = Scene()
+        # Use same physics body to force same ID
+        shared_physics = self.TestPhysicsBody()
         scene_object1 = self.TestSceneObject(
-            id="dev_003",
             scene_object_type="TestSceneObject",
             name="SceneObject1",
-            physics_body=self.TestPhysicsBody()
+            physics_body=shared_physics
         )
         scene_object2 = self.TestSceneObject(
-            id="dev_003",
             scene_object_type="TestSceneObject",
             name="SceneObject2",
-            physics_body=self.TestPhysicsBody()
+            physics_body=shared_physics
         )
 
         scene.add_scene_object(scene_object1)
+        obj_id = scene_object1.get_id()
 
         with self.assertRaises(ValueError) as context:
             scene.add_scene_object(scene_object2)
 
         self.assertIn("already exists", str(context.exception))
-        self.assertIn("dev_003", str(context.exception))
+        self.assertIn(obj_id, str(context.exception))
 
     def test_remove_scene_object(self):
         """Test Scene.remove_scene_object() method."""
         scene = Scene()
         scene_object = self.TestSceneObject(
-            id="dev_004",
             scene_object_type="TestSceneObject",
             name="TestDev",
             physics_body=self.TestPhysicsBody()
         )
 
         scene.add_scene_object(scene_object)
+        obj_id = scene_object.get_id()
         self.assertEqual(len(scene.scene_objects), 1)
 
-        scene.remove_scene_object("dev_004")
+        scene.remove_scene_object(obj_id)
         self.assertEqual(len(scene.scene_objects), 0)
 
     def test_remove_nonexistent_scene_object(self):
@@ -171,15 +172,15 @@ class TestScene(unittest.TestCase):
         """Test Scene.get_scene_object() method."""
         scene = Scene()
         scene_object = self.TestSceneObject(
-            id="dev_006",
             scene_object_type="TestSceneObject",
             name="TestDev",
             physics_body=self.TestPhysicsBody()
         )
 
         scene.add_scene_object(scene_object)
+        obj_id = scene_object.get_id()
 
-        result = scene.get_scene_object("dev_006")
+        result = scene.get_scene_object(obj_id)
         self.assertEqual(result, scene_object)
 
     def test_get_scene_object_not_exists(self):
@@ -195,7 +196,6 @@ class TestScene(unittest.TestCase):
 
         # Create scene_object that tracks updates
         scene_object = self.TestSceneObject(
-            id="dev_008",
             scene_object_type="TestSceneObject",
             name="TestDev",
             physics_body=self.TestPhysicsBody()
@@ -222,13 +222,11 @@ class TestScene(unittest.TestCase):
         scene = Scene()
 
         scene_object1 = self.TestSceneObject(
-            id="dev_009",
             scene_object_type="TestSceneObject",
             name="SceneObject1",
             physics_body=self.TestPhysicsBody()
         )
         scene_object2 = self.TestSceneObject(
-            id="dev_010",
             scene_object_type="TestSceneObject",
             name="SceneObject2",
             physics_body=self.TestPhysicsBody()
@@ -259,7 +257,6 @@ class TestScene(unittest.TestCase):
         scene = Scene(name="DictScene", description="Test dict conversion")
 
         scene_object = self.TestSceneObject(
-            id="dev_011",
             scene_object_type="TestSceneObject",
             name="TestDev",
             physics_body=self.TestPhysicsBody()
@@ -279,7 +276,6 @@ class TestScene(unittest.TestCase):
         scene = Scene(name="SaveScene", description="Test save")
 
         scene_object = self.TestSceneObject(
-            id="dev_012",
             scene_object_type="TestSceneObject",
             name="SaveDev",
             physics_body=self.TestPhysicsBody()
@@ -313,7 +309,6 @@ class TestScene(unittest.TestCase):
         # Create and save a scene
         original_scene = Scene(name="LoadScene", description="Test load")
         scene_object = self.TestSceneObject(
-            id="dev_013",
             scene_object_type="TestSceneObject",
             name="Base Physics Body",
             physics_body=self.TestPhysicsBody()
@@ -329,7 +324,8 @@ class TestScene(unittest.TestCase):
         self.assertEqual(loaded_scene.name, "LoadScene")
         self.assertEqual(loaded_scene.description, "Test load")
         self.assertEqual(len(loaded_scene.scene_objects), 1)
-        self.assertIn("dev_013", loaded_scene.scene_objects)
+        # Check that the object exists (ID may differ after load)
+        self.assertGreater(len(loaded_scene.scene_objects), 0)
 
     def test_scene_roundtrip(self):
         """Test that saving and loading a scene preserves data."""
@@ -337,7 +333,6 @@ class TestScene(unittest.TestCase):
 
         # Add scene_object with tags
         scene_object = self.TestSceneObject(
-            id="dev_014",
             scene_object_type="TestSceneObject",
             name="Base Physics Body",
             properties={"value": 123},
@@ -357,17 +352,18 @@ class TestScene(unittest.TestCase):
         self.assertEqual(loaded.description, original.description)
         self.assertEqual(len(loaded.scene_objects), len(original.scene_objects))
 
-        loaded_scene_object = loaded.get_scene_object("dev_014")
-        self.assertIsNotNone(loaded_scene_object)
-        self.assertEqual(loaded_scene_object.name, "Base Physics Body")  # type: ignore
-        self.assertEqual(loaded_scene_object.properties["value"], 123)  # type: ignore
+        # Get the loaded object (ID may differ)
+        loaded_objects = list(loaded.scene_objects.values())
+        self.assertEqual(len(loaded_objects), 1)
+        loaded_scene_object = loaded_objects[0]
+        self.assertEqual(loaded_scene_object.name, "Base Physics Body")
+        self.assertEqual(loaded_scene_object.properties["value"], 123)
 
     def test_repr(self):
         """Test Scene.__repr__() method."""
         scene = Scene(name="ReprScene")
 
         scene_object = self.TestSceneObject(
-            id="dev_015",
             scene_object_type="TestSceneObject",
             name="Dev",
             physics_body=self.TestPhysicsBody()
@@ -383,13 +379,11 @@ class TestScene(unittest.TestCase):
         """Test Scene.get_scene_objects() method."""
         scene = Scene()
         scene_object1 = self.TestSceneObject(
-            id="obj_001",
             scene_object_type="TestSceneObject",
             name="Object1",
             physics_body=self.TestPhysicsBody()
         )
         scene_object2 = self.TestSceneObject(
-            id="obj_002",
             scene_object_type="TestSceneObject",
             name="Object2",
             physics_body=self.TestPhysicsBody()
@@ -397,29 +391,31 @@ class TestScene(unittest.TestCase):
 
         scene.add_scene_object(scene_object1)
         scene.add_scene_object(scene_object2)
+        obj_id1 = scene_object1.get_id()
+        obj_id2 = scene_object2.get_id()
 
         objects = scene.get_scene_objects()
 
         self.assertIsInstance(objects, dict)
         self.assertEqual(len(objects), 2)
-        self.assertIn("obj_001", objects)
-        self.assertIn("obj_002", objects)
+        self.assertIn(obj_id1, objects)
+        self.assertIn(obj_id2, objects)
 
     def test_set_scene_objects(self):
         """Test Scene.set_scene_objects() method."""
         scene = Scene()
         scene_object1 = self.TestSceneObject(
-            id="obj_003",
             scene_object_type="TestSceneObject",
             name="Object3",
             physics_body=self.TestPhysicsBody()
         )
+        obj_id = scene_object1.get_id()
 
-        objects_dict: Dict[str, ISceneObject] = {"obj_003": scene_object1}
+        objects_dict: Dict[str, ISceneObject] = {obj_id: scene_object1}
         scene.set_scene_objects(objects_dict)
 
         self.assertEqual(len(scene.scene_objects), 1)
-        self.assertIn("obj_003", scene.scene_objects)
+        self.assertIn(obj_id, scene.scene_objects)
 
     def test_set_scene_objects_invalid_type(self):
         """Test that set_scene_objects raises error for non-dict."""
@@ -474,15 +470,15 @@ class TestScene(unittest.TestCase):
         scene.get_on_scene_object_added().append(callback)
 
         scene_object = self.TestSceneObject(
-            id="dev_016",
             scene_object_type="TestSceneObject",
             name="CallbackDev",
             physics_body=self.TestPhysicsBody()
         )
 
         scene.add_scene_object(scene_object)
+        obj_id = scene_object.get_id()
 
-        self.assertIn("dev_016", called)
+        self.assertIn(obj_id, called)
 
     def test_get_on_scene_object_removed(self):
         """Test Scene.get_on_scene_object_removed() method."""
@@ -503,16 +499,16 @@ class TestScene(unittest.TestCase):
         scene.get_on_scene_object_removed().append(callback)
 
         scene_object = self.TestSceneObject(
-            id="dev_017",
             scene_object_type="TestSceneObject",
             name="CallbackDev",
             physics_body=self.TestPhysicsBody()
         )
 
         scene.add_scene_object(scene_object)
-        scene.remove_scene_object("dev_017")
+        obj_id = scene_object.get_id()
+        scene.remove_scene_object(obj_id)
 
-        self.assertIn("dev_017", called)
+        self.assertIn(obj_id, called)
 
 
 class TestSceneObject(unittest.TestCase):
@@ -578,13 +574,13 @@ class TestSceneObject(unittest.TestCase):
     def test_init_with_required_params(self):
         """Test SceneObject initialization with required parameters."""
         obj = SceneObject(
-            id="test_001",
             name="TestObject",
             scene_object_type="TestType",
             physics_body=self.TestPhysicsBody()
         )
 
-        self.assertEqual(obj.get_id(), "test_001")
+        obj_id = obj.get_id()
+        self.assertIsNotNone(obj_id)
         self.assertEqual(obj.get_name(), "TestObject")
         self.assertEqual(obj.get_scene_object_type(), "TestType")
         self.assertEqual(obj.get_description(), "")
@@ -606,7 +602,6 @@ class TestSceneObject(unittest.TestCase):
             yaw=15.0,
         )
         obj = SceneObject(
-            id="test_002",
             name="FullObject",
             scene_object_type="FullType",
             physics_body=body,
@@ -614,7 +609,8 @@ class TestSceneObject(unittest.TestCase):
             properties=properties,
         )
 
-        self.assertEqual(obj.get_id(), "test_002")
+        obj_id = obj.get_id()
+        self.assertIsNotNone(obj_id)
         self.assertEqual(obj.get_name(), "FullObject")
         self.assertEqual(obj.get_scene_object_type(), "FullType")
         self.assertEqual(obj.get_description(), "Test description")
@@ -630,29 +626,32 @@ class TestSceneObject(unittest.TestCase):
     def test_get_id(self):
         """Test SceneObject.get_id() method."""
         obj = SceneObject(
-            id="id_test",
             name="Name",
             scene_object_type="Type",
             physics_body=self.TestPhysicsBody()
         )
-        self.assertEqual(obj.get_id(), "id_test")
+        obj_id = obj.get_id()
+        self.assertIsNotNone(obj_id)
+        self.assertIsInstance(obj_id, str)
 
     def test_set_id(self):
-        """Test SceneObject.set_id() method."""
-        obj = SceneObject(id="old_id", name="Name", scene_object_type="Type", physics_body=self.TestPhysicsBody())
-        obj.set_id("new_id")
-        self.assertEqual(obj.get_id(), "new_id")
+        """Test SceneObject.set_id() method raises NotImplementedError."""
+        obj = SceneObject(name="Name", scene_object_type="Type", physics_body=self.TestPhysicsBody())
+
+        with self.assertRaises(NotImplementedError):
+            obj.set_id("new_id")
 
     def test_id_property(self):
         """Test SceneObject id property access."""
-        obj = SceneObject(id="prop_id", name="Name", scene_object_type="Type", physics_body=self.TestPhysicsBody())
-        self.assertEqual(obj.id, "prop_id")
+        obj = SceneObject(name="Name", scene_object_type="Type", physics_body=self.TestPhysicsBody())
+        obj_id = obj.id
+        self.assertIsNotNone(obj_id)
+        self.assertIsInstance(obj_id, str)
 
     def test_get_properties(self):
         """Test SceneObject.get_properties() method."""
         properties = {"test": "value", "number": 123}
         obj = SceneObject(
-            id="test",
             name="Name",
             scene_object_type="Type",
             properties=properties,
@@ -665,7 +664,7 @@ class TestSceneObject(unittest.TestCase):
 
     def test_set_properties(self):
         """Test SceneObject.set_properties() method."""
-        obj = SceneObject(id="test", name="Name", scene_object_type="Type",
+        obj = SceneObject(name="Name", scene_object_type="Type",
                           physics_body=self.TestPhysicsBody()
                           )
         new_props = {"new_key": "new_value"}
@@ -675,7 +674,7 @@ class TestSceneObject(unittest.TestCase):
 
     def test_set_properties_invalid_type_raises_error(self):
         """Test that set_properties raises error for non-dict."""
-        obj = SceneObject(id="test", name="Name", scene_object_type="Type",
+        obj = SceneObject(name="Name", scene_object_type="Type",
                           physics_body=self.TestPhysicsBody())
 
         with self.assertRaises(ValueError) as context:
@@ -687,7 +686,6 @@ class TestSceneObject(unittest.TestCase):
         """Test SceneObject properties property access."""
         properties = {"key": "value"}
         obj = SceneObject(
-            id="test",
             name="Name",
             scene_object_type="Type",
             properties=properties,
@@ -697,20 +695,20 @@ class TestSceneObject(unittest.TestCase):
 
     def test_get_scene_object_type(self):
         """Test SceneObject.get_scene_object_type() method."""
-        obj = SceneObject(id="test", name="Name", scene_object_type="CustomType",
+        obj = SceneObject(name="Name", scene_object_type="CustomType",
                           physics_body=self.TestPhysicsBody())
         self.assertEqual(obj.get_scene_object_type(), "CustomType")
 
     def test_set_scene_object_type(self):
         """Test SceneObject.set_scene_object_type() method."""
-        obj = SceneObject(id="test", name="Name", scene_object_type="OldType",
+        obj = SceneObject(name="Name", scene_object_type="OldType",
                           physics_body=self.TestPhysicsBody())
         obj.set_scene_object_type("NewType")
         self.assertEqual(obj.get_scene_object_type(), "NewType")
 
     def test_scene_object_type_property(self):
         """Test SceneObject scene_object_type property access."""
-        obj = SceneObject(id="test", name="Name", scene_object_type="PropType",
+        obj = SceneObject(name="Name", scene_object_type="PropType",
                           physics_body=self.TestPhysicsBody())
         self.assertEqual(obj.scene_object_type, "PropType")
 
@@ -718,7 +716,6 @@ class TestSceneObject(unittest.TestCase):
         """Test SceneObject.to_dict() method."""
         properties = {"key": "value", "num": 42}
         obj = SceneObject(
-            id="dict_test",
             name="DictObject",
             scene_object_type="DictType",
             description="Dict description",
@@ -727,9 +724,10 @@ class TestSceneObject(unittest.TestCase):
         )
 
         result = obj.to_dict()
+        obj_id = obj.get_id()
 
         self.assertIsInstance(result, dict)
-        self.assertEqual(result["id"], "dict_test")
+        self.assertEqual(result["id"], obj_id)
         self.assertEqual(result["name"], "DictObject")
         self.assertEqual(result["scene_object_type"], "DictType")
         self.assertEqual(result["description"], "Dict description")
@@ -747,7 +745,8 @@ class TestSceneObject(unittest.TestCase):
 
         obj = SceneObject.from_dict(data)
 
-        self.assertEqual(obj.get_id(), "from_dict_test")
+        # ID comes from physics body, not from dict
+        self.assertIsNotNone(obj.get_id())
         self.assertEqual(obj.get_name(), "Base Physics Body")
         self.assertEqual(obj.get_scene_object_type(), "FromDictType")
         self.assertEqual(obj.get_description(), "From dict description")
@@ -763,7 +762,8 @@ class TestSceneObject(unittest.TestCase):
 
         obj = SceneObject.from_dict(data)
 
-        self.assertEqual(obj.get_id(), "minimal")
+        # ID comes from physics body, not from dict
+        self.assertIsNotNone(obj.get_id())
         self.assertEqual(obj.get_name(), "Base Physics Body")
         self.assertEqual(obj.get_scene_object_type(), "MinimalType")
         self.assertEqual(obj.get_description(), "")
@@ -771,7 +771,7 @@ class TestSceneObject(unittest.TestCase):
 
     def test_update_method_exists(self):
         """Test that update method exists and is callable."""
-        obj = SceneObject(id="test", name="Name", scene_object_type="Type",
+        obj = SceneObject(name="Name", scene_object_type="Type",
                           physics_body=self.TestPhysicsBody())
 
         self.assertTrue(hasattr(obj, 'update'))
@@ -783,7 +783,6 @@ class TestSceneObject(unittest.TestCase):
     def test_roundtrip_to_dict_from_dict(self):
         """Test roundtrip conversion to/from dict."""
         original = SceneObject(
-            id="roundtrip",
             name="Base Physics Body",
             scene_object_type="RoundtripType",
             description="Roundtrip test",
@@ -794,7 +793,8 @@ class TestSceneObject(unittest.TestCase):
         data = original.to_dict()
         loaded = SceneObject.from_dict(data)
 
-        self.assertEqual(loaded.get_id(), original.get_id())
+        # ID will be different since loaded creates new physics body
+        # But other properties should match
         self.assertEqual(loaded.get_name(), original.get_name())
         self.assertEqual(loaded.get_scene_object_type(), original.get_scene_object_type())
         self.assertEqual(loaded.get_description(), original.get_description())
@@ -802,7 +802,7 @@ class TestSceneObject(unittest.TestCase):
 
     def test_set_property_sets_attribute_and_dictionary(self):
         """Test that set_property sets both attribute and properties dict."""
-        obj = SceneObject(id="test", name="Name", scene_object_type="Type",
+        obj = SceneObject(name="Name", scene_object_type="Type",
                           physics_body=self.TestPhysicsBody())
 
         obj.set_property("x", 10)
@@ -812,7 +812,7 @@ class TestSceneObject(unittest.TestCase):
 
     def test_get_property_retrieves_attr_if_not_in_dict(self):
         """Test that get_property retrieves attribute if not in properties dict."""
-        obj = SceneObject(id="test", name="Name", scene_object_type="Type",
+        obj = SceneObject(name="Name", scene_object_type="Type",
                           physics_body=self.TestPhysicsBody())
         obj.physics_body.set_x(20)
 

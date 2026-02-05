@@ -41,6 +41,9 @@ from .physics import (
     PhysicsBody2D,
 )
 
+# Connectable protocol for objects that can connect to each other
+from .connection import Connectable
+
 __all__ = [
     # Meta protocols
     "Configurable",
@@ -76,4 +79,7 @@ __all__ = [
     "Collider2D",
     "RigidBody2D",
     "PhysicsBody2D",
+
+    # Connectable protocol
+    "Connectable",
 ]

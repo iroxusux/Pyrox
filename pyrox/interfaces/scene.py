@@ -12,8 +12,9 @@ from typing import (
     Union
 )
 from pyrox.interfaces import (
-    IHasId,
     INameable,
+    IConnectable,
+    IDescribable,
     IRunnable,
     IBasePhysicsBody,
     IPhysicsBody2D,
@@ -22,8 +23,9 @@ from pyrox.interfaces import (
 
 @runtime_checkable
 class ISceneObject(
-        IHasId,
+        IConnectable,
         INameable,
+        IDescribable,
         Protocol
 ):
     """Object base class for scene elements.

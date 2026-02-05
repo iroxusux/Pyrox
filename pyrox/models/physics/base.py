@@ -3,7 +3,11 @@
 Provides a base class for creating custom physics bodies with
 shared behavior and utilities.
 """
-from typing import List, Optional
+from typing import (
+    Any,
+    List,
+    Optional
+)
 from pyrox.interfaces import (
     IBasePhysicsBody,
     BodyType,
@@ -11,7 +15,8 @@ from pyrox.interfaces import (
     CollisionLayer,
     IMaterial
 )
-from pyrox.models.protocols import Nameable
+from pyrox.services import IdGeneratorService
+from pyrox.models.protocols import Nameable, Connectable
 from pyrox.models.protocols.physics import PhysicsBody2D, Material
 from .factory import PhysicsSceneTemplate, PhysicsSceneFactory
 
@@ -19,6 +24,7 @@ from .factory import PhysicsSceneTemplate, PhysicsSceneFactory
 class BasePhysicsBody(
     IBasePhysicsBody,
     Nameable,
+    Connectable,
     PhysicsBody2D,
 ):
     """Base class for custom physics bodies.
@@ -34,6 +40,7 @@ class BasePhysicsBody(
     def __init__(
         self,
         name: str = "",
+        id: str = "",
         tags: Optional[List[str]] = None,
         body_type: BodyType = BodyType.DYNAMIC,
         enabled: bool = True,
@@ -87,6 +94,8 @@ class BasePhysicsBody(
             material: Material properties (creates default if None)
         """
         Nameable.__init__(self=self, name=name)
+        id = id or f'physics-body-{name}-{IdGeneratorService.get_id()}'
+        Connectable.__init__(self=self, id=id)
         PhysicsBody2D.__init__(
             self=self,
             body_type=body_type,
@@ -112,7 +121,6 @@ class BasePhysicsBody(
             yaw=yaw,
             material=material,
         )
-
         self._tags = tags or []
 
     def get_tags(self) -> list[str]:
@@ -159,6 +167,23 @@ class BasePhysicsBody(
         """
         if tag in self.tags:
             self.tags.remove(tag)
+
+    # IConnectable methods
+    def get_inputs(self) -> dict[str, Any]:
+        """Get available input connections.
+
+        Returns:
+            Dictionary of input names to connection endpoints
+        """
+        return {}
+
+    def get_outputs(self) -> dict[str, Any]:
+        """Get available output connections.
+
+        Returns:
+            Dictionary of output names to connection endpoints
+        """
+        return {}
 
     @classmethod
     def from_dict(cls, data: dict) -> 'BasePhysicsBody':

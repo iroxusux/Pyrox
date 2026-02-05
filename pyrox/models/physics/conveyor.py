@@ -3,7 +3,7 @@
 Provides a static or kinematic conveyor belt that moves objects
 placed on top of it in a specified direction and speed.
 """
-from typing import List, Set
+from typing import Callable, List, Set
 from pyrox.interfaces.protocols.physics import (
     BodyType,
     ColliderType,
@@ -238,6 +238,20 @@ class ConveyorBody(BasePhysicsBody):
             Set of physics bodies on the belt
         """
         return self._objects_on_belt.copy()
+
+    def get_inputs(self) -> dict[str, Callable[..., None]]:
+        """Get available input connections.
+
+        Returns dict mapping input names to methods, properties, or other connection endpoints.
+        """
+        return {
+            "activate": self.activate,
+            "deactivate": self.deactivate,
+            "toggle": self.toggle,
+            "set_direction": self.set_direction,
+            "set_belt_speed": self.set_belt_speed,
+            "set_is_x_axis": self.set_is_x_axis,
+        }
 
     def __repr__(self) -> str:
         """String representation."""

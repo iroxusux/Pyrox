@@ -1,8 +1,12 @@
-from pyrox.interfaces import INameable
+from pyrox.interfaces import INameable, IConnectable
 from pyrox.interfaces.protocols.physics import IPhysicsBody2D
 
 
-class IBasePhysicsBody(INameable, IPhysicsBody2D):
+class IBasePhysicsBody(
+    INameable,
+    IConnectable,
+    IPhysicsBody2D
+):
     """Interface class for custom physics bodies extending IPhysicsBody2D.
     Provides additional methods and properties for common physics body
     functionality.

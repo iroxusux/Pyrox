@@ -74,6 +74,10 @@ from .protocols import (
 
     # Property imports for protocols that support properties.
     IHasProperties,
+
+    # Connectable protocols
+    IConnectable,
+    Connection,
 )
 
 # Physics interfaces
@@ -183,6 +187,9 @@ __all__ = (
     'IPhysicsEngine',
     # Property protocols
     'IHasProperties',
+    # Connectable protocols
+    'IConnectable',
+    'Connection',
 
     # Physics Interfaces
     'IBasePhysicsBody',

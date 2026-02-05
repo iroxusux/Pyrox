@@ -209,7 +209,10 @@ class TestPhysicsSceneFactory(unittest.TestCase):
 
     def setUp(self):
         """Set up test fixtures."""
-        # Clear any existing templates before each test
+        # Save existing templates before each test
+        self._saved_templates = PhysicsSceneFactory._templates.copy()
+        
+        # Clear templates for isolated test environment
         PhysicsSceneFactory._templates.clear()
 
         self.template_a = PhysicsSceneTemplate(
@@ -235,8 +238,9 @@ class TestPhysicsSceneFactory(unittest.TestCase):
 
     def tearDown(self):
         """Clean up test fixtures."""
-        # Clear templates after each test
+        # Restore original templates after each test
         PhysicsSceneFactory._templates.clear()
+        PhysicsSceneFactory._templates.update(self._saved_templates)
 
     # ==================== Registration Tests ====================
 
@@ -499,11 +503,17 @@ class TestPhysicsSceneFactoryWithRealBodies(unittest.TestCase):
 
     def setUp(self):
         """Set up test fixtures."""
+        # Save existing templates before each test
+        self._saved_templates = PhysicsSceneFactory._templates.copy()
+        
+        # Clear templates for isolated test environment
         PhysicsSceneFactory._templates.clear()
 
     def tearDown(self):
         """Clean up test fixtures."""
+        # Restore original templates after each test
         PhysicsSceneFactory._templates.clear()
+        PhysicsSceneFactory._templates.update(self._saved_templates)
 
     def test_create_base_physics_body(self):
         """Test creating a BasePhysicsBody from template."""

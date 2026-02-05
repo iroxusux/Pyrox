@@ -90,7 +90,6 @@ from .task import (
 from .scene import (
     Scene,
     SceneObject,
-    SceneObjectFactory
 )
 
 
@@ -155,7 +154,6 @@ __all__ = [
     # Scene components
     'Scene',
     'SceneObject',
-    'SceneObjectFactory',
 
     # Physics components
     'Material',
