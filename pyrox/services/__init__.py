@@ -50,7 +50,8 @@ from .scene import SceneRunnerService
 from .viewport import (
     ViewportPanningService,
     ViewportZoomingService,
-    ViewportGriddingService
+    ViewportGriddingService,
+    ViewportStatusService
 )
 
 # Other service imports
@@ -109,6 +110,7 @@ __all__ = (
     'ViewportPanningService',
     'ViewportZoomingService',
     'ViewportGriddingService',
+    'ViewportStatusService',
     # Other service imports
     'archive',
     'bit',

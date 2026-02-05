@@ -541,8 +541,8 @@ class PhysicsBody2D(
     def get_enabled(self) -> bool:
         return self._enabled
 
-    def set_enabled(self, value: bool) -> None:
-        self._enabled = value
+    def set_enabled(self, enabled: bool) -> None:
+        self._enabled = enabled
 
     def get_sleeping(self) -> bool:
         return self._sleeping

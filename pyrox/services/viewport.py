@@ -5,20 +5,333 @@ import tkinter as tk
 from pyrox.interfaces import IViewport
 
 
+class ViewportStatusService:
+    """Service for managing a status bar at the bottom of the viewport.
+
+    Displays industry-standard viewport information including:
+    - Mouse position (canvas and scene coordinates)
+    - Viewport offset
+    - Zoom level
+    - Selection count
+    - Grid/snap status
+    - Current tool
+    - Custom status messages
+    """
+
+    def __init__(
+        self,
+        parent: Optional[tk.Widget] = None,
+        viewport: Optional[IViewport] = None,
+        canvas: Optional[tk.Canvas] = None
+    ):
+        """Initialize the status service.
+
+        Args:
+            parent: Parent widget to attach status bar to
+            viewport: Viewport instance for position/zoom info
+            canvas: Canvas for mouse tracking
+        """
+        self._parent = parent
+        self._viewport = viewport
+        self._canvas = canvas
+        self._status_bar: Optional[tk.Frame] = None
+        self._status_labels: dict[str, tk.Label] = {}
+
+        # Status values
+        self._mouse_canvas_x: float = 0.0
+        self._mouse_canvas_y: float = 0.0
+        self._mouse_scene_x: float = 0.0
+        self._mouse_scene_y: float = 0.0
+        self._viewport_x: float = 0.0
+        self._viewport_y: float = 0.0
+        self._zoom_level: float = 1.0
+        self._selection_count: int = 0
+        self._grid_enabled: bool = False
+        self._snap_enabled: bool = False
+        self._current_tool: str = "select"
+        self._custom_message: str = ""
+        self._fps: float = 0.0
+
+        # Update callbacks
+        self._on_update_callbacks: list[Callable] = []
+
+    def build(self) -> tk.Frame:
+        """Build and return the status bar widget.
+
+        Returns:
+            Frame containing status bar elements
+        """
+        if not self._parent:
+            raise ValueError("Parent widget is not set for ViewportStatusService.")
+
+        # Create main status bar frame
+        self._status_bar = tk.Frame(
+            self._parent,
+            bg="#2b2b2b",
+            height=24,
+            relief=tk.FLAT
+        )
+
+        # Create status sections (left to right)
+        self._create_status_section("tool", "Tool: Select", side=tk.LEFT, width=12)
+        self._create_separator()
+
+        self._create_status_section("mouse_canvas", "Canvas: (0, 0)", side=tk.LEFT, width=18)
+        self._create_status_section("mouse_scene", "Scene: (0.0, 0.0)", side=tk.LEFT, width=20)
+        self._create_separator()
+
+        self._create_status_section("viewport", "View: (0, 0)", side=tk.LEFT, width=18)
+        self._create_status_section("zoom", "Zoom: 100%", side=tk.LEFT, width=12)
+        self._create_separator()
+
+        self._create_status_section("selection", "Selected: 0", side=tk.LEFT, width=12)
+        self._create_separator()
+
+        self._create_status_section("grid", "Grid: OFF", side=tk.LEFT, width=10)
+        self._create_status_section("snap", "Snap: OFF", side=tk.LEFT, width=10)
+        self._create_separator()
+
+        # Custom message (expandable)
+        self._create_status_section("message", "Ready", side=tk.LEFT, width=30)
+
+        # FPS counter (right aligned)
+        self._create_status_section("fps", "FPS: --", side=tk.RIGHT, width=10)
+
+        # Bind mouse motion if canvas provided
+        if self._canvas:
+            self._bind_to_canvas()
+
+        return self._status_bar
+
+    def _create_status_section(
+        self,
+        key: str,
+        initial_text: str,
+        side: str = tk.LEFT,
+        width: int = 15
+    ) -> None:
+        """Create a status label section.
+
+        Args:
+            key: Unique identifier for this section
+            initial_text: Initial display text
+            side: Pack side (tk.LEFT or tk.RIGHT)
+            width: Character width of the label
+        """
+        label = tk.Label(
+            self._status_bar,
+            text=initial_text,
+            bg="#2b2b2b",
+            fg="#cccccc",
+            font=("Segoe UI", 8),
+            anchor=tk.W,
+            width=width,
+            padx=4
+        )
+        label.pack(side=side, fill=tk.Y)  # type: ignore
+        self._status_labels[key] = label
+
+    def _create_separator(self) -> None:
+        """Create a visual separator between sections."""
+        separator = tk.Frame(
+            self._status_bar,
+            bg="#555555",
+            width=1
+        )
+        separator.pack(side=tk.LEFT, fill=tk.Y, padx=2)
+
+    def _bind_to_canvas(self) -> None:
+        """Bind mouse motion event to canvas for position tracking."""
+        if not self._canvas:
+            return
+
+        self._canvas.bind("<Motion>", self._on_mouse_motion, add="+")
+
+    def _on_mouse_motion(self, event) -> None:
+        """Handle mouse motion event to update position displays.
+
+        Args:
+            event: Mouse motion event
+        """
+        # Update canvas coordinates
+        self._mouse_canvas_x = event.x
+        self._mouse_canvas_y = event.y
+
+        # Calculate scene coordinates
+        if self._viewport:
+            self._mouse_scene_x = (event.x - self._viewport.x) / self._viewport.zoom
+            self._mouse_scene_y = (event.y - self._viewport.y) / self._viewport.zoom
+
+        # Update displays
+        self._update_mouse_position()
+
+    def _update_mouse_position(self) -> None:
+        """Update mouse position labels."""
+        if "mouse_canvas" in self._status_labels:
+            self._status_labels["mouse_canvas"].config(
+                text=f"Canvas: ({int(self._mouse_canvas_x)}, {int(self._mouse_canvas_y)})"
+            )
+
+        if "mouse_scene" in self._status_labels:
+            self._status_labels["mouse_scene"].config(
+                text=f"Scene: ({self._mouse_scene_x:.1f}, {self._mouse_scene_y:.1f})"
+            )
+
+    def set_canvas(self, canvas: tk.Canvas) -> None:
+        """Set the canvas and bind mouse tracking.
+
+        Args:
+            canvas: Canvas widget to track
+        """
+        self._canvas = canvas
+        self._bind_to_canvas()
+
+    def set_viewport(self, viewport: IViewport) -> None:
+        """Set the viewport instance.
+
+        Args:
+            viewport: Viewport to track
+        """
+        self._viewport = viewport
+        self.update_viewport_info()
+
+    def update_viewport_info(self) -> None:
+        """Update viewport position and zoom displays."""
+        if not self._viewport:
+            return
+
+        self._viewport_x = self._viewport.x
+        self._viewport_y = self._viewport.y
+        self._zoom_level = self._viewport.zoom
+
+        if "viewport" in self._status_labels:
+            self._status_labels["viewport"].config(
+                text=f"View: ({int(self._viewport_x)}, {int(self._viewport_y)})"
+            )
+
+        if "zoom" in self._status_labels:
+            zoom_percent = int(self._zoom_level * 100)
+            self._status_labels["zoom"].config(text=f"Zoom: {zoom_percent}%")
+
+    def set_selection_count(self, count: int) -> None:
+        """Update selection count display.
+
+        Args:
+            count: Number of selected objects
+        """
+        self._selection_count = count
+        if "selection" in self._status_labels:
+            self._status_labels["selection"].config(text=f"Selected: {count}")
+
+    def set_grid_enabled(self, enabled: bool) -> None:
+        """Update grid status display.
+
+        Args:
+            enabled: Whether grid is enabled
+        """
+        self._grid_enabled = enabled
+        if "grid" in self._status_labels:
+            status = "ON" if enabled else "OFF"
+            self._status_labels["grid"].config(text=f"Grid: {status}")
+
+    def set_snap_enabled(self, enabled: bool) -> None:
+        """Update snap-to-grid status display.
+
+        Args:
+            enabled: Whether snap is enabled
+        """
+        self._snap_enabled = enabled
+        if "snap" in self._status_labels:
+            status = "ON" if enabled else "OFF"
+            self._status_labels["snap"].config(text=f"Snap: {status}")
+
+    def set_current_tool(self, tool: str) -> None:
+        """Update current tool display.
+
+        Args:
+            tool: Name of the current tool (e.g., "select", "draw", "place")
+        """
+        self._current_tool = tool
+        if "tool" in self._status_labels:
+            tool_display = tool.replace("_", " ").title()
+            self._status_labels["tool"].config(text=f"Tool: {tool_display}")
+
+    def set_message(self, message: str) -> None:
+        """Set custom status message.
+
+        Args:
+            message: Message to display
+        """
+        self._custom_message = message
+        if "message" in self._status_labels:
+            self._status_labels["message"].config(text=message)
+
+    def set_fps(self, fps: float) -> None:
+        """Update FPS counter display.
+
+        Args:
+            fps: Frames per second value
+        """
+        self._fps = fps
+        if "fps" in self._status_labels:
+            self._status_labels["fps"].config(text=f"FPS: {int(fps)}")
+
+    def update_all(self) -> None:
+        """Update all status displays from current values."""
+        self.update_viewport_info()
+        self._update_mouse_position()
+
+        # Trigger callbacks
+        for callback in self._on_update_callbacks:
+            callback()
+
+    def get_status_bar(self) -> Optional[tk.Frame]:
+        """Get the status bar widget.
+
+        Returns:
+            Status bar frame or None if not built
+        """
+        return self._status_bar
+
+    @property
+    def viewport(self) -> IViewport:
+        """Get the viewport associated with this service."""
+        if not self._viewport:
+            raise ValueError("Viewport is not set for ViewportStatusService.")
+        return self._viewport
+
+    @property
+    def canvas(self) -> tk.Canvas:
+        """Get the canvas associated with this service."""
+        if not self._canvas:
+            raise ValueError("Canvas is not set for ViewportStatusService.")
+        return self._canvas
+
+    @property
+    def on_update_callbacks(self) -> list[Callable]:
+        """Get the list of callbacks to be called on status updates."""
+        return self._on_update_callbacks
+
+
 class ViewportPanningService:
     """Service for handling panning operations in a viewport."""
 
     def __init__(
         self,
         canvas: Optional[tk.Canvas] = None,
-        viewport: Optional[IViewport] = None
+        viewport: Optional[IViewport] = None,
+        status_service: Optional[ViewportStatusService] = None
     ):
         self._canvas = canvas
         self._viewport = viewport
+        self._status_service = status_service
         self._is_panning = False
         self._start_x = 0
         self._start_y = 0
         self._on_pan_callbacks: list[Callable] = []
+
+        if self._status_service:
+            self._on_pan_callbacks.append(self._status_service.update_viewport_info)
 
     def _bind_to_canvas(self):
         if not self.canvas:
@@ -104,6 +417,7 @@ class ViewportZoomingService:
         self,
         canvas: Optional[tk.Canvas] = None,
         viewport: Optional[IViewport] = None,
+        status_service: Optional[ViewportStatusService] = None,
         zoom_factor: float = 1.2,
         min_zoom: float = 0.1,
         max_zoom: float = 10.0
@@ -119,10 +433,14 @@ class ViewportZoomingService:
         """
         self._canvas = canvas
         self._viewport = viewport
+        self._status_service = status_service
         self._zoom_factor = zoom_factor
         self._min_zoom = min_zoom
         self._max_zoom = max_zoom
         self._on_zoom_callbacks: list[Callable] = []
+
+        if self._status_service:
+            self._on_zoom_callbacks.append(self._status_service.update_viewport_info)
 
     def _bind_to_canvas(self):
         """Bind mouse wheel event to canvas for zooming."""
@@ -362,6 +680,7 @@ class ViewportGriddingService:
         self,
         canvas: Optional[tk.Canvas] = None,
         viewport: Optional[IViewport] = None,
+        status_service: Optional[ViewportStatusService] = None,
         grid_size: int = 50,
         grid_color: str = "#505050",
         grid_line_width: int = 1,
@@ -383,6 +702,7 @@ class ViewportGriddingService:
         """
         self._canvas = canvas
         self._viewport = viewport
+        self._status_service = status_service
         self._grid_size = grid_size
         self._grid_color = grid_color
         self._grid_line_width = grid_line_width
@@ -391,6 +711,14 @@ class ViewportGriddingService:
         self._min_spacing_pixels = min_spacing_pixels
         self._on_toggle_callbacks: list[Callable] = []
         self._on_snap_toggle_callbacks: list[Callable] = []
+
+        if self._status_service:
+            self._on_toggle_callbacks.append(
+                lambda enabled: self._status_service.set_grid_enabled(enabled)  # type: ignore
+            )
+            self._on_snap_toggle_callbacks.append(
+                lambda enabled: self._status_service.set_snap_enabled(enabled)  # type: ignore
+            )
 
     def render(self) -> None:
         """Render the grid if enabled."""

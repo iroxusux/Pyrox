@@ -59,6 +59,7 @@ class CollisionLayer(Enum):
     TERRAIN = auto()
     TRIGGER = auto()      # Overlap detection only, no physics response
     TRANSPARENT = auto()  # Visual only, no collision
+    UI = auto()           # In-scene UI elements, never collides with anything
 
     @classmethod
     def from_str(cls, value: str) -> 'CollisionLayer':
@@ -71,6 +72,7 @@ class CollisionLayer(Enum):
             'TERRAIN': cls.TERRAIN,
             'TRIGGER': cls.TRIGGER,
             'TRANSPARENT': cls.TRANSPARENT,
+            'UI': cls.UI,
         }
         return mapping[value.upper()]
 
@@ -355,8 +357,8 @@ class IPhysicsBody2D(
         return self.get_enabled()
 
     @enabled.setter
-    def enabled(self, value: bool) -> None:
-        self.set_enabled(value)
+    def enabled(self, enabled: bool) -> None:
+        self.set_enabled(enabled)
 
     @property
     def material(self) -> IMaterial:
@@ -380,7 +382,7 @@ class IPhysicsBody2D(
     def get_body_type(self) -> BodyType: ...
     def set_body_type(self, value: BodyType) -> None: ...
     def get_enabled(self) -> bool: ...
-    def set_enabled(self, value: bool) -> None: ...
+    def set_enabled(self, enabled: bool) -> None: ...
     def get_collider(self) -> ICollider2D: ...
     def set_collider(self, collider: ICollider2D) -> None: ...
     def get_rigid_body(self) -> IRigidBody2D: ...

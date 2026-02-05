@@ -38,6 +38,8 @@ class CrateBody(BasePhysicsBody):
         collision_layer: CollisionLayer = CollisionLayer.DEFAULT,
         collision_mask: List[CollisionLayer] | None = None,
         material: Material | None = None,
+        *args,
+        **kwargs
     ):
         """Initialize crate body.
 

@@ -1,7 +1,6 @@
 """Unit tests for pyrox.models.scene module."""
 import json
 import os
-import shutil
 import tempfile
 import unittest
 from pathlib import Path
@@ -15,7 +14,6 @@ from pyrox.interfaces import (
 from pyrox.models import (
     Scene,
     SceneObject,
-    SceneObjectFactory,
     BasePhysicsBody,
     Material,
 )
