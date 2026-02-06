@@ -387,6 +387,7 @@ class Scene(IScene):
         self._scene_objects: Dict[str, ISceneObject] = {}
         self._on_scene_object_added: list[Callable] = []
         self._on_scene_object_removed: list[Callable] = []
+        self._on_scene_updated: list[Callable] = []
 
         # Connection registry
         self._connection_registry = ConnectionRegistry()
@@ -495,6 +496,9 @@ class Scene(IScene):
         """
         self._connection_registry = registry
 
+    def get_on_scene_updated(self) -> list[Callable[..., Any]]:
+        return self._on_scene_updated
+
     def update(self, delta_time: float) -> None:
         """
         Update all scene objects in the scene.
@@ -504,6 +508,13 @@ class Scene(IScene):
         """
         for scene_object in self._scene_objects.values():
             scene_object.update(delta_time)
+        # Call on-scene-updated callbacks
+        for callback in self._on_scene_updated.copy():
+            try:
+                callback(self, delta_time)
+            except Exception as e:
+                print(f"Error in on_scene_updated callback: {e}")
+                self._on_scene_updated.remove(callback)
 
     def to_dict(self) -> dict:
         """Convert scene to dictionary for JSON serialization."""

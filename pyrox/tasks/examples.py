@@ -1,8 +1,6 @@
 """ file tasks
 """
-import importlib
 import sys
-from pyrox import interfaces
 from pyrox import models
 from pyrox import services
 
@@ -11,21 +9,12 @@ class ExampleTask(models.ApplicationTask):
 
     def _open_scene_viewer(self) -> None:
         """Open the Scene Viewer frame."""
-        # Reload modules to ensure the latest changes are reflected
-        importlib.reload(interfaces)
-        importlib.reload(models)
-        importlib.reload(services)
-
-        # Create Scene
-        s = models.scene.Scene()
-
         # Create EnvironmentService
         environment = services.EnvironmentService(preset='top_down')
 
-        # Create SceneRunnerService
-        runner = services.SceneRunnerService(
+        # Initialize SceneRunnerService
+        services.SceneRunnerService.initialize(
             app=self.application,
-            scene=s,
             environment=environment,
             enable_physics=True
         )
@@ -33,16 +22,19 @@ class ExampleTask(models.ApplicationTask):
         # Create and register SceneViewerFrame
         scene_viewer = models.gui.sceneviewer.SceneViewerFrame(
             parent=self.application.workspace.workspace_area.root,  # type: ignore
-            scene=s,
-            runner=runner,
+            runner=services.SceneRunnerService
         )
         self.application.workspace.register_frame(scene_viewer)
-        scene_viewer.on_destroy().append(lambda *_, **__: runner.stop())
+        scene_viewer.on_destroy().append(lambda *_, **__: services.SceneRunnerService.stop())
+
+        services.SceneRunnerService.new_scene()
 
         # Register runner callback to update scene viewer
-        runner.on_tick_callbacks.append(scene_viewer.render_scene)
+        on_tick_callbacks = services.SceneRunnerService.get_on_tick_callbacks()
+        if scene_viewer.render_scene not in on_tick_callbacks:
+            on_tick_callbacks.append(scene_viewer.render_scene)
 
-        runner.run()
+        services.SceneRunnerService.run()
 
     def inject(self) -> None:
         self.file_menu.add_item(

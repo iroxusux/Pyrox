@@ -16,8 +16,6 @@ from pyrox.interfaces import (
     IWorkspace,
 )
 
-from pyrox.models import meta
-
 from pyrox.models import (
     ApplicationTaskFactory,
     ServicesRunnableMixin,

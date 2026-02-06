@@ -44,7 +44,18 @@ from .environment import EnvironmentService
 from .physics import PhysicsEngineService
 
 # Scene imports
-from .scene import SceneRunnerService
+from .scene import (
+    SceneRunnerService,
+    SceneEvent,
+    SceneEventType,
+    SceneEventBus
+)
+
+# Menu registry imports
+from .menu_registry import (
+    MenuRegistry,
+    MenuItemDescriptor
+)
 
 # Viewport imports
 from .viewport import (
@@ -106,6 +117,13 @@ __all__ = (
     'PhysicsEngineService',
     # Scene imports
     'SceneRunnerService',
+    # Scene events imports
+    'SceneEvent',
+    'SceneEventType',
+    'SceneEventBus',
+    # Menu registry imports
+    'MenuRegistry',
+    'MenuItemDescriptor',
     # Viewport imports
     'ViewportPanningService',
     'ViewportZoomingService',

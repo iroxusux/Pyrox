@@ -6,7 +6,7 @@ and integrates with the Scene workflow.
 """
 from pathlib import Path
 import tkinter as tk
-from tkinter import filedialog, ttk
+from tkinter import ttk
 from typing import Callable, Dict, Optional, Tuple
 from pyrox.interfaces import (
     IScene,
@@ -26,7 +26,10 @@ from pyrox.services import (
     ViewportPanningService,
     ViewportZoomingService,
     ViewportGriddingService,
-    ViewportStatusService
+    ViewportStatusService,
+    MenuRegistry,
+    SceneEventType,
+    SceneEventBus
 )
 
 
@@ -133,7 +136,7 @@ class SceneViewerFrame(TkinterTaskFrame):
         self,
         parent,
         name: str = "Scene Viewer",
-        runner: Optional[ISceneRunnerService] = None,
+        runner: Optional[type[ISceneRunnerService]] = None,
         scene: Optional[IScene] = None
     ):
         """Initialize the SceneViewerFrame.
@@ -218,7 +221,6 @@ class SceneViewerFrame(TkinterTaskFrame):
         self._properties_var: tk.BooleanVar = tk.BooleanVar()
 
         # Build the UI
-        self._build_application_menu()
         self._build_toolbar()
         self._build_canvas()
         self._build_status_bar()
@@ -228,145 +230,6 @@ class SceneViewerFrame(TkinterTaskFrame):
         self._bind_events()
         self._initialize_object_templates()
         self.render_scene()
-
-    def _build_application_menu(self) -> None:
-        """Build the application menu for the scene viewer."""
-        if SceneViewerFrame._application_menu_built:
-            return
-
-        # ---------- File Menu ----------
-
-        scene_file_dropdown = self.gui.unsafe_get_backend().create_gui_menu(
-            master=self.gui.root_menu().file_menu.menu,
-            tearoff=0
-        )
-        # Scene save / load controls
-        scene_file_dropdown.add_item(
-            label="Save Scene",
-            command=self.save_scene_dialog,
-            accelerator="Ctrl+S",
-            underline=0
-        )
-        scene_file_dropdown.add_item(
-            label="Load Scene",
-            command=self.load_scene_dialog,
-            accelerator="Ctrl+O",
-            underline=0
-        )
-
-        # Apply to File menu
-        self.gui.root_menu().file_menu.insert_submenu(
-            index=0,
-            label="Scene Viewer",
-            submenu=scene_file_dropdown,
-        )
-        self.gui.root_menu().file_menu.insert_separator(1)
-
-        # ---------- Edit Menu ----------
-
-        scene_edit_dropdown = self.gui.unsafe_get_backend().create_gui_menu(
-            master=self.gui.root_menu().edit_menu.menu,
-            tearoff=0
-        )
-        # Delete selected objects
-        scene_edit_dropdown.add_item(
-            label="Delete Selected Objects",
-            command=self.delete_selected_objects,
-            accelerator="Del",
-            underline=7
-        )
-
-        # Apply to Edit menu
-        self.gui.root_menu().edit_menu.insert_submenu(
-            index=0,
-            label="Scene Viewer",
-            submenu=scene_edit_dropdown
-        )
-        self.gui.root_menu().edit_menu.insert_separator(1)
-
-        # ---------- View Menu ----------
-
-        scene_view_dropdown = self.gui.unsafe_get_backend().create_gui_menu(
-            master=self.gui.root_menu().view_menu.menu,
-            tearoff=0
-        )
-        # Zoom controls
-        scene_view_dropdown.add_item(
-            label="+Zoom In",
-            command=self._viewport_zooming_service.zoom_in,
-            accelerator="Ctrl++",
-            underline=0
-        )
-        scene_view_dropdown.add_item(
-            label="-Zoom Out",
-            command=self._viewport_zooming_service.zoom_out,
-            accelerator="Ctrl+-",
-            underline=0
-        )
-        scene_view_dropdown.add_item(
-            label="Reset View",
-            command=self._viewport_zooming_service.reset_zoom,
-            accelerator="Ctrl+0",
-            underline=0
-        )
-
-        # Grid controls
-        scene_view_dropdown.add_separator()
-        scene_view_dropdown.add_checkbutton(
-            label="Show Grid",
-            variable=tk.BooleanVar(value=self._viewport_gridding_service.enabled),
-            command=self._viewport_gridding_service.toggle,
-            underline=0
-        )
-        scene_view_dropdown.add_checkbutton(
-            label="Snap to Grid",
-            variable=tk.BooleanVar(value=self._viewport_gridding_service.snap_enabled),
-            command=self._viewport_gridding_service.toggle_snap,
-            underline=0
-        )
-
-        # Design Mode controls
-        scene_view_dropdown.add_separator()
-        scene_view_dropdown.add_checkbutton(
-            label="Design Mode",
-            variable=self._design_mode_var,
-            command=self.toggle_design_mode,
-            underline=0
-        )
-        scene_view_dropdown.add_checkbutton(
-            label="Object Palette",
-            variable=self._object_palette_var,
-            command=self.toggle_object_palette,
-            underline=0
-        )
-
-        # Properties Panel toggle
-        scene_view_dropdown.add_separator()
-        scene_view_dropdown.add_checkbutton(
-            label="Properties Panel",
-            variable=self._properties_var,
-            command=self.toggle_properties_panel,
-            underline=0
-        )
-
-        # Connection Editor
-        scene_view_dropdown.add_separator()
-        scene_view_dropdown.add_item(
-            label="Connection Editor",
-            command=self.open_connection_editor,
-            accelerator="Ctrl+E",
-            underline=0
-        )
-
-        # Apply to View menu
-        self.gui.root_menu().view_menu.insert_submenu(
-            index=0,
-            label="Scene Viewer",
-            submenu=scene_view_dropdown
-        )
-        self.gui.root_menu().view_menu.insert_separator(1)
-
-        SceneViewerFrame._application_menu_built = True
 
     def _build_toolbar(self) -> None:
         """Build the toolbar with viewer controls."""
@@ -585,11 +448,122 @@ class SceneViewerFrame(TkinterTaskFrame):
         # Deselect with Escape key
         self._canvas.bind("<Escape>", lambda e: self.clear_selection())
 
+        SceneEventBus.subscribe(
+            SceneEventType.SCENE_LOADED,
+            lambda event: self.set_scene(event.scene)
+        )
+        SceneEventBus.subscribe(
+            SceneEventType.SCENE_UNLOADED,
+            lambda event: self.set_scene(event.scene)
+        )
+
         # Bind to runner events
         if self._runner:
-            self._runner.on_scene_load_callbacks.append(self.set_scene)
+            self._runner.get_on_scene_load_callbacks().append(self.set_scene)
+
+        if self._scene:
+            self._scene.get_on_scene_updated().append(self.render_scene)
 
         # TODO: Add keyboard shortcuts (Ctrl+Z undo, Ctrl+D duplicate, etc.)
+
+    def _enable_entry(
+        self,
+        menu_id: str,
+        command: Optional[Callable] = None,
+        enable: bool = True
+    ) -> None:
+        """Enable or disable a menu entry by ID.
+
+        Args:
+            menu_id: The ID of the menu item to enable/disable
+            command: Optional command to set when enabling
+            enable: True to enable, False to disable
+        """
+        descriptor = MenuRegistry.get_item(menu_id)
+        if not descriptor:
+            log(self).warning(f"Menu item with ID '{menu_id}' not found in registry.")
+            return
+
+        if enable:
+            MenuRegistry.enable_item(menu_id)
+            if command:
+                MenuRegistry.set_command(menu_id, command)
+        else:
+            MenuRegistry.disable_item(menu_id)
+            MenuRegistry.set_command(menu_id, None)
+
+    def _enable_menu_entries(
+        self,
+        enable: bool
+    ) -> None:
+        """Enable or disable all SceneViewer-related menu entries.
+        Args:
+            enable: True to enable, False to disable.
+        """
+        if enable:
+            MenuRegistry.enable_items_by_owner("SceneviewerApplicationTask")
+        else:
+            MenuRegistry.disable_items_by_owner("SceneviewerApplicationTask")
+
+        # Edit commands
+        self._enable_entry(
+            menu_id="scene.edit.delete_selected",
+            command=self.delete_selected_objects,
+            enable=enable
+        )
+
+        # Zoom commands
+        self._enable_entry(
+            menu_id="scene.view.zoom_in",
+            command=self._viewport_zooming_service.zoom_in,
+            enable=enable
+        )
+        self._enable_entry(
+            menu_id="scene.view.zoom_out",
+            command=self._viewport_zooming_service.zoom_out,
+            enable=enable
+        )
+        self._enable_entry(
+            menu_id="scene.view.reset_view",
+            command=self._viewport_zooming_service.reset_zoom,
+            enable=enable
+        )
+
+        # Grid commands
+        self._enable_entry(
+            menu_id="scene.view.show_grid",
+            command=self.toggle_grid,
+            enable=enable
+        )
+        self._enable_entry(
+            menu_id="scene.view.snap_to_grid",
+            command=self.toggle_snap_to_grid,
+            enable=enable
+        )
+
+        # Design mode commands
+        self._enable_entry(
+            menu_id="scene.view.design_mode",
+            command=self.toggle_design_mode,
+            enable=enable
+        )
+        self._enable_entry(
+            menu_id="scene.view.object_palette",
+            command=self.toggle_object_palette,
+            enable=enable
+        )
+        self._enable_entry(
+            menu_id="scene.view.properties_panel",
+            command=self.toggle_properties_panel,
+            enable=enable
+        )
+
+        # Connection editor command
+        self._enable_entry(
+            menu_id="scene.view.connection_editor",
+            command=self.open_connection_editor,
+            enable=enable
+        )
 
     def _on_left_click(self, event: tk.Event) -> None:
         """Handle left mouse button press - context dependent on current tool.
@@ -990,7 +964,7 @@ class SceneViewerFrame(TkinterTaskFrame):
 
         # TODO: Implement viewport culling for large scenes
 
-    def set_scene(self, scene: IScene) -> None:
+    def set_scene(self, scene: IScene | None) -> None:
         """Set the scene to be displayed.
 
         Args:
@@ -1000,6 +974,7 @@ class SceneViewerFrame(TkinterTaskFrame):
         self._canvas_objects.clear()
         # Reset viewport state when setting new scene
         self.last_viewport.update(self.viewport)
+        self._enable_menu_entries(enable=scene is not None)
         self.render_scene()
 
     def get_scene(self) -> Optional[IScene]:
@@ -1650,28 +1625,6 @@ class SceneViewerFrame(TkinterTaskFrame):
 
     # ==================== Scene Management ====================
 
-    def save_scene_dialog(self) -> None:
-        """Open file dialog to save the current scene."""
-        if not self._scene:
-            log(self).warning("No scene to save")
-            return
-
-        filepath = filedialog.asksaveasfilename(
-            title="Save Scene",
-            defaultextension=".json",
-            filetypes=[("JSON files", "*.json"), ("All files", "*.*")]
-        )
-
-        if filepath:
-            if not self._runner:
-                try:
-                    self._scene.save(Path(filepath))
-                    log(self).info(f"Scene saved to: {filepath}")
-                except Exception as e:
-                    log(self).error(f"Failed to save scene: {e}")
-            else:
-                self._runner.save_scene(filepath)
-
     def _load_from_scene_class(self, filepath: Path) -> None:
         """Load a scene from a file using the scene's class method.
 
@@ -1683,22 +1636,6 @@ class SceneViewerFrame(TkinterTaskFrame):
         loaded_scene = Scene.load(Path(filepath))
         self.set_scene(loaded_scene)
         log(self).info(f"Scene loaded from: {filepath}")
-
-    def load_scene_dialog(self) -> None:
-        """Open file dialog to load a scene."""
-
-        filepath = filedialog.askopenfilename(
-            title="Load Scene",
-            defaultextension=".json",
-            filetypes=[("JSON files", "*.json"), ("All files", "*.*")]
-        )
-
-        if filepath:
-            if not self._runner:
-                self._load_from_scene_class(Path(filepath))
-            else:
-                # Use runner to load scene
-                self._runner.load_scene(Path(filepath))
 
     def toggle_properties_panel(self) -> None:
         """Toggle the visibility of the properties panel."""
