@@ -17,6 +17,7 @@ from pyrox.interfaces import (
 from pyrox.models.gui.tk.frame import TkinterTaskFrame
 from pyrox.models.gui import TkPropertyPanel
 from pyrox.models.gui.contextmenu import PyroxContextMenu, MenuItem
+from pyrox.models.gui.connectioneditor import ConnectionEditor
 from pyrox.models.physics import PhysicsSceneFactory
 from pyrox.models.protocols import Area2D, Zoomable
 from pyrox.models.scene import Scene, SceneObject
@@ -345,6 +346,15 @@ class SceneViewerFrame(TkinterTaskFrame):
             label="Properties Panel",
             variable=self._properties_var,
             command=self.toggle_properties_panel,
+            underline=0
+        )
+
+        # Connection Editor
+        scene_view_dropdown.add_separator()
+        scene_view_dropdown.add_item(
+            label="Connection Editor",
+            command=self.open_connection_editor,
+            accelerator="Ctrl+E",
             underline=0
         )
 
@@ -1708,6 +1718,35 @@ class SceneViewerFrame(TkinterTaskFrame):
             if str(self.properties_panel) in panes:
                 self.properties_panel.pack_forget()
                 self._paned_window.remove(self.properties_panel)
+
+    def open_connection_editor(self) -> None:
+        """Open the connection editor in a new window."""
+        if not self._scene:
+            log().warning("No scene loaded. Cannot open connection editor.")
+            return
+
+        # Create a new top-level window
+        editor_window = tk.Toplevel()
+        editor_window.title("Connection Editor")
+        editor_window.geometry("1200x800")
+
+        # Get the connection registry from the scene
+        connection_registry = self._scene.get_connection_registry()
+
+        # Create the connection editor
+        # Note: connection_registry is IConnectionRegistry, but ConnectionRegistry implements it
+        editor = ConnectionEditor(
+            master=editor_window,
+            scene=self._scene,
+            connection_registry=connection_registry  # type: ignore[arg-type]
+        )
+        editor.pack(fill=tk.BOTH, expand=True)
+
+        # Set window icon if available (optional)
+        try:
+            editor_window.iconbitmap(default=str(Path(__file__).parent.parent / "ui" / "icons" / "pyrox.ico"))
+        except Exception:
+            pass  # Icon not found, continue without it
 
     def _update_properties_panel(self) -> None:
         """Update the properties panel with selected object information."""

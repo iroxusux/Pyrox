@@ -81,9 +81,7 @@ class ProximitySensorBody(BasePhysicsBody):
                 restitution=0.0,
                 friction=0.0,
                 drag=0.0
-            ),
-            *args,
-            **kwargs
+            )
         )
 
         # Tracking
