@@ -129,6 +129,11 @@ from .gui import (
     IViewport,
 )
 
+# Connection interfaces
+from .connection import (
+    IConnectionRegistry,
+)
+
 # Scene interfaces
 from .scene import (
     IScene,
@@ -229,6 +234,9 @@ __all__ = (
     'IBackendRegistry',
     'IDependencyInjector',
     'IPluginManager',
+
+    # Connection Interfaces
+    'IConnectionRegistry',
 
     # Scene Interfaces
     'IScene',

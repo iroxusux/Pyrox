@@ -1430,7 +1430,6 @@ class SceneViewerFrame(TkinterTaskFrame):
             raise RuntimeError(f"Failed to create object from template: {template.name}")
 
         scene_obj = SceneObject(
-            id=obj_id,
             name=template.name,
             scene_object_type=template.body_class.__name__,
             description='',

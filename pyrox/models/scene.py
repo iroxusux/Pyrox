@@ -5,6 +5,7 @@ from pathlib import Path
 from typing import Any, Callable, Dict, Optional, Union
 from pyrox.interfaces import (
     IBasePhysicsBody,
+    IConnectionRegistry,
     IScene,
     ISceneObject,
 )
@@ -388,7 +389,7 @@ class Scene(IScene):
         self._on_scene_object_removed: list[Callable] = []
 
         # Connection registry
-        self.connection_registry = ConnectionRegistry()
+        self._connection_registry = ConnectionRegistry()
 
     def get_name(self) -> str:
         """Get the name of the scene."""
@@ -424,6 +425,10 @@ class Scene(IScene):
             raise ValueError(f"Scene object with ID '{scene_object.id}' already exists in scene")
 
         self._scene_objects[scene_object.id] = scene_object
+        self._connection_registry.register_object(
+            scene_object.id,
+            scene_object
+        )
         [callback(scene_object) for callback in self._on_scene_object_added]
 
     def remove_scene_object(
@@ -439,6 +444,7 @@ class Scene(IScene):
             # Before the object is removed, call the callbacks
             obj = self._scene_objects[scene_object_id]
             [callback(obj) for callback in self._on_scene_object_removed]
+            self._connection_registry.unregister_object(scene_object_id)
             # Remove the object
             del self._scene_objects[scene_object_id]
 
@@ -473,6 +479,22 @@ class Scene(IScene):
     def get_on_scene_object_removed(self) -> list[Callable]:
         return self._on_scene_object_removed
 
+    def get_connection_registry(self) -> IConnectionRegistry:
+        """Get the connection registry for the scene.
+
+        Returns:
+            IConnectionRegistry: The connection registry instance.
+        """
+        return self._connection_registry
+
+    def set_connection_registry(self, registry: IConnectionRegistry) -> None:
+        """Set the connection registry for the scene.
+
+        Args:
+            registry (IConnectionRegistry): The connection registry instance.
+        """
+        self._connection_registry = registry
+
     def update(self, delta_time: float) -> None:
         """
         Update all scene objects in the scene.
@@ -491,7 +513,7 @@ class Scene(IScene):
             "scene_objects": [
                 scene_object.to_dict() for scene_object in self._scene_objects.values()
             ],
-            "connections": self.connection_registry.serialize()["connections"],
+            "connections": self._connection_registry.serialize()["connections"],
         }
 
     @classmethod
@@ -509,13 +531,13 @@ class Scene(IScene):
         for scene_object_data in data.get("scene_objects", []):
             scene_object = SceneObject.from_dict(scene_object_data)
             scene.add_scene_object(scene_object)
-            scene.connection_registry.register_object(
+            scene._connection_registry.register_object(
                 scene_object.id, scene_object
             )
 
         # Load connections
         for conn_data in data.get("connections", []):
-            scene.connection_registry.connect(
+            scene._connection_registry.connect(
                 source_id=conn_data["source"],
                 output_name=conn_data["output"],
                 target_id=conn_data["target"],

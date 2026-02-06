@@ -510,6 +510,47 @@ class TestScene(unittest.TestCase):
 
         self.assertIn(obj_id, called)
 
+    def test_register_scene_object_in_connection_registry(self):
+        """Test that adding a scene_object registers it in the connection registry."""
+        scene = Scene()
+
+        scene_object = self.TestSceneObject(
+            scene_object_type="TestSceneObject",
+            name="RegDev",
+            physics_body=self.TestPhysicsBody()
+        )
+
+        scene.add_scene_object(scene_object)
+        obj_id = scene_object.get_id()
+
+        registered_obj = scene._connection_registry._objects.get(obj_id)
+        self.assertIsNotNone(registered_obj)
+        self.assertEqual(registered_obj, scene_object)
+
+    def test_unregister_scene_object_in_connection_registry(self):
+        """Test that removing a scene_object unregisters it from the connection registry."""
+        scene = Scene()
+
+        scene_object = self.TestSceneObject(
+            scene_object_type="TestSceneObject",
+            name="UnregDev",
+            physics_body=self.TestPhysicsBody()
+        )
+
+        scene.add_scene_object(scene_object)
+        obj_id = scene_object.get_id()
+
+        # Ensure it's registered
+        registered_obj = scene._connection_registry._objects.get(obj_id)
+        self.assertIsNotNone(registered_obj)
+
+        # Remove the scene object
+        scene.remove_scene_object(obj_id)
+
+        # Ensure it's unregistered
+        registered_obj_after = scene._connection_registry._objects.get(obj_id)
+        self.assertIsNone(registered_obj_after)
+
 
 class TestSceneObject(unittest.TestCase):
     """Test cases for SceneObject class."""

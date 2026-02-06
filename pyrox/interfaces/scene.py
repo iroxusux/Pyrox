@@ -18,6 +18,7 @@ from pyrox.interfaces import (
     IRunnable,
     IBasePhysicsBody,
     IPhysicsBody2D,
+    IConnectionRegistry
 )
 
 
@@ -463,6 +464,27 @@ class IScene:
 
         Returns:
             list[Callable]: The list of callback functions.
+        """
+        ...
+
+    @abstractmethod
+    def get_connection_registry(self) -> "IConnectionRegistry":
+        """Get the connection registry for the scene.
+
+        Returns:
+            IConnectionRegistry: The connection registry instance.
+        """
+        ...
+
+    @abstractmethod
+    def set_connection_registry(
+        self,
+        registry: "IConnectionRegistry"
+    ) -> None:
+        """Set the connection registry for the scene.
+
+        Args:
+            registry (IConnectionRegistry): The connection registry instance.
         """
         ...
 

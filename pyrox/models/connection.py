@@ -1,8 +1,8 @@
 from typing import Any
-from pyrox.interfaces import Connection
+from pyrox.interfaces import Connection, IConnectionRegistry
 
 
-class ConnectionRegistry:
+class ConnectionRegistry(IConnectionRegistry):
     """Manages connections between scene objects."""
 
     def __init__(self):
@@ -12,6 +12,17 @@ class ConnectionRegistry:
     def register_object(self, obj_id: str, obj: Any):
         """Register an object that can be connected."""
         self._objects[obj_id] = obj
+
+    def unregister_object(self, obj_id: str):
+        """Unregister an object and remove its connections."""
+        if obj_id in self._objects:
+            del self._objects[obj_id]
+
+        # Remove connections involving this object
+        self._connections = [
+            c for c in self._connections
+            if c.source_id != obj_id and c.target_id != obj_id
+        ]
 
     def connect(self, source_id: str, output_name: str,
                 target_id: str, input_name: str) -> Connection:
