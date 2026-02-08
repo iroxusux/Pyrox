@@ -93,14 +93,38 @@ class TkPropertyPanel(ttk.Frame):
             side=tk.TOP, fill=tk.X, padx=5
         )
 
-        # Scrollable content area
-        self._content_frame = ttk.Frame(self)
-        self._content_frame.pack(side=tk.TOP, fill=tk.BOTH, expand=True, padx=10, pady=10)
+        # Scrollable content area with canvas and scrollbar
+        container_frame = ttk.Frame(self)
+        container_frame.pack(side=tk.TOP, fill=tk.BOTH, expand=True, padx=10, pady=10)
 
-        # TODO: Add scrollbar support for many properties
-        # self._canvas = tk.Canvas(self)
-        # self._scrollbar = ttk.Scrollbar(self, orient=tk.VERTICAL, command=self._canvas.yview)
-        # self._canvas.configure(yscrollcommand=self._scrollbar.set)
+        # Create canvas for scrolling
+        self._canvas = tk.Canvas(container_frame, highlightthickness=0)
+        self._canvas.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+
+        # Create vertical scrollbar
+        self._scrollbar = ttk.Scrollbar(
+            container_frame,
+            orient=tk.VERTICAL,
+            command=self._canvas.yview
+        )
+        self._scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+
+        # Configure canvas to use scrollbar
+        self._canvas.configure(yscrollcommand=self._scrollbar.set)
+
+        # Create frame inside canvas to hold properties
+        self._content_frame = ttk.Frame(self._canvas)
+        self._canvas_window = self._canvas.create_window(
+            (0, 0),
+            window=self._content_frame,
+            anchor=tk.NW
+        )
+
+        # Bind events for scrolling and resizing
+        self._content_frame.bind("<Configure>", self._on_frame_configure)
+        self._canvas.bind("<Configure>", self._on_canvas_configure)
+        self._canvas.bind("<Enter>", self._bind_mousewheel)
+        self._canvas.bind("<Leave>", self._unbind_mousewheel)
 
     def set_title(self, title: str) -> None:
         """Set the panel title.
@@ -392,6 +416,38 @@ class TkPropertyPanel(ttk.Frame):
             return f"{{{len(value)} items}}"
         else:
             return str(value)
+
+    def _on_frame_configure(self, event=None) -> None:
+        """Update scroll region when frame size changes."""
+        self._canvas.configure(scrollregion=self._canvas.bbox("all"))
+
+    def _on_canvas_configure(self, event) -> None:
+        """Update canvas window width when canvas is resized."""
+        canvas_width = event.width
+        self._canvas.itemconfig(self._canvas_window, width=canvas_width)
+
+    def _bind_mousewheel(self, event=None) -> None:
+        """Bind mouse wheel events for scrolling."""
+        self._canvas.bind_all("<MouseWheel>", self._on_mousewheel)
+        # For Linux
+        self._canvas.bind_all("<Button-4>", self._on_mousewheel)
+        self._canvas.bind_all("<Button-5>", self._on_mousewheel)
+
+    def _unbind_mousewheel(self, event=None) -> None:
+        """Unbind mouse wheel events when leaving the canvas."""
+        self._canvas.unbind_all("<MouseWheel>")
+        # For Linux
+        self._canvas.unbind_all("<Button-4>")
+        self._canvas.unbind_all("<Button-5>")
+
+    def _on_mousewheel(self, event) -> None:
+        """Handle mouse wheel scrolling."""
+        if event.num == 5 or event.delta < 0:
+            # Scroll down
+            self._canvas.yview_scroll(1, "units")
+        elif event.num == 4 or event.delta > 0:
+            # Scroll up
+            self._canvas.yview_scroll(-1, "units")
 
     def _on_entry_changed(
         self,
