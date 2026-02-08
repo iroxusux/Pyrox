@@ -41,6 +41,7 @@ class BasePhysicsBody(
         self,
         name: str = "",
         id: str = "",
+        template_name: Optional[str] = None,
         tags: Optional[List[str]] = None,
         body_type: BodyType = BodyType.DYNAMIC,
         enabled: bool = True,
@@ -121,6 +122,7 @@ class BasePhysicsBody(
             yaw=yaw,
             material=material,
         )
+        self._template_name = template_name
         self._tags = tags or []
 
     def get_tags(self) -> list[str]:
@@ -196,6 +198,8 @@ class BasePhysicsBody(
         """
         return cls(
             name=data.get('name', ''),
+            id=data.get('id', ''),
+            template_name=data.get('template_name'),
             tags=data.get('tags', []),
             body_type=BodyType.from_str(data.get('body_type', 'DYNAMIC')),
             enabled=data.get('enabled', True),
@@ -222,6 +226,11 @@ class BasePhysicsBody(
             yaw=data.get('yaw', 0.0),
             material=Material.from_dict(data['material']) if data.get('material') else None,
         )
+
+    @property
+    def template_name(self) -> Optional[str]:
+        """Get the template name used to create this body, if any."""
+        return self._template_name
 
     def __repr__(self) -> str:
         """String representation of the body."""

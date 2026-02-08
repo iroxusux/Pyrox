@@ -351,7 +351,6 @@ class SceneRunnerService(
         """Bind to scene events for object addition/removal.
         """
         if not cls._scene:
-            log(cls).warning('Unable to bind to scene events!\nNo Scene is loaded!')
             return
 
         if cls.add_physics_body not in cls._scene.on_scene_object_added:
@@ -364,7 +363,6 @@ class SceneRunnerService(
         """Register all physics-enabled scene objects with the physics engine.
         """
         if not cls._scene:
-            log(cls).warning('Unable to register physics bodies!\nNo Scene is loaded!')
             return
 
         if not cls._physics_engine:

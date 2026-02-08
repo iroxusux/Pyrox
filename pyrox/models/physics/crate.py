@@ -29,6 +29,7 @@ class CrateBody(BasePhysicsBody):
     def __init__(
         self,
         name: str = "Crate",
+        template_name: str = "Crate",
         x: float = 0.0,
         y: float = 0.0,
         width: float = 20.0,
@@ -73,6 +74,7 @@ class CrateBody(BasePhysicsBody):
 
         super().__init__(
             name=name,
+            template_name=template_name,
             tags=["crate", crate_type],
             body_type=BodyType.DYNAMIC,
             enabled=True,

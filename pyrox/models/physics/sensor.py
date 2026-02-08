@@ -35,6 +35,7 @@ class ProximitySensorBody(BasePhysicsBody):
     def __init__(
         self,
         name: str = "ProximitySensor",
+        template_name: str = "Proximity Sensor",
         x: float = 0.0,
         y: float = 0.0,
         width: float = 10.0,
@@ -66,6 +67,8 @@ class ProximitySensorBody(BasePhysicsBody):
         # Sensors are always STATIC triggers with no mass
         super().__init__(
             name=name,
+            template_name=template_name,
+            tags=["sensor", "proximity"],
             body_type=BodyType.STATIC,
             is_trigger=True,
             mass=0.0,
@@ -325,7 +328,12 @@ PhysicsSceneFactory.register_template(
         default_kwargs={
             "width": 10.0,
             "height": 10.0,
-
+            "collision_layer": CollisionLayer.SENSOR,
+            "collision_mask": [
+                    CollisionLayer.DEFAULT,
+                    CollisionLayer.PLAYER,
+                    CollisionLayer.ENEMY,
+            ],
         }
     )
 )

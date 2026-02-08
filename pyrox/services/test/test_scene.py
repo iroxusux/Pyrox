@@ -42,10 +42,6 @@ class TestSceneRunnerService(unittest.TestCase):
         self.mock_gui_manager_class = self.gui_manager_patcher.start()
         self.mock_gui_manager_class.unsafe_get_backend.return_value = self.mock_backend
 
-        # Patch _enable_menu_entries to avoid RuntimeError in tests
-        self.menu_patcher = patch.object(SceneRunnerService, '_enable_menu_entries')
-        self.mock_enable_menu = self.menu_patcher.start()
-
         # Reset the static class state
         SceneRunnerService._running = False
         SceneRunnerService._enable_physics = False
@@ -80,7 +76,6 @@ class TestSceneRunnerService(unittest.TestCase):
         SceneEventBus.clear()
 
         self.gui_manager_patcher.stop()
-        self.menu_patcher.stop()
 
     def test_cannot_instantiate(self):
         """Test that SceneRunnerService cannot be instantiated."""

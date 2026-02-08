@@ -207,7 +207,10 @@ class PhysicsSceneFactory(MetaFactory):
             return None
 
         try:
-            return template.create(**kwargs)
+            return template.create(
+                template_name=template_name,
+                **kwargs
+                )
         except Exception as e:
             log(cls).error(f"Failed to create body from template '{template_name}': {e}")
             return None

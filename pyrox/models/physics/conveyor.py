@@ -31,6 +31,7 @@ class ConveyorBody(BasePhysicsBody):
     def __init__(
         self,
         name: str = "Conveyor",
+        template_name: str = "Conveyor Belt",
         x: float = 0.0,
         y: float = 0.0,
         width: float = 100.0,
@@ -83,6 +84,7 @@ class ConveyorBody(BasePhysicsBody):
         BasePhysicsBody.__init__(
             self=self,
             name=name,
+            template_name=template_name,
             tags=["conveyor", "platform"],
             body_type=body_type,
             enabled=True,
@@ -271,7 +273,6 @@ PhysicsSceneFactory.register_template(
         name="Conveyor Belt",
         body_class=ConveyorBody,
         default_kwargs={
-            "name": "Conveyor",
             "width": 200.0,
             "height": 20.0,
             "direction": 1.0,
@@ -293,7 +294,6 @@ PhysicsSceneFactory.register_template(
         name="Top-Down Conveyor Belt",
         body_class=ConveyorBody,
         default_kwargs={
-            "name": "Top-Down Conveyor",
             "width": 200.0,
             "height": 20.0,
             "direction": 1.0,

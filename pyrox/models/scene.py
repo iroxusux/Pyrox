@@ -123,8 +123,9 @@ class SceneObject(
             "drag": self.physics_body.material.drag,
         }
         body = {
-            "name": self.name,
+            "name": self.physics_body.name,
             "id": self.physics_body.id,
+            "template_name": self.physics_body.template_name,
             "tags": self.physics_body.tags,
             "body_type": self.physics_body.body_type.name,
             "enabled": self.physics_body.enabled,
@@ -163,10 +164,11 @@ class SceneObject(
     @classmethod
     def from_dict(cls, data: dict) -> "SceneObject":
         """Create scene object from dictionary."""
-        body_template = PhysicsSceneFactory.get_template(data.get("name", ""))
+        body_data: dict = data.get("body", {})
+        body_template = PhysicsSceneFactory.get_template(body_data.get("template_name", ""))
         if not body_template:
             raise ValueError(
-                f"physics body template type '{data.get('name', '')}' is not registered. "
+                f"physics body template type '{data.get('template_name', '')}' is not registered. "
                 f"Available types: {PhysicsSceneFactory.get_all_templates().keys()}"
             )
         body = body_template.body_class.from_dict(data.get("body", {}))

@@ -1,3 +1,4 @@
+from typing import Optional
 from pyrox.interfaces import INameable, IConnectable
 from pyrox.interfaces.protocols.physics import IPhysicsBody2D
 
@@ -58,6 +59,22 @@ class IBasePhysicsBody(
         """
         ...
 
+    def get_template_name(self) -> Optional[str]:
+        """Get the template name associated with this body, if any.
+
+        Returns:
+            Template name or None if not set
+        """
+        ...
+        
+    def set_template_name(self, template_name: Optional[str]) -> None:
+        """Set the template name for this body.
+
+        Args:
+            template_name: Template name to set or None to clear
+        """
+        ...
+
     @classmethod
     def from_dict(cls, data: dict) -> 'IBasePhysicsBody':
         """Create a physics body from a dictionary representation.
@@ -78,3 +95,12 @@ class IBasePhysicsBody(
             List of tags
         """
         return self.get_tags()
+
+    @property
+    def template_name(self) -> Optional[str]:
+        """Get the template name associated with this body, if any.
+
+        Returns:
+            Template name or None if not set
+        """
+        return self.get_template_name()
