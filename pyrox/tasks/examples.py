@@ -1,40 +1,38 @@
 """ file tasks
 """
 import sys
-from pyrox import models
-from pyrox import services
+from pyrox.services import (
+    EnvironmentService,
+    SceneRunnerService,
+)
+from pyrox.models import (
+    ApplicationTask
+)
+from pyrox.models.gui import SceneViewerFrame
 
 
-class ExampleTask(models.ApplicationTask):
+class ExampleTask(ApplicationTask):
 
     def _open_scene_viewer(self) -> None:
         """Open the Scene Viewer frame."""
-        # Create EnvironmentService
-        environment = services.EnvironmentService(preset='top_down')
 
         # Initialize SceneRunnerService
-        services.SceneRunnerService.initialize(
+        SceneRunnerService.initialize(
             app=self.application,
-            environment=environment,
+            environment=EnvironmentService(preset='top_down'),
             enable_physics=True
         )
 
         # Create and register SceneViewerFrame
-        scene_viewer = models.gui.sceneviewer.SceneViewerFrame(
+        scene_viewer = SceneViewerFrame(
             parent=self.application.workspace.workspace_area.root,  # type: ignore
-            runner=services.SceneRunnerService
+            runner=SceneRunnerService
         )
+
         self.application.workspace.register_frame(scene_viewer)
-        scene_viewer.on_destroy().append(lambda *_, **__: services.SceneRunnerService.stop())
-
-        services.SceneRunnerService.new_scene()
-
-        # Register runner callback to update scene viewer
-        on_tick_callbacks = services.SceneRunnerService.get_on_tick_callbacks()
-        if scene_viewer.render_scene not in on_tick_callbacks:
-            on_tick_callbacks.append(scene_viewer.render_scene)
-
-        services.SceneRunnerService.run()
+        scene_viewer.on_destroy().append(lambda *_, **__: SceneRunnerService.stop())
+        SceneRunnerService.new_scene()
+        SceneRunnerService.run()
 
     def inject(self) -> None:
         self.file_menu.add_item(

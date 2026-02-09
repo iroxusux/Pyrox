@@ -45,10 +45,11 @@ from .physics import PhysicsEngineService
 
 # Scene imports
 from .scene import (
+    HasSceneMixin,
     SceneRunnerService,
     SceneEvent,
     SceneEventType,
-    SceneEventBus
+    SceneEventBus,
 )
 
 # Menu registry imports
@@ -56,6 +57,9 @@ from .menu_registry import (
     MenuRegistry,
     MenuItemDescriptor
 )
+
+# Canvas imports
+from .canvas import CanvasObjectManagmenentService
 
 # Viewport imports
 from .viewport import (
@@ -116,6 +120,7 @@ __all__ = (
     # Physics imports
     'PhysicsEngineService',
     # Scene imports
+    'HasSceneMixin',
     'SceneRunnerService',
     # Scene events imports
     'SceneEvent',
@@ -124,6 +129,8 @@ __all__ = (
     # Menu registry imports
     'MenuRegistry',
     'MenuItemDescriptor',
+    # Canvas imports
+    'CanvasObjectManagmenentService',
     # Viewport imports
     'ViewportPanningService',
     'ViewportZoomingService',

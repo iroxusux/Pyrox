@@ -70,6 +70,11 @@ from .connection import (
     Connection,
 )
 
+# GUI protocols
+from .gui import (
+    IHasCanvas,
+)
+
 __all__ = [
     # Meta protocols
     "IAuthored",
@@ -125,4 +130,7 @@ __all__ = [
     # Connectable protocols
     "IConnectable",
     "Connection",
+
+    # GUI protocols
+    "IHasCanvas",
 ]

@@ -51,6 +51,10 @@ class ViewportStatusService:
         self._current_tool: str = "select"
         self._custom_message: str = ""
         self._fps: float = 0.0
+        self._fps_smoothed: float = 0.0  # Smoothed FPS for stable display
+        # EMA smoothing factor: lower = smoother but slower to respond, higher = more reactive
+        # 0.2 provides good balance between stability and responsiveness
+        self._fps_alpha: float = 0.2
 
         # Update callbacks
         self._on_update_callbacks: list[Callable] = []
@@ -267,14 +271,42 @@ class ViewportStatusService:
             self._status_labels["message"].config(text=message)
 
     def set_fps(self, fps: float) -> None:
-        """Update FPS counter display.
+        """Update FPS counter display with exponential smoothing.
+
+        Uses exponential moving average (EMA) to smooth out timer jitter
+        and provide stable FPS readings. Windows timer precision can vary
+        by several milliseconds, causing raw FPS calculations to fluctuate
+        significantly even when actual performance is stable.
 
         Args:
-            fps: Frames per second value
+            fps: Frames per second value (calculated from frame delta)
         """
         self._fps = fps
+        
+        # Apply exponential moving average for smooth display
+        if self._fps_smoothed == 0.0:
+            # First frame - initialize directly
+            self._fps_smoothed = fps
+        else:
+            # Smooth subsequent frames using EMA formula:
+            # smoothed = (alpha * new_value) + (1 - alpha) * old_smoothed
+            self._fps_smoothed = (self._fps_alpha * fps) + ((1.0 - self._fps_alpha) * self._fps_smoothed)
+        
         if "fps" in self._status_labels:
-            self._status_labels["fps"].config(text=f"FPS: {int(fps)}")
+            # Display rounded smoothed FPS
+            self._status_labels["fps"].config(text=f"FPS: {int(round(self._fps_smoothed))}")
+
+    def set_fps_from_delta(self, delta_seconds: float) -> None:
+        """Calculate and set FPS from frame time delta.
+
+        Args:
+            delta_seconds: Time in seconds for the last frame
+        """
+        if delta_seconds > 0:
+            fps = 1.0 / delta_seconds
+            self.set_fps(fps)
+        else:
+            self.set_fps(0.0)
 
     def update_all(self) -> None:
         """Update all status displays from current values."""

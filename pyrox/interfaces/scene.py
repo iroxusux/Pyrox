@@ -702,23 +702,5 @@ class ISceneRunnerService(
         """
         ...
 
-    @classmethod
-    def get_on_tick_callbacks(cls) -> list[Callable]:
-        """Get the list of on-tick callback functions.
-
-        Returns:
-            List of callback functions called on each tick
-        """
-        ...
-
-    @classmethod
-    def get_on_scene_load_callbacks(cls) -> list[Callable]:
-        """Get the list of on-scene-load callback functions.
-
-        Returns:
-            List of callback functions called on scene load
-        """
-        ...
-
 
 __all__ = ["IScene", "ISceneObject", "ISceneObjectFactory"]

@@ -18,6 +18,23 @@ from pyrox.services.physics import PhysicsEngineService
 from pyrox.services.environment import EnvironmentService
 
 
+class HasSceneMixin:
+    def __init__(
+        self,
+        scene: Optional[IScene] = None,
+    ):
+        self._scene = scene
+
+    def get_scene(self) -> Optional[IScene]:
+        return self._scene
+
+    def set_scene(self, scene: Optional[IScene]) -> None:
+        self._scene = scene
+
+    @property
+    def scene(self) -> Optional[IScene]: return self.get_scene()
+
+
 class SceneEventType(Enum):
     """Types of scene-related events."""
 
@@ -169,10 +186,6 @@ class SceneRunnerService(
     # Events
     _event_id: Optional[int | str] = None
 
-    # Callbacks
-    _on_tick_callbacks: list[Callable] = []
-    _on_scene_load_callbacks: list[Callable] = []
-
     def __init__(self):
         raise ValueError("SceneRunnerService is a static class and cannot be initialized directly!")
 
@@ -220,8 +233,6 @@ class SceneRunnerService(
 
         # Initialize events and callbacks
         cls._event_id = None
-        cls._on_tick_callbacks.clear()
-        cls._on_scene_load_callbacks.clear()
 
     @classmethod
     def get_scene(cls) -> Optional[IScene]:
@@ -437,15 +448,6 @@ class SceneRunnerService(
         # Update scene
         cls._scene.update(time_delta)
 
-        # Call on-tick callbacks
-        for callback in cls._on_tick_callbacks.copy():
-            try:
-                callback()
-            except Exception as e:
-                # Log error but continue
-                print(f"Error in on-tick callback: {e}")
-                cls._on_tick_callbacks.remove(callback)
-
         # Schedule scene update on the main thread
         cls._event_id = GuiManager.unsafe_get_backend().schedule_event(
             cls._update_interval_ms,
@@ -507,21 +509,3 @@ class SceneRunnerService(
         if cls._physics_engine:
             return cls._physics_engine.get_stats()
         return {}
-
-    @classmethod
-    def get_on_tick_callbacks(cls) -> list[Callable]:
-        """Get the list of on-tick callback functions.
-
-        Returns:
-            List of callback functions.
-        """
-        return cls._on_tick_callbacks
-
-    @classmethod
-    def get_on_scene_load_callbacks(cls) -> list[Callable]:
-        """Get the list of on-scene-load callback functions.
-
-        Returns:
-            List of callback functions.
-        """
-        return cls._on_scene_load_callbacks

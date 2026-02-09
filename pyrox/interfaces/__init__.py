@@ -78,6 +78,9 @@ from .protocols import (
     # Connectable protocols
     IConnectable,
     Connection,
+
+    # GUI protocols
+    IHasCanvas,
 )
 
 # Physics interfaces
@@ -195,6 +198,8 @@ __all__ = (
     # Connectable protocols
     'IConnectable',
     'Connection',
+    # Gui Protocols
+    'IHasCanvas',
 
     # Physics Interfaces
     'IBasePhysicsBody',
