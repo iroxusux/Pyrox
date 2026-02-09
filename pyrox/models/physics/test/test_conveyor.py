@@ -6,7 +6,7 @@ belt velocity, direction control, object tracking, and collision behavior.
 import unittest
 from unittest.mock import Mock, patch
 
-from pyrox.models.physics.conveyor import ConveyorBody
+from pyrox.models.physics.conveyor import ConveyorBody, Direction
 from pyrox.models.physics.base import BasePhysicsBody
 from pyrox.models.protocols.physics import Material
 from pyrox.interfaces import (
@@ -14,6 +14,65 @@ from pyrox.interfaces import (
     CollisionLayer,
     IPhysicsBody2D,
 )
+
+
+class TestDirection(unittest.TestCase):
+    """Test cases for Direction enum."""
+
+    def test_direction_enum_values(self):
+        """Test Direction enum has correct values."""
+        self.assertEqual(Direction.NORTH.value, "north")
+        self.assertEqual(Direction.SOUTH.value, "south")
+        self.assertEqual(Direction.EAST.value, "east")
+        self.assertEqual(Direction.WEST.value, "west")
+
+    def test_direction_from_str(self):
+        """Test Direction.from_str converts strings correctly."""
+        self.assertEqual(Direction.from_str("north"), Direction.NORTH)
+        self.assertEqual(Direction.from_str("south"), Direction.SOUTH)
+        self.assertEqual(Direction.from_str("east"), Direction.EAST)
+        self.assertEqual(Direction.from_str("west"), Direction.WEST)
+
+    def test_direction_from_str_case_insensitive(self):
+        """Test Direction.from_str is case-insensitive."""
+        self.assertEqual(Direction.from_str("NORTH"), Direction.NORTH)
+        self.assertEqual(Direction.from_str("South"), Direction.SOUTH)
+        self.assertEqual(Direction.from_str("EaSt"), Direction.EAST)
+
+    def test_direction_from_str_invalid(self):
+        """Test Direction.from_str raises error for invalid direction."""
+        with self.assertRaises(ValueError):
+            Direction.from_str("invalid")
+
+    def test_direction_get_velocity_vector_north(self):
+        """Test get_velocity_vector for NORTH."""
+        vx, vy = Direction.NORTH.get_velocity_vector(50.0)
+        self.assertEqual(vx, 0.0)
+        self.assertEqual(vy, -50.0)
+
+    def test_direction_get_velocity_vector_south(self):
+        """Test get_velocity_vector for SOUTH."""
+        vx, vy = Direction.SOUTH.get_velocity_vector(50.0)
+        self.assertEqual(vx, 0.0)
+        self.assertEqual(vy, 50.0)
+
+    def test_direction_get_velocity_vector_east(self):
+        """Test get_velocity_vector for EAST."""
+        vx, vy = Direction.EAST.get_velocity_vector(50.0)
+        self.assertEqual(vx, 50.0)
+        self.assertEqual(vy, 0.0)
+
+    def test_direction_get_velocity_vector_west(self):
+        """Test get_velocity_vector for WEST."""
+        vx, vy = Direction.WEST.get_velocity_vector(50.0)
+        self.assertEqual(vx, -50.0)
+        self.assertEqual(vy, 0.0)
+
+    def test_direction_get_velocity_vector_with_zero_speed(self):
+        """Test get_velocity_vector with zero speed."""
+        vx, vy = Direction.EAST.get_velocity_vector(0.0)
+        self.assertEqual(vx, 0.0)
+        self.assertEqual(vy, 0.0)
 
 
 class TestConveyorBody(unittest.TestCase):
@@ -29,7 +88,7 @@ class TestConveyorBody(unittest.TestCase):
             y=200.0,
             width=300.0,
             height=25.0,
-            direction=1.0,
+            direction=Direction.EAST,
             belt_speed=75.0,
             is_active=True
         )
@@ -50,7 +109,7 @@ class TestConveyorBody(unittest.TestCase):
         self.assertEqual(conveyor.y, 0.0)
         self.assertEqual(conveyor.width, 100.0)
         self.assertEqual(conveyor.height, 20.0)
-        self.assertEqual(conveyor.direction, 1.0)
+        self.assertEqual(conveyor.direction, Direction.EAST)
         self.assertEqual(conveyor.belt_speed, 50.0)
         self.assertTrue(conveyor.is_active)
         self.assertEqual(conveyor.body_type, BodyType.STATIC)
@@ -63,7 +122,7 @@ class TestConveyorBody(unittest.TestCase):
             y=100.0,
             width=200.0,
             height=30.0,
-            direction=-1.0,
+            direction=Direction.WEST,
             belt_speed=100.0,
             is_active=False
         )
@@ -73,7 +132,7 @@ class TestConveyorBody(unittest.TestCase):
         self.assertEqual(conveyor.y, 100.0)
         self.assertEqual(conveyor.width, 200.0)
         self.assertEqual(conveyor.height, 30.0)
-        self.assertEqual(conveyor.direction, -1.0)
+        self.assertEqual(conveyor.direction, Direction.WEST)
         self.assertEqual(conveyor.belt_speed, 100.0)
         self.assertFalse(conveyor.is_active)
 
@@ -145,23 +204,41 @@ class TestConveyorBody(unittest.TestCase):
 
     # ==================== Belt Velocity Tests ====================
 
-    def test_belt_velocity_active_right(self):
-        """Test belt_velocity when active and moving right."""
-        conveyor = ConveyorBody(direction=1.0, belt_speed=50.0, is_active=True)
+    def test_belt_velocity_active_east(self):
+        """Test belt_velocity when active and moving east."""
+        conveyor = ConveyorBody(direction=Direction.EAST, belt_speed=50.0, is_active=True)
 
         vx, vy = conveyor.belt_velocity
 
         self.assertEqual(vx, 50.0)
         self.assertEqual(vy, 0.0)
 
-    def test_belt_velocity_active_left(self):
-        """Test belt_velocity when active and moving left."""
-        conveyor = ConveyorBody(direction=-1.0, belt_speed=50.0, is_active=True)
+    def test_belt_velocity_active_west(self):
+        """Test belt_velocity when active and moving west."""
+        conveyor = ConveyorBody(direction=Direction.WEST, belt_speed=50.0, is_active=True)
 
         vx, vy = conveyor.belt_velocity
 
         self.assertEqual(vx, -50.0)
         self.assertEqual(vy, 0.0)
+
+    def test_belt_velocity_active_north(self):
+        """Test belt_velocity when active and moving north."""
+        conveyor = ConveyorBody(direction=Direction.NORTH, belt_speed=50.0, is_active=True)
+
+        vx, vy = conveyor.belt_velocity
+
+        self.assertEqual(vx, 0.0)
+        self.assertEqual(vy, -50.0)
+
+    def test_belt_velocity_active_south(self):
+        """Test belt_velocity when active and moving south."""
+        conveyor = ConveyorBody(direction=Direction.SOUTH, belt_speed=50.0, is_active=True)
+
+        vx, vy = conveyor.belt_velocity
+
+        self.assertEqual(vx, 0.0)
+        self.assertEqual(vy, 50.0)
 
     def test_belt_velocity_inactive(self):
         """Test belt_velocity returns zero when inactive."""
@@ -183,7 +260,7 @@ class TestConveyorBody(unittest.TestCase):
 
     def test_belt_velocity_changes_with_speed(self):
         """Test belt_velocity updates when speed changes."""
-        conveyor = ConveyorBody(direction=1.0, belt_speed=50.0, is_active=True)
+        conveyor = ConveyorBody(direction=Direction.EAST, belt_speed=50.0, is_active=True)
 
         self.assertEqual(conveyor.belt_velocity[0], 50.0)
 
@@ -192,51 +269,60 @@ class TestConveyorBody(unittest.TestCase):
 
     def test_belt_velocity_changes_with_direction(self):
         """Test belt_velocity updates when direction changes."""
-        conveyor = ConveyorBody(direction=1.0, belt_speed=50.0, is_active=True)
+        conveyor = ConveyorBody(direction=Direction.EAST, belt_speed=50.0, is_active=True)
 
         self.assertEqual(conveyor.belt_velocity[0], 50.0)
 
-        conveyor.set_direction(-1.0)
+        conveyor.set_direction(Direction.WEST)
         self.assertEqual(conveyor.belt_velocity[0], -50.0)
+
+        conveyor.set_direction(Direction.NORTH)
+        self.assertEqual(conveyor.belt_velocity[0], 0.0)
+        self.assertEqual(conveyor.belt_velocity[1], -50.0)
 
     # ==================== Direction Control Tests ====================
 
-    def test_set_direction_positive(self):
-        """Test set_direction with positive value."""
-        conveyor = ConveyorBody(direction=-1.0)
+    def test_set_direction_enum(self):
+        """Test set_direction with Direction enum."""
+        conveyor = ConveyorBody(direction=Direction.WEST)
 
-        conveyor.set_direction(1.0)
-        self.assertEqual(conveyor.direction, 1.0)
+        conveyor.set_direction(Direction.EAST)
+        self.assertEqual(conveyor.direction, Direction.EAST)
 
-        conveyor.set_direction(0.5)
-        self.assertEqual(conveyor.direction, 1.0)
+        conveyor.set_direction(Direction.NORTH)
+        self.assertEqual(conveyor.direction, Direction.NORTH)
 
-    def test_set_direction_negative(self):
-        """Test set_direction with negative value."""
-        conveyor = ConveyorBody(direction=1.0)
+    def test_set_direction_string(self):
+        """Test set_direction with string values."""
+        conveyor = ConveyorBody(direction=Direction.EAST)
 
-        conveyor.set_direction(-1.0)
-        self.assertEqual(conveyor.direction, -1.0)
+        conveyor.set_direction("west")
+        self.assertEqual(conveyor.direction, Direction.WEST)
 
-        conveyor.set_direction(-0.5)
-        self.assertEqual(conveyor.direction, -1.0)
+        conveyor.set_direction("north")
+        self.assertEqual(conveyor.direction, Direction.NORTH)
 
-    def test_set_direction_zero(self):
-        """Test set_direction with zero (should be positive)."""
-        conveyor = ConveyorBody(direction=-1.0)
+        conveyor.set_direction("south")
+        self.assertEqual(conveyor.direction, Direction.SOUTH)
 
-        conveyor.set_direction(0.0)
-        self.assertEqual(conveyor.direction, 1.0)
+    def test_get_direction_returns_string(self):
+        """Test get_direction returns string representation."""
+        conveyor = ConveyorBody(direction=Direction.NORTH)
 
-    def test_direction_normalizes_to_plus_minus_one(self):
-        """Test direction always normalizes to ±1.0."""
+        self.assertEqual(conveyor.get_direction(), "north")
+
+        conveyor.set_direction(Direction.WEST)
+        self.assertEqual(conveyor.get_direction(), "west")
+
+    def test_direction_string_case_insensitive(self):
+        """Test direction accepts case-insensitive strings."""
         conveyor = ConveyorBody()
 
-        conveyor.set_direction(5.0)
-        self.assertEqual(conveyor.direction, 1.0)
+        conveyor.set_direction("NORTH")
+        self.assertEqual(conveyor.direction, Direction.NORTH)
 
-        conveyor.set_direction(-5.0)
-        self.assertEqual(conveyor.direction, -1.0)
+        conveyor.set_direction("SoUtH")
+        self.assertEqual(conveyor.direction, Direction.SOUTH)
 
     # ==================== Speed Control Tests ====================
 
@@ -367,7 +453,7 @@ class TestConveyorBody(unittest.TestCase):
         """Test on_collision_stay applies belt velocity to dynamic object."""
         conveyor = ConveyorBody(
             x=100.0, y=100.0, width=100.0, height=20.0,
-            direction=1.0, belt_speed=50.0, is_active=True
+            direction=Direction.EAST, belt_speed=50.0, is_active=True
         )
 
         mock_object = Mock(spec=IPhysicsBody2D)
@@ -489,15 +575,15 @@ class TestConveyorBody(unittest.TestCase):
 
     # ==================== String Representation Tests ====================
 
-    def test_repr_active_right(self):
-        """Test __repr__ for active conveyor moving right."""
+    def test_repr_active_east(self):
+        """Test __repr__ for active conveyor moving east."""
         conveyor = ConveyorBody(
             name="Test Belt",
             x=50.0,
             y=100.0,
             width=200.0,
             height=30.0,
-            direction=1.0,
+            direction=Direction.EAST,
             belt_speed=75.0,
             is_active=True
         )
@@ -511,11 +597,11 @@ class TestConveyorBody(unittest.TestCase):
         self.assertIn("50.0", repr_str)
         self.assertIn("100.0", repr_str)
 
-    def test_repr_inactive_left(self):
-        """Test __repr__ for inactive conveyor moving left."""
+    def test_repr_inactive_west(self):
+        """Test __repr__ for inactive conveyor moving west."""
         conveyor = ConveyorBody(
             name="Stopped Belt",
-            direction=-1.0,
+            direction=Direction.WEST,
             is_active=False
         )
 
@@ -524,6 +610,32 @@ class TestConveyorBody(unittest.TestCase):
         self.assertIn("Stopped Belt", repr_str)
         self.assertIn("INACTIVE", repr_str)
         self.assertIn("←", repr_str)  # Left arrow
+
+    def test_repr_north(self):
+        """Test __repr__ for conveyor moving north."""
+        conveyor = ConveyorBody(
+            name="North Belt",
+            direction=Direction.NORTH,
+            is_active=True
+        )
+
+        repr_str = repr(conveyor)
+
+        self.assertIn("North Belt", repr_str)
+        self.assertIn("↑", repr_str)  # Up arrow
+
+    def test_repr_south(self):
+        """Test __repr__ for conveyor moving south."""
+        conveyor = ConveyorBody(
+            name="South Belt",
+            direction=Direction.SOUTH,
+            is_active=True
+        )
+
+        repr_str = repr(conveyor)
+
+        self.assertIn("South Belt", repr_str)
+        self.assertIn("↓", repr_str)  # Down arrow
 
     def test_repr_includes_object_count(self):
         """Test __repr__ includes number of objects on belt."""
@@ -557,17 +669,18 @@ class TestConveyorBody(unittest.TestCase):
 
     def test_fractional_speed(self):
         """Test conveyor with fractional speed."""
-        conveyor = ConveyorBody(belt_speed=0.5, is_active=True)
+        conveyor = ConveyorBody(belt_speed=0.5, is_active=True, direction=Direction.EAST)
 
         vx, vy = conveyor.belt_velocity
         self.assertEqual(vx, 0.5)
 
-    def test_negative_initial_direction(self):
-        """Test initialization with negative direction."""
-        conveyor = ConveyorBody(direction=-1.0, belt_speed=50.0, is_active=True)
+    def test_west_direction(self):
+        """Test initialization with west direction."""
+        conveyor = ConveyorBody(direction=Direction.WEST, belt_speed=50.0, is_active=True)
 
         vx, vy = conveyor.belt_velocity
         self.assertEqual(vx, -50.0)
+        self.assertEqual(vy, 0.0)
 
     def test_collision_layer_terrain(self):
         """Test default collision layer is TERRAIN."""
@@ -585,7 +698,7 @@ class TestConveyorBody(unittest.TestCase):
         """Test that conveyor preserves Y velocity when applying belt motion."""
         conveyor = ConveyorBody(
             x=100.0, y=100.0,
-            direction=1.0, belt_speed=50.0, is_active=True
+            direction=Direction.EAST, belt_speed=50.0, is_active=True
         )
 
         mock_object = Mock(spec=IPhysicsBody2D)
@@ -604,6 +717,168 @@ class TestConveyorBody(unittest.TestCase):
 
         self.assertEqual(conveyor.width, 0.0)
         self.assertEqual(conveyor.height, 0.0)
+
+    # ==================== Serialization Tests ====================
+
+    def test_to_dict(self):
+        """Test to_dict creates correct dictionary representation."""
+        conveyor = ConveyorBody(
+            name="Serialize Test",
+            x=100.0,
+            y=200.0,
+            width=150.0,
+            height=25.0,
+            direction=Direction.NORTH,
+            belt_speed=75.0,
+            is_active=True
+        )
+
+        data = conveyor.to_dict()
+
+        self.assertEqual(data["name"], "Serialize Test")
+        self.assertEqual(data["x"], 100.0)
+        self.assertEqual(data["y"], 200.0)
+        self.assertEqual(data["width"], 150.0)
+        self.assertEqual(data["height"], 25.0)
+        self.assertEqual(data["direction"], "north")
+        self.assertEqual(data["belt_speed"], 75.0)
+        self.assertTrue(data["is_active"])
+
+    def test_from_dict(self):
+        """Test from_dict creates conveyor from dictionary."""
+        data = {
+            "name": "Deserialized Belt",
+            "x": 50.0,
+            "y": 75.0,
+            "width": 200.0,
+            "height": 30.0,
+            "direction": "south",
+            "belt_speed": 60.0,
+            "is_active": False,
+            "body_type": "STATIC",
+            "collision_layer": "TERRAIN",
+            "collider_type": "RECTANGLE",
+            "enabled": True,
+            "sleeping": False,
+            "mass": 0.0,
+        }
+
+        conveyor = ConveyorBody.from_dict(data)
+
+        self.assertEqual(conveyor.name, "Deserialized Belt")
+        self.assertEqual(conveyor.x, 50.0)
+        self.assertEqual(conveyor.y, 75.0)
+        self.assertEqual(conveyor.width, 200.0)
+        self.assertEqual(conveyor.height, 30.0)
+        self.assertEqual(conveyor.direction, Direction.SOUTH)
+        self.assertEqual(conveyor.belt_speed, 60.0)
+        self.assertFalse(conveyor.is_active)
+
+    def test_roundtrip_serialization(self):
+        """Test serialization and deserialization produces identical object."""
+        original = ConveyorBody(
+            name="Original",
+            x=123.45,
+            y=678.90,
+            width=175.0,
+            height=35.0,
+            direction=Direction.WEST,
+            belt_speed=85.5,
+            is_active=True
+        )
+
+        data = original.to_dict()
+        restored = ConveyorBody.from_dict(data)
+
+        self.assertEqual(original.name, restored.name)
+        self.assertEqual(original.x, restored.x)
+        self.assertEqual(original.y, restored.y)
+        self.assertEqual(original.width, restored.width)
+        self.assertEqual(original.height, restored.height)
+        self.assertEqual(original.direction, restored.direction)
+        self.assertEqual(original.belt_speed, restored.belt_speed)
+        self.assertEqual(original.is_active, restored.is_active)
+
+    def test_from_dict_direction_enum(self):
+        """Test from_dict handles Direction enum directly."""
+        data = {
+            "name": "Test",
+            "direction": Direction.EAST,
+            "body_type": "STATIC",
+            "collision_layer": "TERRAIN",
+            "collider_type": "RECTANGLE",
+        }
+
+        conveyor = ConveyorBody.from_dict(data)
+
+        self.assertEqual(conveyor.direction, Direction.EAST)
+
+    # ==================== Editable Properties Tests ====================
+
+    def test_get_editable_properties(self):
+        """Test get_editable_properties returns correct structure."""
+        conveyor = ConveyorBody()
+
+        props = conveyor.get_properties()
+
+        self.assertIn("direction", props)
+        self.assertIn("belt_speed", props)
+        self.assertIn("is_active", props)
+        self.assertIn("x", props)  # From base class
+        self.assertIn("y", props)  # From base class
+        self.assertIn("width", props)  # From base class
+        self.assertIn("height", props)  # From base class
+
+    def test_editable_property_direction(self):
+        """Test direction property metadata."""
+        conveyor = ConveyorBody()
+
+        props = conveyor.get_properties()
+        direction_prop = props["direction"]
+
+        self.assertEqual(direction_prop["type"], "enum")
+        self.assertEqual(direction_prop["label"], "Direction")
+        self.assertIn("north", direction_prop["values"])
+        self.assertIn("south", direction_prop["values"])
+        self.assertIn("east", direction_prop["values"])
+        self.assertIn("west", direction_prop["values"])
+
+        # Test get/set functions
+        self.assertEqual(direction_prop["get"](), "east")  # Default
+        direction_prop["set"]("north")
+        self.assertEqual(conveyor.direction, Direction.NORTH)
+
+    def test_editable_property_belt_speed(self):
+        """Test belt_speed property metadata."""
+        conveyor = ConveyorBody(belt_speed=50.0)
+
+        props = conveyor.get_properties()
+        speed_prop = props["belt_speed"]
+
+        self.assertEqual(speed_prop["type"], "float")
+        self.assertEqual(speed_prop["label"], "Belt Speed")
+        self.assertEqual(speed_prop["min"], 0.0)
+        self.assertEqual(speed_prop["max"], 500.0)
+
+        # Test get/set functions
+        self.assertEqual(speed_prop["get"](), 50.0)
+        speed_prop["set"](100.0)
+        self.assertEqual(conveyor.belt_speed, 100.0)
+
+    def test_editable_property_is_active(self):
+        """Test is_active property metadata."""
+        conveyor = ConveyorBody(is_active=True)
+
+        props = conveyor.get_properties()
+        active_prop = props["is_active"]
+
+        self.assertEqual(active_prop["type"], "bool")
+        self.assertEqual(active_prop["label"], "Active")
+
+        # Test get/set functions
+        self.assertTrue(active_prop["get"]())
+        active_prop["set"](False)
+        self.assertFalse(conveyor.is_active)
 
 
 class TestConveyorBodyFactory(unittest.TestCase):
@@ -645,9 +920,52 @@ class TestConveyorBodyFactory(unittest.TestCase):
 
         self.assertEqual(template.default_kwargs['width'], 200.0)  # type: ignore
         self.assertEqual(template.default_kwargs['height'], 20.0)  # type: ignore
-        self.assertEqual(template.default_kwargs['direction'], 1.0)  # type: ignore
+        self.assertEqual(template.default_kwargs['direction'], Direction.EAST)  # type: ignore
         self.assertEqual(template.default_kwargs['belt_speed'], 50.0)  # type: ignore
         self.assertTrue(template.default_kwargs['is_active'])  # type: ignore
+
+    def test_top_down_factory_registration(self):
+        """Test that Top-Down Conveyor Belt is registered in the factory."""
+        from pyrox.models.physics.factory import PhysicsSceneFactory
+
+        template = PhysicsSceneFactory.get_template("Top-Down Conveyor Belt")
+
+        self.assertIsNotNone(template)
+        self.assertEqual(template.name, "Top-Down Conveyor Belt")  # type: ignore
+        self.assertEqual(template.body_class, ConveyorBody)  # type: ignore
+        self.assertEqual(template.category, "Platforms")  # type: ignore
+
+    def test_top_down_factory_default_parameters(self):
+        """Test top-down factory template uses correct defaults."""
+        from pyrox.models.physics.factory import PhysicsSceneFactory
+
+        template = PhysicsSceneFactory.get_template("Top-Down Conveyor Belt")
+
+        self.assertEqual(template.default_kwargs['width'], 200.0)  # type: ignore
+        self.assertEqual(template.default_kwargs['height'], 20.0)  # type: ignore
+        self.assertEqual(template.default_kwargs['direction'], Direction.NORTH)  # type: ignore
+        self.assertEqual(template.default_kwargs['belt_speed'], 50.0)  # type: ignore
+        self.assertTrue(template.default_kwargs['is_active'])  # type: ignore
+        self.assertTrue(template.default_kwargs['is_trigger'])  # type: ignore
+
+    def test_create_top_down_from_factory(self):
+        """Test creating top-down ConveyorBody from factory."""
+        from pyrox.models.physics.factory import PhysicsSceneFactory
+
+        conveyor = PhysicsSceneFactory.create_from_template(
+            "Top-Down Conveyor Belt",
+            x=150.0,
+            y=250.0,
+            name="Top-Down Conveyor"
+        )
+
+        self.assertIsNotNone(conveyor)
+        self.assertIsInstance(conveyor, ConveyorBody)
+        self.assertEqual(conveyor.x, 150.0)  # type: ignore
+        self.assertEqual(conveyor.y, 250.0)  # type: ignore
+        self.assertEqual(conveyor.name, "Top-Down Conveyor")  # type: ignore
+        self.assertEqual(conveyor.direction, Direction.NORTH)  # type: ignore
+        self.assertTrue(conveyor.collider.is_trigger)  # type: ignore
 
 
 if __name__ == '__main__':

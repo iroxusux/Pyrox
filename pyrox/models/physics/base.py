@@ -187,6 +187,44 @@ class BasePhysicsBody(
         """
         return {}
 
+    def get_properties(self) -> dict[str, Any]:
+        """Get properties that can be edited in the properties panel.
+
+        Returns:
+            Dictionary mapping property names to their metadata.
+            Each entry should have:
+            - type: 'float', 'int', 'bool', 'string', 'enum'
+            - get: Callable that returns the current value
+            - set: Callable that sets a new value
+            - label: Display label for the property
+            - For float/int: optional 'min', 'max'
+            - For enum: 'values' list of valid values
+        """
+        return {
+            "x": self.x,
+            "y": self.y,
+            "width": self.width,
+            "height": self.height,
+            "roll": self.roll,
+            "pitch": self.pitch,
+            "yaw": self.yaw,
+            "velocity_x": self.velocity_x,
+            "velocity_y": self.velocity_y,
+            "acceleration_x": self.acceleration_x,
+            "acceleration_y": self.acceleration_y,
+            "body_type": self.body_type.name,
+            "mass": self.mass,
+            # Collider properties
+            "collider_type": self.collider.collider_type.name,
+            "collision_layer": self.collider.collision_layer.name,
+            "is_trigger": self.collider.is_trigger,
+            # Material properties
+            "density": self.material.density,
+            "restitution": self.material.restitution,
+            "friction": self.material.friction,
+            "drag": self.material.drag,
+        }
+
     @classmethod
     def from_dict(cls, data: dict) -> 'BasePhysicsBody':
         """Create a physics body from a dictionary representation.
@@ -226,6 +264,46 @@ class BasePhysicsBody(
             yaw=data.get('yaw', 0.0),
             material=Material.from_dict(data['material']) if data.get('material') else None,
         )
+
+    def to_dict(self) -> dict:
+        """Convert physics body to dictionary for serialization.
+
+        Returns:
+            Dictionary representation
+        """
+        return {
+            "name": self.name,
+            "id": self.id,
+            "template_name": self.template_name,
+            "tags": self.tags,
+            "body_type": self.body_type.name,
+            "enabled": self.enabled,
+            "sleeping": self.sleeping,
+            "mass": self.mass,
+            "moment_of_inertia": self.moment_of_inertia,
+            "velocity_x": self.velocity_x,
+            "velocity_y": self.velocity_y,
+            "acceleration_x": self.acceleration_x,
+            "acceleration_y": self.acceleration_y,
+            "angular_velocity": self.angular_velocity,
+            "collider_type": self.collider.collider_type.name,
+            "collision_layer": self.collider.collision_layer.name,
+            "collision_mask": [m.name for m in self.collider.collision_mask],
+            "is_trigger": self.collider.is_trigger,
+            "x": self.x,
+            "y": self.y,
+            "width": self.width,
+            "height": self.height,
+            "roll": self.roll,
+            "pitch": self.pitch,
+            "yaw": self.yaw,
+            "material": {
+                "density": self.material.density,
+                "restitution": self.material.restitution,
+                "friction": self.material.friction,
+                "drag": self.material.drag,
+            },
+        }
 
     @property
     def template_name(self) -> Optional[str]:

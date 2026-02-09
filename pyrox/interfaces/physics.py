@@ -66,7 +66,7 @@ class IBasePhysicsBody(
             Template name or None if not set
         """
         ...
-        
+
     def set_template_name(self, template_name: Optional[str]) -> None:
         """Set the template name for this body.
 
@@ -74,6 +74,14 @@ class IBasePhysicsBody(
             template_name: Template name to set or None to clear
         """
         ...
+
+    def get_properties(self) -> dict[str, dict]:
+        """Get properties that can be edited in the properties panel.
+
+        Returns:
+            Dictionary mapping property names to their metadata
+        """
+        raise NotImplementedError()
 
     @classmethod
     def from_dict(cls, data: dict) -> 'IBasePhysicsBody':
@@ -84,6 +92,17 @@ class IBasePhysicsBody(
 
         Returns:
             Instance of IBasePhysicsBody
+        """
+        raise NotImplementedError()
+
+    def to_dict(self) -> dict:
+        """Convert a physics body to a dictionary representation.
+
+        Args:
+            body: Instance of IBasePhysicsBody to convert
+
+        Returns:
+            Dictionary with body properties
         """
         raise NotImplementedError()
 

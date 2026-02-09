@@ -86,6 +86,8 @@ class SceneObject(
         # Check to see if the property exists as an attribute of this object
         if hasattr(self, name):
             setattr(self, name, value)
+        elif hasattr(self.physics_body, name):
+            setattr(self.physics_body, name, value)
         self._properties[name] = value
 
     def set_properties(self, properties: Dict) -> None:
@@ -116,40 +118,8 @@ class SceneObject(
 
     def to_dict(self) -> dict:
         """Convert scene object to dictionary for JSON serialization."""
-        material = {
-            "density": self.physics_body.material.density,
-            "restitution": self.physics_body.material.restitution,
-            "friction": self.physics_body.material.friction,
-            "drag": self.physics_body.material.drag,
-        }
-        body = {
-            "name": self.physics_body.name,
-            "id": self.physics_body.id,
-            "template_name": self.physics_body.template_name,
-            "tags": self.physics_body.tags,
-            "body_type": self.physics_body.body_type.name,
-            "enabled": self.physics_body.enabled,
-            "sleeping": self.physics_body.sleeping,
-            "mass": self.physics_body.mass,
-            "moment_of_inertia": self.physics_body.moment_of_inertia,
-            "velocity_x": self.physics_body.velocity_x,
-            "velocity_y": self.physics_body.velocity_y,
-            "acceleration_x": self.physics_body.acceleration_x,
-            "acceleration_y": self.physics_body.acceleration_y,
-            "angular_velocity": self.physics_body.angular_velocity,
-            "collider_type": self.physics_body.collider.collider_type.name,
-            "collision_layer": self.physics_body.collider.collision_layer.name,
-            "collision_mask": [m.name for m in self.physics_body.collider.collision_mask],
-            "is_trigger": self.physics_body.collider.is_trigger,
-            "x": self.physics_body.x,
-            "y": self.physics_body.y,
-            "width": self.physics_body.width,
-            "height": self.physics_body.height,
-            "roll": self.physics_body.roll,
-            "pitch": self.physics_body.pitch,
-            "yaw": self.physics_body.yaw,
-            "material": material,
-        }
+        # Use physics body's to_dict if available, otherwise construct manually
+        body = self.physics_body.to_dict()
 
         return {
             "name": self.name,
@@ -158,7 +128,7 @@ class SceneObject(
             "description": self._description,
             "properties": self.properties,
             "body": body,
-            "material": material,
+            "material": body.get("material", {}) if isinstance(body, dict) else {},
         }
 
     @classmethod
@@ -322,36 +292,17 @@ class SceneObject(
 
     def _compile_properties(self) -> None:
         """Compile properties for physics simulation."""
+
+        # Scene object properties
         self._properties.update({
-            # Scene object properties
             "id": self.id,
             "name": self.name,
             "description": self.description,
             "scene_object_type": self._scene_object_type,
-            # Physics body properties
-            "x": self.x,
-            "y": self.y,
-            "width": self.width,
-            "height": self.height,
-            "roll": self.physics_body.roll,
-            "pitch": self.physics_body.pitch,
-            "yaw": self.physics_body.yaw,
-            "velocity_x": self.physics_body.velocity_x,
-            "velocity_y": self.physics_body.velocity_y,
-            "acceleration_x": self.physics_body.acceleration_x,
-            "acceleration_y": self.physics_body.acceleration_y,
-            "body_type": self.physics_body.body_type.name,
-            "mass": self.physics_body.mass,
-            # Collider properties
-            "collider_type": self.physics_body.collider.collider_type.name,
-            "collision_layer": self.physics_body.collider.collision_layer.name,
-            "is_trigger": self.physics_body.collider.is_trigger,
-            # Material properties
-            "density": self.physics_body.material.density,
-            "restitution": self.physics_body.material.restitution,
-            "friction": self.physics_body.material.friction,
-            "drag": self.physics_body.material.drag,
         })
+
+        # Physics body properties
+        self._properties.update(self.physics_body.get_properties())
 
     # IConnectable interface
 
