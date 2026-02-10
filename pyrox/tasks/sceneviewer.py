@@ -217,6 +217,22 @@ class SceneviewerApplicationTask(ApplicationTask):
             enabled=False
         )
 
+        scene_view_dropdown.insert_separator(11)
+
+        # Entity Names Toggle
+        self.register_menu_command(
+            menu=scene_view_dropdown,
+            registry_id="scene.view.entity_names",
+            registry_path="View/Scene Viewer/Entity Names",
+            index=12,
+            label="Entity Names",
+            command=None,  # To be assigned by SceneViewer
+            accelerator="Ctrl+L",
+            underline=0,
+            category="scene",
+            enabled=False
+        )
+
         self.register_submenu(
             menu=self.gui.root_menu().view_menu,
             submenu=scene_view_dropdown,

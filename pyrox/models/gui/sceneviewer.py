@@ -231,6 +231,8 @@ class SceneViewerFrame(TkinterTaskFrame):
         self._design_mode_var: tk.BooleanVar = tk.BooleanVar()
         self._object_palette_var: tk.BooleanVar = tk.BooleanVar()
         self._properties_var: tk.BooleanVar = tk.BooleanVar()
+        self._entity_names_var: tk.BooleanVar = tk.BooleanVar(value=True)
+        self._entity_names_visible: bool = True
 
         # Build the UI
         self._build_toolbar()
@@ -556,6 +558,22 @@ class SceneViewerFrame(TkinterTaskFrame):
                 self.properties_panel.pack_forget()
                 self._paned_window.remove(self.properties_panel)
 
+    def toggle_entity_names(self) -> None:
+        """Toggle entity name labels visibility on the canvas."""
+        self._entity_names_visible = not self._entity_names_visible
+        self._entity_names_var.set(self._entity_names_visible)
+
+        # Re-render the scene to show/hide labels
+        self.render_scene()
+
+        # Update menu entry if registered
+        self._enable_entry(
+            "scene.view.entity_names",
+            enable=self._entity_names_visible
+        )
+
+        log(self).info(f"Entity names {'shown' if self._entity_names_visible else 'hidden'}")
+
     def open_connection_editor(self) -> None:
         """Open the connection editor in a new window."""
         if not self._scene:
@@ -745,16 +763,17 @@ class SceneViewerFrame(TkinterTaskFrame):
         if canvas_id:
             self._canvas_object_management_service.set_object(obj_id, canvas_id)
 
-            # Draw name label
-            font_size = max(8, int(10 * self.viewport.zoom))
-            _ = self._canvas.create_text(
-                canvas_x + canvas_width / 2,
-                canvas_y - 10 * self.viewport.zoom,
-                text=scene_obj.name,
-                fill="white",
-                font=("Arial", font_size),
-                tags=("scene_object_label", obj_id)
-            )
+            # Draw name label (only if entity names are visible)
+            if self._entity_names_visible:
+                font_size = max(8, int(10 * self.viewport.zoom))
+                _ = self._canvas.create_text(
+                    canvas_x + canvas_width / 2,
+                    canvas_y - 10 * self.viewport.zoom,
+                    text=scene_obj.name,
+                    fill="white",
+                    font=("Arial", font_size),
+                    tags=("scene_object_label", obj_id)
+                )
 
     def _start_render_loop(self) -> None:
         """Start the render loop at controlled frame rate."""
@@ -926,6 +945,19 @@ class SceneViewerFrame(TkinterTaskFrame):
         )
         self._properties_panel_btn.pack(side=tk.LEFT, padx=2)
         self._create_tooltip(self._properties_panel_btn, "Toggle Properties Panel")
+
+        # Separator
+        ttk.Separator(self._toolbar, orient=tk.VERTICAL).pack(side=tk.LEFT, fill=tk.Y, padx=5)
+
+        # Entity Names Toggle Button
+        self._entity_names_btn = ttk.Button(
+            self._toolbar,
+            text="🏷️",  # Label emoji
+            width=3,
+            command=self.toggle_entity_names
+        )
+        self._entity_names_btn.pack(side=tk.LEFT, padx=2)
+        self._create_tooltip(self._entity_names_btn, "Toggle Entity Names")
 
         # Separator
         ttk.Separator(self._toolbar, orient=tk.VERTICAL).pack(side=tk.LEFT, fill=tk.Y, padx=5)
@@ -1149,6 +1181,9 @@ class SceneViewerFrame(TkinterTaskFrame):
         # Deselect with Escape key
         self._canvas.bind("<Escape>", lambda e: self.clear_selection())
 
+        # Toggle entity names with Ctrl+L
+        self._canvas.bind("<Control-l>", lambda e: self.toggle_entity_names())
+
         SceneEventBus.subscribe(
             SceneEventType.SCENE_LOADED,
             lambda event: self.set_scene(event.scene)
@@ -1264,6 +1299,13 @@ class SceneViewerFrame(TkinterTaskFrame):
         self._enable_entry(
             menu_id="scene.view.connection_editor",
             command=self.open_connection_editor,
+            enable=enable
+        )
+
+        # Entity names toggle
+        self._enable_entry(
+            menu_id="scene.view.entity_names",
+            command=self.toggle_entity_names,
             enable=enable
         )
 
