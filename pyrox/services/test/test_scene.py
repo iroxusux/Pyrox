@@ -110,8 +110,8 @@ class TestSceneRunnerService(unittest.TestCase):
         self.assertTrue(SceneRunnerService._enable_physics)
         self.assertIsNotNone(SceneRunnerService._physics_engine)
         self.assertIsNotNone(SceneRunnerService._environment)
-        self.assertIsInstance(SceneRunnerService._physics_engine, PhysicsEngineService)
-        self.assertIsInstance(SceneRunnerService._environment, EnvironmentService)
+        self.assertEqual(type(SceneRunnerService._physics_engine).__name__, 'PhysicsEngineService')
+        self.assertEqual(type(SceneRunnerService._environment).__name__, 'EnvironmentService')
 
     def test_initialization_with_physics_custom_services(self):
         """Test initialization with custom physics and environment services."""

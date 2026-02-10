@@ -354,11 +354,29 @@ class ConveyorBody(BasePhysicsBody):
         # Get base properties from parent
         properties = super().get_properties()
 
-        # Add conveyor-specific properties
+        # Add conveyor-specific properties with metadata
         properties.update({
-            "direction": self.direction.value,  # Show as string in properties
-            "belt_speed": self.belt_speed,
-            "is_active": self.is_active,
+            "direction": {
+                "type": "enum",
+                "label": "Direction",
+                "values": ["north", "south", "east", "west"],
+                "get": lambda: self.direction.value,
+                "set": lambda v: setattr(self, 'direction', v),
+            },
+            "belt_speed": {
+                "type": "float",
+                "label": "Belt Speed",
+                "min": 0.0,
+                "max": 500.0,
+                "get": lambda: self.belt_speed,
+                "set": lambda v: setattr(self, 'belt_speed', v),
+            },
+            "is_active": {
+                "type": "bool",
+                "label": "Active",
+                "get": lambda: self.is_active,
+                "set": lambda v: setattr(self, 'is_active', v),
+            },
         })
 
         return properties
