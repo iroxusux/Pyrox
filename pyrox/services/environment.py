@@ -77,7 +77,7 @@ class EnvironmentService:
         'top_down': EnvironmentPreset(
             name='Top-Down (2D)',
             gravity=(0.0, 0.0),     # No gravity for top-down games
-            air_density=2.0,        # Higher drag for more friction-like movement
+            air_density=1000.0,     # Higher drag for more friction-like movement. Currently set to water density for strong drag effect.
             default_friction=0.7,
             default_restitution=0.2,
             description='Top-down game with friction'

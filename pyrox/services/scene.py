@@ -1,6 +1,7 @@
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum, auto
+import importlib
 from typing import Any, Callable, Dict, List, Optional, Union
 import json
 from pathlib import Path
@@ -12,10 +13,9 @@ from pyrox.interfaces import (
     ISceneRunnerService,
 )
 
-from pyrox.services import GuiManager, log
+from pyrox.services import GuiManager, log, physics
+from pyrox.services import environment as env
 from pyrox.services.file import get_open_file, get_save_file
-from pyrox.services.physics import PhysicsEngineService
-from pyrox.services.environment import EnvironmentService
 
 
 class HasSceneMixin:
@@ -180,8 +180,8 @@ class SceneRunnerService(
 
     # Objects and services
     _scene: Optional[IScene] = None
-    _environment: Optional[EnvironmentService] = None
-    _physics_engine: Optional[PhysicsEngineService] = None
+    _environment: Optional[env.EnvironmentService] = None
+    _physics_engine: Optional[physics.PhysicsEngineService] = None
 
     # Events
     _event_id: Optional[int | str] = None
@@ -194,8 +194,8 @@ class SceneRunnerService(
         cls,
         app: IApplication,
         scene: Optional[IScene] = None,
-        physics_engine: Optional[PhysicsEngineService] = None,
-        environment: Optional[EnvironmentService] = None,
+        physics_engine: Optional[physics.PhysicsEngineService] = None,
+        environment: Optional[env.EnvironmentService] = None,
         enable_physics: bool = False,
         update_interval: int = 16  # ~60 FPS (16ms)
     ):
@@ -214,8 +214,10 @@ class SceneRunnerService(
 
         # Physics integration
         if enable_physics:
-            cls.set_environment(environment or EnvironmentService())
-            cls.set_physics_engine(physics_engine or PhysicsEngineService(
+            importlib.reload(physics)
+            importlib.reload(env)
+            cls.set_environment(environment or env.EnvironmentService())
+            cls.set_physics_engine(physics_engine or physics.PhysicsEngineService(
                 environment=cls._environment
             ))
         else:
@@ -322,7 +324,7 @@ class SceneRunnerService(
             json.dump(data, f, indent=4)
 
     @classmethod
-    def get_physics_engine(cls) -> PhysicsEngineService | None:
+    def get_physics_engine(cls) -> physics.PhysicsEngineService | None:
         """Get the physics engine being used.
 
         Returns:
@@ -331,7 +333,7 @@ class SceneRunnerService(
         return cls._physics_engine
 
     @classmethod
-    def set_physics_engine(cls, physics_engine: PhysicsEngineService | None) -> None:
+    def set_physics_engine(cls, physics_engine: physics.PhysicsEngineService | None) -> None:
         """Set the physics engine to be used.
 
         Args:
@@ -340,7 +342,7 @@ class SceneRunnerService(
         cls._physics_engine = physics_engine
 
     @classmethod
-    def get_environment(cls) -> EnvironmentService | None:
+    def get_environment(cls) -> env.EnvironmentService | None:
         """Get the environment service being used.
 
         Returns:
@@ -349,7 +351,7 @@ class SceneRunnerService(
         return cls._environment
 
     @classmethod
-    def set_environment(cls, environment: EnvironmentService | None) -> None:  # type: ignore
+    def set_environment(cls, environment: env.EnvironmentService | None) -> None:  # type: ignore
         """Set the environment service to be used.
 
         Args:
