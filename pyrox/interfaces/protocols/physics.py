@@ -70,6 +70,7 @@ class CollisionLayer(Enum):
             'PLAYER': cls.PLAYER,
             'ENEMY': cls.ENEMY,
             'PROJECTILE': cls.PROJECTILE,
+            'SENSOR': cls.SENSOR,
             'TERRAIN': cls.TERRAIN,
             'TRIGGER': cls.TRIGGER,
             'TRANSPARENT': cls.TRANSPARENT,
