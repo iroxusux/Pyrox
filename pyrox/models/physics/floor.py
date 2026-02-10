@@ -24,16 +24,25 @@ class FloorBody(BasePhysicsBody):
 
     **For Top-Down Games (default):**
         - Set `is_trigger=True` (default) - objects move through the floor
-        - Floor applies drag through material properties
-        - Objects slide and stop based on friction/drag values
+        - Floor applies direct velocity damping via `on_collision_stay` callback
+        - Objects slide and stop based on material's friction/drag values
+        - Damping is applied every frame while objects overlap the floor
+        - More realistic stopping behavior than force-based friction
 
     **For Side-Scrolling/Platformer Games:**
         - Set `is_trigger=False` - floor acts as solid collision boundary
         - Objects stand on top and cannot pass through
         - Use "Solid Platform Floor" template
+        - Normal collision resolution applies friction
 
     **Important:** For collisions to work, objects must have
     `CollisionLayer.TERRAIN` in their `collision_mask`.
+
+    **Physics Behavior (Top-Down Mode):**
+        - Velocity damping: `velocity *= damping_factor` each frame
+        - Damping factor based on friction: high friction = low retention (stops fast)
+        - Additional drag reduces velocity: high drag = more resistance
+        - Snap to zero when velocity < 0.5 units/s to prevent drift
 
     Attributes:
         surface_type: Type of floor surface (concrete, ice, mud, etc.)
@@ -118,7 +127,6 @@ class FloorBody(BasePhysicsBody):
                 CollisionLayer.DEFAULT,
                 CollisionLayer.PLAYER,
                 CollisionLayer.ENEMY,
-                CollisionLayer.PROJECTILE,
             ]
 
         # Get material from surface preset if not explicitly provided
@@ -191,7 +199,8 @@ class FloorBody(BasePhysicsBody):
             Description of the surface behavior
         """
         preset = self.SURFACE_PRESETS.get(self._surface_type, self.SURFACE_PRESETS['concrete'])
-        return preset['description']
+        mode = "trigger (top-down)" if self.collider.is_trigger else "solid (platformer)"
+        return f"{preset['description']} [{mode}]"
 
     def on_collision_enter(self, other: IPhysicsBody2D) -> None:
         """Called when an object starts colliding with the floor.
@@ -205,11 +214,60 @@ class FloorBody(BasePhysicsBody):
     def on_collision_stay(self, other: IPhysicsBody2D) -> None:
         """Called each frame while an object is colliding with the floor.
 
+        For trigger floors (top-down games), this uses direct velocity damping
+        for more realistic stopping behavior instead of force-based friction.
+
         Args:
             other: The colliding physics body
         """
-        # Floor provides friction through material properties
-        pass
+        # Only apply if this is a trigger floor and the other body is dynamic
+        if not self.collider.is_trigger or other.body_type != BodyType.DYNAMIC:
+            return
+
+        # Get the other body's velocity
+        vx, vy = other.linear_velocity
+
+        # Calculate velocity magnitude
+        speed = (vx**2 + vy**2)**0.5
+        if speed < 0.01:  # Skip if nearly stationary
+            return
+
+        # For top-down games, use direct velocity damping instead of forces
+        # This provides more immediate and realistic stopping behavior
+        # Damping rate is based on friction (higher friction = faster stop)
+
+        # Calculate per-frame damping factor from friction coefficient
+        # friction 0.0 = no damping, friction 1.0 = very strong damping
+        # We use exponential decay: velocity *= damping_factor
+        # For 60fps: damping_factor^60 should give us significant slowdown per second
+
+        # Map friction (0.0-1.0) to damping factor (1.0-0.0):
+        # - friction=0.1 (ice): ~97% retention per frame (slides far)
+        # - friction=0.5: ~92% retention per frame
+        # - friction=0.8 (concrete): ~88% retention per frame (stops quickly)
+        # - friction=0.9 (mud): ~85% retention per frame (stops immediately)
+        friction_coefficient = self.material.friction
+        damping_factor = 1.0 - (friction_coefficient * 0.15)  # Maps 0.0-1.0 friction to 1.0-0.85 retention
+
+        # Apply additional drag-based damping
+        # Higher drag = more resistance
+        drag_coefficient = self.material.drag
+        drag_damping = 1.0 - (drag_coefficient * 0.01)  # Maps 0-5 drag to 1.0-0.95 retention
+
+        # Combine both damping effects (multiplicative)
+        combined_damping = damping_factor * drag_damping
+
+        # Apply damping to velocity
+        new_vx = vx * combined_damping
+        new_vy = vy * combined_damping
+
+        # Snap to zero if very slow (prevents infinite asymptotic decay and oscillation)
+        if abs(new_vx) < 1.0:
+            new_vx = 0.0
+        if abs(new_vy) < 1.0:
+            new_vy = 0.0
+
+        other.set_linear_velocity(new_vx, new_vy)
 
     def on_collision_exit(self, other: IPhysicsBody2D) -> None:
         """Called when an object stops colliding with the floor.

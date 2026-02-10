@@ -63,6 +63,7 @@ class CrateBody(BasePhysicsBody):
                 CollisionLayer.TERRAIN,
                 CollisionLayer.PLAYER,
                 CollisionLayer.ENEMY,
+                CollisionLayer.SENSOR
             ]
 
         # Auto-select material based on crate type if not provided

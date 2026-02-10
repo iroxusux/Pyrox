@@ -917,7 +917,7 @@ class SceneViewerFrame(TkinterTaskFrame):
         if dx != 0 or dy != 0:
             for item in all_items:
                 self._canvas.move(item, dx, dy)
-            
+
             # Mark for re-render to update culling after significant pan
             # Only trigger re-cull if viewport has moved beyond threshold since last cull
             # This avoids excessive re-renders during small mouse movements
@@ -1722,22 +1722,34 @@ class SceneViewerFrame(TkinterTaskFrame):
         if not template:
             return
 
+        log(self).info(f"Placing template: {self._current_object_template}")
+        log(self).info(f"Template default_kwargs keys: {list(template.default_kwargs.keys())}")
+        log(self).info(f"Template is_trigger: {template.default_kwargs.get('is_trigger')}")
+
         # Apply snap to grid if enabled
         scene_x, scene_y = self._viewport_gridding_service.snap_to_grid(scene_x, scene_y)
-        template.default_kwargs['x'] = scene_x
-        template.default_kwargs['y'] = scene_y
+        
+        # Create kwargs for object creation (don't mutate template)
+        creation_kwargs = template.default_kwargs.copy()
+        creation_kwargs['x'] = scene_x
+        creation_kwargs['y'] = scene_y
 
         # Generate unique ID
         self._object_counter += 1
         obj_id = f"{template.name.lower().replace(' ', '_')}_{self._object_counter:03d}"
 
         # Create physics object from template
+        # Use self._current_object_template (the registry key) instead of template.name
+        # to ensure we get the correct template
+        log(self).info(f"Creating from factory with kwargs is_trigger: {creation_kwargs.get('is_trigger')}")
         physics_obj = PhysicsSceneFactory.create_from_template(
-            template.name,
-            **template.default_kwargs
+            self._current_object_template,
+            **creation_kwargs
         )
         if not physics_obj:
-            raise RuntimeError(f"Failed to create object from template: {template.name}")
+            raise RuntimeError(f"Failed to create object from template: {self._current_object_template}")
+
+        log(self).info(f"Created physics object is_trigger: {physics_obj.collider.is_trigger}")
 
         scene_obj = SceneObject(
             name=template.name,

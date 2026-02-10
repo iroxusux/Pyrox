@@ -63,7 +63,7 @@ class Direction(Enum):
             return (speed, 0.0)
         elif self == Direction.WEST:
             return (-speed, 0.0)
-        return (0.0, 0.0)
+        raise ValueError(f"Invalid direction: {self}")
 
 
 class ConveyorBody(BasePhysicsBody):
@@ -250,11 +250,19 @@ class ConveyorBody(BasePhysicsBody):
         """Toggle the conveyor on/off."""
         self.is_active = not self.is_active
 
-    def activate(self) -> None:
+    def activate(
+        self,
+        *_,
+        **__
+    ) -> None:
         """Turn the conveyor on."""
         self.is_active = True
 
-    def deactivate(self) -> None:
+    def deactivate(
+        self,
+        *_,
+        **__,
+    ) -> None:
         """Turn the conveyor off."""
         self.is_active = False
 
@@ -296,10 +304,20 @@ class ConveyorBody(BasePhysicsBody):
         current_vx, current_vy = other.linear_velocity
 
         # Apply belt velocity while preserving perpendicular movement
-        # For top-down: add belt velocity to current velocity
+        # For top-down: set velocity along belt direction, preserve perpendicular
         # For side-view: replace horizontal, preserve vertical (falling)
         if self.is_trigger:  # Top-down mode
-            other.set_linear_velocity(current_vx + belt_vx, current_vy + belt_vy)
+            # Calculate the velocity component along the belt direction
+            # and perpendicular to it
+            if abs(belt_vx) > 0.01:  # Belt moving horizontally
+                # Set X to belt speed, preserve Y
+                other.set_linear_velocity(belt_vx, current_vy)
+            elif abs(belt_vy) > 0.01:  # Belt moving vertically
+                # Set Y to belt speed, preserve X
+                other.set_linear_velocity(current_vx, belt_vy)
+            else:
+                # Belt is stopped, don't change velocity
+                pass
         else:  # Side-scroller mode
             if abs(belt_vx) > 0:  # Moving horizontally
                 other.set_linear_velocity(belt_vx, current_vy)
@@ -356,7 +374,7 @@ class ConveyorBody(BasePhysicsBody):
 
         # Add conveyor-specific properties with metadata
         properties.update({
-            "direction": self.direction.__str__(),  # Show as string for editing
+            "direction": self.direction.value,  # Save as string for easier editing
             "belt_speed": self.belt_speed,
             "is_active": self.is_active,
         })

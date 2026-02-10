@@ -6,6 +6,8 @@ from typing import Any, Callable, Dict, Optional, Union
 from pyrox.interfaces import (
     IBasePhysicsBody,
     IConnectionRegistry,
+    INameable,
+    IDescribable,
     IScene,
     ISceneObject,
 )
@@ -23,11 +25,21 @@ from pyrox.models.physics.factory import PhysicsSceneFactory
 
 class SceneObject(
         ISceneObject,
-        Nameable,
-        Describable,
+        INameable,
+        IDescribable,
 ):
     """Base class for scene objects.
     """
+
+    def __getattribute__(self, name: str) -> Any:
+        # Override to allow dynamic properties from physics body
+        try:
+            return super().__getattribute__(name)
+        except AttributeError:
+            physics_body = super().__getattribute__("_physics_body")
+            if hasattr(physics_body, name):
+                return getattr(physics_body, name)
+            raise AttributeError(f"'{type(self).__name__}' object has no attribute '{name}'")
 
     def __init__(
         self,
@@ -58,6 +70,20 @@ class SceneObject(
         self._on_click_handlers: list[Callable] = []
         self._on_hover_handlers: list[Callable] = []
         self._clickable: bool = False  # Whether this object responds to clicks
+
+    # INamable methods
+    def get_name(self) -> str:
+        return self._physics_body.name
+
+    def set_name(self, name: str) -> None:
+        self._physics_body.name = name
+
+    # IDescribable methods
+    def get_description(self) -> str:
+        return self._description
+
+    def set_description(self, description: str) -> None:
+        self._description = description
 
     # Properties and serialization methods
     def get_property(self, name: str) -> Any:
@@ -90,10 +116,11 @@ class SceneObject(
             value (Any): The property value.
         """
         # Check to see if the property exists as an attribute of this object
-        if hasattr(self, name):
-            setattr(self, name, value)
-        elif hasattr(self.physics_body, name):
+        # We have to check physics body first to avoid setting a new property on the scene object when it actually belongs to the physics body
+        if hasattr(self.physics_body, name):
             setattr(self.physics_body, name, value)
+        elif hasattr(self, name):
+            setattr(self, name, value)
         self._properties[name] = value
 
     def set_properties(self, properties: Dict) -> None:

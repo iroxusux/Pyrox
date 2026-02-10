@@ -330,9 +330,9 @@ PhysicsSceneFactory.register_template(
             "height": 10.0,
             "collision_layer": CollisionLayer.SENSOR,
             "collision_mask": [
-                    CollisionLayer.DEFAULT,
-                    CollisionLayer.PLAYER,
-                    CollisionLayer.ENEMY,
+                CollisionLayer.DEFAULT,
+                CollisionLayer.PLAYER,
+                CollisionLayer.ENEMY,
             ],
         }
     )
