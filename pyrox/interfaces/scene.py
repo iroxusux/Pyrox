@@ -160,6 +160,46 @@ class ISceneObject(
         """
         ...
 
+    # ---------- Layer methods ----------
+
+    @abstractmethod
+    def get_layer(self) -> int:
+        """Get the layer of the scene object.
+
+        Returns:
+            int: The layer of the scene object.
+        """
+        ...
+
+    @abstractmethod
+    def set_layer(self, layer: int) -> None:
+        """Set the layer of the scene object.
+
+        Args:
+            layer (int): The layer to set for the scene object.
+        """
+        ...
+
+    @abstractmethod
+    def move_layer_up(self) -> None:
+        """Move the scene object up one layer."""
+        ...
+
+    @abstractmethod
+    def move_layer_down(self) -> None:
+        """Move the scene object down one layer."""
+        ...
+
+    @abstractmethod
+    def bring_to_front(self) -> None:
+        """Bring the scene object to the front layer."""
+        ...
+
+    @abstractmethod
+    def send_to_back(self) -> None:
+        """Send the scene object to the back layer."""
+        ...
+
     @classmethod
     @abstractmethod
     def from_dict(cls, data: dict) -> "ISceneObject":

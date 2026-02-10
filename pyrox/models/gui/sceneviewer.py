@@ -167,6 +167,9 @@ class SceneViewerFrame(TkinterTaskFrame):
         # Viewport state for panning and zooming
         self._viewport = SceneViewerViewPort()
         self._last_viewport = SceneViewerViewPort()
+        self._last_culling_viewport_x: float = 0.0
+        self._last_culling_viewport_y: float = 0.0
+        self._culling_threshold: int = 50  # Pixels movement before re-culling
 
         # Viewport services
         self._viewport_status_service = ViewportStatusService(
@@ -656,13 +659,16 @@ class SceneViewerFrame(TkinterTaskFrame):
 
         # Force canvas to process all pending operations (non-blocking)
         self._canvas.update_idletasks()
-        # TODO: Add rendering order/layering support
         # TODO: Add scene background rendering
 
     def render_scene_objects(self) -> None:
-        """Render all scene objects to the canvas with viewport culling."""
+        """Render all scene objects to the canvas with viewport culling and layer ordering."""
         if not self._scene:
             return
+
+        # Track viewport position for culling optimization
+        self._last_culling_viewport_x = self.viewport.x
+        self._last_culling_viewport_y = self.viewport.y
 
         # Get visible canvas bounds for culling
         canvas_width = self._canvas.winfo_width()
@@ -675,9 +681,16 @@ class SceneViewerFrame(TkinterTaskFrame):
         max_scene_x = (canvas_width - self.viewport.x + margin) / self.viewport.zoom
         max_scene_y = (canvas_height - self.viewport.y + margin) / self.viewport.zoom
 
+        # Sort objects by layer (z-order) before rendering
+        # Lower layer values render first (background), higher values render last (foreground)
+        sorted_objects = sorted(
+            self._scene.scene_objects.items(),
+            key=lambda item: item[1].get_layer()
+        )
+
         # Only render objects within or near viewport (viewport culling)
         rendered_count = 0
-        for obj_id, scene_obj in self._scene.scene_objects.items():
+        for obj_id, scene_obj in sorted_objects:
             # Check if object is in visible region
             if (scene_obj.x + scene_obj.width >= min_scene_x and
                     scene_obj.x <= max_scene_x and
@@ -896,13 +909,21 @@ class SceneViewerFrame(TkinterTaskFrame):
             dx = self.viewport.x - self.last_viewport.x
             dy = self.viewport.y - self.last_viewport.y
 
-            # Mark for re-render to update culling after zoom
+            # Always mark for re-render after zoom to update culling
+            # Zoom changes visible area significantly
             self._mark_dirty()
 
         # Apply pan transformation
         if dx != 0 or dy != 0:
             for item in all_items:
                 self._canvas.move(item, dx, dy)
+            
+            # Mark for re-render to update culling after significant pan
+            # Only trigger re-cull if viewport has moved beyond threshold since last cull
+            # This avoids excessive re-renders during small mouse movements
+            pan_distance = abs(self.viewport.x - self._last_culling_viewport_x) + abs(self.viewport.y - self._last_culling_viewport_y)
+            if pan_distance > self._culling_threshold:
+                self._mark_dirty()
 
         # Update viewport tracking
         self.last_viewport.update(self.viewport)
@@ -1158,6 +1179,37 @@ class SceneViewerFrame(TkinterTaskFrame):
             separator_before=True
         ))
 
+        # Layer ordering submenu
+        self._object_context_menu.add_item(MenuItem(
+            id="layer_up",
+            label="Move Layer Up",
+            command=self._context_layer_up,
+            accelerator="Ctrl+]",
+            icon="⬆️",
+            separator_before=True
+        ))
+        self._object_context_menu.add_item(MenuItem(
+            id="layer_down",
+            label="Move Layer Down",
+            command=self._context_layer_down,
+            accelerator="Ctrl+[",
+            icon="⬇️"
+        ))
+        self._object_context_menu.add_item(MenuItem(
+            id="bring_to_front",
+            label="Bring to Front",
+            command=self._context_bring_to_front,
+            accelerator="Ctrl+Shift+]",
+            icon="⏫"
+        ))
+        self._object_context_menu.add_item(MenuItem(
+            id="send_to_back",
+            label="Send to Back",
+            command=self._context_send_to_back,
+            accelerator="Ctrl+Shift+[",
+            icon="⏬"
+        ))
+
     # ==================== Event Binding ====================
 
     def _bind_events(self) -> None:
@@ -1183,6 +1235,12 @@ class SceneViewerFrame(TkinterTaskFrame):
 
         # Toggle entity names with Ctrl+L
         self._canvas.bind("<Control-l>", lambda e: self.toggle_entity_names())
+
+        # Layer ordering shortcuts
+        self._canvas.bind("<Control-bracketright>", lambda e: self._context_layer_up())  # Ctrl+]
+        self._canvas.bind("<Control-bracketleft>", lambda e: self._context_layer_down())  # Ctrl+[
+        self._canvas.bind("<Control-Shift-bracketright>", lambda e: self._context_bring_to_front())  # Ctrl+Shift+]
+        self._canvas.bind("<Control-Shift-bracketleft>", lambda e: self._context_send_to_back())  # Ctrl+Shift+[
 
         SceneEventBus.subscribe(
             SceneEventType.SCENE_LOADED,
@@ -1814,6 +1872,58 @@ class SceneViewerFrame(TkinterTaskFrame):
         self.reset_view()
         log(self).info("View reset to default")
 
+    def _context_layer_up(self) -> None:
+        """Move selected objects one layer up (toward foreground)."""
+        if not self._scene or not self._canvas_object_management_service.selected_objects:
+            return
+
+        for obj_id in self._canvas_object_management_service.selected_objects:
+            obj = self._scene.get_scene_object(obj_id)
+            if obj:
+                obj.move_layer_up()
+
+        self.render_scene()
+        log(self).info(f"Moved {len(self._canvas_object_management_service.selected_objects)} object(s) layer up")
+
+    def _context_layer_down(self) -> None:
+        """Move selected objects one layer down (toward background)."""
+        if not self._scene or not self._canvas_object_management_service.selected_objects:
+            return
+
+        for obj_id in self._canvas_object_management_service.selected_objects:
+            obj = self._scene.get_scene_object(obj_id)
+            if obj:
+                obj.move_layer_down()
+
+        self.render_scene()
+        log(self).info(f"Moved {len(self._canvas_object_management_service.selected_objects)} object(s) layer down")
+
+    def _context_bring_to_front(self) -> None:
+        """Bring selected objects to front (highest layer)."""
+        if not self._scene or not self._canvas_object_management_service.selected_objects:
+            return
+
+        for obj_id in self._canvas_object_management_service.selected_objects:
+            obj = self._scene.get_scene_object(obj_id)
+            if obj:
+                obj.bring_to_front()
+
+        self.render_scene()
+        log(self).info(f"Brought {len(self._canvas_object_management_service.selected_objects)} object(s) to front")
+
+    def _context_send_to_back(self) -> None:
+        """Send selected objects to back (lowest layer)."""
+        if not self._scene or not self._canvas_object_management_service.selected_objects:
+            return
+
+        for obj_id in self._canvas_object_management_service.selected_objects:
+            obj = self._scene.get_scene_object(obj_id)
+            if obj:
+                obj.send_to_back()
+
+        self.render_scene()
+        log(self).info(f"Sent {len(self._canvas_object_management_service.selected_objects)} object(s) to back")
+
     def _paste_object_data(self, obj_data: dict) -> Optional[ISceneObject]:
         """Helper to paste object data into scene.
 
@@ -1928,6 +2038,12 @@ class SceneViewerFrame(TkinterTaskFrame):
             property_name: Name of the property that changed
             new_value: New value for the property
         """
+        # If layer changed, need to re-render entire scene for correct z-order
+        if property_name == 'layer':
+            self.render_scene()
+            log(self).debug(f"Layer changed to {new_value}, re-rendering scene")
+            return
+
         # Only re-render the affected object(s), not the entire scene
         if self._canvas_object_management_service.selected_objects:
             for obj_id in self._canvas_object_management_service.selected_objects:

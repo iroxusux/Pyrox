@@ -37,6 +37,7 @@ class SceneObject(
         description: str = "",
         properties: Optional[Dict] = None,
         parent: Optional['SceneObject'] = None,
+        layer: int = 0,
     ):
         Nameable.__init__(self, name)
         Describable.__init__(self, description)
@@ -47,6 +48,11 @@ class SceneObject(
         # Parent-child hierarchy
         self._parent: Optional['SceneObject'] = parent
         self._children: Dict[str, 'SceneObject'] = {}
+
+        # Rendering layer (z-order)
+        # Lower values render first (background), higher values render last (foreground)
+        # Common layers: -100 (floor), 0 (default), 50 (conveyors), 100 (objects), 200 (UI)
+        self._layer: int = layer
 
         # Event handlers for interactive elements
         self._on_click_handlers: list[Callable] = []
@@ -127,6 +133,7 @@ class SceneObject(
             "id": self.id,
             "description": self._description,
             "properties": self.properties,
+            "layer": self._layer,
             "body": body,
             "material": body.get("material", {}) if isinstance(body, dict) else {},
         }
@@ -150,7 +157,8 @@ class SceneObject(
             scene_object_type=data["scene_object_type"],
             physics_body=body,
             description=data.get("description", ""),
-            properties=data.get("properties", {})
+            properties=data.get("properties", {}),
+            layer=data.get("layer", 0)
         )
 
         return obj
@@ -290,6 +298,49 @@ class SceneObject(
             self.y <= y <= self.y + self.height
         )
 
+    # Layer/z-order methods
+
+    def get_layer(self) -> int:
+        """Get the rendering layer (z-order) of this object.
+
+        Returns:
+            Layer number. Lower values render first (background),
+            higher values render last (foreground).
+        """
+        return self._layer
+
+    def set_layer(self, layer: int) -> None:
+        """Set the rendering layer (z-order) of this object.
+
+        Args:
+            layer: Layer number. Common values:
+                   -100: Floor/background
+                   0: Default
+                   50: Conveyors/platforms
+                   100: Objects/items
+                   200: Foreground/UI elements
+        """
+        self._layer = layer
+
+    def move_layer_up(self) -> None:
+        """Move this object one layer up (toward foreground)."""
+        self._layer += 1
+
+    def move_layer_down(self) -> None:
+        """Move this object one layer down (toward background)."""
+        self._layer -= 1
+
+    def bring_to_front(self) -> None:
+        """Bring this object to the front (highest layer)."""
+        # Scene will need to determine max layer if we want to be relative
+        # For now, use a large value
+        self._layer = 1000
+
+    def send_to_back(self) -> None:
+        """Send this object to the back (lowest layer)."""
+        # Use a very low value for back
+        self._layer = -1000
+
     def _compile_properties(self) -> None:
         """Compile properties for physics simulation."""
 
@@ -299,6 +350,7 @@ class SceneObject(
             "name": self.name,
             "description": self.description,
             "scene_object_type": self._scene_object_type,
+            "layer": self._layer,
         })
 
         # Physics body properties

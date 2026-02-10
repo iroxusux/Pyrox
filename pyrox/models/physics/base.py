@@ -217,6 +217,7 @@ class BasePhysicsBody(
             # Collider properties
             "collider_type": self.collider.collider_type.name,
             "collision_layer": self.collider.collision_layer.name,
+            "collsion_mask": [layer.name for layer in self.collider.collision_mask],
             "is_trigger": self.collider.is_trigger,
             # Material properties
             "density": self.material.density,
