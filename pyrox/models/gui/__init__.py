@@ -10,7 +10,7 @@ from .frame import (
 )
 from .logframe import LogFrame
 from .meta import ObjectEditField
-from .tk.propertypanel import TkPropertyPanel
+from .propertypanel import TkPropertyPanel
 from .pyroxguiobject import PyroxGuiObject
 from .sceneviewer import SceneViewerFrame
 from .theme import DefaultTheme

@@ -277,15 +277,15 @@ class PhysicsEngineService(IPhysicsEngine):
 
                 # 5. Apply linear damping (ground friction/rolling resistance)
                 # Reduces velocity by a fixed percentage per second
-                # Higher values = more friction (stops faster)
-                linear_damping = 0.50  # Retain 95% of velocity per second (5% loss)
+                # This simulates surface friction separate from air drag
+                linear_damping = self._environment.linear_damping
                 damping_factor = linear_damping ** dt  # Apply per timestep
                 vx *= damping_factor
                 vy *= damping_factor
 
                 # 6. Apply velocity threshold to prevent infinite asymptotic decay
                 # If velocity is very small, snap to zero (concrete-like stop)
-                velocity_threshold = 2.0  # Stop when slower than 2 units/s
+                velocity_threshold = self._environment.velocity_threshold
                 if abs(vx) < velocity_threshold:
                     vx = 0.0
                 if abs(vy) < velocity_threshold:
