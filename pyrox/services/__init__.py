@@ -28,6 +28,7 @@ from .gui import GuiManager
 # File imports
 from .file import (
     get_open_file,
+    get_save_file,
     PlatformDirectoryService
 )
 
@@ -114,6 +115,7 @@ __all__ = (
     'GuiManager',
     # File imports
     'get_open_file',
+    'get_save_file',
     'PlatformDirectoryService',
     # Process imports
     'execute_file_as_subprocess',
