@@ -430,6 +430,61 @@ class TestConnectionRegistry(unittest.TestCase):
         self.assertTrue(motor.stop_called)
         self.assertEqual(motor.speed, 0.0)
 
+    def test_unregister_object_removes_connections(self):
+        """Test that unregistering an object removes its connections."""
+        sensor = self.MockSensor("sensor_001")
+        motor = self.MockMotor("motor_001")
+
+        self.registry.register_object("sensor_001", sensor)
+        self.registry.register_object("motor_001", motor)
+
+        self.registry.connect(
+            "sensor_001", "on_activate_callbacks",
+            "motor_001", "start"
+        )
+
+        self.assertEqual(len(self.registry._connections), 1)
+
+        # Unregister sensor
+        self.registry.unregister_object("sensor_001")
+
+        self.assertEqual(len(self.registry._connections), 0)
+        self.assertNotIn("sensor_001", self.registry._objects)
+
+    def test_unregister_object_not_registered(self):
+        """Test that unregistering a non-registered object does not raise error."""
+        try:
+            self.registry.unregister_object("nonexistent")
+        except Exception as e:
+            self.fail(f"unregister_object raised an exception unexpectedly: {e}")
+
+    def test_unregister_object_removes_multiple_connections(self):
+        """Test that unregistering an object removes all its connections."""
+        sensor1 = self.MockSensor("sensor_001")
+        sensor2 = self.MockSensor("sensor_002")
+        motor = self.MockMotor("motor_001")
+
+        self.registry.register_object("sensor_001", sensor1)
+        self.registry.register_object("sensor_002", sensor2)
+        self.registry.register_object("motor_001", motor)
+
+        self.registry.connect(
+            "sensor_001", "on_activate_callbacks",
+            "motor_001", "start"
+        )
+        self.registry.connect(
+            "sensor_002", "on_deactivate_callbacks",
+            "motor_001", "stop"
+        )
+
+        self.assertEqual(len(self.registry._connections), 2)
+
+        # Unregister motor
+        self.registry.unregister_object("motor_001")
+
+        self.assertEqual(len(self.registry._connections), 0)
+        self.assertNotIn("motor_001", self.registry._objects)
+
 
 if __name__ == '__main__':
     unittest.main()

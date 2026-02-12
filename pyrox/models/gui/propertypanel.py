@@ -93,14 +93,38 @@ class TkPropertyPanel(ttk.Frame):
             side=tk.TOP, fill=tk.X, padx=5
         )
 
-        # Scrollable content area
-        self._content_frame = ttk.Frame(self)
-        self._content_frame.pack(side=tk.TOP, fill=tk.BOTH, expand=True, padx=10, pady=10)
+        # Scrollable content area with canvas and scrollbar
+        container_frame = ttk.Frame(self)
+        container_frame.pack(side=tk.TOP, fill=tk.BOTH, expand=True, padx=10, pady=10)
 
-        # TODO: Add scrollbar support for many properties
-        # self._canvas = tk.Canvas(self)
-        # self._scrollbar = ttk.Scrollbar(self, orient=tk.VERTICAL, command=self._canvas.yview)
-        # self._canvas.configure(yscrollcommand=self._scrollbar.set)
+        # Create canvas for scrolling
+        self._canvas = tk.Canvas(container_frame, highlightthickness=0)
+        self._canvas.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+
+        # Create vertical scrollbar
+        self._scrollbar = ttk.Scrollbar(
+            container_frame,
+            orient=tk.VERTICAL,
+            command=self._canvas.yview
+        )
+        self._scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+
+        # Configure canvas to use scrollbar
+        self._canvas.configure(yscrollcommand=self._scrollbar.set)
+
+        # Create frame inside canvas to hold properties
+        self._content_frame = ttk.Frame(self._canvas)
+        self._canvas_window = self._canvas.create_window(
+            (0, 0),
+            window=self._content_frame,
+            anchor=tk.NW
+        )
+
+        # Bind events for scrolling and resizing
+        self._content_frame.bind("<Configure>", self._on_frame_configure)
+        self._canvas.bind("<Configure>", self._on_canvas_configure)
+        self._canvas.bind("<Enter>", self._bind_mousewheel)
+        self._canvas.bind("<Leave>", self._unbind_mousewheel)
 
     def set_title(self, title: str) -> None:
         """Set the panel title.
@@ -211,6 +235,30 @@ class TkPropertyPanel(ttk.Frame):
                     var = self._bool_vars[prop_name]
                     if isinstance(new_value, bool) and var.get() != new_value:
                         var.set(new_value)
+            elif hasattr(self, '_list_widgets') and prop_name in self._list_widgets:
+                # Listbox widget - update the items
+                listbox = self._list_widgets[prop_name]
+                if isinstance(new_value, (list, tuple)):
+                    # Get current listbox items
+                    current_items = list(listbox.get(0, tk.END))
+                    new_items = [str(item) for item in new_value]
+
+                    # Only update if items have changed
+                    if current_items != new_items:
+                        # Save selection
+                        try:
+                            selection = listbox.curselection()
+                        except tk.TclError:
+                            selection = ()
+
+                        # Update listbox
+                        listbox.delete(0, tk.END)
+                        for item in new_items:
+                            listbox.insert(tk.END, item)
+
+                        # Restore selection if possible
+                        if selection and selection[0] < len(new_items):
+                            listbox.selection_set(selection[0])
 
     def _clear_properties(self) -> None:
         """Clear all property widgets from the panel."""
@@ -219,6 +267,8 @@ class TkPropertyPanel(ttk.Frame):
         self._property_widgets.clear()
         if hasattr(self, '_bool_vars'):
             self._bool_vars.clear()
+        if hasattr(self, '_list_widgets'):
+            self._list_widgets.clear()
 
     def _show_empty_state(self, message: str) -> None:
         """Show an empty state message.
@@ -281,7 +331,12 @@ class TkPropertyPanel(ttk.Frame):
             value,
             readonly
         )
-        value_widget.pack(side=tk.LEFT, fill=tk.X, expand=True)
+
+        # For lists, the widget is a container frame, not a simple widget
+        if isinstance(value, (list, tuple)):
+            value_widget.pack(side=tk.TOP, fill=tk.BOTH, expand=True, pady=5)
+        else:
+            value_widget.pack(side=tk.LEFT, fill=tk.X, expand=True)
 
         self._property_widgets[name] = value_widget
 
@@ -316,7 +371,10 @@ class TkPropertyPanel(ttk.Frame):
             )
         else:
             # Determine widget type based on value type
-            if isinstance(value, bool):
+            if isinstance(value, (list, tuple)):
+                # List/Tuple -> Listbox with add/remove buttons
+                widget = self._create_list_widget(parent, prop_name, value, readonly)
+            elif isinstance(value, bool):
                 # Boolean -> Checkbutton
                 var = tk.BooleanVar(value=value)
                 widget = ttk.Checkbutton(
@@ -369,6 +427,133 @@ class TkPropertyPanel(ttk.Frame):
 
         return widget
 
+    def _create_list_widget(
+        self,
+        parent: tk.Widget,
+        prop_name: str,
+        value: list | tuple,
+        readonly: bool
+    ) -> tk.Widget:
+        """Create a listbox widget for list/tuple properties.
+
+        Args:
+            parent: Parent widget
+            prop_name: Property name
+            value: List/tuple value
+            readonly: Whether the widget should be read-only
+
+        Returns:
+            Container frame with listbox and controls
+        """
+        # Create container frame
+        container = ttk.Frame(parent)
+
+        # Create listbox with scrollbar
+        list_frame = ttk.Frame(container)
+        list_frame.pack(side=tk.TOP, fill=tk.BOTH, expand=True)
+
+        scrollbar = ttk.Scrollbar(list_frame, orient=tk.VERTICAL)
+        scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+
+        listbox = tk.Listbox(
+            list_frame,
+            height=min(6, max(3, len(value))),  # Dynamic height based on items
+            yscrollcommand=scrollbar.set,
+            selectmode=tk.SINGLE if not readonly else tk.BROWSE
+        )
+        listbox.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        scrollbar.config(command=listbox.yview)
+
+        # Populate listbox
+        for item in value:
+            listbox.insert(tk.END, str(item))
+
+        # Store listbox reference for updates
+        if not hasattr(self, '_list_widgets'):
+            self._list_widgets: Dict[str, tk.Listbox] = {}
+        self._list_widgets[prop_name] = listbox
+
+        if not readonly:
+            # Button frame for add/remove controls
+            button_frame = ttk.Frame(container)
+            button_frame.pack(side=tk.TOP, fill=tk.X, pady=(5, 0))
+
+            # Entry for new items
+            entry = ttk.Entry(button_frame, width=15)
+            entry.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(0, 5))
+
+            # Add button
+            add_btn = ttk.Button(
+                button_frame,
+                text="+",
+                width=3,
+                command=lambda: self._on_list_add(prop_name, listbox, entry)
+            )
+            add_btn.pack(side=tk.LEFT, padx=2)
+
+            # Remove button
+            remove_btn = ttk.Button(
+                button_frame,
+                text="-",
+                width=3,
+                command=lambda: self._on_list_remove(prop_name, listbox)
+            )
+            remove_btn.pack(side=tk.LEFT, padx=2)
+
+            # Bind Enter key to add
+            entry.bind("<Return>", lambda e: self._on_list_add(prop_name, listbox, entry))
+
+        return container
+
+    def _on_list_add(self, prop_name: str, listbox: tk.Listbox, entry: ttk.Entry) -> None:
+        """Handle adding an item to a list property.
+
+        Args:
+            prop_name: Property name
+            listbox: The listbox widget
+            entry: The entry widget for new items
+        """
+        new_item = entry.get().strip()
+        if not new_item:
+            return
+
+        # Add to listbox
+        listbox.insert(tk.END, new_item)
+        entry.delete(0, tk.END)
+
+        # Update the property
+        self._update_list_property(prop_name, listbox)
+
+    def _on_list_remove(self, prop_name: str, listbox: tk.Listbox) -> None:
+        """Handle removing an item from a list property.
+
+        Args:
+            prop_name: Property name
+            listbox: The listbox widget
+        """
+        selection = listbox.curselection()
+        if not selection:
+            return
+
+        # Remove from listbox
+        listbox.delete(selection[0])
+
+        # Update the property
+        self._update_list_property(prop_name, listbox)
+
+    def _update_list_property(self, prop_name: str, listbox: tk.Listbox) -> None:
+        """Update the list property with current listbox values.
+
+        Args:
+            prop_name: Property name
+            listbox: The listbox widget
+        """
+        # Get all items from listbox
+        items = [listbox.get(i) for i in range(listbox.size())]
+
+        # Trigger value change
+        self._on_value_changed(prop_name, items)
+
     def _format_value(self, value: Any) -> str:
         """Format a property value for display.
 
@@ -387,11 +572,45 @@ class TkPropertyPanel(ttk.Frame):
         elif isinstance(value, str):
             return value
         elif isinstance(value, (list, tuple)):
+            if len(value) == 0:
+                return "[empty]"
             return f"[{len(value)} items]"
         elif isinstance(value, dict):
             return f"{{{len(value)} items}}"
         else:
             return str(value)
+
+    def _on_frame_configure(self, event=None) -> None:
+        """Update scroll region when frame size changes."""
+        self._canvas.configure(scrollregion=self._canvas.bbox("all"))
+
+    def _on_canvas_configure(self, event) -> None:
+        """Update canvas window width when canvas is resized."""
+        canvas_width = event.width
+        self._canvas.itemconfig(self._canvas_window, width=canvas_width)
+
+    def _bind_mousewheel(self, event=None) -> None:
+        """Bind mouse wheel events for scrolling."""
+        self._canvas.bind_all("<MouseWheel>", self._on_mousewheel)
+        # For Linux
+        self._canvas.bind_all("<Button-4>", self._on_mousewheel)
+        self._canvas.bind_all("<Button-5>", self._on_mousewheel)
+
+    def _unbind_mousewheel(self, event=None) -> None:
+        """Unbind mouse wheel events when leaving the canvas."""
+        self._canvas.unbind_all("<MouseWheel>")
+        # For Linux
+        self._canvas.unbind_all("<Button-4>")
+        self._canvas.unbind_all("<Button-5>")
+
+    def _on_mousewheel(self, event) -> None:
+        """Handle mouse wheel scrolling."""
+        if event.num == 5 or event.delta < 0:
+            # Scroll down
+            self._canvas.yview_scroll(1, "units")
+        elif event.num == 4 or event.delta > 0:
+            # Scroll up
+            self._canvas.yview_scroll(-1, "units")
 
     def _on_entry_changed(
         self,
@@ -465,6 +684,10 @@ class TkPropertyPanel(ttk.Frame):
             return None
         elif isinstance(widget, ttk.Label):
             return widget.cget("text")
+        elif hasattr(self, '_list_widgets') and prop_name in self._list_widgets:
+            # Get list values from listbox
+            listbox = self._list_widgets[prop_name]
+            return [listbox.get(i) for i in range(listbox.size())]
 
         return None
 

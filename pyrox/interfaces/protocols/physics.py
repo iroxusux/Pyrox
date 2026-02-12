@@ -56,6 +56,7 @@ class CollisionLayer(Enum):
     PLAYER = auto()
     ENEMY = auto()
     PROJECTILE = auto()
+    SENSOR = auto()       # For invisible triggers and sensors
     TERRAIN = auto()
     TRIGGER = auto()      # Overlap detection only, no physics response
     TRANSPARENT = auto()  # Visual only, no collision
@@ -69,6 +70,7 @@ class CollisionLayer(Enum):
             'PLAYER': cls.PLAYER,
             'ENEMY': cls.ENEMY,
             'PROJECTILE': cls.PROJECTILE,
+            'SENSOR': cls.SENSOR,
             'TERRAIN': cls.TERRAIN,
             'TRIGGER': cls.TRIGGER,
             'TRANSPARENT': cls.TRANSPARENT,

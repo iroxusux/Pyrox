@@ -77,7 +77,7 @@ class EnvironmentService:
         'top_down': EnvironmentPreset(
             name='Top-Down (2D)',
             gravity=(0.0, 0.0),     # No gravity for top-down games
-            air_density=2.0,        # Higher drag for more friction-like movement
+            air_density=0.5,        # Low air drag (not the main slowdown mechanism)
             default_friction=0.7,
             default_restitution=0.2,
             description='Top-down game with friction'
@@ -117,6 +117,9 @@ class EnvironmentService:
         self._terminal_velocity = 200.0  # m/s - prevents objects from falling infinitely fast
         self._sleep_threshold = 0.01     # m/s - objects slower than this may sleep
         self._collision_iterations = 8    # Number of constraint solver iterations
+        self._linear_damping = 0.90      # Per-second velocity retention (0.90 = 10% loss/sec)
+        # Simulates ground/surface friction in top-down games
+        self._velocity_threshold = 2.0   # Velocity below this snaps to zero (units/s)
 
     @property
     def gravity(self) -> Tuple[float, float]:
@@ -199,6 +202,39 @@ class EnvironmentService:
         if value < 1:
             raise ValueError("Must have at least 1 collision iteration")
         self._collision_iterations = value
+
+    @property
+    def linear_damping(self) -> float:
+        """Get linear damping coefficient (ground friction).
+
+        This represents velocity retention per second, separate from air drag.
+        1.0 = no damping, 0.0 = instant stop.
+        Common values:
+        - 0.95-0.98: Ice/low friction
+        - 0.85-0.90: Normal ground
+        - 0.70-0.80: High friction/mud
+        """
+        return self._linear_damping
+
+    @linear_damping.setter
+    def linear_damping(self, value: float) -> None:
+        """Set linear damping coefficient."""
+        if not 0.0 <= value <= 1.0:
+            raise ValueError("Linear damping must be between 0.0 and 1.0")
+        self._linear_damping = value
+
+    @property
+    def velocity_threshold(self) -> float:
+        """Get velocity threshold for snapping to zero (units/s)."""
+        return self._velocity_threshold
+
+    @velocity_threshold.setter
+    def velocity_threshold(self, value: float) -> None:
+        """Set velocity threshold."""
+        if value < 0:
+            raise ValueError("Velocity threshold must be non-negative")
+        self._velocity_threshold = value
+        self._collision_iterations = int(value)
 
     def apply_drag_force(self, velocity: Tuple[float, float], drag_coefficient: float, area: float) -> Tuple[float, float]:
         """Calculate drag force based on velocity.

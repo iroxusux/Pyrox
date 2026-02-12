@@ -1,48 +1,38 @@
 """ file tasks
 """
-import importlib
 import sys
-from pyrox import interfaces
-from pyrox import models
-from pyrox import services
+from pyrox.services import (
+    EnvironmentService,
+    SceneRunnerService,
+)
+from pyrox.models import (
+    ApplicationTask
+)
+from pyrox.models.gui import SceneViewerFrame
 
 
-class ExampleTask(models.ApplicationTask):
+class ExampleTask(ApplicationTask):
 
     def _open_scene_viewer(self) -> None:
         """Open the Scene Viewer frame."""
-        # Reload modules to ensure the latest changes are reflected
-        importlib.reload(interfaces)
-        importlib.reload(models)
-        importlib.reload(services)
 
-        # Create Scene
-        s = models.scene.Scene()
-
-        # Create EnvironmentService
-        environment = services.EnvironmentService(preset='top_down')
-
-        # Create SceneRunnerService
-        runner = services.SceneRunnerService(
+        # Initialize SceneRunnerService
+        SceneRunnerService.initialize(
             app=self.application,
-            scene=s,
-            environment=environment,
+            environment=EnvironmentService(preset='top_down'),
             enable_physics=True
         )
 
         # Create and register SceneViewerFrame
-        scene_viewer = models.gui.sceneviewer.SceneViewerFrame(
+        scene_viewer = SceneViewerFrame(
             parent=self.application.workspace.workspace_area.root,  # type: ignore
-            scene=s,
-            runner=runner,
+            runner=SceneRunnerService
         )
+
         self.application.workspace.register_frame(scene_viewer)
-        scene_viewer.on_destroy().append(lambda *_, **__: runner.stop())
-
-        # Register runner callback to update scene viewer
-        runner.on_tick_callbacks.append(scene_viewer.render_scene)
-
-        runner.run()
+        scene_viewer.on_destroy().append(lambda *_, **__: SceneRunnerService.stop())
+        SceneRunnerService.new_scene()
+        SceneRunnerService.run()
 
     def inject(self) -> None:
         self.file_menu.add_item(

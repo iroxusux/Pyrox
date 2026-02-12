@@ -15,9 +15,9 @@ from pyrox.interfaces import (
     INameable,
     IConnectable,
     IDescribable,
-    IRunnable,
     IBasePhysicsBody,
     IPhysicsBody2D,
+    IConnectionRegistry
 )
 
 
@@ -158,6 +158,46 @@ class ISceneObject(
         Args:
             physics_body (Optional[BasePhysicsBody]): The physics body to set, or None.
         """
+        ...
+
+    # ---------- Layer methods ----------
+
+    @abstractmethod
+    def get_layer(self) -> int:
+        """Get the layer of the scene object.
+
+        Returns:
+            int: The layer of the scene object.
+        """
+        ...
+
+    @abstractmethod
+    def set_layer(self, layer: int) -> None:
+        """Set the layer of the scene object.
+
+        Args:
+            layer (int): The layer to set for the scene object.
+        """
+        ...
+
+    @abstractmethod
+    def move_layer_up(self) -> None:
+        """Move the scene object up one layer."""
+        ...
+
+    @abstractmethod
+    def move_layer_down(self) -> None:
+        """Move the scene object down one layer."""
+        ...
+
+    @abstractmethod
+    def bring_to_front(self) -> None:
+        """Bring the scene object to the front layer."""
+        ...
+
+    @abstractmethod
+    def send_to_back(self) -> None:
+        """Send the scene object to the back layer."""
         ...
 
     @classmethod
@@ -355,6 +395,16 @@ class IScene:
         """
         return self.get_on_scene_object_removed()
 
+    @property
+    def on_scene_updated(self) -> list[Callable]:
+        """
+        Get the callback for when the scene is updated.
+
+        Returns:
+            Callable or None: The callback function or None if not set.
+        """
+        return self.get_on_scene_updated()
+
     @abstractmethod
     def get_name(self) -> str:
         """Get the name of the scene."""
@@ -467,6 +517,37 @@ class IScene:
         ...
 
     @abstractmethod
+    def get_connection_registry(self) -> "IConnectionRegistry":
+        """Get the connection registry for the scene.
+
+        Returns:
+            IConnectionRegistry: The connection registry instance.
+        """
+        ...
+
+    @abstractmethod
+    def set_connection_registry(
+        self,
+        registry: "IConnectionRegistry"
+    ) -> None:
+        """Set the connection registry for the scene.
+
+        Args:
+            registry (IConnectionRegistry): The connection registry instance.
+        """
+        ...
+
+    @abstractmethod
+    def get_on_scene_updated(self) -> list[Callable]:
+        """
+        Get the list of callbacks for when the scene is updated.
+
+        Returns:
+            list[Callable]: The list of callback functions.
+        """
+        ...
+
+    @abstractmethod
     def update(self, delta_time: float) -> None:
         """
         Update all scene_objects in the scene.
@@ -526,14 +607,14 @@ class IScene:
 
 
 class ISceneRunnerService(
-    IRunnable,
     Protocol
 ):
     """ Service interface for running and managing scenes.
     """
 
+    @classmethod
     @abstractmethod
-    def get_scene(self) -> IScene:
+    def get_scene(cls) -> Optional[IScene]:
         """Get the scene being managed.
 
         Returns:
@@ -541,8 +622,9 @@ class ISceneRunnerService(
         """
         ...
 
+    @classmethod
     @abstractmethod
-    def set_scene(self, scene: IScene) -> None:
+    def set_scene(cls, scene: Optional[IScene]) -> None:
         """Set the scene to be managed.
 
         Args:
@@ -550,8 +632,9 @@ class ISceneRunnerService(
         """
         ...
 
+    @classmethod
     @abstractmethod
-    def load_scene(self, filepath: Union[str, Path]) -> None:
+    def load_scene(cls, filepath: Union[str, Path]) -> None:
         """Load a scene from a file.
 
         Args:
@@ -559,8 +642,9 @@ class ISceneRunnerService(
         """
         ...
 
+    @classmethod
     @abstractmethod
-    def save_scene(self, filepath: Union[str, Path]) -> None:
+    def save_scene(cls, filepath: Union[str, Path]) -> None:
         """Save the current scene to a file.
 
         Args:
@@ -568,8 +652,9 @@ class ISceneRunnerService(
         """
         ...
 
+    @classmethod
     @abstractmethod
-    def get_physics_engine(self) -> Optional[object]:
+    def get_physics_engine(cls) -> Optional[object]:
         """Get the physics engine being used.
 
         Returns:
@@ -577,8 +662,9 @@ class ISceneRunnerService(
         """
         ...
 
+    @classmethod
     @abstractmethod
-    def set_physics_engine(self, physics_engine) -> None:
+    def set_physics_engine(cls, physics_engine) -> None:
         """Set the physics engine to be used.
 
         Args:
@@ -586,8 +672,9 @@ class ISceneRunnerService(
         """
         ...
 
+    @classmethod
     @abstractmethod
-    def get_environment(self) -> Optional[object]:
+    def get_environment(cls) -> Optional[object]:
         """Get the environment service being used.
 
         Returns:
@@ -595,8 +682,9 @@ class ISceneRunnerService(
         """
         ...
 
+    @classmethod
     @abstractmethod
-    def set_environment(self, environment: object) -> None:
+    def set_environment(cls, environment: object) -> None:
         """Set the environment service to be used.
 
         Args:
@@ -604,8 +692,9 @@ class ISceneRunnerService(
         """
         ...
 
+    @classmethod
     @abstractmethod
-    def set_update_rate(self, fps: float) -> None:
+    def set_update_rate(cls, fps: float) -> None:
         """Set the update rate for the scene runner.
 
         Args:
@@ -613,8 +702,9 @@ class ISceneRunnerService(
         """
         ...
 
+    @classmethod
     @abstractmethod
-    def get_update_rate(self) -> float:
+    def get_update_rate(cls) -> float:
         """Get the current update rate for the scene runner.
 
         Returns:
@@ -622,8 +712,9 @@ class ISceneRunnerService(
         """
         ...
 
+    @classmethod
     @abstractmethod
-    def add_physics_body(self, body: Union[IBasePhysicsBody, IPhysicsBody2D]) -> None:
+    def add_physics_body(cls, body: Union[IBasePhysicsBody, IPhysicsBody2D]) -> None:
         """Add a physics body to the simulation.
 
         Args:
@@ -631,8 +722,9 @@ class ISceneRunnerService(
         """
         ...
 
+    @classmethod
     @abstractmethod
-    def remove_physics_body(self, body: IBasePhysicsBody) -> None:
+    def remove_physics_body(cls, body: IBasePhysicsBody) -> None:
         """Remove a physics body from the simulation.
 
         Args:
@@ -640,75 +732,15 @@ class ISceneRunnerService(
         """
         ...
 
+    @classmethod
     @abstractmethod
-    def get_physics_stats(self) -> dict:
+    def get_physics_stats(cls) -> dict:
         """Get physics engine statistics.
 
         Returns:
             Dictionary with physics stats, or empty dict if physics disabled
         """
         ...
-
-    def get_on_tick_callbacks(self) -> list[Callable]:
-        """Get the list of on-tick callback functions.
-
-        Returns:
-            List of callback functions called on each tick
-        """
-        ...
-
-    def get_on_scene_load_callbacks(self) -> list[Callable]:
-        """Get the list of on-scene-load callback functions.
-
-        Returns:
-            List of callback functions called on scene load
-        """
-        ...
-
-    @property
-    def on_tick_callbacks(self) -> list[Callable]:
-        """Get the list of on-tick callback functions.
-
-        Returns:
-            List of callback functions called on each tick
-        """
-        return self.get_on_tick_callbacks()
-
-    @property
-    def on_scene_load_callbacks(self) -> list[Callable]:
-        """Get the list of on-scene-load callback functions.
-
-        Returns:
-            List of callback functions called on scene load
-        """
-        return self.get_on_scene_load_callbacks()
-
-    @property
-    def scene(self) -> IScene:
-        """Get the scene being managed.
-
-        Returns:
-            IScene: The scene instance.
-        """
-        return self.get_scene()
-
-    @property
-    def physics_engine(self) -> Optional[object]:
-        """Get the physics engine being used.
-
-        Returns:
-            The physics engine instance, or None if physics is disabled.
-        """
-        return self.get_physics_engine()
-
-    @property
-    def environment(self) -> Optional[object]:
-        """Get the environment service being used.
-
-        Returns:
-            The environment service instance, or None if physics is disabled.
-        """
-        return self.get_environment()
 
 
 __all__ = ["IScene", "ISceneObject", "ISceneObjectFactory"]

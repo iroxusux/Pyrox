@@ -3,7 +3,8 @@
 Provides a static or kinematic conveyor belt that moves objects
 placed on top of it in a specified direction and speed.
 """
-from typing import Callable, List, Set
+from enum import Enum
+from typing import Any, Callable, List, Set
 from pyrox.interfaces.protocols.physics import (
     BodyType,
     ColliderType,
@@ -15,6 +16,56 @@ from pyrox.models.protocols.physics import Material
 from .factory import PhysicsSceneTemplate, PhysicsSceneFactory
 
 
+class Direction(Enum):
+    """Cardinal directions for conveyor movement.
+
+    Attributes:
+        NORTH: Upward movement (negative Y)
+        SOUTH: Downward movement (positive Y)
+        EAST: Rightward movement (positive X)
+        WEST: Leftward movement (negative X)
+    """
+    NORTH = "north"
+    SOUTH = "south"
+    EAST = "east"
+    WEST = "west"
+
+    @classmethod
+    def from_str(cls, value: str) -> 'Direction':
+        """Create Direction from string.
+
+        Args:
+            value: String representation (case-insensitive)
+
+        Returns:
+            Direction enum value
+        """
+        value_lower = value.lower()
+        for direction in cls:
+            if direction.value == value_lower:
+                return direction
+        raise ValueError(f"Invalid direction: {value}")
+
+    def get_velocity_vector(self, speed: float) -> tuple[float, float]:
+        """Get velocity vector for this direction.
+
+        Args:
+            speed: Speed magnitude
+
+        Returns:
+            Tuple of (vx, vy)
+        """
+        if self == Direction.NORTH:
+            return (0.0, -speed)
+        elif self == Direction.SOUTH:
+            return (0.0, speed)
+        elif self == Direction.EAST:
+            return (speed, 0.0)
+        elif self == Direction.WEST:
+            return (-speed, 0.0)
+        raise ValueError(f"Invalid direction: {self}")
+
+
 class ConveyorBody(BasePhysicsBody):
     """Conveyor belt that moves objects on top of it.
 
@@ -24,21 +75,22 @@ class ConveyorBody(BasePhysicsBody):
     Attributes:
         belt_velocity: (vx, vy) velocity applied to objects on the belt
         is_active: Whether the conveyor is currently running
-        direction: Direction the belt moves (1.0 = right, -1.0 = left for X)
-        speed: Speed of the belt in units/second
+        direction: Cardinal direction the belt moves (NORTH, SOUTH, EAST, WEST)
+        belt_speed: Speed of the belt in units/second
     """
 
     def __init__(
         self,
         name: str = "Conveyor",
+        id: str = "",
+        template_name: str = "Conveyor Belt",
         x: float = 0.0,
         y: float = 0.0,
         width: float = 100.0,
         height: float = 20.0,
-        direction: float = 1.0,  # 1.0 = right, -1.0 = left
+        direction: Direction | str = Direction.EAST,
         belt_speed: float = 50.0,  # units per second
         is_active: bool = True,
-        x_axis: bool = True,
         body_type: BodyType = BodyType.STATIC,
         collision_layer: CollisionLayer = CollisionLayer.TERRAIN,
         collision_mask: List[CollisionLayer] | None = None,
@@ -55,8 +107,8 @@ class ConveyorBody(BasePhysicsBody):
             y: Y position
             width: Width of the conveyor belt
             height: Height of the conveyor belt
-            direction: Direction multiplier (1.0 = right/up, -1.0 = left/down)
-            speed: Speed of the belt in units/second
+            direction: Direction of belt movement (NORTH, SOUTH, EAST, WEST)
+            belt_speed: Speed of the belt in units/second
             is_active: Whether the conveyor starts active
             body_type: Usually STATIC or KINEMATIC
             collision_layer: Collision layer
@@ -83,6 +135,8 @@ class ConveyorBody(BasePhysicsBody):
         BasePhysicsBody.__init__(
             self=self,
             name=name,
+            id=id,
+            template_name=template_name,
             tags=["conveyor", "platform"],
             body_type=body_type,
             enabled=True,
@@ -99,10 +153,14 @@ class ConveyorBody(BasePhysicsBody):
             material=material,
         )
 
-        self.direction = direction
+        # Convert string to Direction enum if needed
+        if isinstance(direction, str):
+            self._direction = Direction.from_str(direction)
+        else:
+            self._direction = direction
+
         self.belt_speed = belt_speed
         self.is_active = is_active
-        self._is_x_axis = x_axis
         self._objects_on_belt: Set[IPhysicsBody2D] = set()
 
     @property
@@ -114,61 +172,99 @@ class ConveyorBody(BasePhysicsBody):
         """
         if not self.is_active:
             return (0.0, 0.0)
-        if self._is_x_axis:
-            return (self.direction * self.belt_speed, 0.0)
+        return self._direction.get_velocity_vector(self.belt_speed)
+
+    @belt_velocity.setter
+    def belt_velocity(self, velocity: tuple[float, float]) -> None:
+        """Set the belt velocity vector.
+
+        This will update the direction and speed based on the provided velocity.
+
+        Args:
+            velocity: (vx, vy) velocity tuple
+        """
+        vx, vy = velocity
+        if vx > 0:
+            self._direction = Direction.EAST
+            self.belt_speed = vx
+        elif vx < 0:
+            self._direction = Direction.WEST
+            self.belt_speed = -vx
+        elif vy > 0:
+            self._direction = Direction.SOUTH
+            self.belt_speed = vy
+        elif vy < 0:
+            self._direction = Direction.NORTH
+            self.belt_speed = -vy
         else:
-            return (0.0, self.direction * self.belt_speed)
+            # No movement, keep current direction but set speed to 0
+            self.belt_speed = 0.0
 
     @property
-    def is_x_axis(self) -> bool:
-        """Check if the conveyor moves along the X axis.
+    def direction(self) -> Direction:
+        """Get the belt direction.
 
         Returns:
-            True if X axis, False if Y axis
+            Direction enum value
         """
-        return self._is_x_axis
+        return self._direction
 
-    def set_direction(self, direction: float) -> None:
+    @direction.setter
+    def direction(self, direction: Direction | str) -> None:
         """Set the belt direction.
 
         Args:
-            direction: 1.0 for right/forward, -1.0 for left/backward
+            direction: Direction enum or string ("north", "south", "east", "west")
         """
-        self.direction = 1.0 if direction >= 0 else -1.0
+        if isinstance(direction, str):
+            self._direction = Direction.from_str(direction)
+        else:
+            self._direction = direction
+
+    def get_direction(self) -> str:
+        """Get the belt direction as a string.
+
+        Returns:
+            Direction name (north, south, east, west)
+        """
+        return self._direction.value
+
+    def set_direction(self, direction: Direction | str) -> None:
+        """Set the belt direction.
+
+        Args:
+            direction: Direction enum or string ("north", "south", "east", "west")
+        """
+        if isinstance(direction, str):
+            self._direction = Direction.from_str(direction)
+        else:
+            self._direction = direction
 
     def set_belt_speed(self, belt_speed: float) -> None:
         """Set the belt speed.
 
         Args:
-            speed: Speed in units/second (always positive)
+            belt_speed: Speed in units/second (always positive)
         """
         self.belt_speed = abs(belt_speed)
-
-    def get_is_x_axis(self) -> bool:
-        """Check if the conveyor moves along the X axis.
-
-        Returns:
-            True if X axis, False if Y axis
-        """
-        return self._is_x_axis
-
-    def set_is_x_axis(self, x_axis: bool) -> None:
-        """Set whether the conveyor moves along the X axis.
-
-        Args:
-            x_axis: True for X axis, False for Y axis
-        """
-        self._is_x_axis = x_axis
 
     def toggle(self) -> None:
         """Toggle the conveyor on/off."""
         self.is_active = not self.is_active
 
-    def activate(self) -> None:
+    def activate(
+        self,
+        *_,
+        **__
+    ) -> None:
         """Turn the conveyor on."""
         self.is_active = True
 
-    def deactivate(self) -> None:
+    def deactivate(
+        self,
+        *_,
+        **__,
+    ) -> None:
         """Turn the conveyor off."""
         self.is_active = False
 
@@ -209,9 +305,26 @@ class ConveyorBody(BasePhysicsBody):
         belt_vx, belt_vy = self.belt_velocity
         current_vx, current_vy = other.linear_velocity
 
-        # Override X velocity with belt velocity, preserve Y velocity
-        # This allows objects to fall naturally while being carried
-        other.set_linear_velocity(belt_vx, current_vy)
+        # Apply belt velocity while preserving perpendicular movement
+        # For top-down: set velocity along belt direction, preserve perpendicular
+        # For side-view: replace horizontal, preserve vertical (falling)
+        if self.is_trigger:  # Top-down mode
+            # Calculate the velocity component along the belt direction
+            # and perpendicular to it
+            if abs(belt_vx) > 0.01:  # Belt moving horizontally
+                # Set X to belt speed, preserve Y
+                other.set_linear_velocity(belt_vx, current_vy)
+            elif abs(belt_vy) > 0.01:  # Belt moving vertically
+                # Set Y to belt speed, preserve X
+                other.set_linear_velocity(current_vx, belt_vy)
+            else:
+                # Belt is stopped, don't change velocity
+                pass
+        else:  # Side-scroller mode
+            if abs(belt_vx) > 0:  # Moving horizontally
+                other.set_linear_velocity(belt_vx, current_vy)
+            else:  # Moving vertically
+                other.set_linear_velocity(current_vx, belt_vy)
 
     def on_collision_exit(self, other: IPhysicsBody2D) -> None:
         """Called when an object stops colliding with the conveyor.
@@ -250,13 +363,102 @@ class ConveyorBody(BasePhysicsBody):
             "toggle": self.toggle,
             "set_direction": self.set_direction,
             "set_belt_speed": self.set_belt_speed,
-            "set_is_x_axis": self.set_is_x_axis,
         }
+
+    def get_properties(self) -> dict[str, Any]:
+        """Get properties that can be edited in the properties panel.
+
+        Returns:
+            Dictionary mapping property names to their metadata
+        """
+        # Get base properties from parent
+        properties = super().get_properties()
+
+        # Add conveyor-specific properties with metadata
+        properties.update({
+            "direction": self.direction.value,  # Save as string for easier editing
+            "belt_speed": self.belt_speed,
+            "is_active": self.is_active,
+        })
+
+        return properties
+
+    @classmethod
+    def from_dict(cls, data: dict) -> 'ConveyorBody':
+        """Create a ConveyorBody from a dictionary representation.
+
+        Args:
+            data: Dictionary with body properties
+        Returns:
+            Instance of ConveyorBody
+        """
+        # Handle direction field - it might be stored as string
+        direction = data.get('direction', 'east')
+        if isinstance(direction, str):
+            direction = Direction.from_str(direction)
+
+        return cls(
+            name=data.get('name', 'Conveyor'),
+            id=data.get('id', ''),
+            template_name=data.get('template_name', 'Conveyor Belt'),
+            tags=data.get('tags', ['conveyor', 'platform']),
+            body_type=BodyType.from_str(data.get('body_type', 'STATIC')),
+            enabled=data.get('enabled', True),
+            sleeping=data.get('sleeping', False),
+            mass=data.get('mass', 0.0),
+            moment_of_inertia=data.get('moment_of_inertia', 1.0),
+            velocity_x=data.get('velocity_x', 0.0),
+            velocity_y=data.get('velocity_y', 0.0),
+            acceleration_x=data.get('acceleration_x', 0.0),
+            acceleration_y=data.get('acceleration_y', 0.0),
+            angular_velocity=data.get('angular_velocity', 0.0),
+            collider_type=ColliderType.from_str(data.get('collider_type', 'RECTANGLE')),
+            collision_layer=CollisionLayer.from_str(data.get('collision_layer', 'TERRAIN')),
+            collision_mask=[
+                CollisionLayer.from_str(layer) for layer in data.get('collision_mask', [])
+            ] if data.get('collision_mask') else None,
+            is_trigger=data.get('is_trigger', False),
+            x=data.get('x', 0.0),
+            y=data.get('y', 0.0),
+            width=data.get('width', 100.0),
+            height=data.get('height', 20.0),
+            roll=data.get('roll', 0.0),
+            pitch=data.get('pitch', 0.0),
+            yaw=data.get('yaw', 0.0),
+            direction=direction,
+            belt_speed=data.get('belt_speed', 50.0),
+            is_active=data.get('is_active', True),
+            material=Material.from_dict(data['material']) if data.get('material') else None,
+        )
+
+    def to_dict(self) -> dict:
+        """Convert conveyor to dictionary for serialization.
+
+        Returns:
+            Dictionary representation
+        """
+        # Get base body dict
+        base_dict = super().to_dict()
+
+        # Add conveyor-specific fields
+        base_dict.update({
+            "direction": self._direction.value,  # Save as string
+            "belt_speed": self.belt_speed,
+            "is_active": self.is_active,
+        })
+
+        return base_dict
 
     def __repr__(self) -> str:
         """String representation."""
         state = "ACTIVE" if self.is_active else "INACTIVE"
-        dir_str = "→" if self.direction > 0 else "←"
+        dir_symbols = {
+            Direction.NORTH: "↑",
+            Direction.SOUTH: "↓",
+            Direction.EAST: "→",
+            Direction.WEST: "←",
+        }
+        dir_str = dir_symbols.get(self._direction, "?")
         return (f"<ConveyorBody '{self.name}' {state} "
                 f"{dir_str} {self.belt_speed:.1f}u/s "
                 f"pos=({self.x:.1f}, {self.y:.1f}) "
@@ -271,10 +473,9 @@ PhysicsSceneFactory.register_template(
         name="Conveyor Belt",
         body_class=ConveyorBody,
         default_kwargs={
-            "name": "Conveyor",
             "width": 200.0,
             "height": 20.0,
-            "direction": 1.0,
+            "direction": Direction.EAST,
             "belt_speed": 50.0,
             "is_active": True,
             "body_type": BodyType.STATIC,
@@ -293,10 +494,9 @@ PhysicsSceneFactory.register_template(
         name="Top-Down Conveyor Belt",
         body_class=ConveyorBody,
         default_kwargs={
-            "name": "Top-Down Conveyor",
             "width": 200.0,
             "height": 20.0,
-            "direction": 1.0,
+            "direction": Direction.NORTH,
             "belt_speed": 50.0,
             "is_active": True,
             "body_type": BodyType.STATIC,
@@ -309,6 +509,6 @@ PhysicsSceneFactory.register_template(
             "is_trigger": True,
         },
         category="Platforms",
-        description="A top-down conveyor belt that moves objects along the Y axis.",
+        description="A top-down conveyor belt that moves objects in cardinal directions.",
     )
 )

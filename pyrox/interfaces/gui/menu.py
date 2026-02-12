@@ -188,6 +188,24 @@ class IGuiMenu(IGuiComponent):
         """
         raise NotImplementedError("remove_item method must be implemented by subclass.")
 
+    @abstractmethod
+    def enable_item(self, index: Union[int, str]) -> None:
+        """Enable a menu item.
+
+        Args:
+            index: The index of the item to enable.
+        """
+        raise NotImplementedError("enable_item method must be implemented by subclass.")
+
+    @abstractmethod
+    def disable_item(self, index: Union[int, str]) -> None:
+        """Disable a menu item.
+
+        Args:
+            index: The index of the item to disable.
+        """
+        raise NotImplementedError("disable_item method must be implemented by subclass.")
+
 
 class IApplicationGuiMenu(IGuiMenu):
     """Interface for application-level menus.

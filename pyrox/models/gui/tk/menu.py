@@ -161,6 +161,15 @@ class TkinterMenu(IGuiMenu, TkinterGuiWidget):
             **kwargs
         )
 
+    def get_submenu(self, index: Union[int, str]) -> Optional[IGuiMenu]:
+        try:
+            submenu = self.menu.entrycget(index, 'menu')
+            if submenu:
+                return submenu
+        except Exception:
+            pass
+        return None
+
     def clear(self) -> None:
         self.menu.delete(0, 'end')
 
@@ -173,6 +182,28 @@ class TkinterMenu(IGuiMenu, TkinterGuiWidget):
     def destroy(self) -> None:
         self.menu.destroy()
         self._menu = None
+
+    def enable_item(self, index: Union[int, str]) -> None:
+        try:
+            # Get the item type first to check if it supports state
+            item_type = self.menu.type(index)
+            # Only set state if the item type supports it (not separator)
+            if item_type != 'separator':
+                self.menu.entryconfig(index, state='normal')
+        except Exception:
+            # Silently ignore if the item doesn't exist or doesn't support state
+            pass
+
+    def disable_item(self, index: Union[int, str]) -> None:
+        try:
+            # Get the item type first to check if it supports state
+            item_type = self.menu.type(index)
+            # Only set state if the item type supports it (not separator)
+            if item_type != 'separator':
+                self.menu.entryconfig(index, state='disabled')
+        except Exception:
+            # Silently ignore if the item doesn't exist or doesn't support state
+            pass
 
     def get_items(self) -> list[Any]:
         items = []

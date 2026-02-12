@@ -78,6 +78,9 @@ from .protocols import (
     # Connectable protocols
     IConnectable,
     Connection,
+
+    # GUI protocols
+    IHasCanvas,
 )
 
 # Physics interfaces
@@ -127,6 +130,11 @@ from .gui import (
     IGuiWindow,
     IWorkspace,
     IViewport,
+)
+
+# Connection interfaces
+from .connection import (
+    IConnectionRegistry,
 )
 
 # Scene interfaces
@@ -190,6 +198,8 @@ __all__ = (
     # Connectable protocols
     'IConnectable',
     'Connection',
+    # Gui Protocols
+    'IHasCanvas',
 
     # Physics Interfaces
     'IBasePhysicsBody',
@@ -229,6 +239,9 @@ __all__ = (
     'IBackendRegistry',
     'IDependencyInjector',
     'IPluginManager',
+
+    # Connection Interfaces
+    'IConnectionRegistry',
 
     # Scene Interfaces
     'IScene',

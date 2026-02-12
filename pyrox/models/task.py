@@ -3,9 +3,10 @@
 Tasks are used to add additional functionality to the application via the toolbar
 in the main application frame or as background services.
 """
-from pyrox.interfaces import IApplication, IApplicationTask
+from typing import Callable
+from pyrox.interfaces import IApplication, IApplicationTask, IGuiMenu
 from pyrox.models import ServicesRunnableMixin
-from pyrox.services.logging import log
+from pyrox.services import log, MenuRegistry
 from pyrox.models.factory import MetaFactory, FactoryTypeMeta
 
 
@@ -54,6 +55,7 @@ class ApplicationTask(
     ) -> None:
         super().__init__()
         self._application = application
+        self._injected = False
 
     def __init_subclass__(cls, **kwargs):
         super().__init_subclass__(**kwargs)
@@ -87,18 +89,93 @@ class ApplicationTask(
         """
         self._application = application
 
+    def register_menu_command(
+        self,
+        menu: IGuiMenu,
+        registry_id: str,
+        registry_path: str,
+        index: int,
+        label: str,
+        command: Callable | None,
+        accelerator: str,
+        underline: int,
+        category: str | None = None,
+        enabled: bool = True
+    ) -> None:
+        """Register a command to the application's menu bar.
+        Additionally, register the command with the MenuRegistry.
+        """
+        menu.add_item(
+            index=index,
+            label=label,
+            command=command,
+            accelerator=accelerator,
+            underline=underline
+        )
+        if not enabled:
+            menu.disable_item(index)
+
+        MenuRegistry.register_item(
+            menu_id=registry_id,
+            menu_path=registry_path,
+            menu_widget=menu.menu,
+            menu_index=index,
+            owner=self.__class__.__name__,
+            category=category
+        )
+
+    def register_submenu(
+        self,
+        menu: IGuiMenu,
+        submenu: IGuiMenu,
+        registry_id: str,
+        registry_path: str,
+        index: int,
+        label: str,
+        underline: int,
+        category: str | None = None
+    ) -> IGuiMenu:
+        """Register a submenu to the application's menu bar.
+        Additionally, register the submenu with the MenuRegistry.
+
+        Returns:
+            IGuiMenu: The created submenu instance.
+        """
+        menu.insert_submenu(
+            label=label,
+            submenu=submenu,
+            index=index,
+            underline=underline
+        )
+
+        MenuRegistry.register_item(
+            menu_id=registry_id,
+            menu_path=registry_path,
+            menu_widget=submenu.menu,
+            menu_index=index,
+            owner=self.__class__.__name__,
+            category=category
+        )
+
+        return submenu
+
     def inject(self) -> None:
         """Inject this task into the hosting application.
         """
-        pass
+        if self._injected:
+            log(self).warning(f'Task {self.__class__.__name__} is already injected into application {self.application.name}.')
+            return
+        self.application.register_task(self)
+        self._injected = True
 
     def uninject(self) -> None:
         """Remove this task from the hosting application.
         """
-        pass
+        self.application.unregister_task(self)
+        self._injected = False
 
+    __all__ = (
+        'ApplicationTask',
+        'ApplicationTaskFactory',
 
-__all__ = (
-    'ApplicationTask',
-    'ApplicationTaskFactory',
-)
+    )

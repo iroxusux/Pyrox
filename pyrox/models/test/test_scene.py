@@ -58,6 +58,7 @@ class TestScene(unittest.TestCase):
                 """Initialize test physics body."""
                 super().__init__(
                     name=name,
+                    template_name="Base Physics Body",
                     x=x,
                     y=y,
                     width=width,
@@ -510,6 +511,47 @@ class TestScene(unittest.TestCase):
 
         self.assertIn(obj_id, called)
 
+    def test_register_scene_object_in_connection_registry(self):
+        """Test that adding a scene_object registers it in the connection registry."""
+        scene = Scene()
+
+        scene_object = self.TestSceneObject(
+            scene_object_type="TestSceneObject",
+            name="RegDev",
+            physics_body=self.TestPhysicsBody()
+        )
+
+        scene.add_scene_object(scene_object)
+        obj_id = scene_object.get_id()
+
+        registered_obj = scene._connection_registry._objects.get(obj_id)  # type: ignore
+        self.assertIsNotNone(registered_obj)
+        self.assertEqual(registered_obj, scene_object)
+
+    def test_unregister_scene_object_in_connection_registry(self):
+        """Test that removing a scene_object unregisters it from the connection registry."""
+        scene = Scene()
+
+        scene_object = self.TestSceneObject(
+            scene_object_type="TestSceneObject",
+            name="UnregDev",
+            physics_body=self.TestPhysicsBody()
+        )
+
+        scene.add_scene_object(scene_object)
+        obj_id = scene_object.get_id()
+
+        # Ensure it's registered
+        registered_obj = scene._connection_registry._objects.get(obj_id)  # type: ignore
+        self.assertIsNotNone(registered_obj)
+
+        # Remove the scene object
+        scene.remove_scene_object(obj_id)
+
+        # Ensure it's unregistered
+        registered_obj_after = scene._connection_registry._objects.get(obj_id)  # type: ignore
+        self.assertIsNone(registered_obj_after)
+
 
 class TestSceneObject(unittest.TestCase):
     """Test cases for SceneObject class."""
@@ -553,6 +595,7 @@ class TestSceneObject(unittest.TestCase):
                 """Initialize test physics body."""
                 super().__init__(
                     name=name,
+                    template_name="Base Physics Body",
                     x=x,
                     y=y,
                     width=width,
@@ -740,7 +783,19 @@ class TestSceneObject(unittest.TestCase):
             "name": "Base Physics Body",
             "scene_object_type": "FromDictType",
             "description": "From dict description",
-            "properties": {"loaded": True}
+            "properties": {"loaded": True},
+            "body": {
+                "template_name": "Base Physics Body",
+                "name": "TestBody",
+                "body_type": "DYNAMIC",
+                "collision_layer": "DEFAULT",
+                "collider_type": "RECTANGLE",
+                "x": 0.0,
+                "y": 0.0,
+                "width": 10.0,
+                "height": 10.0,
+                "mass": 1.0,
+            }
         }
 
         obj = SceneObject.from_dict(data)
@@ -757,7 +812,19 @@ class TestSceneObject(unittest.TestCase):
         data = {
             "id": "minimal",
             "name": "Base Physics Body",
-            "scene_object_type": "MinimalType"
+            "scene_object_type": "MinimalType",
+            "body": {
+                "template_name": "Base Physics Body",
+                "name": "TestBody",
+                "body_type": "DYNAMIC",
+                "collision_layer": "DEFAULT",
+                "collider_type": "RECTANGLE",
+                "x": 0.0,
+                "y": 0.0,
+                "width": 10.0,
+                "height": 10.0,
+                "mass": 1.0,
+            }
         }
 
         obj = SceneObject.from_dict(data)

@@ -29,6 +29,8 @@ class UIPanelBody(BasePhysicsBody):
     def __init__(
         self,
         name: str = "UI Panel",
+        id: str = "",
+        template_name: str = "UI Panel",
         x: float = 0.0,
         y: float = 0.0,
         width: float = 100.0,
@@ -61,6 +63,8 @@ class UIPanelBody(BasePhysicsBody):
         BasePhysicsBody.__init__(
             self=self,
             name=name,
+            id=id,
+            template_name=template_name,
             tags=["ui", panel_type],
             body_type=BodyType.STATIC,
             enabled=True,

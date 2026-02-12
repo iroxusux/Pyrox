@@ -2,31 +2,43 @@
 """
 import json
 from pathlib import Path
-from typing import Any, Callable, Dict, Optional, Union
+from typing import (
+    Any,
+    Callable,
+    Dict,
+    Optional,
+    Union
+)
 from pyrox.interfaces import (
+    Connection,
     IBasePhysicsBody,
+    IConnectionRegistry,
+    INameable,
+    IDescribable,
     IScene,
     ISceneObject,
 )
-
-from pyrox.interfaces.protocols.connection import Connection
-
-from pyrox.models.protocols import (
-    Nameable,
-    Describable,
-)
 from pyrox.models.connection import ConnectionRegistry
-
 from pyrox.models.physics.factory import PhysicsSceneFactory
 
 
 class SceneObject(
         ISceneObject,
-        Nameable,
-        Describable,
+        INameable,
+        IDescribable,
 ):
     """Base class for scene objects.
     """
+
+    def __getattribute__(self, name: str) -> Any:
+        # Override to allow dynamic properties from physics body
+        try:
+            return super().__getattribute__(name)
+        except AttributeError:
+            physics_body = super().__getattribute__("_physics_body")
+            if hasattr(physics_body, name):
+                return getattr(physics_body, name)
+            raise AttributeError(f"'{type(self).__name__}' object has no attribute '{name}'")
 
     def __init__(
         self,
@@ -36,21 +48,43 @@ class SceneObject(
         description: str = "",
         properties: Optional[Dict] = None,
         parent: Optional['SceneObject'] = None,
+        layer: int = 0,
     ):
-        Nameable.__init__(self, name)
-        Describable.__init__(self, description)
+        self._description = description
         self._scene_object_type = scene_object_type
         self._properties: Dict[str, Any] = properties if properties is not None else dict()
         self._physics_body = physics_body
+
+        if name:
+            self._physics_body.name = name
 
         # Parent-child hierarchy
         self._parent: Optional['SceneObject'] = parent
         self._children: Dict[str, 'SceneObject'] = {}
 
+        # Rendering layer (z-order)
+        # Lower values render first (background), higher values render last (foreground)
+        # Common layers: -100 (floor), 0 (default), 50 (conveyors), 100 (objects), 200 (UI)
+        self._layer: int = layer
+
         # Event handlers for interactive elements
         self._on_click_handlers: list[Callable] = []
         self._on_hover_handlers: list[Callable] = []
         self._clickable: bool = False  # Whether this object responds to clicks
+
+    # INamable methods
+    def get_name(self) -> str:
+        return self._physics_body.name
+
+    def set_name(self, name: str) -> None:
+        self._physics_body.name = name
+
+    # IDescribable methods
+    def get_description(self) -> str:
+        return self._description
+
+    def set_description(self, description: str) -> None:
+        self._description = description
 
     # Properties and serialization methods
     def get_property(self, name: str) -> Any:
@@ -83,7 +117,10 @@ class SceneObject(
             value (Any): The property value.
         """
         # Check to see if the property exists as an attribute of this object
-        if hasattr(self, name):
+        # We have to check physics body first to avoid setting a new property on the scene object when it actually belongs to the physics body
+        if hasattr(self.physics_body, name):
+            setattr(self.physics_body, name, value)
+        elif hasattr(self, name):
             setattr(self, name, value)
         self._properties[name] = value
 
@@ -115,39 +152,8 @@ class SceneObject(
 
     def to_dict(self) -> dict:
         """Convert scene object to dictionary for JSON serialization."""
-        material = {
-            "density": self.physics_body.material.density,
-            "restitution": self.physics_body.material.restitution,
-            "friction": self.physics_body.material.friction,
-            "drag": self.physics_body.material.drag,
-        }
-        body = {
-            "name": self.name,
-            "id": self.physics_body.id,
-            "tags": self.physics_body.tags,
-            "body_type": self.physics_body.body_type.name,
-            "enabled": self.physics_body.enabled,
-            "sleeping": self.physics_body.sleeping,
-            "mass": self.physics_body.mass,
-            "moment_of_inertia": self.physics_body.moment_of_inertia,
-            "velocity_x": self.physics_body.velocity_x,
-            "velocity_y": self.physics_body.velocity_y,
-            "acceleration_x": self.physics_body.acceleration_x,
-            "acceleration_y": self.physics_body.acceleration_y,
-            "angular_velocity": self.physics_body.angular_velocity,
-            "collider_type": self.physics_body.collider.collider_type.name,
-            "collision_layer": self.physics_body.collider.collision_layer.name,
-            "collision_mask": [m.name for m in self.physics_body.collider.collision_mask],
-            "is_trigger": self.physics_body.collider.is_trigger,
-            "x": self.physics_body.x,
-            "y": self.physics_body.y,
-            "width": self.physics_body.width,
-            "height": self.physics_body.height,
-            "roll": self.physics_body.roll,
-            "pitch": self.physics_body.pitch,
-            "yaw": self.physics_body.yaw,
-            "material": material,
-        }
+        # Use physics body's to_dict if available, otherwise construct manually
+        body = self.physics_body.to_dict()
 
         return {
             "name": self.name,
@@ -155,17 +161,19 @@ class SceneObject(
             "id": self.id,
             "description": self._description,
             "properties": self.properties,
+            "layer": self._layer,
             "body": body,
-            "material": material,
+            "material": body.get("material", {}) if isinstance(body, dict) else {},
         }
 
     @classmethod
     def from_dict(cls, data: dict) -> "SceneObject":
         """Create scene object from dictionary."""
-        body_template = PhysicsSceneFactory.get_template(data.get("name", ""))
+        body_data: dict = data.get("body", {})
+        body_template = PhysicsSceneFactory.get_template(body_data.get("template_name", ""))
         if not body_template:
             raise ValueError(
-                f"physics body template type '{data.get('name', '')}' is not registered. "
+                f"physics body template type '{data.get('template_name', '')}' is not registered. "
                 f"Available types: {PhysicsSceneFactory.get_all_templates().keys()}"
             )
         body = body_template.body_class.from_dict(data.get("body", {}))
@@ -177,7 +185,8 @@ class SceneObject(
             scene_object_type=data["scene_object_type"],
             physics_body=body,
             description=data.get("description", ""),
-            properties=data.get("properties", {})
+            properties=data.get("properties", {}),
+            layer=data.get("layer", 0)
         )
 
         return obj
@@ -317,38 +326,63 @@ class SceneObject(
             self.y <= y <= self.y + self.height
         )
 
+    # Layer/z-order methods
+
+    def get_layer(self) -> int:
+        """Get the rendering layer (z-order) of this object.
+
+        Returns:
+            Layer number. Lower values render first (background),
+            higher values render last (foreground).
+        """
+        return self._layer
+
+    def set_layer(self, layer: int) -> None:
+        """Set the rendering layer (z-order) of this object.
+
+        Args:
+            layer: Layer number. Common values:
+                   -100: Floor/background
+                   0: Default
+                   50: Conveyors/platforms
+                   100: Objects/items
+                   200: Foreground/UI elements
+        """
+        self._layer = layer
+
+    def move_layer_up(self) -> None:
+        """Move this object one layer up (toward foreground)."""
+        self._layer += 1
+
+    def move_layer_down(self) -> None:
+        """Move this object one layer down (toward background)."""
+        self._layer -= 1
+
+    def bring_to_front(self) -> None:
+        """Bring this object to the front (highest layer)."""
+        # Scene will need to determine max layer if we want to be relative
+        # For now, use a large value
+        self._layer = 1000
+
+    def send_to_back(self) -> None:
+        """Send this object to the back (lowest layer)."""
+        # Use a very low value for back
+        self._layer = -1000
+
     def _compile_properties(self) -> None:
         """Compile properties for physics simulation."""
+
+        # Scene object properties
         self._properties.update({
-            # Scene object properties
             "id": self.id,
             "name": self.name,
             "description": self.description,
             "scene_object_type": self._scene_object_type,
-            # Physics body properties
-            "x": self.x,
-            "y": self.y,
-            "width": self.width,
-            "height": self.height,
-            "roll": self.physics_body.roll,
-            "pitch": self.physics_body.pitch,
-            "yaw": self.physics_body.yaw,
-            "velocity_x": self.physics_body.velocity_x,
-            "velocity_y": self.physics_body.velocity_y,
-            "acceleration_x": self.physics_body.acceleration_x,
-            "acceleration_y": self.physics_body.acceleration_y,
-            "body_type": self.physics_body.body_type.name,
-            "mass": self.physics_body.mass,
-            # Collider properties
-            "collider_type": self.physics_body.collider.collider_type.name,
-            "collision_layer": self.physics_body.collider.collision_layer.name,
-            "is_trigger": self.physics_body.collider.is_trigger,
-            # Material properties
-            "density": self.physics_body.material.density,
-            "restitution": self.physics_body.material.restitution,
-            "friction": self.physics_body.material.friction,
-            "drag": self.physics_body.material.drag,
+            "layer": self._layer,
         })
+
+        # Physics body properties
+        self._properties.update(self.physics_body.get_properties())
 
     # IConnectable interface
 
@@ -386,9 +420,10 @@ class Scene(IScene):
         self._scene_objects: Dict[str, ISceneObject] = {}
         self._on_scene_object_added: list[Callable] = []
         self._on_scene_object_removed: list[Callable] = []
+        self._on_scene_updated: list[Callable] = []
 
         # Connection registry
-        self.connection_registry = ConnectionRegistry()
+        self._connection_registry = ConnectionRegistry()
 
     def get_name(self) -> str:
         """Get the name of the scene."""
@@ -424,6 +459,10 @@ class Scene(IScene):
             raise ValueError(f"Scene object with ID '{scene_object.id}' already exists in scene")
 
         self._scene_objects[scene_object.id] = scene_object
+        self._connection_registry.register_object(
+            scene_object.id,
+            scene_object
+        )
         [callback(scene_object) for callback in self._on_scene_object_added]
 
     def remove_scene_object(
@@ -439,6 +478,7 @@ class Scene(IScene):
             # Before the object is removed, call the callbacks
             obj = self._scene_objects[scene_object_id]
             [callback(obj) for callback in self._on_scene_object_removed]
+            self._connection_registry.unregister_object(scene_object_id)
             # Remove the object
             del self._scene_objects[scene_object_id]
 
@@ -473,6 +513,25 @@ class Scene(IScene):
     def get_on_scene_object_removed(self) -> list[Callable]:
         return self._on_scene_object_removed
 
+    def get_connection_registry(self) -> IConnectionRegistry:
+        """Get the connection registry for the scene.
+
+        Returns:
+            IConnectionRegistry: The connection registry instance.
+        """
+        return self._connection_registry
+
+    def set_connection_registry(self, registry: IConnectionRegistry) -> None:
+        """Set the connection registry for the scene.
+
+        Args:
+            registry (IConnectionRegistry): The connection registry instance.
+        """
+        self._connection_registry = registry
+
+    def get_on_scene_updated(self) -> list[Callable[..., Any]]:
+        return self._on_scene_updated
+
     def update(self, delta_time: float) -> None:
         """
         Update all scene objects in the scene.
@@ -482,6 +541,13 @@ class Scene(IScene):
         """
         for scene_object in self._scene_objects.values():
             scene_object.update(delta_time)
+        # Call on-scene-updated callbacks
+        for callback in self._on_scene_updated.copy():
+            try:
+                callback(self, delta_time)
+            except Exception as e:
+                print(f"Error in on_scene_updated callback: {e}")
+                self._on_scene_updated.remove(callback)
 
     def to_dict(self) -> dict:
         """Convert scene to dictionary for JSON serialization."""
@@ -491,7 +557,7 @@ class Scene(IScene):
             "scene_objects": [
                 scene_object.to_dict() for scene_object in self._scene_objects.values()
             ],
-            "connections": self.connection_registry.serialize()["connections"],
+            "connections": self._connection_registry.serialize()["connections"],
         }
 
     @classmethod
@@ -509,13 +575,13 @@ class Scene(IScene):
         for scene_object_data in data.get("scene_objects", []):
             scene_object = SceneObject.from_dict(scene_object_data)
             scene.add_scene_object(scene_object)
-            scene.connection_registry.register_object(
+            scene._connection_registry.register_object(
                 scene_object.id, scene_object
             )
 
         # Load connections
         for conn_data in data.get("connections", []):
-            scene.connection_registry.connect(
+            scene._connection_registry.connect(
                 source_id=conn_data["source"],
                 output_name=conn_data["output"],
                 target_id=conn_data["target"],

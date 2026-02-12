@@ -461,7 +461,7 @@ class ConnectionEditor(ttk.Frame):
         cy2 = y2
 
         # Draw smooth curve
-        line_id = self._canvas.create_line(
+        line_id = self._canvas.create_line(  # type: ignore
             x1, y1,
             cx1, cy1,
             cx2, cy2,
@@ -538,7 +538,7 @@ class ConnectionEditor(ttk.Frame):
                 tags="temp"
             )
 
-        elif self._dragging_node and self._drag_start_x is not None:
+        elif self._dragging_node and self._drag_start_x is not None and self._drag_start_y is not None:
             # Move node
             dx = event.x - self._drag_start_x
             dy = event.y - self._drag_start_y
@@ -653,7 +653,7 @@ class ConnectionEditor(ttk.Frame):
                 if success:
                     self._status_var.set(f"✓ Connected {source_id}.{source_port} → {target_id}.{target_port}")
                 else:
-                    self._status_var.set(f"❌ Failed to draw connection - check console for details")
+                    self._status_var.set("❌ Failed to draw connection - check console for details")
             except Exception as e:
                 self._status_var.set(f"❌ Error: {str(e)}")
                 print(f"Connection error: {e}")
@@ -693,7 +693,7 @@ class ConnectionEditor(ttk.Frame):
 
     def _on_middle_drag(self, event: tk.Event) -> None:
         """Handle middle mouse drag for panning."""
-        if self._panning and self._pan_start_x is not None:
+        if self._panning and self._pan_start_x is not None and self._pan_start_y is not None:
             dx = event.x - self._pan_start_x
             dy = event.y - self._pan_start_y
 
@@ -815,7 +815,7 @@ class ConnectionEditor(ttk.Frame):
                         for callback in callback_list:
                             try:
                                 callback()
-                                self._status_var.set(f"✓ Tested connection - callback executed successfully")
+                                self._status_var.set("✓ Tested connection - callback executed successfully")
                             except Exception as e:
                                 self._status_var.set(f"❌ Test failed: {str(e)}")
                     else:
@@ -948,7 +948,7 @@ class ConnectionEditor(ttk.Frame):
         """Save connections to the scene."""
         if self._registry and self._scene:
             # Update scene's connection registry
-            self._scene.connection_registry = self._registry
+            self._scene.set_connection_registry(self._registry)
             self._status_var.set("✓ Connections saved to scene")
         else:
             self._status_var.set("❌ No scene or registry to save")
@@ -977,7 +977,6 @@ def create_demo_window():
 
     # Create a demo scene
     from pyrox.models.scene import Scene, SceneObject
-    from pyrox.models.physics import BasePhysicsBody
     from pyrox.models.physics.sensor import ProximitySensorBody
     from pyrox.models.physics.conveyor import ConveyorBody
 

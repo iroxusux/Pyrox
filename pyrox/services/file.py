@@ -249,8 +249,10 @@ def get_save_file(filetypes: list[tuple]) -> str:
     """
     root = tk.Tk()
     root.withdraw()
-    filename = filedialog.asksaveasfilename(confirmoverwrite=True,
-                                            filetypes=filetypes)
+    filename = filedialog.asksaveasfilename(
+        confirmoverwrite=True,
+        filetypes=filetypes
+    )
     root.update()
     return filename
 
