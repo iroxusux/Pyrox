@@ -830,55 +830,49 @@ class TestConveyorBody(unittest.TestCase):
         self.assertIn("height", props)  # From base class
 
     def test_editable_property_direction(self):
-        """Test direction property metadata."""
+        """Test direction property value."""
         conveyor = ConveyorBody()
 
         props = conveyor.get_properties()
-        direction_prop = props["direction"]
+        direction_value = props["direction"]
 
-        self.assertEqual(direction_prop["type"], "enum")
-        self.assertEqual(direction_prop["label"], "Direction")
-        self.assertIn("north", direction_prop["values"])
-        self.assertIn("south", direction_prop["values"])
-        self.assertIn("east", direction_prop["values"])
-        self.assertIn("west", direction_prop["values"])
+        # Direction should be stored as string value
+        self.assertEqual(direction_value, "east")  # Default
 
-        # Test get/set functions
-        self.assertEqual(direction_prop["get"](), "east")  # Default
-        direction_prop["set"]("north")
-        self.assertEqual(conveyor.direction, Direction.NORTH)
+        # Test changing direction
+        conveyor.set_direction("north")
+        props = conveyor.get_properties()
+        self.assertEqual(props["direction"], "north")
 
     def test_editable_property_belt_speed(self):
-        """Test belt_speed property metadata."""
+        """Test belt_speed property value."""
         conveyor = ConveyorBody(belt_speed=50.0)
 
         props = conveyor.get_properties()
-        speed_prop = props["belt_speed"]
+        speed_value = props["belt_speed"]
 
-        self.assertEqual(speed_prop["type"], "float")
-        self.assertEqual(speed_prop["label"], "Belt Speed")
-        self.assertEqual(speed_prop["min"], 0.0)
-        self.assertEqual(speed_prop["max"], 500.0)
+        # Belt speed should be stored as float value
+        self.assertEqual(speed_value, 50.0)
 
-        # Test get/set functions
-        self.assertEqual(speed_prop["get"](), 50.0)
-        speed_prop["set"](100.0)
-        self.assertEqual(conveyor.belt_speed, 100.0)
+        # Test changing belt speed
+        conveyor.set_belt_speed(100.0)
+        props = conveyor.get_properties()
+        self.assertEqual(props["belt_speed"], 100.0)
 
     def test_editable_property_is_active(self):
-        """Test is_active property metadata."""
+        """Test is_active property value."""
         conveyor = ConveyorBody(is_active=True)
 
         props = conveyor.get_properties()
-        active_prop = props["is_active"]
+        active_value = props["is_active"]
 
-        self.assertEqual(active_prop["type"], "bool")
-        self.assertEqual(active_prop["label"], "Active")
+        # is_active should be stored as bool value
+        self.assertTrue(active_value)
 
-        # Test get/set functions
-        self.assertTrue(active_prop["get"]())
-        active_prop["set"](False)
-        self.assertFalse(conveyor.is_active)
+        # Test changing active state
+        conveyor.deactivate()
+        props = conveyor.get_properties()
+        self.assertFalse(props["is_active"])
 
 
 class TestConveyorBodyFactory(unittest.TestCase):

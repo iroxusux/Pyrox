@@ -50,11 +50,13 @@ class SceneObject(
         parent: Optional['SceneObject'] = None,
         layer: int = 0,
     ):
-        self._name = name
         self._description = description
         self._scene_object_type = scene_object_type
         self._properties: Dict[str, Any] = properties if properties is not None else dict()
         self._physics_body = physics_body
+
+        if name:
+            self._physics_body.name = name
 
         # Parent-child hierarchy
         self._parent: Optional['SceneObject'] = parent

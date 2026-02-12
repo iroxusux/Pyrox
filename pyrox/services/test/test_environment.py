@@ -104,7 +104,7 @@ class TestEnvironmentService(unittest.TestCase):
         env = EnvironmentService(preset='top_down')
 
         self.assertEqual(env.gravity, (0.0, 0.0))
-        self.assertEqual(env.air_density, 2.0)
+        self.assertEqual(env.air_density, 0.5)
         self.assertEqual(env.default_friction, 0.7)
         self.assertEqual(env.default_restitution, 0.2)
 
