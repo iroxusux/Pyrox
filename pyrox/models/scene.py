@@ -51,8 +51,8 @@ class SceneObject(
         parent: Optional['SceneObject'] = None,
         layer: int = 0,
     ):
-        Nameable.__init__(self, name)
-        Describable.__init__(self, description)
+        self._name = name
+        self._description = description
         self._scene_object_type = scene_object_type
         self._properties: Dict[str, Any] = properties if properties is not None else dict()
         self._physics_body = physics_body

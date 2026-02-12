@@ -35,6 +35,7 @@ class ProximitySensorBody(BasePhysicsBody):
     def __init__(
         self,
         name: str = "ProximitySensor",
+        id: str = "",
         template_name: str = "Proximity Sensor",
         x: float = 0.0,
         y: float = 0.0,
@@ -67,6 +68,7 @@ class ProximitySensorBody(BasePhysicsBody):
         # Sensors are always STATIC triggers with no mass
         super().__init__(
             name=name,
+            id=id,
             template_name=template_name,
             tags=["sensor", "proximity"],
             body_type=BodyType.STATIC,

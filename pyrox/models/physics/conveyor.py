@@ -82,6 +82,7 @@ class ConveyorBody(BasePhysicsBody):
     def __init__(
         self,
         name: str = "Conveyor",
+        id: str = "",
         template_name: str = "Conveyor Belt",
         x: float = 0.0,
         y: float = 0.0,
@@ -134,6 +135,7 @@ class ConveyorBody(BasePhysicsBody):
         BasePhysicsBody.__init__(
             self=self,
             name=name,
+            id=id,
             template_name=template_name,
             tags=["conveyor", "platform"],
             body_type=body_type,

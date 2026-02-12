@@ -92,6 +92,7 @@ class FloorBody(BasePhysicsBody):
     def __init__(
         self,
         name: str = "Floor",
+        id: str = "",
         template_name: str = "Floor",
         x: float = 0.0,
         y: float = 0.0,
@@ -144,6 +145,7 @@ class FloorBody(BasePhysicsBody):
         BasePhysicsBody.__init__(
             self=self,
             name=name,
+            id=id,
             template_name=template_name,
             tags=["floor", "terrain", "static"],
             body_type=body_type,

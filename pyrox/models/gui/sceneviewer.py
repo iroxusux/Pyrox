@@ -1212,7 +1212,10 @@ class SceneViewerFrame(TkinterTaskFrame):
 
     # ==================== Event Binding ====================
 
-    def _bind_events(self) -> None:
+    def _bind_events(
+        self,
+        *_,
+    ) -> None:
         """Bind mouse and keyboard events for interaction."""
         self._canvas_object_management_service.set_canvas(self._canvas)
         self._viewport_panning_service.set_canvas(self._canvas)
@@ -1251,6 +1254,9 @@ class SceneViewerFrame(TkinterTaskFrame):
             lambda event: self.set_scene(event.scene)
         )
 
+        # Register the unbind for when the frame is closed to prevent memory leaks
+        self.on_destroy().append(self._unbind_events)
+
         # Use dirty flag pattern instead of direct render on every update
         # For physics updates, use lightweight position sync instead of full render
         if self._scene:
@@ -1260,6 +1266,24 @@ class SceneViewerFrame(TkinterTaskFrame):
         self._start_render_loop()
 
         # TODO: Add keyboard shortcuts (Ctrl+Z undo, Ctrl+D duplicate, etc.)
+
+    def _unbind_events(
+            self,
+            *_,
+    ) -> None:
+        """unbind events that are necessary when the frame is closed, such as the SceneEventBus subscriptions.
+        """
+        SceneEventBus.unsubscribe(
+            SceneEventType.SCENE_LOADED,
+            lambda event: self.set_scene(event.scene)
+        )
+        SceneEventBus.unsubscribe(
+            SceneEventType.SCENE_UNLOADED,
+            lambda event: self.set_scene(event.scene)
+        )
+
+        if self._scene:
+            self._scene.get_on_scene_updated().remove(self._sync_object_positions)
 
     def _enable_entry(
         self,
@@ -1722,13 +1746,9 @@ class SceneViewerFrame(TkinterTaskFrame):
         if not template:
             return
 
-        log(self).info(f"Placing template: {self._current_object_template}")
-        log(self).info(f"Template default_kwargs keys: {list(template.default_kwargs.keys())}")
-        log(self).info(f"Template is_trigger: {template.default_kwargs.get('is_trigger')}")
-
         # Apply snap to grid if enabled
         scene_x, scene_y = self._viewport_gridding_service.snap_to_grid(scene_x, scene_y)
-        
+
         # Create kwargs for object creation (don't mutate template)
         creation_kwargs = template.default_kwargs.copy()
         creation_kwargs['x'] = scene_x
@@ -1741,15 +1761,12 @@ class SceneViewerFrame(TkinterTaskFrame):
         # Create physics object from template
         # Use self._current_object_template (the registry key) instead of template.name
         # to ensure we get the correct template
-        log(self).info(f"Creating from factory with kwargs is_trigger: {creation_kwargs.get('is_trigger')}")
         physics_obj = PhysicsSceneFactory.create_from_template(
             self._current_object_template,
             **creation_kwargs
         )
         if not physics_obj:
             raise RuntimeError(f"Failed to create object from template: {self._current_object_template}")
-
-        log(self).info(f"Created physics object is_trigger: {physics_obj.collider.is_trigger}")
 
         scene_obj = SceneObject(
             name=template.name,
@@ -2063,7 +2080,7 @@ class SceneViewerFrame(TkinterTaskFrame):
                 self._update_object_appearance(obj_id)
 
                 # If position changed, need to re-render that object
-                if property_name in ('x', 'y', 'width', 'height', 'radius'):
+                if property_name in ('x', 'y', 'width', 'height', 'radius', 'name', 'color'):
                     if self._scene:
                         scene_obj = self._scene.scene_objects.get(obj_id)
                         if scene_obj:
