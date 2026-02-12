@@ -31,6 +31,9 @@ from .file import (
     PlatformDirectoryService
 )
 
+# Process imports
+from .process import execute_file_as_subprocess
+
 # Collision imports
 from .collision import (
     CollisionService,
@@ -112,6 +115,8 @@ __all__ = (
     # File imports
     'get_open_file',
     'PlatformDirectoryService',
+    # Process imports
+    'execute_file_as_subprocess',
     # Collision imports
     'CollisionService',
     'SpatialGrid',
