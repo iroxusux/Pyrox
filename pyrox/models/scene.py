@@ -2,8 +2,15 @@
 """
 import json
 from pathlib import Path
-from typing import Any, Callable, Dict, Optional, Union
+from typing import (
+    Any,
+    Callable,
+    Dict,
+    Optional,
+    Union
+)
 from pyrox.interfaces import (
+    Connection,
     IBasePhysicsBody,
     IConnectionRegistry,
     INameable,
@@ -11,15 +18,7 @@ from pyrox.interfaces import (
     IScene,
     ISceneObject,
 )
-
-from pyrox.interfaces.protocols.connection import Connection
-
-from pyrox.models.protocols import (
-    Nameable,
-    Describable,
-)
 from pyrox.models.connection import ConnectionRegistry
-
 from pyrox.models.physics.factory import PhysicsSceneFactory
 
 
