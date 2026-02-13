@@ -3,7 +3,7 @@
 [![Python Version](https://img.shields.io/badge/python-3.13+-blue.svg)](https://www.python.org/downloads/)
 [![License](https://img.shields.io/badge/license-GPL--3.0-green.svg)](LICENSE)
 ![Development Status](https://img.shields.io/badge/status-beta-orange.svg)
-![Version](https://img.shields.io/badge/version-2.4.043-blue.svg)
+![Version](https://img.shields.io/badge/version-2.4.044-blue.svg)
 
 **Pyrox** is a Python-based engine that provides common services, models, and abstractions for building different types of applications. Originally part of a comprehensive industrial automation suite, Pyrox has been refactored into a focused core library that serves as the foundation for specialized applications like [ControlRox](https://github.com/iroxusux/ControlRox).
 

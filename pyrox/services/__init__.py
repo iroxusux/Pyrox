@@ -73,6 +73,9 @@ from .viewport import (
     ViewportStatusService
 )
 
+# Timer imports
+from .timer import TimerService
+
 # Other service imports
 from . import (
     archive,
@@ -143,6 +146,8 @@ __all__ = (
     'ViewportZoomingService',
     'ViewportGriddingService',
     'ViewportStatusService',
+    # Timer imports
+    'TimerService',
     # Other service imports
     'archive',
     'bit',
