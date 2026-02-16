@@ -396,7 +396,7 @@ class TestApplicationMethods(unittest.TestCase):
         """Test run method focuses main window."""
         self.mock_backend.run_main_loop.return_value = None
 
-        result = self.app.run()
+        _ = self.app.run()
 
         self.mock_backend.focus_main_window.assert_called_once()
 
@@ -404,7 +404,7 @@ class TestApplicationMethods(unittest.TestCase):
         """Test run method runs GUI main loop."""
         self.mock_backend.run_main_loop.return_value = None
 
-        result = self.app.run()
+        _ = self.app.run()
 
         self.mock_backend.run_main_loop.assert_called_once()
 
