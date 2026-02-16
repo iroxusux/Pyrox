@@ -138,7 +138,7 @@ class SceneViewerFrame(TkinterTaskFrame):
     def __init__(
         self,
         parent,
-        name: str = "Scene Viewer",
+        name: str = "scene viewer",
         runner: Optional[type[ISceneRunnerService]] = None,
         scene: Optional[IScene] = None
     ):

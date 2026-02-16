@@ -87,10 +87,17 @@ class TkinterTaskFrame(
         name: str,
         parent: Frame,
     ):
-        GuiFrame.__init__(self)
+        GuiFrame.__init__(
+            self,
+            name=name
+        )
         self.set_parent(parent)
-        self.set_root(Frame(self.get_parent()))  # type: ignore  # TODO: Integrate with GuiManager
-        self._name = name or 'Task Frame'
+        self.set_root(
+            Frame(
+                self.get_parent(),
+                name=name,
+            ))  # type: ignore  # TODO: Integrate with GuiManager
+        self.set_name(name or 'Task Frame')
         self._shown: bool = False
         self._shown_var: BooleanVar = BooleanVar(value=self._shown)
         self._title_bar = Frame(self.root, height=20)
