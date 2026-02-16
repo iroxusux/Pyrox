@@ -3,8 +3,10 @@ This file is paired with the Sceneviewer GUI to initialize all command bar butto
 They intialize as disabled until a sceneviewer is running, but all the buttons will occupy a space in the menu.
 """
 from pyrox.interfaces.application import IApplication
-from pyrox.models import ApplicationTask
+from pyrox.models import ApplicationTask, Scene
+from pyrox.models.gui import SceneViewerFrame
 from pyrox.services import (
+    EnvironmentService,
     SceneRunnerService,
     SceneEventBus,
     SceneEvent,
@@ -19,24 +21,30 @@ class SceneviewerApplicationTask(ApplicationTask):
         application: IApplication
     ) -> None:
         super().__init__(application)
+        self._scene_viewer_frame: SceneViewerFrame | None = None
+
+        # Store callback references for proper cleanup
+        self._scene_loaded_callback = lambda event: self._enable_menu_entries(event, True)
+        self._scene_unloaded_callback = lambda event: self._enable_menu_entries(event, False)
+        self._frame_destroy_callback = lambda *_, **__: self._on_frame_destroyed()
+
         # ---------- File Menu ----------
-        file_menu = self.gui.root_menu().file_menu
 
         # Scene save / load controls
         self.register_menu_command(
-            menu=file_menu,
+            menu=self.file_menu,
             registry_id="scene.new",
             registry_path="File/New Scene",
             index=0,
             label="New Scene",
-            command=SceneRunnerService.new_scene,
+            command=self._on_new_scene,
             accelerator="Ctrl+N",
             underline=0,
             category="scene"
         )
 
         self.register_menu_command(
-            menu=file_menu,
+            menu=self.file_menu,
             registry_id="scene.save",
             registry_path="File/Save Scene",
             index=1,
@@ -49,12 +57,12 @@ class SceneviewerApplicationTask(ApplicationTask):
         )
 
         self.register_menu_command(
-            menu=file_menu,
+            menu=self.file_menu,
             registry_id="scene.load",
             registry_path="File/Load Scene",
             index=2,
             label="Load Scene",
-            command=SceneRunnerService.load_scene,
+            command=self._on_load_scene,
             accelerator="Ctrl+O",
             underline=0,
             category="scene"
@@ -62,7 +70,7 @@ class SceneviewerApplicationTask(ApplicationTask):
 
         # ---------- Edit Menu ----------
         scene_edit_dropdown = self.gui.unsafe_get_backend().create_gui_menu(
-            master=self.gui.root_menu().edit_menu.menu,
+            master=self.edit_menu.menu,
             tearoff=0
         )
 
@@ -92,8 +100,20 @@ class SceneviewerApplicationTask(ApplicationTask):
 
         # ---------- View Menu ----------
 
+        self.register_menu_command(
+            menu=self.view_menu,
+            registry_id="scene.open_scene_viewer",
+            registry_path="View/Scene Viewer",
+            index=0,
+            label="View Scene",
+            command=self._open_scene_viewer,
+            accelerator="Ctrl+Shift+S",
+            underline=0,
+            category="scene",
+        )
+
         scene_view_dropdown = self.gui.unsafe_get_backend().create_gui_menu(
-            master=self.gui.root_menu().view_menu.menu,
+            master=self.view_menu.menu,
             tearoff=0
         )
 
@@ -244,13 +264,14 @@ class SceneviewerApplicationTask(ApplicationTask):
             category="scene"
         )
 
+        # Subscribe to scene events using stored callback references
         SceneEventBus.subscribe(
             SceneEventType.SCENE_LOADED,
-            lambda event: self._enable_menu_entries(event, True)
+            self._scene_loaded_callback
         )
         SceneEventBus.subscribe(
             SceneEventType.SCENE_UNLOADED,
-            lambda event: self._enable_menu_entries(event, False)
+            self._scene_unloaded_callback
         )
 
     def _enable_menu_entries(
@@ -266,3 +287,102 @@ class SceneviewerApplicationTask(ApplicationTask):
             MenuRegistry.enable_items_by_owner("SceneviewerApplicationTask")
         else:
             MenuRegistry.disable_items_by_owner("SceneviewerApplicationTask")
+
+    def _create_scene_viewer_frame(self) -> None:
+        """Create and register the SceneViewerFrame."""
+        if self._scene_viewer_frame is None or not self._scene_viewer_frame.root.winfo_exists():
+            self._scene_viewer_frame = SceneViewerFrame(
+                parent=self.application.workspace.workspace_area.root,  # type: ignore
+                runner=SceneRunnerService
+            )
+            self.application.workspace.register_frame(self._scene_viewer_frame)
+            self._scene_viewer_frame.on_destroy().append(self._frame_destroy_callback)
+        else:
+            self.application.workspace.raise_frame(self._scene_viewer_frame)
+
+    def _on_new_scene(self) -> None:
+        self._create_scene_viewer_frame()
+        # Initialize SceneRunnerService
+        SceneRunnerService.initialize(
+            app=self.application,
+            environment=EnvironmentService(preset='top_down'),
+            enable_physics=True
+        )
+        SceneRunnerService.new_scene()
+        SceneRunnerService.run()
+
+    def _on_load_scene(
+            self,
+            scene: Scene | None = None
+    ) -> None:
+        self._create_scene_viewer_frame()
+        if not scene:
+            SceneRunnerService.initialize(
+                app=self.application,
+                environment=EnvironmentService(preset='top_down'),
+                enable_physics=True
+            )
+            SceneRunnerService.load_scene()
+        else:
+            SceneRunnerService.initialize(
+                app=self.application,
+                scene=scene,
+                environment=EnvironmentService(preset='top_down'),
+                enable_physics=True
+            )
+        SceneRunnerService.run()
+
+    def _open_scene_viewer(
+        self,
+        scene: Scene | None = None
+    ) -> None:
+        """Open the Scene Viewer frame."""
+
+        # Initialize SceneRunnerService
+        SceneRunnerService.initialize(
+            app=self.application,
+            scene=scene,
+            environment=EnvironmentService(preset='top_down'),
+            enable_physics=True
+        )
+
+        self._create_scene_viewer_frame()
+        SceneRunnerService.new_scene()
+        SceneRunnerService.run()
+
+    def _on_frame_destroyed(self) -> None:
+        """Handle cleanup when the SceneViewerFrame is destroyed."""
+        SceneRunnerService.stop()
+        self._scene_viewer_frame = None
+
+    def cleanup(self) -> None:
+        """Clean up all subscriptions and callbacks to prevent lingering references.
+
+        This method should be called when the task is being removed or the application
+        is shutting down to prevent memory leaks and runtime errors from stale callbacks.
+        """
+        # Unsubscribe from SceneEventBus using the exact callback references
+        SceneEventBus.unsubscribe(
+            SceneEventType.SCENE_LOADED,
+            self._scene_loaded_callback
+        )
+        SceneEventBus.unsubscribe(
+            SceneEventType.SCENE_UNLOADED,
+            self._scene_unloaded_callback
+        )
+
+        # Remove frame destroy callback if frame still exists
+        if self._scene_viewer_frame is not None:
+            try:
+                if self._frame_destroy_callback in self._scene_viewer_frame.on_destroy():
+                    self._scene_viewer_frame.on_destroy().remove(self._frame_destroy_callback)
+            except (AttributeError, ValueError):
+                pass  # Frame might already be destroyed
+
+        # Stop the scene runner if it's running
+        try:
+            SceneRunnerService.stop()
+        except Exception:
+            pass  # Runner might not be initialized
+
+        self._scene_viewer_frame = None

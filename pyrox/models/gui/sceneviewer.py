@@ -194,8 +194,14 @@ class SceneViewerFrame(TkinterTaskFrame):
             viewport=self._viewport,
             status_service=self._viewport_status_service
         )
-        # Grid toggle only needs to re-render the grid, not the whole scene
-        self._viewport_gridding_service.on_toggle_callbacks.append(lambda _: self._viewport_gridding_service.render())
+        # Grid toggle callback needs to clear first, then render if enabled
+
+        def grid_toggle_callback(enabled):
+            self._viewport_gridding_service.clear()
+            if enabled:
+                self._viewport_gridding_service.render()
+        self._grid_toggle_callback = grid_toggle_callback
+        self._viewport_gridding_service.on_toggle_callbacks.append(self._grid_toggle_callback)
         # Snap toggle doesn't need visual update at all
 
         # Selection state
@@ -218,6 +224,10 @@ class SceneViewerFrame(TkinterTaskFrame):
 
         # Design mode state
         self._design_mode: bool = False
+
+        # Store callback references for proper cleanup
+        self._scene_loaded_callback = lambda event: self.set_scene(event.scene)
+        self._scene_unloaded_callback = lambda event: self.set_scene(event.scene)
         self._object_palette_visible: bool = False
         self._object_palette_frame: Optional[ttk.Frame] = None
         self._current_object_template: Optional[str] = None  # Selected object template
@@ -1245,13 +1255,14 @@ class SceneViewerFrame(TkinterTaskFrame):
         self._canvas.bind("<Control-Shift-bracketright>", lambda e: self._context_bring_to_front())  # Ctrl+Shift+]
         self._canvas.bind("<Control-Shift-bracketleft>", lambda e: self._context_send_to_back())  # Ctrl+Shift+[
 
+        # Subscribe to scene events using stored callback references
         SceneEventBus.subscribe(
             SceneEventType.SCENE_LOADED,
-            lambda event: self.set_scene(event.scene)
+            self._scene_loaded_callback
         )
         SceneEventBus.subscribe(
             SceneEventType.SCENE_UNLOADED,
-            lambda event: self.set_scene(event.scene)
+            self._scene_unloaded_callback
         )
 
         # Register the unbind for when the frame is closed to prevent memory leaks
@@ -1271,19 +1282,46 @@ class SceneViewerFrame(TkinterTaskFrame):
             self,
             *_,
     ) -> None:
-        """unbind events that are necessary when the frame is closed, such as the SceneEventBus subscriptions.
+        """Unbind events that are necessary when the frame is closed, such as the SceneEventBus subscriptions.
+
+        This method properly cleans up all callbacks to prevent memory leaks and runtime errors
+        from stale references after the frame is destroyed.
         """
+        # Unsubscribe from SceneEventBus using the exact callback references
         SceneEventBus.unsubscribe(
             SceneEventType.SCENE_LOADED,
-            lambda event: self.set_scene(event.scene)
+            self._scene_loaded_callback
         )
         SceneEventBus.unsubscribe(
             SceneEventType.SCENE_UNLOADED,
-            lambda event: self.set_scene(event.scene)
+            self._scene_unloaded_callback
         )
 
+        # Remove scene update callback if scene exists
         if self._scene:
-            self._scene.get_on_scene_updated().remove(self._sync_object_positions)
+            try:
+                self._scene.get_on_scene_updated().remove(self._sync_object_positions)
+            except (ValueError, AttributeError):
+                pass  # Callback might already be removed or scene might be None
+
+        # Clean up viewport service callbacks
+        try:
+            if self._update_viewport in self._viewport_panning_service.on_pan_callbacks:
+                self._viewport_panning_service.on_pan_callbacks.remove(self._update_viewport)
+        except (ValueError, AttributeError):
+            pass
+
+        try:
+            if self._update_viewport in self._viewport_zooming_service.on_zoom_callbacks:
+                self._viewport_zooming_service.on_zoom_callbacks.remove(self._update_viewport)
+        except (ValueError, AttributeError):
+            pass
+
+        try:
+            if self._grid_toggle_callback in self._viewport_gridding_service.on_toggle_callbacks:
+                self._viewport_gridding_service.on_toggle_callbacks.remove(self._grid_toggle_callback)
+        except (ValueError, AttributeError):
+            pass
 
     def _enable_entry(
         self,
