@@ -282,7 +282,7 @@ class ViewportStatusService:
             fps: Frames per second value (calculated from frame delta)
         """
         self._fps = fps
-        
+
         # Apply exponential moving average for smooth display
         if self._fps_smoothed == 0.0:
             # First frame - initialize directly
@@ -291,7 +291,7 @@ class ViewportStatusService:
             # Smooth subsequent frames using EMA formula:
             # smoothed = (alpha * new_value) + (1 - alpha) * old_smoothed
             self._fps_smoothed = (self._fps_alpha * fps) + ((1.0 - self._fps_alpha) * self._fps_smoothed)
-        
+
         if "fps" in self._status_labels:
             # Display rounded smoothed FPS
             self._status_labels["fps"].config(text=f"FPS: {int(round(self._fps_smoothed))}")

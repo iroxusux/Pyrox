@@ -1,8 +1,8 @@
 """Example tasks for Pyrox application.
 """
-from . import examples, sceneviewer
+from . import builtin, sceneviewer
 
 __all__ = (
-    'examples',
+    'builtin',
     'sceneviewer',
 )
