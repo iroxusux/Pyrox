@@ -44,7 +44,7 @@ class TestConsoleBackend(unittest.TestCase):
 
     def test_get_root_gui_window_returns_none(self):
         """Test that get_root_gui_window returns None."""
-        self.assertIsNone(self.backend.get_root_gui_window())
+        self.assertIsNone(self.backend.get_gui_window())
 
     def test_run_main_loop_no_op(self):
         """Test that run_main_loop is a no-op."""
@@ -305,7 +305,7 @@ class TestTkinterBackend(unittest.TestCase):
 
             mock_create.side_effect = set_menu
 
-            result = self.backend.get_root_application_gui_menu()
+            result = self.backend.get_gui_application_menu()
 
             mock_create.assert_called_once()
             self.assertEqual(result, mock_menu)
@@ -315,7 +315,7 @@ class TestTkinterBackend(unittest.TestCase):
         mock_menu = MagicMock(spec=TkinterApplicationMenu)
         self.backend._menu = mock_menu
 
-        result = self.backend.get_root_application_gui_menu()
+        result = self.backend.get_gui_application_menu()
 
         self.assertEqual(result, mock_menu)
 
@@ -325,7 +325,7 @@ class TestTkinterBackend(unittest.TestCase):
 
         with patch.object(self.backend, 'create_application_gui_menu', return_value=None):
             with self.assertRaises(RuntimeError) as context:
-                self.backend.get_root_application_gui_menu()
+                self.backend.get_gui_application_menu()
             self.assertIn("Menu not initialized", str(context.exception))
 
     def test_get_root_gui_window_creates_if_needed(self):
@@ -341,7 +341,7 @@ class TestTkinterBackend(unittest.TestCase):
 
             mock_create.side_effect = set_window
 
-            result = self.backend.get_root_gui_window()
+            result = self.backend.get_gui_window()
 
             mock_create.assert_called_once()
             self.assertEqual(result, mock_window)
@@ -351,7 +351,7 @@ class TestTkinterBackend(unittest.TestCase):
         mock_window = MagicMock(spec=TkinterGuiWindow)
         self.backend._root_window = mock_window
 
-        result = self.backend.get_root_gui_window()
+        result = self.backend.get_gui_window()
 
         self.assertEqual(result, mock_window)
 
@@ -361,7 +361,7 @@ class TestTkinterBackend(unittest.TestCase):
 
         with patch.object(self.backend, 'create_root_window', return_value=None):
             with self.assertRaises(RuntimeError) as context:
-                self.backend.get_root_gui_window()
+                self.backend.get_gui_window()
             self.assertIn("Root window not initialized", str(context.exception))
 
     def test_get_root_window_returns_window_object(self):

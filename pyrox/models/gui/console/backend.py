@@ -77,10 +77,10 @@ class ConsoleBackend(IGuiBackend):
     def get_root_application_menu(self) -> Any:
         raise NotImplementedError("Console backend does not support application menu retrieval")
 
-    def get_root_application_gui_menu(self) -> IApplicationGuiMenu:
+    def get_gui_application_menu(self) -> IApplicationGuiMenu:
         raise NotImplementedError("Console backend does not support application menu retrieval")
 
-    def get_root_gui_window(self) -> Any:
+    def get_gui_window(self) -> Any:
         return None
 
     def get_root_window(self) -> Any:

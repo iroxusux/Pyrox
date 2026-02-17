@@ -58,7 +58,7 @@ class SupportsGUIServices:
     @property
     def gui_app_menu(self) -> IApplicationGuiMenu:
         """Access the application's gui menu via GuiManager Service."""
-        return GuiManager.unsafe_get_backend().get_root_application_gui_menu()
+        return GuiManager.unsafe_get_backend().get_gui_application_menu()
 
     @property
     def root_menu(self) -> Any:

@@ -49,8 +49,9 @@ class HelpWindow:
         """
         self.window = tk.Toplevel(parent) if parent else tk.Tk()
         self.window.title("Pyrox Help")
-        self.window.geometry("700x600")
+        self.window.geometry("800x700")
         self.window.resizable(True, True)
+        self.window.minsize(700, 800)
 
         # Try to center the window
         self.window.update_idletasks()
@@ -99,26 +100,26 @@ class HelpWindow:
     def _build_ui(self) -> None:
         """Build the user interface."""
         # Create main container with padding
-        main_frame = ttk.Frame(self.window, padding="10")
+        main_frame = ttk.Frame(self.window, padding="15")
         main_frame.pack(fill=tk.BOTH, expand=True)
 
         # Header section
         self._create_header(main_frame)
 
         # Separator
-        ttk.Separator(main_frame, orient='horizontal').pack(fill=tk.X, pady=10)
+        ttk.Separator(main_frame, orient='horizontal').pack(fill=tk.X, pady=12)
 
         # System information section
         self._create_system_info(main_frame)
 
         # Separator
-        ttk.Separator(main_frame, orient='horizontal').pack(fill=tk.X, pady=10)
+        ttk.Separator(main_frame, orient='horizontal').pack(fill=tk.X, pady=12)
 
         # Dependencies section with scrollable view
         self._create_dependencies_section(main_frame)
 
         # Separator
-        ttk.Separator(main_frame, orient='horizontal').pack(fill=tk.X, pady=10)
+        ttk.Separator(main_frame, orient='horizontal').pack(fill=tk.X, pady=12)
 
         # Footer with license and close button
         self._create_footer(main_frame)
@@ -130,7 +131,7 @@ class HelpWindow:
             parent: Parent frame to contain the header
         """
         header_frame = ttk.Frame(parent)
-        header_frame.pack(fill=tk.X, pady=(0, 5))
+        header_frame.pack(fill=tk.X, pady=(0, 8))
 
         # Application name
         app_name_label = ttk.Label(
@@ -138,7 +139,7 @@ class HelpWindow:
             text="Pyrox",
             font=('TkDefaultFont', 20, 'bold')
         )
-        app_name_label.pack(anchor=tk.W)
+        app_name_label.pack(anchor=tk.W, pady=(2, 4))
 
         # Version information
         version = self._get_pyrox_version()
@@ -148,7 +149,7 @@ class HelpWindow:
             text=f"Version: {version}",
             font=('TkDefaultFont', 11)
         )
-        version_label.pack(anchor=tk.W)
+        version_label.pack(anchor=tk.W, pady=(2, 4))
 
         # Description
         desc_label = ttk.Label(
@@ -157,7 +158,7 @@ class HelpWindow:
             font=('TkDefaultFont', 9, 'italic'),
             foreground='gray'
         )
-        desc_label.pack(anchor=tk.W, pady=(2, 0))
+        desc_label.pack(anchor=tk.W, pady=(2, 2))
 
     def _create_system_info(self, parent: ttk.Frame) -> None:
         """Create the system information section.
@@ -165,8 +166,15 @@ class HelpWindow:
         Args:
             parent: Parent frame to contain the system info
         """
-        sys_frame = ttk.LabelFrame(parent, text="System Information", padding="10")
-        sys_frame.pack(fill=tk.X, pady=(0, 5))
+        sys_frame = ttk.Frame(parent, padding="12")
+        sys_frame.pack(fill=tk.X, pady=(0, 8))
+
+        # Section title
+        ttk.Label(
+            sys_frame,
+            text="System Information",
+            font=('TkDefaultFont', 12, 'bold')
+        ).pack(anchor=tk.W, pady=(0, 8))
 
         # Python version
         python_version = sys.version.split('\n')[0]
@@ -174,21 +182,21 @@ class HelpWindow:
             sys_frame,
             text=f"Python: {python_version}",
             font=('TkDefaultFont', 9)
-        ).pack(anchor=tk.W)
+        ).pack(anchor=tk.W, padx=2, pady=(2, 4))
 
         # Platform
         ttk.Label(
             sys_frame,
             text=f"Platform: {platform.platform()}",
             font=('TkDefaultFont', 9)
-        ).pack(anchor=tk.W, pady=(2, 0))
+        ).pack(anchor=tk.W, padx=2, pady=(0, 4))
 
         # Architecture
         ttk.Label(
             sys_frame,
             text=f"Architecture: {platform.machine()}",
             font=('TkDefaultFont', 9)
-        ).pack(anchor=tk.W, pady=(2, 0))
+        ).pack(anchor=tk.W, padx=2, pady=(0, 2))
 
     def _create_dependencies_section(self, parent: ttk.Frame) -> None:
         """Create the dependencies section with scrollable list.
@@ -196,12 +204,19 @@ class HelpWindow:
         Args:
             parent: Parent frame to contain the dependencies section
         """
-        deps_frame = ttk.LabelFrame(parent, text="Installed Dependencies", padding="10")
-        deps_frame.pack(fill=tk.BOTH, expand=True, pady=(0, 5))
+        deps_frame = ttk.Frame(parent, padding="12")
+        deps_frame.pack(fill=tk.BOTH, expand=True, pady=(0, 8))
+
+        # Section title
+        ttk.Label(
+            deps_frame,
+            text="Installed Dependencies",
+            font=('TkDefaultFont', 12, 'bold')
+        ).pack(anchor=tk.W, pady=(0, 8))
 
         # Create treeview with scrollbar
         tree_frame = ttk.Frame(deps_frame)
-        tree_frame.pack(fill=tk.BOTH, expand=True)
+        tree_frame.pack(fill=tk.BOTH, expand=True, padx=2, pady=2)
 
         # Scrollbar
         scrollbar = ttk.Scrollbar(tree_frame)
@@ -212,12 +227,13 @@ class HelpWindow:
             tree_frame,
             columns=('version',),
             show='tree headings',
-            yscrollcommand=scrollbar.set
+            yscrollcommand=scrollbar.set,
+            height=10
         )
-        self.tree.heading('#0', text='Package')
-        self.tree.heading('version', text='Version')
-        self.tree.column('#0', width=400)
-        self.tree.column('version', width=250)
+        self.tree.heading('#0', text='Package', anchor=tk.W)
+        self.tree.heading('version', text='Version', anchor=tk.W)
+        self.tree.column('#0', width=420, minwidth=200, stretch=True)
+        self.tree.column('version', width=250, minwidth=120, stretch=True)
         self.tree.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
 
         scrollbar.config(command=self.tree.yview)
@@ -274,7 +290,7 @@ class HelpWindow:
         Args:
             parent: Parent frame to contain the footer
         """
-        footer_frame = ttk.Frame(parent)
+        footer_frame = ttk.Frame(parent, padding=(0, 5, 0, 0))
         footer_frame.pack(fill=tk.X)
 
         # License information
@@ -286,26 +302,26 @@ class HelpWindow:
             text="License: GNU General Public License v3 (GPLv3)",
             font=('TkDefaultFont', 8),
             foreground='gray'
-        ).pack(anchor=tk.W)
+        ).pack(anchor=tk.W, padx=2, pady=(2, 3))
 
         ttk.Label(
             license_frame,
             text="Copyright © 2024-2026 Brian LaFond",
             font=('TkDefaultFont', 8),
             foreground='gray'
-        ).pack(anchor=tk.W)
+        ).pack(anchor=tk.W, padx=2, pady=(0, 2))
 
         # Close button
         button_frame = ttk.Frame(footer_frame)
-        button_frame.pack(side=tk.RIGHT)
+        button_frame.pack(side=tk.RIGHT, pady=(5, 0))
 
         close_btn = ttk.Button(
             button_frame,
             text="Close",
             command=self.close,
-            width=10
+            width=12
         )
-        close_btn.pack(side=tk.RIGHT, padx=(5, 0))
+        close_btn.pack(side=tk.RIGHT, padx=(8, 0), ipady=3)
 
     def close(self) -> None:
         """Close the help window."""

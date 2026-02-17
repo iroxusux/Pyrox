@@ -258,7 +258,7 @@ class TkWorkspace(
         frame: ITaskFrame
     ) -> None:
         """Register a frame to the view menubar."""
-        view_menu = self.gui.unsafe_get_backend().get_root_application_gui_menu().get_view_menu()
+        view_menu = self.gui.unsafe_get_backend().get_gui_application_menu().get_view_menu()
         view_menu.add_checkbutton(
             label=frame.name,
             variable=frame.shown,
@@ -346,7 +346,7 @@ class TkWorkspace(
     ) -> None:
         """Unregister a frame from the view menubar.
         """
-        view_menu = self.gui.unsafe_get_backend().get_root_application_gui_menu().get_view_menu()
+        view_menu = self.gui.unsafe_get_backend().get_gui_application_menu().get_view_menu()
         try:
             view_menu.remove_item(frame.name)
         except TclError:
@@ -1073,7 +1073,7 @@ Status: {info['status']['current_message']}
         Returns:
             The main application window instance.
         """
-        return self.gui.unsafe_get_backend().get_root_gui_window()
+        return self.gui.unsafe_get_backend().get_gui_window()
 
     @property
     def workspace_paned_window(self) -> ttk.PanedWindow:

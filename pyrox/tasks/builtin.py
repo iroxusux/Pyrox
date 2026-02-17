@@ -40,4 +40,4 @@ class HelpTask(ApplicationTask):
 
     def _show_about(self) -> None:
         """Show the About/Help window."""
-        show_help_window(self.gui.root_window().root)
+        show_help_window(self.gui.root_window())

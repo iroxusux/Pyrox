@@ -56,8 +56,8 @@ class MockGuiBackend(IGuiBackend):
     def create_gui_frame(self, **kwargs) -> IGuiFrame: pass  # type: ignore
     def create_gui_menu(self, **kwargs) -> Any: pass
     def get_framework_backend(self) -> Any: pass
-    def get_root_application_gui_menu(self) -> IApplicationGuiMenu: pass  # type: ignore
-    def get_root_gui_window(self) -> Any: pass
+    def get_gui_application_menu(self) -> IApplicationGuiMenu: pass  # type: ignore
+    def get_gui_window(self) -> Any: pass
     def reroute_excepthook(self, callback: Callable[..., Any]) -> None: pass
     def create_gui_window(self, **kwargs) -> Any: pass
     def get_backend(self) -> Any: return None
@@ -222,8 +222,8 @@ class TestGuiManager(unittest.TestCase):
             def create_gui_menu(self, **kwargs) -> Any: return None
             def create_root_window(self, **kwargs): return None  # type: ignore
             def get_framework_backend(self) -> Any: return None
-            def get_root_application_gui_menu(self) -> IApplicationGuiMenu: pass  # type: ignore
-            def get_root_gui_window(self): return None  # type: ignore
+            def get_gui_application_menu(self) -> IApplicationGuiMenu: pass  # type: ignore
+            def get_gui_window(self): return None  # type: ignore
             def reroute_excepthook(self, callback: Callable[..., Any]) -> None: return None
             def run_main_loop(self, root_window=None): pass  # type: ignore
             def quit_application(self): pass

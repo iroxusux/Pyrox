@@ -88,7 +88,7 @@ class SceneviewerApplicationTask(ApplicationTask):
         )
 
         self.register_submenu(
-            menu=self.gui.root_menu().edit_menu,
+            menu=self.gui.gui_menu().edit_menu,
             submenu=scene_edit_dropdown,
             registry_id="scene.edit",
             registry_path="Edit/Scene Viewer",
@@ -254,7 +254,7 @@ class SceneviewerApplicationTask(ApplicationTask):
         )
 
         self.register_submenu(
-            menu=self.gui.root_menu().view_menu,
+            menu=self.gui.gui_menu().view_menu,
             submenu=scene_view_dropdown,
             registry_id="scene.view",
             registry_path="View/Scene Viewer",
