@@ -403,6 +403,8 @@ class SceneRunnerService(
         cls._running = True
         cls._current_time = datetime.now().timestamp()
 
+        log(cls).info("Scene runner started")
+
         # Schedule periodic updates
         cls._event_id = GuiManager.unsafe_get_backend().schedule_event(
             cls._update_interval_ms,

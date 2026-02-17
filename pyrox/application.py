@@ -68,8 +68,8 @@ class Application(
 
         # Initialize GUI backend
         self.backend.create_root_window()
-        self.backend.create_application_gui_menu()
         self.backend.restore_window_geometry()
+        self.backend.create_application_gui_menu()
         self.backend.subscribe_to_window_change_event(self.backend.save_window_geometry)
 
         # Set up logging

@@ -23,7 +23,7 @@ class IGuiBackend(ABC):
         Returns:
             IGuiWindow: The main application window instance.
         """
-        return self.get_root_gui_window()
+        return self.get_gui_window()
 
     @property
     def framework_name(self) -> str:
@@ -233,7 +233,7 @@ class IGuiBackend(ABC):
         raise NotImplementedError("get_root_application_menu method must be implemented by subclass.")
 
     @abstractmethod
-    def get_root_application_gui_menu(self) -> IApplicationGuiMenu:
+    def get_gui_application_menu(self) -> IApplicationGuiMenu:
         """Get the root application menu.
 
         Returns:
@@ -242,7 +242,7 @@ class IGuiBackend(ABC):
         raise NotImplementedError("get_root_application_gui_menu method must be implemented by subclass.")
 
     @abstractmethod
-    def get_root_gui_window(self) -> IGuiWindow:
+    def get_gui_window(self) -> IGuiWindow:
         """Get the root GUI window.
 
         Returns:
@@ -258,6 +258,15 @@ class IGuiBackend(ABC):
             Any: The root window object specific to the GUI framework.
         """
         raise NotImplementedError("get_root_window method must be implemented by subclass.")
+
+    @abstractmethod
+    def get_root_menu(self) -> Any:
+        """Get the underlying root menu object.
+
+        Returns:
+            Any: The root menu object specific to the GUI framework.
+        """
+        raise NotImplementedError("get_root_menu method must be implemented by subclass.")
 
     @abstractmethod
     def initialize(self) -> bool:

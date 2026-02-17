@@ -25,6 +25,7 @@ class GuiManager:
     _backends: Dict[GuiFramework, Type[IGuiBackend]] = {}
     _initialized: bool = False
     _root_window: Any = None
+    _root_menu: Any = None
 
     def __init__(self):
         """Prevent instantiation of static class."""
@@ -216,14 +217,28 @@ class GuiManager:
     # --------------------------------------------------
 
     @classmethod
-    def root_window(cls) -> IGuiWindow:
+    def gui_window(cls) -> IGuiWindow:
         """Get the root window of the GUI application."""
-        return cls.unsafe_get_backend().get_root_gui_window()
+        return cls.unsafe_get_backend().get_gui_window()
 
     @classmethod
-    def root_menu(cls) -> IApplicationGuiMenu:
+    def gui_menu(cls) -> IApplicationGuiMenu:
         """Get the root menu of the GUI application."""
-        return cls.unsafe_get_backend().get_root_application_gui_menu()
+        return cls.unsafe_get_backend().get_gui_application_menu()
+
+    @classmethod
+    def root_window(cls) -> Any:
+        """Get the root window object of the GUI application."""
+        if not cls._current_backend:
+            raise RuntimeError("GUI backend is not initialized.")
+        return cls._current_backend.get_root_window()
+
+    @classmethod
+    def root_menu(cls) -> Any:
+        """Get the root menu object of the GUI application."""
+        if not cls._current_backend:
+            raise RuntimeError("GUI backend is not initialized.")
+        return cls._current_backend.get_root_menu()
 
 
 # Convenience functions for common operations

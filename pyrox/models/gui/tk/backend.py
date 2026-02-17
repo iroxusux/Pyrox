@@ -179,16 +179,16 @@ class TkinterBackend(IGuiBackend):
         return GuiFramework.TKINTER
 
     def get_root_application_menu(self) -> Any:
-        return self.get_root_application_gui_menu().app_menu
+        return self.get_gui_application_menu().app_menu
 
-    def get_root_application_gui_menu(self) -> TkinterApplicationMenu:
+    def get_gui_application_menu(self) -> TkinterApplicationMenu:
         if not self._menu:
             self.create_application_gui_menu()
         if not self._menu:
             raise RuntimeError("Menu not initialized")
         return self._menu
 
-    def get_root_gui_window(self) -> TkinterGuiWindow:
+    def get_gui_window(self) -> TkinterGuiWindow:
         if not self._root_window:
             self.create_root_window()
         if not self._root_window:
@@ -196,7 +196,10 @@ class TkinterBackend(IGuiBackend):
         return self._root_window
 
     def get_root_window(self) -> Union[tk.Tk, tk.Toplevel]:
-        return self.get_root_gui_window().root
+        return self.get_gui_window().root
+
+    def get_root_menu(self) -> tk.Menu:
+        return self.get_gui_application_menu().menu
 
     def initialize(self) -> bool:
         """Initialize the Tkinter backend.
@@ -327,7 +330,7 @@ class TkinterBackend(IGuiBackend):
 
     def set_icon(self, icon_path: str) -> None:
         """Set the application icon for the Tkinter root window."""
-        self.get_root_gui_window().set_icon(icon_path)
+        self.get_gui_window().set_icon(icon_path)
 
     def get_title(self) -> str:
         """Get the application window title.

@@ -18,6 +18,7 @@ from pyrox.models.gui.tk.frame import TkinterGuiFrame
 
 from pyrox.interfaces import (
     EnvironmentKeys,
+    IGuiBackend,
     IGuiFrame,
     IGuiWindow,
     IWorkspace,
@@ -99,6 +100,10 @@ class TkWorkspace(
 
         # Callback tracking
         self._sash_callbacks: List[Callable] = []
+        self._after_id = None  # For debouncing workspace geometry saves
+
+        # Subscribe to window geometry change events to save workspace geometry
+        self.backend.subscribe_to_window_change_event(self.save_workspace_geometry)
 
     def _create_layout(self) -> None:
         """Create the main workspace layout."""
@@ -253,7 +258,7 @@ class TkWorkspace(
         frame: ITaskFrame
     ) -> None:
         """Register a frame to the view menubar."""
-        view_menu = self.gui.unsafe_get_backend().get_root_application_gui_menu().get_view_menu()
+        view_menu = self.gui.unsafe_get_backend().get_gui_application_menu().get_view_menu()
         view_menu.add_checkbutton(
             label=frame.name,
             variable=frame.shown,
@@ -341,7 +346,7 @@ class TkWorkspace(
     ) -> None:
         """Unregister a frame from the view menubar.
         """
-        view_menu = self.gui.unsafe_get_backend().get_root_application_gui_menu().get_view_menu()
+        view_menu = self.gui.unsafe_get_backend().get_gui_application_menu().get_view_menu()
         try:
             view_menu.remove_item(frame.name)
         except TclError:
@@ -366,6 +371,46 @@ class TkWorkspace(
         """Unset all frames in the view menubar.
         """
         [frame.set_shown(False) for frame in self._workspace_frames.values()]
+
+    # -------- Geometry management --------
+
+    def _store_workspace_geometry(self) -> None:
+        """Store the current workspace geometry to environment variables.
+
+        This is the actual implementation that saves the geometry.
+        Called after a debounce delay to prevent lag during resizing.
+        """
+        self._after_id = None  # Reset after_id since the event has fired
+
+        if not self.main_paned_window or not self.log_paned_window:
+            return
+
+        sidebar_width = self.get_sidebar_width()
+        log_height = self.get_log_window_height()
+
+        if not sidebar_width or not log_height:
+            return
+
+        self.env.set(EnvironmentKeys.ui.UI_SIDEBAR_WIDTH, str(sidebar_width))
+        self.env.set(EnvironmentKeys.ui.UI_LOG_WINDOW_HEIGHT, str(log_height))
+
+    def save_workspace_geometry(self) -> None:
+        """Handle workspace geometry change events.
+
+        Uses debouncing to prevent lag during rapid resize events.
+        Cancels any pending save and schedules a new one after a delay.
+        """
+        if self._after_id:  # If we've scheduled an event, cancel it
+            self.backend.cancel_scheduled_event(self._after_id)
+
+        self._after_id = self.backend.schedule_event(500, self._store_workspace_geometry)
+
+    def restore_workspace_geometry(self) -> None:
+        """Restore the workspace geometry from the environment."""
+        self._set_initial_sidebar_width()
+        self._set_initial_log_window_height()
+
+    # -------- Frames management --------
 
     def register_frame(
         self,
@@ -446,6 +491,8 @@ class TkWorkspace(
 
         self._raise_frame(frame)
 
+    # -------- Sidebar management --------
+
     def add_panel(
         self,
         panel: tk.Widget,
@@ -516,7 +563,7 @@ class TkWorkspace(
                 return
         raise ValueError(f"Panel with ID '{panel_id}' not found")
 
-    def get_panel_height(self) -> float:
+    def get_panel_height(self, panel_id) -> int:
         """
         Get the height of the log window as a fraction of total height.
 
@@ -525,8 +572,8 @@ class TkWorkspace(
         """
         total_height = self.log_paned_window.winfo_height()
         sash_pos = self.log_paned_window.sashpos(0)
-        log_height = total_height - sash_pos
-        return log_height / total_height if total_height > 0 else 0.0
+        log_height = int(total_height - sash_pos)
+        return int(log_height / total_height) if total_height > 0 else 0
 
     def add_sidebar_widget(
         self,
@@ -797,7 +844,12 @@ class TkWorkspace(
 
         self.gui.unsafe_get_backend().update_framekwork_tasks()
         screen_height = self.main_window.winfo_height()
-        sash_pos = self.log_paned_window.sashpos(0)
+
+        try:
+            sash_pos = self.log_paned_window.sashpos(0)
+        except TclError:
+            return None  # Sash position may not be available if the window is not fully initialized
+
         perc_of_window = (screen_height - sash_pos) / screen_height
         return perc_of_window
 
@@ -808,7 +860,12 @@ class TkWorkspace(
 
         self.gui.unsafe_get_backend().update_framekwork_tasks()
         screen_width = self.main_window.winfo_width()
-        sash_pos = self.main_paned_window.sashpos(0)
+
+        try:
+            sash_pos = self.main_paned_window.sashpos(0)
+        except TclError:
+            return None  # Sash position may not be available if the window is not fully initialized
+
         perc_of_window = sash_pos / screen_width
         return perc_of_window
 
@@ -937,6 +994,15 @@ Status: {info['status']['current_message']}
         close_btn.pack(pady=(0, 10))
 
     @property
+    def backend(self) -> IGuiBackend:
+        """Get the GUI backend instance.
+
+        Returns:
+            IGuiBackend: The GUI backend instance.
+        """
+        return self.gui.unsafe_get_backend()
+
+    @property
     def log_paned_window(self) -> ttk.PanedWindow:
         """Get the log paned window.
 
@@ -1007,7 +1073,7 @@ Status: {info['status']['current_message']}
         Returns:
             The main application window instance.
         """
-        return self.gui.unsafe_get_backend().get_root_gui_window()
+        return self.gui.unsafe_get_backend().get_gui_window()
 
     @property
     def workspace_paned_window(self) -> ttk.PanedWindow:

@@ -138,7 +138,7 @@ class SceneViewerFrame(TkinterTaskFrame):
     def __init__(
         self,
         parent,
-        name: str = "Scene Viewer",
+        name: str = "scene viewer",
         runner: Optional[type[ISceneRunnerService]] = None,
         scene: Optional[IScene] = None
     ):
@@ -211,6 +211,8 @@ class SceneViewerFrame(TkinterTaskFrame):
         # Properties panel state
         self._properties_panel_visible: bool = False
         self._properties_panel: Optional[TkPropertyPanel] = None
+        self._properties_panel_current_object_id: Optional[str] = None  # Track displayed object
+        self._previous_selection: set[str] = set()  # Track previous selection to detect changes
 
         # Drawing and manipulation state
         self._current_tool: str = "select"  # Current tool: select, rectangle, circle, line
@@ -815,6 +817,11 @@ class SceneViewerFrame(TkinterTaskFrame):
         if self._needs_render:
             self.render_scene()
             self._needs_render = False
+
+        # Update properties panel if visible and there's a selection
+        # This ensures the panel shows live updates during object movement
+        if self._properties_panel_visible and self._canvas_object_management_service.selected_objects:
+            self._update_properties_panel()
 
         # Schedule next render check
         if self._canvas and self._canvas.winfo_exists():
@@ -2025,9 +2032,12 @@ class SceneViewerFrame(TkinterTaskFrame):
         """Update the selection info display in toolbar."""
         self._selection_label.config(text=self._canvas_object_management_service.selected_objects_display)
 
-        # Update properties panel if visible
+        # Only force refresh properties panel if selection actually changed
         if self._properties_panel_visible:
-            self._update_properties_panel()
+            current_selection = set(self._canvas_object_management_service.selected_objects)
+            if current_selection != self._previous_selection:
+                self._update_properties_panel(force_refresh=True)
+                self._previous_selection = current_selection.copy()
 
     def _update_object_appearance(self, obj_id: str) -> None:
         """Update visual appearance of an object based on selection state.
@@ -2062,20 +2072,28 @@ class SceneViewerFrame(TkinterTaskFrame):
             except tk.TclError:
                 pass
 
-    def _update_properties_panel(self) -> None:
-        """Update the properties panel with selected object information."""
+    def _update_properties_panel(self, force_refresh: bool = False) -> None:
+        """Update the properties panel with selected object information.
+
+        Args:
+            force_refresh: If True, forces a full rebuild. Otherwise uses efficient update.
+        """
         if not self._properties_panel:
             return
 
         if not self._canvas_object_management_service.selected_objects:
             # No selection
-            self._properties_panel.set_object(None)
+            if self._properties_panel_current_object_id is not None:
+                self._properties_panel.set_object(None)
+                self._properties_panel_current_object_id = None
             return
 
         if len(self._canvas_object_management_service.selected_objects) > 1:
             # Multiple selection - show count
-            self._properties_panel.set_title(f"Properties ({len(self._canvas_object_management_service.selected_objects)} selected)")
-            self._properties_panel.set_object(None)
+            if self._properties_panel_current_object_id != 'MULTIPLE':
+                self._properties_panel.set_title(f"Properties ({len(self._canvas_object_management_service.selected_objects)} selected)")
+                self._properties_panel.set_object(None)
+                self._properties_panel_current_object_id = 'MULTIPLE'
             return
 
         # Single object selected
@@ -2088,15 +2106,20 @@ class SceneViewerFrame(TkinterTaskFrame):
         if not scene_obj:
             return
 
-        # Set title with object ID
-        self._properties_panel.set_title(f"Properties: {obj_id}")
+        # Check if this is a new object or force refresh
+        if obj_id != self._properties_panel_current_object_id or force_refresh:
+            # New object selected - do full rebuild
+            self._properties_panel.set_title(f"Properties: {obj_id}")
 
-        # Define which properties should be read-only
-        # For now, make specific properties editable based on your needs
-        readonly_props = {"id", "type"}  # ID and type are typically read-only
+            # Define which properties should be read-only
+            readonly_props = {"id", "type"}  # ID and type are typically read-only
 
-        # Set the object to display
-        self._properties_panel.set_object(scene_obj, readonly_properties=readonly_props)
+            # Set the object to display (full rebuild)
+            self._properties_panel.set_object(scene_obj, readonly_properties=readonly_props)
+            self._properties_panel_current_object_id = obj_id
+        else:
+            # Same object - just update values efficiently without rebuilding
+            self._properties_panel.update_values()
 
     def _on_property_changed(self, property_name: str, new_value) -> None:
         """Handle property changes from the properties panel.

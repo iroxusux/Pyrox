@@ -40,7 +40,8 @@ class SceneviewerApplicationTask(ApplicationTask):
             command=self._on_new_scene,
             accelerator="Ctrl+N",
             underline=0,
-            category="scene"
+            category="scene",
+            subcategory="persistent"
         )
 
         self.register_menu_command(
@@ -65,7 +66,8 @@ class SceneviewerApplicationTask(ApplicationTask):
             command=self._on_load_scene,
             accelerator="Ctrl+O",
             underline=0,
-            category="scene"
+            category="scene",
+            subcategory="persistent"
         )
 
         # ---------- Edit Menu ----------
@@ -88,7 +90,7 @@ class SceneviewerApplicationTask(ApplicationTask):
         )
 
         self.register_submenu(
-            menu=self.gui.root_menu().edit_menu,
+            menu=self.gui.gui_menu().edit_menu,
             submenu=scene_edit_dropdown,
             registry_id="scene.edit",
             registry_path="Edit/Scene Viewer",
@@ -110,6 +112,7 @@ class SceneviewerApplicationTask(ApplicationTask):
             accelerator="Ctrl+Shift+S",
             underline=0,
             category="scene",
+            subcategory="persistent"
         )
 
         scene_view_dropdown = self.gui.unsafe_get_backend().create_gui_menu(
@@ -254,7 +257,7 @@ class SceneviewerApplicationTask(ApplicationTask):
         )
 
         self.register_submenu(
-            menu=self.gui.root_menu().view_menu,
+            menu=self.gui.gui_menu().view_menu,
             submenu=scene_view_dropdown,
             registry_id="scene.view",
             registry_path="View/Scene Viewer",
@@ -284,9 +287,11 @@ class SceneviewerApplicationTask(ApplicationTask):
             enable: True to enable, False to disable.
         """
         if enable:
-            MenuRegistry.enable_items_by_owner("SceneviewerApplicationTask")
+            MenuRegistry.enable_items_by_owner(self.__class__.__name__)
         else:
-            MenuRegistry.disable_items_by_owner("SceneviewerApplicationTask")
+            MenuRegistry.disable_items_by_owner(self.__class__.__name__)
+            # Ensure persistent entries remain enabled/disabled regardless of scene state
+            MenuRegistry.enable_items_by_owner(self.__class__.__name__, subcategory="persistent")
 
     def _create_scene_viewer_frame(self) -> None:
         """Create and register the SceneViewerFrame."""
@@ -353,6 +358,7 @@ class SceneviewerApplicationTask(ApplicationTask):
     def _on_frame_destroyed(self) -> None:
         """Handle cleanup when the SceneViewerFrame is destroyed."""
         SceneRunnerService.stop()
+        SceneRunnerService.set_scene(None)
         self._scene_viewer_frame = None
 
     def cleanup(self) -> None:
