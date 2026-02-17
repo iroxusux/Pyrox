@@ -100,6 +100,7 @@ class ApplicationTask(
         accelerator: str,
         underline: int,
         category: str | None = None,
+        subcategory: str | None = None,
         enabled: bool = True
     ) -> None:
         """Register a command to the application's menu bar.
@@ -121,7 +122,9 @@ class ApplicationTask(
             menu_widget=menu.menu,
             menu_index=index,
             owner=self.__class__.__name__,
-            category=category
+            command=command,
+            category=category,
+            subcategory=subcategory,
         )
 
     def register_submenu(

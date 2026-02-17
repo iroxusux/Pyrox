@@ -86,6 +86,9 @@ class ConsoleBackend(IGuiBackend):
     def get_root_window(self) -> Any:
         return None
 
+    def get_root_menu(self) -> Any:
+        return None
+
     def initialize(self) -> bool:
         """Initialize console backend (always successful)."""
         return True

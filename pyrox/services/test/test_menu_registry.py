@@ -557,6 +557,349 @@ class TestMenuRegistry(unittest.TestCase):
         self.assertEqual(len(MenuRegistry._owner_index["TestTask"]), 1)
         self.assertIn("file.open", MenuRegistry._owner_index["TestTask"])
 
+    def test_enable_item_with_category_match(self):
+        """Test enabling a menu item with matching category."""
+        self.mock_menu.type.return_value = "command"
+
+        MenuRegistry.register_item(
+            menu_id="view.properties",
+            menu_path="View/Properties",
+            menu_widget=self.mock_menu,
+            menu_index=0,
+            owner="TestTask",
+            category="scene"
+        )
+
+        result = MenuRegistry.enable_item("view.properties", category="scene")
+
+        self.assertTrue(result)
+        self.mock_menu.entryconfig.assert_called_with(0, state='normal')
+        descriptor = MenuRegistry.get_item("view.properties")
+        self.assertTrue(descriptor.enabled)  # type: ignore
+
+    def test_enable_item_with_category_mismatch(self):
+        """Test enabling a menu item with non-matching category."""
+        self.mock_menu.type.return_value = "command"
+
+        MenuRegistry.register_item(
+            menu_id="view.properties",
+            menu_path="View/Properties",
+            menu_widget=self.mock_menu,
+            menu_index=0,
+            owner="TestTask",
+            category="scene"
+        )
+
+        result = MenuRegistry.enable_item("view.properties", category="different")
+
+        self.assertFalse(result)
+        self.mock_menu.entryconfig.assert_not_called()
+
+    def test_enable_item_with_subcategory_match(self):
+        """Test enabling a menu item with matching subcategory."""
+        self.mock_menu.type.return_value = "command"
+
+        MenuRegistry.register_item(
+            menu_id="view.properties",
+            menu_path="View/Properties",
+            menu_widget=self.mock_menu,
+            menu_index=0,
+            owner="TestTask",
+            subcategory="panel"
+        )
+
+        result = MenuRegistry.enable_item("view.properties", subcategory="panel")
+
+        self.assertTrue(result)
+        self.mock_menu.entryconfig.assert_called_with(0, state='normal')
+        descriptor = MenuRegistry.get_item("view.properties")
+        self.assertTrue(descriptor.enabled)  # type: ignore
+
+    def test_enable_item_with_subcategory_mismatch(self):
+        """Test enabling a menu item with non-matching subcategory."""
+        self.mock_menu.type.return_value = "command"
+
+        MenuRegistry.register_item(
+            menu_id="view.properties",
+            menu_path="View/Properties",
+            menu_widget=self.mock_menu,
+            menu_index=0,
+            owner="TestTask",
+            subcategory="panel"
+        )
+
+        result = MenuRegistry.enable_item("view.properties", subcategory="different")
+
+        self.assertFalse(result)
+        self.mock_menu.entryconfig.assert_not_called()
+
+    def test_enable_item_with_both_category_and_subcategory_match(self):
+        """Test enabling a menu item with both category and subcategory matching."""
+        self.mock_menu.type.return_value = "command"
+
+        MenuRegistry.register_item(
+            menu_id="view.properties",
+            menu_path="View/Properties",
+            menu_widget=self.mock_menu,
+            menu_index=0,
+            owner="TestTask",
+            category="scene",
+            subcategory="panel"
+        )
+
+        result = MenuRegistry.enable_item(
+            "view.properties",
+            category="scene",
+            subcategory="panel"
+        )
+
+        self.assertTrue(result)
+        self.mock_menu.entryconfig.assert_called_with(0, state='normal')
+        descriptor = MenuRegistry.get_item("view.properties")
+        self.assertTrue(descriptor.enabled)  # type: ignore
+
+    def test_enable_item_with_category_match_subcategory_mismatch(self):
+        """Test enabling with matching category but mismatched subcategory."""
+        self.mock_menu.type.return_value = "command"
+
+        MenuRegistry.register_item(
+            menu_id="view.properties",
+            menu_path="View/Properties",
+            menu_widget=self.mock_menu,
+            menu_index=0,
+            owner="TestTask",
+            category="scene",
+            subcategory="panel"
+        )
+
+        result = MenuRegistry.enable_item(
+            "view.properties",
+            category="scene",
+            subcategory="different"
+        )
+
+        self.assertFalse(result)
+        self.mock_menu.entryconfig.assert_not_called()
+
+    def test_enable_item_without_category_filter(self):
+        """Test enabling item with metadata but no category filter."""
+        self.mock_menu.type.return_value = "command"
+
+        MenuRegistry.register_item(
+            menu_id="view.properties",
+            menu_path="View/Properties",
+            menu_widget=self.mock_menu,
+            menu_index=0,
+            owner="TestTask",
+            category="scene"
+        )
+
+        result = MenuRegistry.enable_item("view.properties")
+
+        self.assertTrue(result)
+        self.mock_menu.entryconfig.assert_called_with(0, state='normal')
+
+    def test_enable_items_by_owner_with_category(self):
+        """Test enabling items by owner with category filter."""
+        self.mock_menu.type.return_value = "command"
+
+        MenuRegistry.register_item(
+            menu_id="view.properties",
+            menu_path="View/Properties",
+            menu_widget=self.mock_menu,
+            menu_index=0,
+            owner="TestTask",
+            category="scene"
+        )
+
+        MenuRegistry.register_item(
+            menu_id="view.settings",
+            menu_path="View/Settings",
+            menu_widget=self.mock_menu,
+            menu_index=1,
+            owner="TestTask",
+            category="config"
+        )
+
+        MenuRegistry.register_item(
+            menu_id="view.details",
+            menu_path="View/Details",
+            menu_widget=self.mock_menu,
+            menu_index=2,
+            owner="TestTask",
+            category="scene"
+        )
+
+        count = MenuRegistry.enable_items_by_owner("TestTask", category="scene")
+
+        self.assertEqual(count, 2)
+        # Only the two items with category="scene" should be enabled
+        self.assertEqual(self.mock_menu.entryconfig.call_count, 2)
+
+    def test_enable_items_by_owner_with_subcategory(self):
+        """Test enabling items by owner with subcategory filter."""
+        self.mock_menu.type.return_value = "command"
+
+        MenuRegistry.register_item(
+            menu_id="view.properties",
+            menu_path="View/Properties",
+            menu_widget=self.mock_menu,
+            menu_index=0,
+            owner="TestTask",
+            subcategory="panel"
+        )
+
+        MenuRegistry.register_item(
+            menu_id="view.settings",
+            menu_path="View/Settings",
+            menu_widget=self.mock_menu,
+            menu_index=1,
+            owner="TestTask",
+            subcategory="dialog"
+        )
+
+        MenuRegistry.register_item(
+            menu_id="view.details",
+            menu_path="View/Details",
+            menu_widget=self.mock_menu,
+            menu_index=2,
+            owner="TestTask",
+            subcategory="panel"
+        )
+
+        count = MenuRegistry.enable_items_by_owner("TestTask", subcategory="panel")
+
+        self.assertEqual(count, 2)
+        # Only the two items with subcategory="panel" should be enabled
+        self.assertEqual(self.mock_menu.entryconfig.call_count, 2)
+
+    def test_enable_items_by_owner_with_both_filters(self):
+        """Test enabling items by owner with both category and subcategory filters."""
+        self.mock_menu.type.return_value = "command"
+
+        MenuRegistry.register_item(
+            menu_id="view.properties",
+            menu_path="View/Properties",
+            menu_widget=self.mock_menu,
+            menu_index=0,
+            owner="TestTask",
+            category="scene",
+            subcategory="panel"
+        )
+
+        MenuRegistry.register_item(
+            menu_id="view.settings",
+            menu_path="View/Settings",
+            menu_widget=self.mock_menu,
+            menu_index=1,
+            owner="TestTask",
+            category="scene",
+            subcategory="dialog"
+        )
+
+        MenuRegistry.register_item(
+            menu_id="view.details",
+            menu_path="View/Details",
+            menu_widget=self.mock_menu,
+            menu_index=2,
+            owner="TestTask",
+            category="config",
+            subcategory="panel"
+        )
+
+        MenuRegistry.register_item(
+            menu_id="view.info",
+            menu_path="View/Info",
+            menu_widget=self.mock_menu,
+            menu_index=3,
+            owner="TestTask",
+            category="scene",
+            subcategory="panel"
+        )
+
+        count = MenuRegistry.enable_items_by_owner(
+            "TestTask",
+            category="scene",
+            subcategory="panel"
+        )
+
+        self.assertEqual(count, 2)
+        # Only items with both category="scene" AND subcategory="panel"
+        self.assertEqual(self.mock_menu.entryconfig.call_count, 2)
+
+    def test_enable_items_by_owner_no_match_for_filters(self):
+        """Test enabling items by owner when no items match the filters."""
+        self.mock_menu.type.return_value = "command"
+
+        MenuRegistry.register_item(
+            menu_id="view.properties",
+            menu_path="View/Properties",
+            menu_widget=self.mock_menu,
+            menu_index=0,
+            owner="TestTask",
+            category="scene"
+        )
+
+        MenuRegistry.register_item(
+            menu_id="view.settings",
+            menu_path="View/Settings",
+            menu_widget=self.mock_menu,
+            menu_index=1,
+            owner="TestTask",
+            category="config"
+        )
+
+        count = MenuRegistry.enable_items_by_owner("TestTask", category="nonexistent")
+
+        self.assertEqual(count, 0)
+        self.mock_menu.entryconfig.assert_not_called()
+
+    def test_enable_items_by_owner_without_filters(self):
+        """Test enabling items by owner without any filters (original behavior)."""
+        self.mock_menu.type.return_value = "command"
+
+        MenuRegistry.register_item(
+            menu_id="view.properties",
+            menu_path="View/Properties",
+            menu_widget=self.mock_menu,
+            menu_index=0,
+            owner="TestTask",
+            category="scene"
+        )
+
+        MenuRegistry.register_item(
+            menu_id="view.settings",
+            menu_path="View/Settings",
+            menu_widget=self.mock_menu,
+            menu_index=1,
+            owner="TestTask",
+            category="config"
+        )
+
+        count = MenuRegistry.enable_items_by_owner("TestTask")
+
+        self.assertEqual(count, 2)
+        # All items should be enabled regardless of category
+        self.assertEqual(self.mock_menu.entryconfig.call_count, 2)
+
+    def test_category_filter_with_missing_metadata(self):
+        """Test category filter on items without category metadata."""
+        self.mock_menu.type.return_value = "command"
+
+        MenuRegistry.register_item(
+            menu_id="view.properties",
+            menu_path="View/Properties",
+            menu_widget=self.mock_menu,
+            menu_index=0,
+            owner="TestTask"
+            # No category metadata
+        )
+
+        result = MenuRegistry.enable_item("view.properties", category="scene")
+
+        self.assertFalse(result)
+        self.mock_menu.entryconfig.assert_not_called()
+
 
 if __name__ == '__main__':
     unittest.main()

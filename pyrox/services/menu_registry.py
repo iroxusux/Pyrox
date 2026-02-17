@@ -128,7 +128,12 @@ class MenuRegistry:
         return cls._registry.get(menu_id)
 
     @classmethod
-    def enable_item(cls, menu_id: str) -> bool:
+    def enable_item(
+        cls,
+        menu_id: str,
+        category: Optional[str] = None,
+        subcategory: Optional[str] = None
+    ) -> bool:
         """Enable a menu item.
 
         Args:
@@ -139,6 +144,10 @@ class MenuRegistry:
         """
         descriptor = cls.get_item(menu_id)
         if descriptor:
+            if category and descriptor.metadata.get('category') != category:
+                return False
+            if subcategory and descriptor.metadata.get('subcategory') != subcategory:
+                return False
             try:
                 # Check if it's a separator
                 item_type = descriptor.menu_widget.type(descriptor.menu_index)
@@ -198,7 +207,12 @@ class MenuRegistry:
         return False
 
     @classmethod
-    def enable_items_by_owner(cls, owner: str) -> int:
+    def enable_items_by_owner(
+            cls,
+            owner: str,
+            category: Optional[str] = None,
+            subcategory: Optional[str] = None
+    ) -> int:
         """Enable all menu items owned by a specific component.
 
         Args:
@@ -210,7 +224,7 @@ class MenuRegistry:
         count = 0
         menu_ids = cls._owner_index.get(owner, [])
         for menu_id in menu_ids:
-            if cls.enable_item(menu_id):
+            if cls.enable_item(menu_id, category=category, subcategory=subcategory):
                 count += 1
         log(cls).debug(f"Enabled {count} menu items for owner: {owner}")
         return count

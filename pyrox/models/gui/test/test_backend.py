@@ -546,7 +546,7 @@ class TestTkinterBackend(unittest.TestCase):
         """Test setting application icon."""
         mock_gui_window = MagicMock(spec=TkinterGuiWindow)
 
-        with patch.object(self.backend, 'get_root_gui_window', return_value=mock_gui_window):
+        with patch.object(self.backend, 'get_gui_window', return_value=mock_gui_window):
             self.backend.set_icon('test_icon.ico')
 
             mock_gui_window.set_icon.assert_called_once_with('test_icon.ico')

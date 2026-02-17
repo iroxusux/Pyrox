@@ -40,6 +40,7 @@ class MockGuiBackend(IGuiBackend):
     def config_from_env(self) -> None: return None
     def set_title(self, title: str) -> None: return None
     def cancel_scheduled_event(self, event_id: int | str) -> None: return None
+    def get_root_menu(self) -> Any: return None
 
     def create_root_window(self, **kwargs) -> Any:
         window = f"MockWindow({kwargs})"
@@ -213,6 +214,7 @@ class TestGuiManager(unittest.TestCase):
             def cancel_scheduled_event(self, event_id: int | str) -> None: return None
             def config_from_env(self) -> None: return None
             def update_framekwork_tasks(self) -> None: pass
+            def get_root_menu(self) -> Any: return None
             def set_icon(self, icon_path: str) -> None: return None
             def is_available(self): return False
             def initialize(self): return False
