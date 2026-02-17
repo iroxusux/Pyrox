@@ -20,18 +20,18 @@ class FileTask(ApplicationTask):
     def __init__(self, application: IApplication) -> None:
         super().__init__(application)
 
+        self.file_menu.insert_separator(index=99998)  # Add separator before Exit
         self.register_menu_command(
             menu=self.file_menu,
             registry_id="exit",
             registry_path="File/Exit",
-            index=len(self.file_menu.root.winfo_children()),
+            index=99999,
             label="Exit",
             command=lambda: self.application.quit(exit_code=0),  # User requested exit
             accelerator="Ctrl+Q",
             underline=0,
             category="system",
         )
-        self.file_menu.insert_separator(index=len(self.file_menu.root.winfo_children()))
 
 
 class HelpTask(ApplicationTask):
@@ -45,12 +45,8 @@ class HelpTask(ApplicationTask):
             registry_path="Help/About Pyrox",
             index=0,
             label="About Pyrox",
-            command=self._show_about,
+            command=lambda: show_help_window(self.gui.root_window()),  # Show about/help window
             accelerator="F1",
             underline=0,
             category="help",
         )
-
-    def _show_about(self) -> None:
-        """Show the About/Help window."""
-        show_help_window(self.gui.root_window())
