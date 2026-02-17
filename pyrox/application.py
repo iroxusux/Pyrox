@@ -293,6 +293,12 @@ class Application(
         self.backend.run_main_loop()
         return 0
 
+    def stop(self, stop_code: int = 0) -> None:
+        """Stop the application."""
+        super().stop()
+        self.backend.quit_application()
+        sys.exit(stop_code)
+
 
 if __name__ == '__main__':
     import pyrox  # noqa: F401
