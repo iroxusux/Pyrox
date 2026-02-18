@@ -67,15 +67,34 @@ class EnvManager:
             print(f".env file '{cls._env_file}' is not readable.")
             return False
 
-        try:
-            cls._load_from_file(cls._env_file)
-            cls._loaded = True
-            print(f".env file '{cls._env_file}' loaded successfully.")
-            return True
+        # Retry logic for handling spurious interrupts (e.g., from Git Bash terminal)
+        max_retries = 3
+        retry_delay = 0.1
 
-        except Exception as e:
-            print(f"Error loading .env file '{cls._env_file}': {e}")
-            return False
+        for attempt in range(max_retries):
+            try:
+                cls._load_from_file(cls._env_file)
+                cls._loaded = True
+                print(f".env file '{cls._env_file}' loaded successfully.")
+                return True
+
+            except KeyboardInterrupt:
+                # Catch spurious interrupts from terminal initialization
+                if attempt < max_retries - 1:
+                    import time
+                    print(f"Caught interrupt during .env load, retrying... (attempt {attempt + 1}/{max_retries})")
+                    time.sleep(retry_delay)
+                    retry_delay *= 2  # Exponential backoff
+                else:
+                    print(f"Warning: Could not load .env file after {max_retries} attempts due to interrupts.")
+                    cls._loaded = True  # Mark as loaded to prevent infinite retries
+                    return False
+
+            except Exception as e:
+                print(f"Error loading .env file '{cls._env_file}': {e}")
+                return False
+
+        return False
 
     @classmethod
     def _is_file_readable(cls, file_path: str) -> bool:
@@ -227,7 +246,30 @@ class EnvManager:
         cast_type: type = str
     ) -> Any:
         """Get environment variable with optional type casting."""
-        load_dotenv(cls._env_file)  # Load from .env file
+        # Load .env file if not already loaded - with retry logic for terminal interrupts
+        if not cls._loaded and cls._env_file:
+            max_retries = 3
+            retry_delay = 0.1
+            for attempt in range(max_retries):
+                try:
+                    load_dotenv(cls._env_file)
+                    cls._loaded = True
+                    break
+                except KeyboardInterrupt:
+                    # Catch spurious interrupts from terminal (e.g., Git Bash signals)
+                    if attempt < max_retries - 1:
+                        import time
+                        time.sleep(retry_delay)
+                        retry_delay *= 2  # Exponential backoff
+                    else:
+                        # If all retries failed, try to continue without dotenv
+                        print("Warning: Could not load .env file due to interrupt. Continuing with system environment.")
+                        cls._loaded = True  # Mark as loaded to prevent infinite retries
+                except Exception as e:
+                    print(f"Warning: Error loading .env file: {e}")
+                    cls._loaded = True  # Mark as loaded to prevent infinite retries
+                    break
+
         if isinstance(key, Enum):
             key = str(key.value)
 
