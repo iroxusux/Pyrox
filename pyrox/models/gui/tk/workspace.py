@@ -10,7 +10,7 @@ This module provides a workspace widget that mimics the VSCode interface with:
 """
 import tkinter as tk
 from tkinter import ttk, TclError
-from typing import Dict, List, Optional, Callable, Any
+from typing import Optional, Callable, Any
 from pyrox.models.gui.logframe import LogFrame
 from pyrox.models.gui.frame import PyroxFrameContainer
 from pyrox.models.gui.notebook import PyroxNotebook
@@ -80,12 +80,12 @@ class TkWorkspace(
         self._status_bar = None
         self._status_label = None
 
-        self._panes: List[tk.Widget] = []
+        self._panes: list[tk.Widget] = []
 
         # Widget tracking
-        self._mounted_widgets: Dict[str, tk.Widget] = {}
-        self._sidebar_tabs: Dict[str, str] = {}  # widget_id -> tab_id mapping
-        self._workspace_frames: Dict[str, ITaskFrame] = {}
+        self._mounted_widgets: dict[str, tk.Widget] = {}
+        self._sidebar_tabs: dict[str, str] = {}  # widget_id -> tab_id mapping
+        self._workspace_frames: dict[str, ITaskFrame[tk.Frame, tk.Widget]] = {}
 
         # Event callbacks
         self.on_sidebar_toggle: Optional[Callable[[bool], None]] = None
@@ -99,7 +99,7 @@ class TkWorkspace(
         self._status_text = tk.StringVar()
 
         # Callback tracking
-        self._sash_callbacks: List[Callable] = []
+        self._sash_callbacks: list[Callable] = []
         self._after_id = None  # For debouncing workspace geometry saves
 
         # Subscribe to window geometry change events to save workspace geometry
@@ -111,6 +111,8 @@ class TkWorkspace(
 
         # Set initial status
         self._status_text.set("Workspace Ready")
+
+    # ------- Layout creation and management --------
 
     def _create_layout(self) -> None:
         """Create the main workspace layout."""
@@ -191,16 +193,184 @@ class TkWorkspace(
         )
         self.workspace_paned_window.add(self.workspace_area.root)
 
-    def _get_shown_frame(self) -> Optional[ITaskFrame]:
-        """Get the currently shown frame in the workspace.
+    def _setup_bindings(self) -> None:
+        """Set up event bindings."""
+        # Bind sidebar organizer events
+        self.sidebar_organizer.on_tab_selected = self._on_sidebar_tab_selected
+        self.sidebar_organizer.on_tab_added = self._on_sidebar_tab_added
+        self.sidebar_organizer.on_tab_removed = self._on_sidebar_tab_removed
 
-        Returns:
-            TaskFrame or None: The currently shown frame, or None if none is shown.
+        self.log_paned_window.bind('<B1-Motion>', self.on_log_sash_moved)
+        self.main_paned_window.bind('<B1-Motion>', self.on_main_sash_moved)
+
+    # -------- Geometry management --------
+
+    def _store_workspace_geometry(self) -> None:
+        """Store the current workspace geometry to environment variables.
+
+        This is the actual implementation that saves the geometry.
+        Called after a debounce delay to prevent lag during resizing.
         """
-        for frame in self._workspace_frames.values():
-            if frame.shown:
-                return frame
-        return None
+        self._after_id = None  # Reset after_id since the event has fired
+
+        if not self.main_paned_window or not self.log_paned_window:
+            return
+
+        sidebar_width = self.get_sidebar_width()
+        log_height = self.get_log_window_height()
+
+        if not sidebar_width or not log_height:
+            return
+
+        self.env.set(EnvironmentKeys.ui.UI_SIDEBAR_WIDTH, str(sidebar_width))
+        self.env.set(EnvironmentKeys.ui.UI_LOG_WINDOW_HEIGHT, str(log_height))
+
+    def save_workspace_geometry(self) -> None:
+        """Handle workspace geometry change events.
+
+        Uses debouncing to prevent lag during rapid resize events.
+        Cancels any pending save and schedules a new one after a delay.
+        """
+        if self._after_id:  # If we've scheduled an event, cancel it
+            self.backend.cancel_scheduled_event(self._after_id)
+
+        self._after_id = self.backend.schedule_event(
+            500,
+            self._store_workspace_geometry
+        )
+
+    def restore_workspace_geometry(self) -> None:
+        """Restore the workspace geometry from the environment."""
+        self._set_initial_sidebar_width()
+        self._set_initial_log_window_height()
+
+    # -------- Workspace management --------
+
+    def _show_workspace_info(self) -> None:
+        """Show workspace information dialog."""
+        info = self.get_workspace_info()
+
+        info_text = f"""Workspace Information:
+
+Sidebar:
+  • Widgets: {info['sidebar']['widget_count']}
+  • Tabs: {info['sidebar']['tab_count']}
+
+Main Area:
+  • Widgets: {info['workspace']['widget_count']}
+  • Size: {info['workspace']['area_size'][0]}×{info['workspace']['area_size'][1]}px
+
+Status: {info['status']['current_message']}
+"""
+
+        # Create info dialog
+        info_window = tk.Toplevel(self.window.root)
+        info_window.title("Workspace Information")
+        info_window.geometry("400x300")
+        info_window.resizable(False, False)
+
+        # Center the window
+        info_window.transient(self.window.root.winfo_toplevel())
+        info_window.grab_set()
+
+        text_widget = tk.Text(
+            info_window,
+            wrap='word',
+            font=('Consolas', 10),
+            bg='#101010',
+            fg='#aaaaaa',
+            padx=10,
+            pady=10
+        )
+        text_widget.pack(fill='both', expand=True, padx=10, pady=10)
+        text_widget.insert('1.0', info_text)
+        text_widget.config(state='disabled')
+
+        # Close button
+        close_btn = ttk.Button(
+            info_window,
+            text="Close",
+            command=info_window.destroy
+        )
+        close_btn.pack(pady=(0, 10))
+
+    def clear_workspace(self) -> None:
+        """Clear all widgets from the workspace area."""
+        for task_id, task_frame in list(self._workspace_frames.items()):
+            self._unregister_workspace_frame(task_frame)
+        self.set_status("Workspace cleared")
+
+    def clear_all(self) -> None:
+        """Clear all widgets from both areas."""
+        self.clear_workspace()
+        self.clear_sidebar()
+        self.set_status("All widgets cleared")
+
+    def get_workspace_info(self) -> dict[str, Any]:
+        """Get comprehensive workspace information."""
+        return {
+            'sidebar': {
+                'widget_count': len(self._mounted_widgets),
+                'tab_count': self.sidebar_organizer.get_tab_count() if self.sidebar_organizer else 0
+            },
+            'workspace': {
+                'widget_count': len(self._workspace_frames),
+                'area_size': (
+                    self.workspace_area.root.winfo_width(),
+                    self.workspace_area.root.winfo_height()
+                ) if self.workspace_area else (0, 0)
+            },
+            'status': {
+                'current_message': self.get_status(),
+            },
+            'widgets': self.get_all_widget_ids()
+        }
+
+    def subscribe_to_sash_movement_events(
+        self,
+        callback: Callable
+    ) -> None:
+        """Subscribe to sash movement events.
+        This is temporary and may be replaced with a more robust GUI backend event system later.
+
+        Args:
+            callback: Function to call on sash movement with parameters (sash_id, position)
+        """
+        self._sash_callbacks.append(callback)
+
+    # -------- Frames management --------
+
+    def _unregister_frame_from_view_menu(
+        self,
+        frame: ITaskFrame
+    ) -> None:
+        """Unregister a frame from the view menubar.
+        """
+        view_menu = self.gui.unsafe_get_backend().get_gui_application_menu().get_view_menu()
+        try:
+            view_menu.remove_item(frame.name)
+        except TclError:
+            pass  # Menu item may not exist
+
+    def _unregister_workspace_frame(
+        self,
+        frame: ITaskFrame
+    ) -> None:
+        """Unregister a widget from the workspace tracking."""
+        if frame.shown:
+            self._hide_frames()
+
+        self._workspace_frames.pop(frame.name, None)
+        self._unregister_frame_from_view_menu(frame)
+        self.set_status(f"Removed workspace frame: {frame.name}")
+
+        if not self._get_shown_frame():
+            self._raise_next_available_frame()
+
+    def _unset_frames_selected(self):
+        """Unset all frames in the view menubar.
+        """
+        [frame.set_shown(False) for frame in self._workspace_frames.values()]
 
     def _hide_frames(self) -> None:
         """Hide frame from workspace area to prepare for another frame to be raised.
@@ -209,7 +379,10 @@ class TkWorkspace(
             raise RuntimeError("Workspace area not initialized")
 
         for widget in self.workspace_area.root.winfo_children():
-            widget.pack_forget()
+            if isinstance(widget, tk.Widget):
+                widget.pack_forget()
+            elif isinstance(widget, tk.Toplevel):
+                widget.withdraw()
 
     def _pack_frame_into_workspace(
         self,
@@ -317,107 +490,16 @@ class TkWorkspace(
         self._unset_frames_selected()
         frame.set_shown(True)
 
-    def _setup_bindings(self) -> None:
-        """Set up event bindings."""
-        # Bind sidebar organizer events
-        self.sidebar_organizer.on_tab_selected = self._on_sidebar_tab_selected
-        self.sidebar_organizer.on_tab_added = self._on_sidebar_tab_added
-        self.sidebar_organizer.on_tab_removed = self._on_sidebar_tab_removed
+    def _get_shown_frame(self) -> Optional[ITaskFrame]:
+        """Get the currently shown frame in the workspace.
 
-        self.log_paned_window.bind('<B1-Motion>', self.on_log_sash_moved)
-        self.main_paned_window.bind('<B1-Motion>', self.on_main_sash_moved)
-
-    def _set_initial_log_window_height(self) -> None:
-        """Set the initial log window height."""
-        self.log().debug("Setting initial log window height")
-        height = self.env.get(
-            EnvironmentKeys.ui.UI_LOG_WINDOW_HEIGHT,
-            0.33,
-            float
-        )
-        self.set_log_window_height(height)
-
-    def _set_initial_sidebar_width(self) -> None:
-        """Set the initial sidebar width."""
-        self.log().debug("Setting initial sidebar width")
-        width = self.env.get(
-            EnvironmentKeys.ui.UI_SIDEBAR_WIDTH,
-            0.33,
-            float
-        )
-        self.set_sidebar_width(width)
-
-    def _unregister_frame_from_view_menu(
-        self,
-        frame: ITaskFrame
-    ) -> None:
-        """Unregister a frame from the view menubar.
+        Returns:
+            TaskFrame or None: The currently shown frame, or None if none is shown.
         """
-        view_menu = self.gui.unsafe_get_backend().get_gui_application_menu().get_view_menu()
-        try:
-            view_menu.remove_item(frame.name)
-        except TclError:
-            pass  # Menu item may not exist
-
-    def _unregister_workspace_frame(
-        self,
-        frame: ITaskFrame
-    ) -> None:
-        """Unregister a widget from the workspace tracking."""
-        if frame.shown:
-            self._hide_frames()
-
-        self._workspace_frames.pop(frame.name, None)
-        self._unregister_frame_from_view_menu(frame)
-        self.set_status(f"Removed workspace frame: {frame.name}")
-
-        if not self._get_shown_frame():
-            self._raise_next_available_frame()
-
-    def _unset_frames_selected(self):
-        """Unset all frames in the view menubar.
-        """
-        [frame.set_shown(False) for frame in self._workspace_frames.values()]
-
-    # -------- Geometry management --------
-
-    def _store_workspace_geometry(self) -> None:
-        """Store the current workspace geometry to environment variables.
-
-        This is the actual implementation that saves the geometry.
-        Called after a debounce delay to prevent lag during resizing.
-        """
-        self._after_id = None  # Reset after_id since the event has fired
-
-        if not self.main_paned_window or not self.log_paned_window:
-            return
-
-        sidebar_width = self.get_sidebar_width()
-        log_height = self.get_log_window_height()
-
-        if not sidebar_width or not log_height:
-            return
-
-        self.env.set(EnvironmentKeys.ui.UI_SIDEBAR_WIDTH, str(sidebar_width))
-        self.env.set(EnvironmentKeys.ui.UI_LOG_WINDOW_HEIGHT, str(log_height))
-
-    def save_workspace_geometry(self) -> None:
-        """Handle workspace geometry change events.
-
-        Uses debouncing to prevent lag during rapid resize events.
-        Cancels any pending save and schedules a new one after a delay.
-        """
-        if self._after_id:  # If we've scheduled an event, cancel it
-            self.backend.cancel_scheduled_event(self._after_id)
-
-        self._after_id = self.backend.schedule_event(500, self._store_workspace_geometry)
-
-    def restore_workspace_geometry(self) -> None:
-        """Restore the workspace geometry from the environment."""
-        self._set_initial_sidebar_width()
-        self._set_initial_log_window_height()
-
-    # -------- Frames management --------
+        for frame in self._workspace_frames.values():
+            if frame.shown:
+                return frame
+        return None
 
     def register_frame(
         self,
@@ -463,17 +545,17 @@ class TkWorkspace(
         """
         return self._workspace_frames.get(frame_name, None)
 
-    def get_frames(self) -> list[ITaskFrame]:
+    def get_frames(self) -> list[ITaskFrame[tk.Frame, tk.Widget]]:
         """Get all registered frames in the workspace.
 
         Returns:
             list[ITaskFrame]: List of registered frames.
         """
-        return List[self._workspace_frames.values()]
+        return list(self._workspace_frames.values())
 
     def set_frames(
         self,
-        frames: List[ITaskFrame]
+        frames: list[ITaskFrame]
     ) -> None:
         """Set the registered frames in the workspace.
 
@@ -499,6 +581,145 @@ class TkWorkspace(
         self._raise_frame(frame)
 
     # -------- Sidebar management --------
+
+    def _on_sidebar_tab_selected(self, tab_id: str, frame: PyroxFrameContainer) -> None:
+        """Handle sidebar tab selection."""
+        # Find widget_id from tab_id
+        widget_id = None
+        for wid, tid in self._sidebar_tabs.items():
+            if tid == tab_id:
+                widget_id = wid
+                break
+
+        if widget_id:
+            self.set_status(f"Selected sidebar widget: {widget_id}")
+
+            if self.on_workspace_changed:
+                try:
+                    self.on_workspace_changed(widget_id)
+                except Exception as e:
+                    print(f"Error in on_workspace_changed callback: {e}")
+
+    def _on_sidebar_tab_added(self, tab_id: str, frame: PyroxFrameContainer) -> None:
+        """Handle sidebar tab addition."""
+        self.set_status("New sidebar tab added")
+
+    def _on_sidebar_tab_removed(self, tab_id: str) -> None:
+        """Handle sidebar tab removal."""
+        # Clean up widget references
+        widget_id_to_remove = None
+        for widget_id, stored_tab_id in self._sidebar_tabs.items():
+            if stored_tab_id == tab_id:
+                widget_id_to_remove = widget_id
+                break
+
+        if widget_id_to_remove:
+            if widget_id_to_remove in self._mounted_widgets:
+                del self._mounted_widgets[widget_id_to_remove]
+            if widget_id_to_remove in self._sidebar_tabs:
+                del self._sidebar_tabs[widget_id_to_remove]
+
+            self.set_status(f"Removed sidebar widget: {widget_id_to_remove}")
+
+    def _set_initial_sidebar_width(self) -> None:
+        """Set the initial sidebar width."""
+        self.log().debug("Setting initial sidebar width")
+        width = self.env.get(
+            EnvironmentKeys.ui.UI_SIDEBAR_WIDTH,
+            0.33,
+            float
+        )
+        self.set_sidebar_width(width)
+
+    def get_sidebar_width(self) -> Optional[int]:
+        """Get the current main window sash position as a percentage of the window width."""
+        if not self.main_paned_window:
+            return None
+
+        self.gui.unsafe_get_backend().update_framekwork_tasks()
+        screen_width = self.main_window.winfo_width()
+
+        try:
+            sash_pos = self.main_paned_window.sashpos(0)
+        except TclError:
+            return None  # Sash position may not be available if the window is not fully initialized
+
+        perc_of_window = sash_pos / screen_width
+        return perc_of_window
+
+    def set_sidebar_width(self, perc_of_window: float) -> None:
+        """Set the sidebar width as a percentage of the window width."""
+        if not self.main_paned_window:
+            raise RuntimeError("Main paned window not initialized")
+
+        self.gui.unsafe_get_backend().update_framekwork_tasks()
+        total_width = self.window.width
+        sidebar_width = int(total_width * perc_of_window)
+        self.main_paned_window.sashpos(0, sidebar_width)
+        self.env.set(
+            EnvironmentKeys.ui.UI_SIDEBAR_WIDTH,
+            str(perc_of_window)
+        )
+
+    def on_main_sash_moved(self, event):
+        pos = self.get_sidebar_width()
+        for cb in self._sash_callbacks:
+            cb('main', pos)
+
+    @property
+    def sidebar_organizer(self) -> PyroxNotebook:
+        """Get the sidebar organizer.
+
+        Returns:
+            PyroxNotebook: The sidebar organizer instance.
+        """
+        if not self._sidebar_organizer:
+            raise RuntimeError("Sidebar organizer not initialized")
+        return self._sidebar_organizer
+
+    # -------- Sidebar tab management --------
+
+    def show_sidebar(self) -> None:
+        """Show the sidebar organizer."""
+        if not self.sidebar_visible and self.main_paned_window and self.sidebar_organizer:
+            self.main_paned_window.insert(0, self.sidebar_organizer)
+
+            self.sidebar_visible = True
+            self.set_status("Sidebar shown")
+
+            if self.on_sidebar_toggle:
+                try:
+                    self.on_sidebar_toggle(True)
+                except Exception as e:
+                    print(f"Error in on_sidebar_toggle callback: {e}")
+
+    def hide_sidebar(self) -> None:
+        """Hide the sidebar organizer."""
+        if self.sidebar_visible and self.main_paned_window:
+            self.main_paned_window.forget(self.sidebar_organizer)
+            self.sidebar_visible = False
+            self.set_status("Sidebar hidden")
+
+            if self.on_sidebar_toggle:
+                try:
+                    self.on_sidebar_toggle(False)
+                except Exception as e:
+                    print(f"Error in on_sidebar_toggle callback: {e}")
+
+    def toggle_sidebar(self) -> bool:
+        """
+        Toggle sidebar visibility.
+
+        Returns:
+            New visibility state
+        """
+        if self.sidebar_visible:
+            self.hide_sidebar()
+        else:
+            self.show_sidebar()
+        return self.sidebar_visible
+
+    # -------- Sidebar panel management --------
 
     def add_panel(
         self,
@@ -531,7 +752,7 @@ class TkWorkspace(
         """
         self.main_paned_window.forget(panel)
 
-    def get_panels(self) -> List[tk.Widget]:
+    def get_panels(self) -> list[tk.Widget]:
         """
         Get all panels in the workspace.
 
@@ -581,6 +802,8 @@ class TkWorkspace(
         sash_pos = self.log_paned_window.sashpos(0)
         log_height = int(total_height - sash_pos)
         return int(log_height / total_height) if total_height > 0 else 0
+
+    # -------- Sidebar widget management --------
 
     def add_sidebar_widget(
         self,
@@ -682,9 +905,11 @@ class TkWorkspace(
 
         return task_frame.name
 
-    def build(self) -> None:
-
-        super().build()
+    def clear_sidebar(self) -> None:
+        """Clear all widgets from the sidebar."""
+        for widget_id in list(self._mounted_widgets.keys()):
+            self.remove_widget(widget_id)
+        self.set_status("Sidebar cleared")
 
     def remove_widget(self, widget_id: str) -> bool:
         """
@@ -739,108 +964,24 @@ class TkWorkspace(
             return self._workspace_frames[widget_id]
         return None
 
-    def get_all_widget_ids(self) -> Dict[str, List[str]]:
+    def get_all_widget_ids(self) -> dict[str, list[str]]:
         """Get all widget IDs organized by location."""
         return {
             'sidebar': list(self._mounted_widgets.keys()),
             'workspace': list(self._workspace_frames.keys())
         }
 
-    def show_sidebar(self) -> None:
-        """Show the sidebar organizer."""
-        if not self.sidebar_visible and self.main_paned_window and self.sidebar_organizer:
-            self.main_paned_window.insert(0, self.sidebar_organizer)
+    # -------- Log Window management --------
 
-            self.sidebar_visible = True
-            self.set_status("Sidebar shown")
-
-            if self.on_sidebar_toggle:
-                try:
-                    self.on_sidebar_toggle(True)
-                except Exception as e:
-                    print(f"Error in on_sidebar_toggle callback: {e}")
-
-    def hide_sidebar(self) -> None:
-        """Hide the sidebar organizer."""
-        if self.sidebar_visible and self.main_paned_window:
-            self.main_paned_window.forget(self.sidebar_organizer)
-            self.sidebar_visible = False
-            self.set_status("Sidebar hidden")
-
-            if self.on_sidebar_toggle:
-                try:
-                    self.on_sidebar_toggle(False)
-                except Exception as e:
-                    print(f"Error in on_sidebar_toggle callback: {e}")
-
-    def toggle_sidebar(self) -> bool:
-        """
-        Toggle sidebar visibility.
-
-        Returns:
-            New visibility state
-        """
-        if self.sidebar_visible:
-            self.hide_sidebar()
-        else:
-            self.show_sidebar()
-        return self.sidebar_visible
-
-    def set_status(self, status: str) -> None:
-        """Set the status bar message."""
-        self._status_text.set(status)
-
-    def get_status(self) -> str:
-        """Get the current status message."""
-        return self._status_text.get()
-
-    def clear_workspace(self) -> None:
-        """Clear all widgets from the workspace area."""
-        for task_id, task_frame in list(self._workspace_frames.items()):
-            self._unregister_workspace_frame(task_frame)
-        self.set_status("Workspace cleared")
-
-    def clear_sidebar(self) -> None:
-        """Clear all widgets from the sidebar."""
-        for widget_id in list(self._mounted_widgets.keys()):
-            self.remove_widget(widget_id)
-        self.set_status("Sidebar cleared")
-
-    def clear_all(self) -> None:
-        """Clear all widgets from both areas."""
-        self.clear_workspace()
-        self.clear_sidebar()
-        self.set_status("All widgets cleared")
-
-    def on_log_sash_moved(self, event):
-        pos = self.get_log_window_height()
-        for cb in self._sash_callbacks:
-            cb('log', pos)
-
-    def on_main_sash_moved(self, event):
-        pos = self.get_sidebar_width()
-        for cb in self._sash_callbacks:
-            cb('main', pos)
-
-    def get_workspace_info(self) -> Dict[str, Any]:
-        """Get comprehensive workspace information."""
-        return {
-            'sidebar': {
-                'widget_count': len(self._mounted_widgets),
-                'tab_count': self.sidebar_organizer.get_tab_count() if self.sidebar_organizer else 0
-            },
-            'workspace': {
-                'widget_count': len(self._workspace_frames),
-                'area_size': (
-                    self.workspace_area.root.winfo_width(),
-                    self.workspace_area.root.winfo_height()
-                ) if self.workspace_area else (0, 0)
-            },
-            'status': {
-                'current_message': self.get_status(),
-            },
-            'widgets': self.get_all_widget_ids()
-        }
+    def _set_initial_log_window_height(self) -> None:
+        """Set the initial log window height."""
+        self.log().debug("Setting initial log window height")
+        height = self.env.get(
+            EnvironmentKeys.ui.UI_LOG_WINDOW_HEIGHT,
+            0.33,
+            float
+        )
+        self.set_log_window_height(height)
 
     def get_log_window_height(self) -> Optional[int]:
         """Get the current log window sash position as a percentage of the window height."""
@@ -858,22 +999,6 @@ class TkWorkspace(
         perc_of_window = (screen_height - sash_pos) / screen_height
         return perc_of_window
 
-    def get_sidebar_width(self) -> Optional[int]:
-        """Get the current main window sash position as a percentage of the window width."""
-        if not self.main_paned_window:
-            return None
-
-        self.gui.unsafe_get_backend().update_framekwork_tasks()
-        screen_width = self.main_window.winfo_width()
-
-        try:
-            sash_pos = self.main_paned_window.sashpos(0)
-        except TclError:
-            return None  # Sash position may not be available if the window is not fully initialized
-
-        perc_of_window = sash_pos / screen_width
-        return perc_of_window
-
     def set_log_window_height(self, perc_of_window: float) -> None:
         """Set the log window height as a percentage of the window height."""
         self.gui.unsafe_get_backend().update_framekwork_tasks()
@@ -885,118 +1010,22 @@ class TkWorkspace(
             str(perc_of_window)
         )
 
-    def set_sidebar_width(self, perc_of_window: float) -> None:
-        """Set the sidebar width as a percentage of the window width."""
-        if not self.main_paned_window:
-            raise RuntimeError("Main paned window not initialized")
+    def on_log_sash_moved(self, event):
+        pos = self.get_log_window_height()
+        for cb in self._sash_callbacks:
+            cb('log', pos)
 
-        self.gui.unsafe_get_backend().update_framekwork_tasks()
-        total_width = self.window.width
-        sidebar_width = int(total_width * perc_of_window)
-        self.main_paned_window.sashpos(0, sidebar_width)
-        self.env.set(
-            EnvironmentKeys.ui.UI_SIDEBAR_WIDTH,
-            str(perc_of_window)
-        )
+    # -------- Status bar management --------
 
-    def subscribe_to_sash_movement_events(
-        self,
-        callback: Callable
-    ) -> None:
-        """Subscribe to sash movement events.
-        This is temporary and may be replaced with a more robust GUI backend event system later.
+    def set_status(self, status: str) -> None:
+        """Set the status bar message."""
+        self._status_text.set(status)
 
-        Args:
-            callback: Function to call on sash movement with parameters (sash_id, position)
-        """
-        self._sash_callbacks.append(callback)
+    def get_status(self) -> str:
+        """Get the current status message."""
+        return self._status_text.get()
 
-    def _on_sidebar_tab_selected(self, tab_id: str, frame: PyroxFrameContainer) -> None:
-        """Handle sidebar tab selection."""
-        # Find widget_id from tab_id
-        widget_id = None
-        for wid, tid in self._sidebar_tabs.items():
-            if tid == tab_id:
-                widget_id = wid
-                break
-
-        if widget_id:
-            self.set_status(f"Selected sidebar widget: {widget_id}")
-
-            if self.on_workspace_changed:
-                try:
-                    self.on_workspace_changed(widget_id)
-                except Exception as e:
-                    print(f"Error in on_workspace_changed callback: {e}")
-
-    def _on_sidebar_tab_added(self, tab_id: str, frame: PyroxFrameContainer) -> None:
-        """Handle sidebar tab addition."""
-        self.set_status("New sidebar tab added")
-
-    def _on_sidebar_tab_removed(self, tab_id: str) -> None:
-        """Handle sidebar tab removal."""
-        # Clean up widget references
-        widget_id_to_remove = None
-        for widget_id, stored_tab_id in self._sidebar_tabs.items():
-            if stored_tab_id == tab_id:
-                widget_id_to_remove = widget_id
-                break
-
-        if widget_id_to_remove:
-            if widget_id_to_remove in self._mounted_widgets:
-                del self._mounted_widgets[widget_id_to_remove]
-            if widget_id_to_remove in self._sidebar_tabs:
-                del self._sidebar_tabs[widget_id_to_remove]
-
-            self.set_status(f"Removed sidebar widget: {widget_id_to_remove}")
-
-    def _show_workspace_info(self) -> None:
-        """Show workspace information dialog."""
-        info = self.get_workspace_info()
-
-        info_text = f"""Workspace Information:
-
-Sidebar:
-  • Widgets: {info['sidebar']['widget_count']}
-  • Tabs: {info['sidebar']['tab_count']}
-
-Main Area:
-  • Widgets: {info['workspace']['widget_count']}
-  • Size: {info['workspace']['area_size'][0]}×{info['workspace']['area_size'][1]}px
-
-Status: {info['status']['current_message']}
-"""
-
-        # Create info dialog
-        info_window = tk.Toplevel(self.window.root)
-        info_window.title("Workspace Information")
-        info_window.geometry("400x300")
-        info_window.resizable(False, False)
-
-        # Center the window
-        info_window.transient(self.window.root.winfo_toplevel())
-        info_window.grab_set()
-
-        text_widget = tk.Text(
-            info_window,
-            wrap='word',
-            font=('Consolas', 10),
-            bg='#101010',
-            fg='#aaaaaa',
-            padx=10,
-            pady=10
-        )
-        text_widget.pack(fill='both', expand=True, padx=10, pady=10)
-        text_widget.insert('1.0', info_text)
-        text_widget.config(state='disabled')
-
-        # Close button
-        close_btn = ttk.Button(
-            info_window,
-            text="Close",
-            command=info_window.destroy
-        )
-        close_btn.pack(pady=(0, 10))
+    # ------- Properties --------
 
     @property
     def backend(self) -> IGuiBackend:
@@ -1037,17 +1066,6 @@ Status: {info['status']['current_message']}
             The main application menu instance.
         """
         return self.gui.unsafe_get_backend().get_root_application_menu()
-
-    @property
-    def sidebar_organizer(self) -> PyroxNotebook:
-        """Get the sidebar organizer.
-
-        Returns:
-            PyroxNotebook: The sidebar organizer instance.
-        """
-        if not self._sidebar_organizer:
-            raise RuntimeError("Sidebar organizer not initialized")
-        return self._sidebar_organizer
 
     @property
     def status_bar(self) -> ttk.Frame:
