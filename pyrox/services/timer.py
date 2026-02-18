@@ -57,8 +57,9 @@ class TimerService:
             if task_id in self._tasks:
                 self._tasks[task_id].cancel()
 
-            # Create and start new timer
+            # Create and start new timer (daemon thread to allow clean shutdown)
             timer = threading.Timer(delay, wrapped_callback)
+            timer.daemon = True  # Allow app to exit even if timer is running
             self._tasks[task_id] = timer
             timer.start()
 
@@ -157,6 +158,7 @@ class TimerService:
             with self._lock:
                 if task_id in self._tasks:
                     timer = threading.Timer(interval, repeating_callback)
+                    timer.daemon = True  # Allow app to exit even if timer is running
                     self._tasks[task_id] = timer
                     timer.start()
 
@@ -165,8 +167,9 @@ class TimerService:
             if task_id in self._tasks:
                 self._tasks[task_id].cancel()
 
-            # Create and start new timer
+            # Create and start new timer (daemon thread to allow clean shutdown)
             timer = threading.Timer(interval, repeating_callback)
+            timer.daemon = True  # Allow app to exit even if timer is running
             self._tasks[task_id] = timer
             timer.start()
 
