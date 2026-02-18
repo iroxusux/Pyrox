@@ -297,7 +297,7 @@ class SceneviewerApplicationTask(ApplicationTask):
         """Create and register the SceneViewerFrame."""
         if self._scene_viewer_frame is None or not self._scene_viewer_frame.root.winfo_exists():
             self._scene_viewer_frame = SceneViewerFrame(
-                parent=self.application.workspace.workspace_area.root,  # type: ignore
+                parent=self.application.workspace.workspace_area,
                 runner=SceneRunnerService
             )
             self.application.workspace.register_frame(self._scene_viewer_frame)
