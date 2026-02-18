@@ -65,6 +65,42 @@ class IWorkspace(
         """
         raise NotImplementedError("subscribe_to_sash_movement_events must be implemented by subclass")
 
+    @abstractmethod
+    def get_workspace_area(self):
+        """Get the workspace area.
+
+        Returns:
+            IGuiFrame: The workspace area instance.
+        """
+        raise NotImplementedError("get_workspace_area must be implemented by subclass")
+
+    @abstractmethod
+    def get_workspace_paned_window(self):
+        """Get the main workspace paned window.
+
+         Returns:
+            ttk.PanedWindow: The main workspace paned window, or None if not initialized.
+         """
+        raise NotImplementedError("get_workspace_paned_window must be implemented by subclass")
+
+    @property
+    def workspace_area(self):
+        """Get the workspace area.
+
+        Returns:
+            PyroxFrameContainer: The workspace area instance.
+        """
+        return self.get_workspace_area()
+
+    @property
+    def workspace_paned_window(self):
+        """Get the main workspace paned window.
+
+        Returns:
+            The main workspace paned window, or None if not initialized.
+        """
+        return self.get_workspace_paned_window()
+
     # -------- Frames management --------
 
     @abstractmethod

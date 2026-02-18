@@ -19,7 +19,6 @@ from pyrox.models.gui.tk.frame import TkinterGuiFrame
 from pyrox.interfaces import (
     EnvironmentKeys,
     IGuiBackend,
-    IGuiFrame,
     IGuiWindow,
     IWorkspace,
     ITaskFrame
@@ -188,10 +187,9 @@ class TkWorkspace(
     def _create_workspace_area(self) -> None:
         """Create the main workspace area."""
         self.log().debug("Creating workspace area")
-        self._workspace_area = self.gui.unsafe_get_backend().create_gui_frame(
-            master=self.workspace_paned_window,
-        )
-        self.workspace_paned_window.add(self.workspace_area.root)
+        self._workspace_area = ttk.Frame(self.workspace_paned_window)
+        self.workspace_paned_window.add(self.workspace_area)
+        self._workspace_area.pack(fill='both', expand=True)
 
     def _setup_bindings(self) -> None:
         """Set up event bindings."""
@@ -338,6 +336,22 @@ Status: {info['status']['current_message']}
         """
         self._sash_callbacks.append(callback)
 
+    def get_workspace_area(self) -> Optional[ttk.Frame]:
+        """Get the main workspace area frame.
+
+        Returns:
+            ttk.Frame: The main workspace area frame, or None if not initialized.
+        """
+        return self._workspace_area
+
+    def get_workspace_paned_window(self) -> Optional[ttk.PanedWindow]:
+        """Get the main workspace paned window.
+
+        Returns:
+            ttk.PanedWindow: The main workspace paned window, or None if not initialized.
+        """
+        return self._workspace_paned_window
+
     # -------- Frames management --------
 
     def _unregister_frame_from_view_menu(
@@ -395,7 +409,7 @@ Status: {info['status']['current_message']}
         if frame.name not in self._workspace_frames:
             raise ValueError("Frame is not registered in the workspace")
 
-        frame.pack(in_=self.workspace_area.root, fill='both', expand=True)
+        frame.pack(in_=self.workspace_area, fill='both', expand=True)
         self.set_status(f"Packed frame into workspace: {frame.name}")
 
     def _raise_frame(
@@ -414,9 +428,8 @@ Status: {info['status']['current_message']}
         if frame.name not in self._workspace_frames:
             raise ValueError("Frame is not registered in the workspace")
 
-        if frame.root.master != self.workspace_area.root:
-            frame.root.master = self.workspace_area.root
-            # raise ValueError("Frame is not packed in the workspace area")
+        if frame.root.master != self.workspace_area:
+            raise ValueError("Frame is not packed in the workspace area")
 
         self._hide_frames()
         self._select_frame(frame)
@@ -724,16 +737,16 @@ Status: {info['status']['current_message']}
         position: str = 'left'
     ) -> None:
         """
-        Add a panel to the workspace.
+        Add a panel to the workspace area.
 
         Args:
             panel: The panel widget to add
             position: Position to add the panel ('left' or 'right')
         """
         if position == 'left':
-            self.main_paned_window.insert(0, panel)
+            self._workspace_paned_window.insert(0, panel)
         elif position == 'right':
-            self.main_paned_window.add(panel)
+            self._workspace_paned_window.add(panel)
         else:
             raise ValueError("Position must be 'left' or 'right'")
 
@@ -1094,25 +1107,3 @@ Status: {info['status']['current_message']}
             The main application window instance.
         """
         return self.gui.unsafe_get_backend().get_gui_window()
-
-    @property
-    def workspace_paned_window(self) -> ttk.PanedWindow:
-        """Get the workspace paned window.
-
-        Returns:
-            ttk.PanedWindow: The workspace paned window instance.
-        """
-        if not self._workspace_paned_window:
-            raise RuntimeError("Workspace paned window not initialized")
-        return self._workspace_paned_window
-
-    @property
-    def workspace_area(self) -> IGuiFrame[tk.Frame, tk.Widget]:
-        """Get the workspace area.
-
-        Returns:
-            PyroxFrameContainer: The workspace area instance.
-        """
-        if not self._workspace_area:
-            raise RuntimeError("Workspace area not initialized")
-        return self._workspace_area

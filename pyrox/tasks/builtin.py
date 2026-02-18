@@ -76,7 +76,7 @@ class ToolsTask(ApplicationTask):
     def _create_frame(self) -> None:
         """Create and register the SceneViewerFrame."""
         if not self._text_editor_frame or not self._text_editor_frame.root.winfo_exists():
-            self._text_editor_frame = TextEditorFrame(self.gui.root_window())
+            self._text_editor_frame = TextEditorFrame(self.application.workspace.workspace_area)
             self.application.workspace.register_frame(self._text_editor_frame)
         else:
             self.application.workspace.raise_frame(self._text_editor_frame)
