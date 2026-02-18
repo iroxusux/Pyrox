@@ -405,22 +405,22 @@ class TestWorkspacePanelManagement(WorkspaceTestBase):
     def test_add_panel_left_position(self):
         """Test adding panel to left position."""
         workspace = TkWorkspace()
-        workspace._main_paned_window = MagicMock()
+        workspace._workspace_paned_window = MagicMock()
 
         mock_panel = MagicMock()
         workspace.add_panel(mock_panel, 'left')
 
-        workspace._main_paned_window.insert.assert_called_once_with(0, mock_panel)
+        workspace._workspace_paned_window.insert.assert_called_once_with(0, mock_panel)
 
     def test_add_panel_right_position(self):
         """Test adding panel to right position."""
         workspace = TkWorkspace()
-        workspace._main_paned_window = MagicMock()
+        workspace._workspace_paned_window = MagicMock()
 
         mock_panel = MagicMock()
         workspace.add_panel(mock_panel, 'right')
 
-        workspace._main_paned_window.add.assert_called_once_with(mock_panel)
+        workspace._workspace_paned_window.add.assert_called_once_with(mock_panel)
 
     def test_add_panel_invalid_position_raises_error(self):
         """Test that adding panel with invalid position raises error."""
