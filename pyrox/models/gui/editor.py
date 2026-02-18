@@ -12,9 +12,10 @@ from tkinter import ttk, filedialog, messagebox
 from typing import Optional, Callable, Any
 from pathlib import Path
 import yaml
+from pyrox.models.gui.tk.frame import TkinterTaskFrame
 
 
-class PyroxTextEditor(ttk.Frame):
+class TextEditorFrame(TkinterTaskFrame):
     """
     A text editor widget with syntax highlighting and validation.
 
@@ -32,7 +33,7 @@ class PyroxTextEditor(ttk.Frame):
     - Modified state tracking
 
     Args:
-        master: Parent widget
+        parent: Parent widget
         width (int): Width of the editor in characters (default: 80)
         height (int): Height of the editor in lines (default: 24)
         font (tuple): Font specification (default: ('Consolas', 10))
@@ -44,7 +45,8 @@ class PyroxTextEditor(ttk.Frame):
 
     def __init__(
         self,
-        master=None,
+        parent,
+        name='text editor',
         width: int = 80,
         height: int = 24,
         font: tuple = ('Consolas', 10),
@@ -54,7 +56,11 @@ class PyroxTextEditor(ttk.Frame):
         **kwargs
     ) -> None:
         """Initialize the YAML editor widget."""
-        super().__init__(master, **kwargs)
+        super().__init__(
+            name=name,
+            parent=parent,
+            **kwargs
+        )
 
         # Configuration
         self._width = width
@@ -87,12 +93,12 @@ class PyroxTextEditor(ttk.Frame):
 
     def _build_ui(self) -> None:
         """Build the user interface."""
-        # Main container
-        self.columnconfigure(0, weight=1)
-        self.rowconfigure(1, weight=1)
+        # Main container - use content_frame from TkinterTaskFrame
+        self.content_frame.columnconfigure(0, weight=1)
+        self.content_frame.rowconfigure(1, weight=1)
 
         # Toolbar frame
-        self._toolbar = ttk.Frame(self)
+        self._toolbar = ttk.Frame(self.content_frame)
         self._toolbar.grid(row=0, column=0, sticky='ew', padx=5, pady=(5, 0))
 
         # Toolbar buttons
@@ -121,7 +127,7 @@ class PyroxTextEditor(ttk.Frame):
         self._lbl_modified.pack(side=tk.RIGHT, padx=5)
 
         # Editor frame with line numbers
-        self._editor_frame = ttk.Frame(self)
+        self._editor_frame = ttk.Frame(self.content_frame)
         self._editor_frame.grid(row=1, column=0, sticky='nsew', padx=5, pady=5)
         self._editor_frame.columnconfigure(1, weight=1)
         self._editor_frame.rowconfigure(0, weight=1)
@@ -170,7 +176,7 @@ class PyroxTextEditor(ttk.Frame):
         self._text_editor.config(xscrollcommand=self._hscroll.set)
 
         # Validation/Status frame
-        self._status_frame = ttk.Frame(self)
+        self._status_frame = ttk.Frame(self.content_frame)
         self._status_frame.grid(row=2, column=0, sticky='ew', padx=5, pady=(0, 5))
 
         # Status label
@@ -178,7 +184,7 @@ class PyroxTextEditor(ttk.Frame):
         self._lbl_status.pack(side=tk.LEFT, fill=tk.X, expand=True)
 
         # Error display
-        self._error_frame = ttk.LabelFrame(self, text="Validation Errors", padding=5)
+        self._error_frame = ttk.LabelFrame(self.content_frame, text="Validation Errors", padding=5)
         self._error_text = tk.Text(
             self._error_frame,
             height=4,
@@ -242,7 +248,7 @@ class PyroxTextEditor(ttk.Frame):
             self._update_line_numbers()
 
             if self._auto_validate:
-                self.after(500, self.validate_yaml)  # Debounced validation
+                self.root.after(500, self.validate_yaml)  # Debounced validation
 
             self._text_editor.edit_modified(False)
 
@@ -250,7 +256,7 @@ class PyroxTextEditor(ttk.Frame):
         """Handle key release for syntax highlighting."""
         # Apply syntax highlighting (simplified)
         if event.keysym not in ['Shift_L', 'Shift_R', 'Control_L', 'Control_R', 'Alt_L', 'Alt_R']:
-            self.after(50, self._apply_syntax_highlighting)
+            self.root.after(50, self._apply_syntax_highlighting)
 
     def _on_tab(self, event) -> str:
         """Handle Tab key press."""
@@ -728,7 +734,7 @@ if __name__ == "__main__":
     title_label.pack(pady=(0, 10))
 
     # Create the YAML editor
-    yaml_editor = PyroxYamlEditor(
+    yaml_editor = TextEditorFrame(
         main_frame,
         width=90,
         height=30,

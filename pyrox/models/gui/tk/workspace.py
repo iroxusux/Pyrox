@@ -378,11 +378,8 @@ Status: {info['status']['current_message']}
         if not self.workspace_area:
             raise RuntimeError("Workspace area not initialized")
 
-        for widget in self.workspace_area.root.winfo_children():
-            if isinstance(widget, tk.Widget):
-                widget.pack_forget()
-            elif isinstance(widget, tk.Toplevel):
-                widget.withdraw()
+        for frame in self._workspace_frames.values():
+            frame.pack_forget()
 
     def _pack_frame_into_workspace(
         self,
