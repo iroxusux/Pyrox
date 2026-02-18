@@ -55,15 +55,6 @@ class IGuiBackend(ABC):
         raise NotImplementedError("bind_hotkey method must be implemented by subclass.")
 
     @abstractmethod
-    def cancel_scheduled_event(self, event_id: Union[int, str]) -> None:
-        """Cancel a previously scheduled event.
-
-        Args:
-            event_id: The identifier of the scheduled event to cancel.
-        """
-        raise NotImplementedError("cancel_scheduled_event method must be implemented by subclass.")
-
-    @abstractmethod
     def config_from_env(self) -> None:
         """Configure the backend using environment settings."""
         raise NotImplementedError("config_from_env method must be implemented by subclass.")
@@ -250,6 +241,15 @@ class IGuiBackend(ABC):
         """
         raise NotImplementedError("get_root_gui_window method must be implemented by subclass.")
 
+    @property
+    def root_window(self) -> Any:
+        """Get the underlying root window object.
+
+        Returns:
+            Any: The root window object specific to the GUI framework.
+        """
+        return self.get_root_window()
+
     @abstractmethod
     def get_root_window(self) -> Any:
         """Get the underlying root window object.
@@ -298,6 +298,8 @@ class IGuiBackend(ABC):
         """
         raise NotImplementedError("restore_window_geometry method must be implemented by subclass.")
 
+    # -------- User Interaction Methods --------
+
     @abstractmethod
     def prompt_user_yes_no(self, title: str, message: str) -> bool:
         """Show a yes/no dialog to the user.
@@ -310,6 +312,97 @@ class IGuiBackend(ABC):
             bool: True if user clicked Yes, False for No.
         """
         raise NotImplementedError("prompt_user_yes_no method must be implemented by subclass.")
+
+    @abstractmethod
+    def prompt_user_open_file(
+        self,
+        title: str = "Open File",
+        filetypes: Optional[list[tuple[str, str]]] = None
+    ) -> Optional[str]:
+        """Show a file open dialog to the user.
+
+        Args:
+            title: Dialog title.
+            filetypes: List of (label, pattern) tuples for file types.
+
+        Returns:
+            Optional[str]: Selected file path or None if cancelled.
+        """
+        raise NotImplementedError("prompt_user_open_file method must be implemented by subclass.")
+
+    @abstractmethod
+    def prompt_user_save_file(
+        self,
+        title: str = "Save File",
+        filetypes: Optional[list[tuple[str, str]]] = None,
+        default_extension: Optional[str] = None
+    ) -> Optional[str]:
+        """Show a file save dialog to the user.
+
+        Args:
+            title: Dialog title.
+            filetypes: List of (label, pattern) tuples for file types.
+            default_extension: Default file extension to use.
+
+        Returns:
+            Optional[str]: Selected file path or None if cancelled.
+        """
+        raise NotImplementedError("prompt_user_save_file method must be implemented by subclass.")
+
+    @abstractmethod
+    def prompt_user_select_directory(self, title: str = "Select Directory") -> Optional[str]:
+        """Show a directory selection dialog to the user.
+
+        Args:
+            title: Dialog title.
+
+        Returns:
+            Optional[str]: Selected directory path or None if cancelled.
+        """
+        raise NotImplementedError("prompt_user_select_directory method must be implemented by subclass.")
+
+    # -------- Event Methods --------
+
+    @abstractmethod
+    def cancel_scheduled_event(self, event_id: Union[int, str]) -> None:
+        """Cancel a previously scheduled event.
+
+        Args:
+            event_id: The identifier of the scheduled event to cancel.
+        """
+        raise NotImplementedError("cancel_scheduled_event method must be implemented by subclass.")
+
+    @abstractmethod
+    def schedule_event(self, delay_ms: int, callback: Callable, **kwargs) -> Union[int, str]:
+        """Schedule a callback to be called after a delay.
+
+        Args:
+            delay_ms: Delay in milliseconds.
+            callback: Function to call.
+            **kwargs: Additional arguments for the callback.
+
+        Returns:
+            Union[int, str]: An identifier for the scheduled event.
+        """
+        raise NotImplementedError("schedule_event method must be implemented by subclass.")
+
+    @abstractmethod
+    def subscribe_to_window_change_event(self, callback: Callable[..., Any]) -> None:
+        """Subscribe to window change events.
+
+        Args:
+            callback: Function to call on window change.
+        """
+        raise NotImplementedError("subscribe_to_window_change_event method must be implemented by subclass.")
+
+    @abstractmethod
+    def subscribe_to_window_close_event(self, callback: Callable[..., Any]) -> None:
+        """Subscribe to window close events.
+
+        Args:
+            callback: Function to call on window close.
+        """
+        raise NotImplementedError("subscribe_to_window_close_event method must be implemented by subclass.")
 
     @abstractmethod
     def quit_application(self) -> None:
@@ -335,20 +428,6 @@ class IGuiBackend(ABC):
         raise NotImplementedError("run_main_loop method must be implemented by subclass.")
 
     @abstractmethod
-    def schedule_event(self, delay_ms: int, callback: Callable, **kwargs) -> Union[int, str]:
-        """Schedule a callback to be called after a delay.
-
-        Args:
-            delay_ms: Delay in milliseconds.
-            callback: Function to call.
-            **kwargs: Additional arguments for the callback.
-
-        Returns:
-            Union[int, str]: An identifier for the scheduled event.
-        """
-        raise NotImplementedError("schedule_event method must be implemented by subclass.")
-
-    @abstractmethod
     def set_icon(self, icon_path: str) -> None:
         """Set the application icon.
 
@@ -365,24 +444,6 @@ class IGuiBackend(ABC):
             **kwargs: Keybinding parameters.
         """
         raise NotImplementedError("setup_keybinds method must be implemented by subclass.")
-
-    @abstractmethod
-    def subscribe_to_window_change_event(self, callback: Callable[..., Any]) -> None:
-        """Subscribe to window change events.
-
-        Args:
-            callback: Function to call on window change.
-        """
-        raise NotImplementedError("subscribe_to_window_change_event method must be implemented by subclass.")
-
-    @abstractmethod
-    def subscribe_to_window_close_event(self, callback: Callable[..., Any]) -> None:
-        """Subscribe to window close events.
-
-        Args:
-            callback: Function to call on window close.
-        """
-        raise NotImplementedError("subscribe_to_window_close_event method must be implemented by subclass.")
 
     @abstractmethod
     def update_cursor(self, cursor: str) -> None:

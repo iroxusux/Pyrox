@@ -3,12 +3,10 @@
 import os
 import platformdirs
 import shutil
-import tkinter as tk
-from tkinter import filedialog
-from typing import Optional
 from io import TextIOWrapper
 
 from .env import EnvManager
+from .gui import GuiManager
 from pyrox.interfaces import EnvironmentKeys
 
 
@@ -27,7 +25,7 @@ class PlatformDirectoryService:
         user_log_file: The path to the application's log file.
     """
 
-    _log_file: Optional[TextIOWrapper] = None
+    _log_file: TextIOWrapper | None = None
 
     def __init__(
         self,
@@ -47,6 +45,19 @@ class PlatformDirectoryService:
             'user_data': cls.get_user_data(),
             'user_log': cls.get_user_log()
         }
+
+    @classmethod
+    def clear_log_file(cls) -> None:
+        """Clear the log file for this service manager."""
+        log_file_path = cls.get_user_log_file()
+        if os.path.isfile(log_file_path):
+            try:
+                with open(log_file_path, 'w', encoding='utf-8'):
+                    pass  # Just opening in 'w' mode will clear the file
+            except Exception as e:
+                print(f'Error clearing log file: {e}')
+        else:
+            print(f'Log file does not exist: {log_file_path}')
 
     @classmethod
     def get_app_name(cls) -> str:
@@ -216,58 +227,45 @@ def get_all_files_in_directory(
 
 
 def get_open_file(
-        filetypes: list[tuple],
-        title: Optional[str] = None
-) -> str:
+        title: str = 'Open File',
+        filetypes: list[tuple[str, str]] | None = None
+) -> str | None:
     """get a file using tkinter as ui
 
     Args:
+        title str: title of the dialog
         filetypes (list[tuple]): file type arguments e.g. ('.L5x', 'L5X Files')
-        title (Optional[str]): title of the dialog
 
     Returns:
-        str: file location
+        str | None: file location
     """
-    root = tk.Tk()
-    root.withdraw()
-    filename = filedialog.askopenfilename(
-        filetypes=filetypes,
-        title=title,
-    )
-    root.update()
-    return filename
+    return GuiManager.prompt_user_open_file(title, filetypes)
 
 
-def get_save_file(filetypes: list[tuple]) -> str:
+def get_save_file(
+    title: str = 'Save File As',
+    filetypes: list[tuple[str, str]] | None = None
+) -> str | None:
     """get a location to save a file to
 
     Args:
-        filetypes (list[tuple]): file type arguments e.g. ('.L5x', 'L5X Files')
-
+        title (str): title of the dialog
+        filetypes (list[tuple[str, str]]): file type arguments e.g. ('.L5x', 'L5X Files')
     Returns:
-        str: file location
+        str | None: file location
     """
-    root = tk.Tk()
-    root.withdraw()
-    filename = filedialog.asksaveasfilename(
-        confirmoverwrite=True,
-        filetypes=filetypes
-    )
-    root.update()
-    return filename
+    return GuiManager.prompt_user_save_file(title, filetypes)
 
 
-def get_save_location() -> str:
-    """get directory to save files to
+def get_directory_location(title: str = "Select a Directory") -> str | None:
+    """get directory location.
 
+    Args:
+        title (str): title of the dialog
     Returns:
-        str: directory
+        str | None: directory
     """
-    root = tk.Tk()
-    root.withdraw()
-    directory = filedialog.askdirectory()
-    root.update()
-    return directory
+    return GuiManager.prompt_user_select_directory(title=title)
 
 
 def is_file_readable(
@@ -322,7 +320,7 @@ def remove_all_files(directory: str):
 def save_dict_to_json_file(
     file_path: str,
     data: dict,
-    encoding: Optional[str] = 'utf-8'
+    encoding: str | None = 'utf-8'
 ) -> bool:
     """save a dictionary to a json file
 
@@ -350,7 +348,7 @@ def save_file(
     file_extension: str,
     save_mode: str = 'w',
     file_data: str | bytes = '',
-    encoding: Optional[str] = None
+    encoding: str | None = None
 ) -> bool:
     """save file to location
 
@@ -414,7 +412,7 @@ def _default_transform_function(
 
 
 def transform_file_to_dict(
-    file_path: Optional[str],
+    file_path: str | None,
     transform_function=_default_transform_function
 ) -> dict:
     """transform a file to a dictionary using a provided function

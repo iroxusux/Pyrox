@@ -68,6 +68,13 @@ class MockGuiBackend(IGuiBackend):
     def set_icon(self, icon_path: str) -> None: pass
     def update_cursor(self, cursor: str) -> None: pass
     def prompt_user_yes_no(self, title: str, message: str) -> bool: return True
+
+    def prompt_user_open_file(self, title: str = "Open File",
+                              filetypes: list[tuple[str, str]] | None = None) -> str | None: return "/mock/file.txt"
+    def prompt_user_save_file(self, title: str = "Save File", filetypes: list[tuple[str, str]]
+                              | None = None, default_extension: str | None = None) -> str | None: return "/mock/save.txt"
+
+    def prompt_user_select_directory(self, title: str = "Select Directory") -> str | None: return "/mock/directory"
     def destroy_gui_frame(self, frame: IGuiFrame) -> None: return None
     def destroy_gui_menu(self, menu: IGuiMenu) -> None: return None
     def setup_keybinds(self, **kwargs) -> None: pass
@@ -239,6 +246,11 @@ class TestGuiManager(unittest.TestCase):
             def destroy_gui_window(self, window, **kwargs): pass
             def update_cursor(self, cursor: str) -> None: return None
             def prompt_user_yes_no(self, title: str, message: str) -> bool: return False
+            def prompt_user_open_file(self, title: str = "Open File", filetypes: list[tuple[str, str]] | None = None) -> str | None: return None
+            def prompt_user_save_file(
+                self, title: str = "Save File", filetypes: list[tuple[str, str]] | None = None, default_extension: str | None = None) -> str | None: return None  # noqa: E501
+
+            def prompt_user_select_directory(self, title: str = "Select Directory") -> str | None: return None
             def destroy_gui_frame(self, frame: IGuiFrame) -> None: return None
             def destroy_gui_menu(self, menu: IGuiMenu) -> None: return None
             def get_root_application_menu(self) -> Any: return None

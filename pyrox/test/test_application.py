@@ -2,7 +2,7 @@
 import sys
 import unittest
 from io import TextIOWrapper
-from unittest.mock import MagicMock, patch, mock_open
+from unittest.mock import MagicMock, patch
 
 from pyrox.application import Application
 
@@ -142,6 +142,30 @@ class TestApplicationInitialization(unittest.TestCase):
         app = Application()
 
         self.assertIsNotNone(app.tasks)
+
+    def test_application_reroutes_excepthook_on_init(self):
+        """Test that Application reroutes exception hook during initialization."""
+        app = Application()
+
+        self.mock_backend.reroute_excepthook.assert_called_once_with(app.except_hook)
+
+    def test_application_subscribes_to_close_event_on_init(self):
+        """Test that Application subscribes to window close event during initialization."""
+        app = Application()
+
+        self.mock_backend.subscribe_to_window_close_event.assert_called_once_with(app.on_close)
+
+    def test_application_sets_window_title_on_init(self):
+        """Test that Application sets window title during initialization."""
+        _ = Application()
+
+        self.mock_backend.set_title.assert_called_once()
+
+    def test_application_sets_window_icon_on_init(self):
+        """Test that Application sets window icon during initialization."""
+        _ = Application()
+
+        self.mock_backend.set_icon.assert_called_once()
 
 
 class TestApplicationProperties(unittest.TestCase):
@@ -292,34 +316,6 @@ class TestApplicationMethods(unittest.TestCase):
 
         self.assertEqual(result, '1.0.0')
 
-    def test_hook_to_gui_reroutes_excepthook(self):
-        """Test that hook_to_gui reroutes exception hook."""
-        self.app.hook_to_gui()
-
-        self.mock_backend.reroute_excepthook.assert_called_once_with(self.app.except_hook)
-
-    def test_hook_to_gui_subscribes_to_close_event(self):
-        """Test that hook_to_gui subscribes to window close event."""
-        self.app.hook_to_gui()
-
-        self.mock_backend.subscribe_to_window_close_event.assert_called_once_with(self.app.on_close)
-
-    def test_hook_to_gui_sets_window_title(self):
-        """Test that hook_to_gui sets window title from environment."""
-        self.mock_env_manager.get.return_value = 'Test Application'
-
-        self.app.hook_to_gui()
-
-        self.mock_backend.set_title.assert_called()
-
-    def test_hook_to_gui_sets_window_icon(self):
-        """Test that hook_to_gui sets window icon from environment."""
-        self.mock_env_manager.get.return_value = '/path/to/icon.png'
-
-        self.app.hook_to_gui()
-
-        self.mock_backend.set_icon.assert_called()
-
     def test_except_hook_ignores_keyboard_interrupt(self):
         """Test that except_hook ignores KeyboardInterrupt."""
         mock_logger = MagicMock()
@@ -329,47 +325,13 @@ class TestApplicationMethods(unittest.TestCase):
 
         mock_logger.error.assert_not_called()
 
-    def test_on_close_calls_garbage_collection(self):
-        """Test that on_close calls garbage collection."""
-        with patch('pyrox.application.gc.collect') as mock_gc:
-            with patch.object(self.app, 'stop'):
-                self.app.on_close()
+    def test_on_close_calls_stop_and_quit(self):
+        """Test that on_close calls stop and quit_application."""
+        with patch.object(self.app, 'stop') as mock_stop:
+            self.app.on_close()
 
-        mock_gc.assert_called_once()
-
-    def test_build_method_builds_workspace(self):
-        """Test build method builds workspace."""
-        self.app.build()
-
-        self.mock_workspace.build.assert_called_once()
-
-    def test_build_method_hooks_to_gui(self):
-        """Test build method hooks to GUI."""
-        with patch.object(self.app, 'hook_to_gui') as mock_hook:
-            self.app.build()
-
-        mock_hook.assert_called_once()
-
-    def test_clear_log_file_clears_file_content(self):
-        """Test clear_log_file clears log file content."""
-        self.mock_platform_dir.get_user_log_file.return_value = '/path/to/log.txt'
-
-        with patch('builtins.open', mock_open()) as mock_file:
-            self.app.clear_log_file()
-
-        mock_file.assert_called_once_with('/path/to/log.txt', 'w', encoding='utf-8')
-        mock_file().write.assert_called_once_with('')
-
-    def test_clear_log_file_handles_io_error(self):
-        """Test clear_log_file handles IOError gracefully."""
-        self.mock_platform_dir.get_user_log_file.return_value = '/path/to/log.txt'
-
-        with patch('builtins.open', side_effect=IOError("Permission denied")):
-            with patch('builtins.print') as mock_print:
-                self.app.clear_log_file()
-
-        mock_print.assert_called_once()
-        self.assertIn('Error clearing log file', mock_print.call_args[0][0])
+        mock_stop.assert_called_once()
+        self.mock_gui_manager.quit_application.assert_called_once()
 
     def test_set_app_state_busy_updates_cursor(self):
         """Test set_app_state_busy updates cursor to wait."""
@@ -452,12 +414,11 @@ class TestApplicationIntegration(unittest.TestCase):
         self.platform_dir_patcher.stop()
 
     def test_application_full_lifecycle(self):
-        """Test complete application lifecycle: init -> build -> run -> close."""
+        """Test complete application lifecycle: init -> run -> close."""
         app = Application()
 
-        # Build
-        app.build()
-        self.mock_workspace.build.assert_called_once()
+        # Verify workspace was created during init
+        self.mock_workspace_class.assert_called_once()
 
         # Run
         result = app.run()

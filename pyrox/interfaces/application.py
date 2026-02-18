@@ -177,15 +177,6 @@ class IApplication(
         ...
 
     @abstractmethod
-    def hook_to_gui(self) -> None:
-        """Hook the application into the GUI framework.
-
-        This method should be overridden by subclasses to implement
-        specific GUI integration behavior.
-        """
-        ...
-
-    @abstractmethod
     def register_task(
         self,
         task: IApplicationTask

@@ -6,43 +6,109 @@ import unittest
 from unittest.mock import MagicMock, patch
 
 
-class TestWorkspaceInitialization(unittest.TestCase):
-    """Test cases for Workspace initialization."""
+class WorkspaceTestBase(unittest.TestCase):
+    """Base test class with comprehensive tkinter mocking."""
 
     def setUp(self) -> None:
-        """Set up test fixtures."""
-        # Set up patchers
+        """Set up test fixtures with comprehensive tkinter mocking."""
+        # Patch all tkinter modules to prevent actual tk initialization
         self.mock_tk_patcher = patch('pyrox.models.gui.tk.workspace.tk')
+        self.mock_ttk_patcher = patch('pyrox.models.gui.tk.workspace.ttk')
         self.mock_backend_patcher = patch('pyrox.models.services.GuiManager')
+        self.mock_gui_backend_patcher = patch('pyrox.models.gui.tk.frame.Frame')
 
-        # Start patchers
+        # Patch PyroxNotebook, LogFrame, and PyroxFrameContainer to prevent their initialization
+        self.mock_notebook_patcher = patch('pyrox.models.gui.tk.workspace.PyroxNotebook')
+        self.mock_logframe_patcher = patch('pyrox.models.gui.tk.workspace.LogFrame')
+        self.mock_framecontainer_patcher = patch('pyrox.models.gui.tk.workspace.PyroxFrameContainer')
+
+        # Start all patchers
         self.mock_tk = self.mock_tk_patcher.start()
+        self.mock_ttk = self.mock_ttk_patcher.start()
         self.mock_backend = self.mock_backend_patcher.start()
+        self.mock_frame_class = self.mock_gui_backend_patcher.start()
+        self.mock_notebook_class = self.mock_notebook_patcher.start()
+        self.mock_logframe_class = self.mock_logframe_patcher.start()
+        self.mock_framecontainer_class = self.mock_framecontainer_patcher.start()
 
+        # Create mock backend instance with methods
+        self.mock_backend_instance = MagicMock()
+        self.mock_backend.unsafe_get_backend.return_value = self.mock_backend_instance
+
+        # Create mock root window
         self.mock_root = MagicMock()
-        self.mock_backend.get_root_window.return_value = self.mock_root
+        self.mock_backend_instance.get_root_window.return_value = self.mock_root
 
+        # Create mock frame with proper structure
         self.mock_frame = MagicMock()
-        self.mock_backend.create_gui_frame.return_value = self.mock_frame
+        self.mock_frame.root = MagicMock()
+        self.mock_backend_instance.create_gui_frame.return_value = self.mock_frame
+
+        # Mock ttk widgets to return MagicMock instances
+        self.mock_ttk.PanedWindow.return_value = MagicMock()
+        self.mock_ttk.Frame.return_value = MagicMock()
+        self.mock_ttk.Label.return_value = MagicMock()
+        self.mock_ttk.Button.return_value = MagicMock()
+
+        # Mock the Frame class used by TkinterGuiFrame.initialize()
+        self.mock_frame_instance = MagicMock()
+        self.mock_frame_instance.pack = MagicMock()
+        self.mock_frame_instance.winfo_name.return_value = "pyroxWorkspace"
+        self.mock_frame_class.return_value = self.mock_frame_instance
+
+        # Create a mock StringVar that actually stores values
+        class MockStringVar:
+            def __init__(self, value=""):
+                self._value = value
+
+            def set(self, value):
+                self._value = value
+
+            def get(self):
+                return self._value
+
+        self.mock_tk.StringVar = MockStringVar
+
+        # Mock PyroxNotebook instance
+        self.mock_notebook = MagicMock()
+        self.mock_notebook_class.return_value = self.mock_notebook
+
+        # Mock LogFrame instance
+        self.mock_logframe = MagicMock()
+        self.mock_logframe.frame.root = MagicMock()
+        self.mock_logframe_class.return_value = self.mock_logframe
+
+        # Mock backend methods that are called during initialization
+        self.mock_backend_instance.subscribe_to_window_change_event = MagicMock()
+        self.mock_backend_instance.schedule_event = MagicMock()
 
     def tearDown(self) -> None:
         """Tear down test fixtures."""
-        # Stop patchers
-        self.mock_tk_patcher.stop()
+        # Stop all patchers in reverse order
+        self.mock_framecontainer_patcher.stop()
+        self.mock_logframe_patcher.stop()
+        self.mock_notebook_patcher.stop()
+        self.mock_gui_backend_patcher.stop()
         self.mock_backend_patcher.stop()
+        self.mock_ttk_patcher.stop()
+        self.mock_tk_patcher.stop()
+
+
+class TestWorkspaceInitialization(WorkspaceTestBase):
+    """Test cases for Workspace initialization."""
 
     def test_init_creates_required_components(self):
         """Test that initialization creates all required components."""
         # Setup mocks
         workspace = TkWorkspace()
 
-        # Verify initialization
+        # Verify initialization - with new structure, these are created in __init__
         self.assertEqual(workspace.get_name(), "pyroxWorkspace")
         self.assertIsNotNone(workspace._root)
-        self.assertIsNone(workspace._main_paned_window)
-        self.assertIsNone(workspace._sidebar_organizer)
-        self.assertIsNone(workspace._workspace_area)
-        self.assertIsNone(workspace._status_bar)
+        self.assertIsNotNone(workspace._main_paned_window)  # Created during init
+        self.assertIsNotNone(workspace._sidebar_organizer)  # Created during init
+        self.assertIsNotNone(workspace._workspace_area)  # Created during init
+        self.assertIsNotNone(workspace._status_bar)  # Created during init
 
     def test_init_creates_empty_tracking_dicts(self):
         """Test that initialization creates empty tracking dictionaries."""
@@ -64,30 +130,8 @@ class TestWorkspaceInitialization(unittest.TestCase):
         self.assertIsNone(workspace.on_workspace_changed)
 
 
-class TestWorkspaceProperties(unittest.TestCase):
+class TestWorkspaceProperties(WorkspaceTestBase):
     """Test cases for Workspace properties."""
-
-    def setUp(self) -> None:
-        """Set up test fixtures."""
-        # Set up patchers
-        self.mock_tk_patcher = patch('pyrox.models.gui.tk.workspace.tk')
-        self.mock_backend_patcher = patch('pyrox.models.services.GuiManager')
-
-        # Start patchers
-        self.mock_tk = self.mock_tk_patcher.start()
-        self.mock_backend = self.mock_backend_patcher.start()
-
-        self.mock_root = MagicMock()
-        self.mock_backend.get_root_window.return_value = self.mock_root
-
-        self.mock_frame = MagicMock()
-        self.mock_backend.create_gui_frame.return_value = self.mock_frame
-
-    def tearDown(self) -> None:
-        """Tear down test fixtures."""
-        # Stop patchers
-        self.mock_tk_patcher.stop()
-        self.mock_backend_patcher.stop()
 
     def test_window_property_returns_window(self):
         """Test that window property returns the window."""
@@ -95,77 +139,37 @@ class TestWorkspaceProperties(unittest.TestCase):
 
         self.assertIsNotNone(workspace.window)
 
-    def test_main_paned_window_raises_when_not_initialized(self):
-        """Test that main_paned_window raises error when not initialized."""
+    def test_main_paned_window_property_returns_paned_window(self):
+        """Test that main_paned_window property returns the initialized paned window."""
         workspace = TkWorkspace()
 
-        with self.assertRaises(RuntimeError) as context:
-            _ = workspace.main_paned_window
-        self.assertIn("Main paned window not initialized", str(context.exception))
+        # With new structure, main_paned_window is created during init
+        self.assertIsNotNone(workspace.main_paned_window)
 
-    def test_sidebar_organizer_raises_when_not_initialized(self):
-        """Test that sidebar_organizer raises error when not initialized."""
+    def test_sidebar_organizer_property_returns_organizer(self):
+        """Test that sidebar_organizer property returns the initialized organizer."""
         workspace = TkWorkspace()
 
-        with self.assertRaises(RuntimeError) as context:
-            _ = workspace.sidebar_organizer
-        self.assertIn("Sidebar organizer not initialized", str(context.exception))
+        # With new structure, sidebar_organizer is created during init
+        self.assertIsNotNone(workspace.sidebar_organizer)
 
-    def test_workspace_area_raises_when_not_initialized(self):
-        """Test that workspace_area raises error when not initialized."""
+    def test_workspace_area_property_returns_workspace_area(self):
+        """Test that workspace_area property returns the initialized workspace area."""
         workspace = TkWorkspace()
 
-        with self.assertRaises(RuntimeError) as context:
-            _ = workspace.workspace_area
-        self.assertIn("Workspace area not initialized", str(context.exception))
+        # With new structure, workspace_area is created during init
+        self.assertIsNotNone(workspace.workspace_area)
 
-    def test_status_bar_raises_when_not_initialized(self):
-        """Test that status_bar raises error when not initialized."""
+    def test_status_bar_property_returns_status_bar(self):
+        """Test that status_bar property returns the initialized status bar."""
         workspace = TkWorkspace()
 
-        with self.assertRaises(RuntimeError) as context:
-            _ = workspace.status_bar
-        self.assertIn("Status bar not initialized", str(context.exception))
+        # With new structure, status_bar is created during init
+        self.assertIsNotNone(workspace.status_bar)
 
 
-class TestWorkspaceStatusManagement(unittest.TestCase):
+class TestWorkspaceStatusManagement(WorkspaceTestBase):
     """Test cases for Workspace status management."""
-
-    def setUp(self) -> None:
-        """Set up test fixtures."""
-        # Set up patchers
-        self.mock_tk_patcher = patch('pyrox.models.gui.tk.workspace.tk')
-        self.mock_backend_patcher = patch('pyrox.models.services.GuiManager')
-
-        # Start patchers
-        self.mock_tk = self.mock_tk_patcher.start()
-        self.mock_backend = self.mock_backend_patcher.start()
-
-        self.mock_root = MagicMock()
-        self.mock_backend.get_root_window.return_value = self.mock_root
-
-        self.mock_frame = MagicMock()
-        self.mock_backend.create_gui_frame.return_value = self.mock_frame
-
-        # Create a mock StringVar that actually stores values
-        class MockStringVar:
-            def __init__(self, value=""):
-                self._value = value
-
-            def set(self, value):
-                self._value = value
-
-            def get(self):
-                return self._value
-
-        # Configure the mock to return our MockStringVar
-        self.mock_tk.StringVar.return_value = MockStringVar()
-
-    def tearDown(self) -> None:
-        """Tear down test fixtures."""
-        # Stop patchers
-        self.mock_tk_patcher.stop()
-        self.mock_backend_patcher.stop()
 
     def test_set_status_updates_status_text(self):
         """Test that set_status updates the status text."""
@@ -192,30 +196,8 @@ class TestWorkspaceStatusManagement(unittest.TestCase):
         self.assertEqual(workspace.get_status(), "Status 3")
 
 
-class TestWorkspaceWidgetManagement(unittest.TestCase):
+class TestWorkspaceWidgetManagement(WorkspaceTestBase):
     """Test cases for Workspace widget management."""
-
-    def setUp(self) -> None:
-        """Set up test fixtures."""
-        # Set up patchers
-        self.mock_tk_patcher = patch('pyrox.models.gui.tk.workspace.tk')
-        self.mock_backend_patcher = patch('pyrox.models.services.GuiManager')
-
-        # Start patchers
-        self.mock_tk = self.mock_tk_patcher.start()
-        self.mock_backend = self.mock_backend_patcher.start()
-
-        self.mock_root = MagicMock()
-        self.mock_backend.get_root_window.return_value = self.mock_root
-
-        self.mock_frame = MagicMock()
-        self.mock_backend.create_gui_frame.return_value = self.mock_frame
-
-    def tearDown(self) -> None:
-        """Tear down test fixtures."""
-        # Stop patchers
-        self.mock_tk_patcher.stop()
-        self.mock_backend_patcher.stop()
 
     def test_add_workspace_task_frame_raises_when_none(self):
         """Test that add_workspace_task_frame raises error when task_frame is None."""
@@ -253,30 +235,8 @@ class TestWorkspaceWidgetManagement(unittest.TestCase):
         self.assertFalse(result)
 
 
-class TestWorkspaceSidebarManagement(unittest.TestCase):
+class TestWorkspaceSidebarManagement(WorkspaceTestBase):
     """Test cases for Workspace sidebar management."""
-
-    def setUp(self) -> None:
-        """Set up test fixtures."""
-        # Set up patchers
-        self.mock_tk_patcher = patch('pyrox.models.gui.tk.workspace.tk')
-        self.mock_backend_patcher = patch('pyrox.models.services.GuiManager')
-
-        # Start patchers
-        self.mock_tk = self.mock_tk_patcher.start()
-        self.mock_backend = self.mock_backend_patcher.start()
-
-        self.mock_root = MagicMock()
-        self.mock_backend.get_root_window.return_value = self.mock_root
-
-        self.mock_frame = MagicMock()
-        self.mock_backend.create_gui_frame.return_value = self.mock_frame
-
-    def tearDown(self) -> None:
-        """Tear down test fixtures."""
-        # Stop patchers
-        self.mock_tk_patcher.stop()
-        self.mock_backend_patcher.stop()
 
     def test_add_sidebar_widget_raises_when_duplicate_id(self):
         """Test that add_sidebar_widget raises error for duplicate widget ID."""
@@ -325,46 +285,28 @@ class TestWorkspaceSidebarManagement(unittest.TestCase):
         self.assertIn("📁", call_args[0])
 
 
-class TestWorkspaceSashManagement(unittest.TestCase):
+class TestWorkspaceSashManagement(WorkspaceTestBase):
     """Test cases for Workspace sash management."""
 
-    def setUp(self) -> None:
-        """Set up test fixtures."""
-        # Set up patchers
-        self.mock_tk_patcher = patch('pyrox.models.gui.tk.workspace.tk')
-        self.mock_backend_patcher = patch('pyrox.models.services.GuiManager')
-
-        # Start patchers
-        self.mock_tk = self.mock_tk_patcher.start()
-        self.mock_backend = self.mock_backend_patcher.start()
-
-        self.mock_root = MagicMock()
-        self.mock_backend.get_root_window.return_value = self.mock_root
-
-        self.mock_frame = MagicMock()
-        self.mock_backend.create_gui_frame.return_value = self.mock_frame
-
-    def tearDown(self) -> None:
-        """Tear down test fixtures."""
-        # Stop patchers
-        self.mock_tk_patcher.stop()
-        self.mock_backend_patcher.stop()
-
-    def test_set_sidebar_width_raises_when_not_initialized(self):
-        """Test that set_sidebar_width raises error when not initialized."""
+    def test_set_sidebar_width_works_when_initialized(self):
+        """Test that set_sidebar_width works when components are initialized."""
         workspace = TkWorkspace()
+        workspace._main_paned_window = MagicMock()
 
-        with self.assertRaises(RuntimeError) as context:
-            workspace.set_sidebar_width(0.3)
-        self.assertIn("Main paned window not initialized", str(context.exception))
+        # Should not raise an error since main_paned_window is initialized
+        workspace.set_sidebar_width(0.3)
+        # Verify sashpos was called
+        workspace._main_paned_window.sashpos.assert_called()
 
-    def test_set_log_window_height_raises_when_not_initialized(self):
-        """Test that set_log_window_height raises error when not initialized."""
+    def test_set_log_window_height_works_when_initialized(self):
+        """Test that set_log_window_height works when components are initialized."""
         workspace = TkWorkspace()
+        workspace._log_paned_window = MagicMock()
 
-        with self.assertRaises(RuntimeError) as context:
-            workspace.set_log_window_height(0.3)
-        self.assertIn("Log paned window not initialized", str(context.exception))
+        # Should not raise an error since log_paned_window is initialized
+        workspace.set_log_window_height(0.3)
+        # Verify sashpos was called
+        workspace._log_paned_window.sashpos.assert_called()
 
     def test_subscribe_to_sash_movement_events(self):
         """Test subscribing to sash movement events."""
@@ -408,44 +350,8 @@ class TestWorkspaceSashManagement(unittest.TestCase):
         callback2.assert_called_once()
 
 
-class TestWorkspaceClearOperations(unittest.TestCase):
+class TestWorkspaceClearOperations(WorkspaceTestBase):
     """Test cases for Workspace clear operations."""
-
-    def setUp(self) -> None:
-        """Set up test fixtures."""
-        # Set up patchers
-        self.mock_tk_patcher = patch('pyrox.models.gui.tk.workspace.tk')
-        self.mock_backend_patcher = patch('pyrox.models.services.GuiManager')
-
-        # Start patchers
-        self.mock_tk = self.mock_tk_patcher.start()
-        self.mock_backend = self.mock_backend_patcher.start()
-
-        self.mock_root = MagicMock()
-        self.mock_backend.get_root_window.return_value = self.mock_root
-
-        self.mock_frame = MagicMock()
-        self.mock_backend.create_gui_frame.return_value = self.mock_frame
-
-        # Create a mock StringVar that actually stores values
-        class MockStringVar:
-            def __init__(self, value=""):
-                self._value = value
-
-            def set(self, value):
-                self._value = value
-
-            def get(self):
-                return self._value
-
-        # Configure the mock to return our MockStringVar
-        self.mock_tk.StringVar.return_value = MockStringVar()
-
-    def tearDown(self) -> None:
-        """Tear down test fixtures."""
-        # Stop patchers
-        self.mock_tk_patcher.stop()
-        self.mock_backend_patcher.stop()
 
     def test_clear_workspace_removes_all_workspace_widgets(self):
         """Test that clear_workspace removes all workspace widgets."""
@@ -493,44 +399,8 @@ class TestWorkspaceClearOperations(unittest.TestCase):
         self.assertIn("cleared", workspace.get_status().lower())
 
 
-class TestWorkspacePanelManagement(unittest.TestCase):
+class TestWorkspacePanelManagement(WorkspaceTestBase):
     """Test cases for Workspace panel management."""
-
-    def setUp(self) -> None:
-        """Set up test fixtures."""
-        # Set up patchers
-        self.mock_tk_patcher = patch('pyrox.models.gui.tk.workspace.tk')
-        self.mock_backend_patcher = patch('pyrox.models.services.GuiManager')
-
-        # Start patchers
-        self.mock_tk = self.mock_tk_patcher.start()
-        self.mock_backend = self.mock_backend_patcher.start()
-
-        self.mock_root = MagicMock()
-        self.mock_backend.get_root_window.return_value = self.mock_root
-
-        self.mock_frame = MagicMock()
-        self.mock_backend.create_gui_frame.return_value = self.mock_frame
-
-        # Create a mock StringVar that actually stores values
-        class MockStringVar:
-            def __init__(self, value=""):
-                self._value = value
-
-            def set(self, value):
-                self._value = value
-
-            def get(self):
-                return self._value
-
-        # Configure the mock to return our MockStringVar
-        self.mock_tk.StringVar.return_value = MockStringVar()
-
-    def tearDown(self) -> None:
-        """Tear down test fixtures."""
-        # Stop patchers
-        self.mock_tk_patcher.stop()
-        self.mock_backend_patcher.stop()
 
     def test_add_panel_left_position(self):
         """Test adding panel to left position."""
@@ -584,44 +454,8 @@ class TestWorkspacePanelManagement(unittest.TestCase):
         self.assertEqual(result, mock_panes)
 
 
-class TestWorkspaceInfo(unittest.TestCase):
+class TestWorkspaceInfo(WorkspaceTestBase):
     """Test cases for Workspace information retrieval."""
-
-    def setUp(self) -> None:
-        """Set up test fixtures."""
-        # Set up patchers
-        self.mock_tk_patcher = patch('pyrox.models.gui.tk.workspace.tk')
-        self.mock_backend_patcher = patch('pyrox.models.services.GuiManager')
-
-        # Start patchers
-        self.mock_tk = self.mock_tk_patcher.start()
-        self.mock_backend = self.mock_backend_patcher.start()
-
-        self.mock_root = MagicMock()
-        self.mock_backend.get_root_window.return_value = self.mock_root
-
-        self.mock_frame = MagicMock()
-        self.mock_backend.create_gui_frame.return_value = self.mock_frame
-
-        # Create a mock StringVar that actually stores values
-        class MockStringVar:
-            def __init__(self, value=""):
-                self._value = value
-
-            def set(self, value):
-                self._value = value
-
-            def get(self):
-                return self._value
-
-        # Configure the mock to return our MockStringVar
-        self.mock_tk.StringVar.return_value = MockStringVar()
-
-    def tearDown(self) -> None:
-        """Tear down test fixtures."""
-        # Stop patchers
-        self.mock_tk_patcher.stop()
-        self.mock_backend_patcher.stop()
 
     def test_get_workspace_info_returns_comprehensive_dict(self):
         """Test that get_workspace_info returns comprehensive information."""
@@ -663,44 +497,8 @@ class TestWorkspaceInfo(unittest.TestCase):
         self.assertEqual(result['workspace']['widget_count'], 1)
 
 
-class TestWorkspaceCallbacks(unittest.TestCase):
+class TestWorkspaceCallbacks(WorkspaceTestBase):
     """Test cases for Workspace callback functionality."""
-
-    def setUp(self) -> None:
-        """Set up test fixtures."""
-        # Set up patchers
-        self.mock_tk_patcher = patch('pyrox.models.gui.tk.workspace.tk')
-        self.mock_backend_patcher = patch('pyrox.models.services.GuiManager')
-
-        # Start patchers
-        self.mock_tk = self.mock_tk_patcher.start()
-        self.mock_backend = self.mock_backend_patcher.start()
-
-        self.mock_root = MagicMock()
-        self.mock_backend.get_root_window.return_value = self.mock_root
-
-        self.mock_frame = MagicMock()
-        self.mock_backend.create_gui_frame.return_value = self.mock_frame
-
-        # Create a mock StringVar that actually stores values
-        class MockStringVar:
-            def __init__(self, value=""):
-                self._value = value
-
-            def set(self, value):
-                self._value = value
-
-            def get(self):
-                return self._value
-
-        # Configure the mock to return our MockStringVar
-        self.mock_tk.StringVar.return_value = MockStringVar()
-
-    def tearDown(self) -> None:
-        """Tear down test fixtures."""
-        # Stop patchers
-        self.mock_tk_patcher.stop()
-        self.mock_backend_patcher.stop()
 
     def test_on_sidebar_toggle_callback_called_on_show(self):
         """Test that on_sidebar_toggle callback is called when showing sidebar."""
@@ -750,44 +548,8 @@ class TestWorkspaceCallbacks(unittest.TestCase):
             self.fail("Exception should have been caught")
 
 
-class TestWorkspaceToggleSidebar(unittest.TestCase):
+class TestWorkspaceToggleSidebar(WorkspaceTestBase):
     """Test cases for Workspace sidebar toggle functionality."""
-
-    def setUp(self) -> None:
-        """Set up test fixtures."""
-        # Set up patchers
-        self.mock_tk_patcher = patch('pyrox.models.gui.tk.workspace.tk')
-        self.mock_backend_patcher = patch('pyrox.models.services.GuiManager')
-
-        # Start patchers
-        self.mock_tk = self.mock_tk_patcher.start()
-        self.mock_backend = self.mock_backend_patcher.start()
-
-        self.mock_root = MagicMock()
-        self.mock_backend.get_root_window.return_value = self.mock_root
-
-        self.mock_frame = MagicMock()
-        self.mock_backend.create_gui_frame.return_value = self.mock_frame
-
-        # Create a mock StringVar that actually stores values
-        class MockStringVar:
-            def __init__(self, value=""):
-                self._value = value
-
-            def set(self, value):
-                self._value = value
-
-            def get(self):
-                return self._value
-
-        # Configure the mock to return our MockStringVar
-        self.mock_tk.StringVar.return_value = MockStringVar()
-
-    def tearDown(self) -> None:
-        """Tear down test fixtures."""
-        # Stop patchers
-        self.mock_tk_patcher.stop()
-        self.mock_backend_patcher.stop()
 
     def test_toggle_sidebar_shows_when_hidden(self):
         """Test that toggle_sidebar shows sidebar when hidden."""
@@ -827,44 +589,8 @@ class TestWorkspaceToggleSidebar(unittest.TestCase):
         self.assertFalse(result2)
 
 
-class TestWorkspaceFrameOperations(unittest.TestCase):
+class TestWorkspaceFrameOperations(WorkspaceTestBase):
     """Test cases for Workspace frame operations."""
-
-    def setUp(self) -> None:
-        """Set up test fixtures."""
-        # Set up patchers
-        self.mock_tk_patcher = patch('pyrox.models.gui.tk.workspace.tk')
-        self.mock_backend_patcher = patch('pyrox.models.services.GuiManager')
-
-        # Start patchers
-        self.mock_tk = self.mock_tk_patcher.start()
-        self.mock_backend = self.mock_backend_patcher.start()
-
-        self.mock_root = MagicMock()
-        self.mock_backend.get_root_window.return_value = self.mock_root
-
-        self.mock_frame = MagicMock()
-        self.mock_backend.create_gui_frame.return_value = self.mock_frame
-
-        # Create a mock StringVar that actually stores values
-        class MockStringVar:
-            def __init__(self, value=""):
-                self._value = value
-
-            def set(self, value):
-                self._value = value
-
-            def get(self):
-                return self._value
-
-        # Configure the mock to return our MockStringVar
-        self.mock_tk.StringVar.return_value = MockStringVar()
-
-    def tearDown(self) -> None:
-        """Tear down test fixtures."""
-        # Stop patchers
-        self.mock_tk_patcher.stop()
-        self.mock_backend_patcher.stop()
 
     def test_raise_frame_raises_when_workspace_not_initialized(self):
         """Test that _raise_frame raises error when workspace not initialized."""
@@ -908,13 +634,14 @@ class TestWorkspaceFrameOperations(unittest.TestCase):
             workspace._pack_frame_into_workspace(mock_frame)
         self.assertIn("Frame is not registered in the workspace", str(context.exception))
 
-    def test_hide_frames_raises_when_workspace_not_initialized(self):
-        """Test that _hide_frames raises error when workspace not initialized."""
+    def test_hide_frames_works_when_workspace_initialized(self):
+        """Test that _hide_frames works when workspace is initialized."""
         workspace = TkWorkspace()
+        workspace._workspace_area = MagicMock()
 
-        with self.assertRaises(RuntimeError) as context:
-            workspace._hide_frames()
-        self.assertIn("Workspace area not initialized", str(context.exception))
+        # Should not raise an error since workspace_area is initialized
+        workspace._hide_frames()
+        # Method should complete without error
 
 
 if __name__ == '__main__':

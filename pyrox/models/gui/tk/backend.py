@@ -38,6 +38,76 @@ class TkinterBackend(IGuiBackend):
     @property
     def framework_name(self) -> str:
         return "Tkinter"
+    # -------- User Interaction Methods --------
+
+    def prompt_user_yes_no(
+        self,
+        title: str,
+        message: str
+    ) -> bool:
+        """Show a yes/no dialog to the user.
+
+        Args:
+            title: Dialog title.
+            message: Dialog message.
+
+        Returns:
+            bool: True if user clicked Yes, False for No.
+        """
+        import tkinter.messagebox
+        return tkinter.messagebox.askyesno(title, message)
+
+    def prompt_user_open_file(
+        self,
+        title: str = "Open File",
+        filetypes: list[tuple[str, str]] | None = None
+    ) -> str | None:
+        """Show a file open dialog to the user.
+
+        Args:
+            title: Dialog title.
+            filetypes: List of (label, pattern) tuples for file types.
+
+        Returns:
+            Optional[str]: Selected file path or None if cancelled.
+        """
+        from tkinter import filedialog
+        return filedialog.askopenfilename(title=title, filetypes=filetypes)
+
+    def prompt_user_save_file(
+        self,
+        title: str = "Save File",
+        filetypes: list[tuple[str, str]] | None = None,
+        default_extension: str | None = None
+    ) -> str | None:
+        """Show a file save dialog to the user.
+
+        Args:
+            title: Dialog title.
+            filetypes: List of (label, pattern) tuples for file types.
+            default_extension: Default file extension to use.
+
+        Returns:
+            Optional[str]: Selected file path or None if cancelled.
+        """
+        from tkinter import filedialog
+        return filedialog.asksaveasfilename(
+            title=title,
+            filetypes=filetypes,
+            defaultextension=default_extension
+        )
+
+    def prompt_user_select_directory(self, title: str = "Select Directory") -> str | None:
+        """Show a directory selection dialog to the user.
+
+        Args:
+            title: Dialog title.
+
+        Returns:
+            Optional[str]: Selected directory path or None if cancelled.
+        """
+        from tkinter import filedialog
+        return filedialog.askdirectory(title=title)
 
     def bind_hotkey(
         self,
@@ -304,10 +374,6 @@ class TkinterBackend(IGuiBackend):
         )
         if window_state:
             self.main_window.set_state(window_state)
-
-    def prompt_user_yes_no(self, title: str, message: str) -> bool:
-        import tkinter.messagebox
-        return tkinter.messagebox.askyesno(title, message)
 
     def quit_application(self) -> None:
         """Quit the Tkinter application."""
