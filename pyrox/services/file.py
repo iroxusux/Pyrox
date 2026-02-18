@@ -49,6 +49,19 @@ class PlatformDirectoryService:
         }
 
     @classmethod
+    def clear_log_file(cls) -> None:
+        """Clear the log file for this service manager."""
+        log_file_path = cls.get_user_log_file()
+        if os.path.isfile(log_file_path):
+            try:
+                with open(log_file_path, 'w', encoding='utf-8'):
+                    pass  # Just opening in 'w' mode will clear the file
+            except Exception as e:
+                print(f'Error clearing log file: {e}')
+        else:
+            print(f'Log file does not exist: {log_file_path}')
+
+    @classmethod
     def get_app_name(cls) -> str:
         """Application name from the application's .env file.
 

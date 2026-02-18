@@ -105,6 +105,13 @@ class TkWorkspace(
         # Subscribe to window geometry change events to save workspace geometry
         self.backend.subscribe_to_window_change_event(self.save_workspace_geometry)
 
+        # Build the workspace layout
+        self._create_layout()
+        self._setup_bindings()
+
+        # Set initial status
+        self._status_text.set("Workspace Ready")
+
     def _create_layout(self) -> None:
         """Create the main workspace layout."""
         self._create_status_bar()  # Pack status bar first (side='bottom')
@@ -676,9 +683,7 @@ class TkWorkspace(
         return task_frame.name
 
     def build(self) -> None:
-        self._create_layout()
-        self._setup_bindings()
-        self._status_text.set("Workspace Ready")
+
         super().build()
 
     def remove_widget(self, widget_id: str) -> bool:

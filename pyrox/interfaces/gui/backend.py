@@ -250,6 +250,15 @@ class IGuiBackend(ABC):
         """
         raise NotImplementedError("get_root_gui_window method must be implemented by subclass.")
 
+    @property
+    def root_window(self) -> Any:
+        """Get the underlying root window object.
+
+        Returns:
+            Any: The root window object specific to the GUI framework.
+        """
+        return self.get_root_window()
+
     @abstractmethod
     def get_root_window(self) -> Any:
         """Get the underlying root window object.

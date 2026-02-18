@@ -1,12 +1,9 @@
 """Application ABC types for the Pyrox framework."""
 from __future__ import annotations
 
-import gc
 from io import TextIOWrapper
 import sys
-from typing import (
-    Any,
-)
+from typing import Any
 
 from pyrox.interfaces import (
     EnvironmentKeys,
@@ -22,7 +19,6 @@ from pyrox.models import (
 )
 
 from pyrox.models.gui.tk import TkWorkspace
-from pyrox.services import EnvManager
 
 __all__ = ('Application',)
 
@@ -61,7 +57,7 @@ class Application(
                 self.env_keys.core.APP_NAME,
                 'Pyrox Application',
                 str))
-        self.set_description(EnvManager.get(
+        self.set_description(self.env.get(
             self.env_keys.core.APP_DESCRIPTION,
             'A Pyrox Application',
             str))
@@ -71,6 +67,22 @@ class Application(
         self.backend.restore_window_geometry()
         self.backend.create_application_gui_menu()
         self.backend.subscribe_to_window_change_event(self.backend.save_window_geometry)
+        self.backend.reroute_excepthook(self.except_hook)
+        self.backend.subscribe_to_window_close_event(self.on_close)
+        self.backend.set_title(
+            self.env.get(
+                EnvironmentKeys.core.APP_WINDOW_TITLE,
+                'Pyrox Application',
+                str
+            )
+        )
+        self.backend.set_icon(
+            self.env.get(
+                EnvironmentKeys.core.APP_ICON,
+                '',
+                str
+            )
+        )
 
         # Set up logging
         self.logging.register_callback_to_captured_streams(self.log_stream.write)
@@ -79,7 +91,7 @@ class Application(
         self._tasks: list[IApplicationTask] = []
 
         # Initialize workspace
-        self._workspace = TkWorkspace(master=self.backend.get_root_window())
+        self._workspace = TkWorkspace(master=self.backend.root_window)
 
         # Build default tasks
         ApplicationTaskFactory.build_tasks(self)
@@ -140,24 +152,6 @@ class Application(
         """
         self._workspace = workspace
 
-    def hook_to_gui(self) -> None:
-        self.backend.reroute_excepthook(self.except_hook)
-        self.backend.subscribe_to_window_close_event(self.on_close)
-        self.backend.set_title(
-            self.env.get(
-                EnvironmentKeys.core.APP_WINDOW_TITLE,
-                'Pyrox Application',
-                str
-            )
-        )
-        self.backend.set_icon(
-            self.env.get(
-                EnvironmentKeys.core.APP_ICON,
-                '',
-                str
-            )
-        )
-
     def except_hook(
         self,
         exc_type: type,
@@ -186,8 +180,6 @@ class Application(
             self.gui.quit_application()
         except Exception as e:
             self.log().error(f'Error closing GUI: {e}')
-        finally:
-            gc.collect()  # Process garbage collection for GUI elements
 
     def register_task(
         self,
@@ -249,24 +241,6 @@ class Application(
         """Clear all registered application tasks."""
         self._tasks.clear()
 
-    def build(self) -> None:
-        """Build and initialize the application."""
-        self.workspace.build()
-        self.hook_to_gui()
-        self.workspace.set_status('Ready...')
-        super().build()
-
-    def clear_log_file(self) -> None:
-        """Clear the log file for this Application.
-
-        This method removes all content from the log file, effectively clearing it.
-        """
-        try:
-            with open(self.directory.get_user_log_file(), 'w', encoding='utf-8') as f:
-                f.write('')
-        except IOError as e:
-            print(f'Error clearing log file {self.directory.get_user_log_file()}: {e}')
-
     def set_app_state_busy(self) -> None:
         """Set the application state to busy.
 
@@ -283,7 +257,6 @@ class Application(
 
     def run(self) -> int:
         """Start the application."""
-        self.build()
         super().run()
         self.backend.schedule_event(
             100,
