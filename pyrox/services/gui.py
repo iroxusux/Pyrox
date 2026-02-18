@@ -240,8 +240,56 @@ class GuiManager:
             raise RuntimeError("GUI backend is not initialized.")
         return cls._current_backend.get_root_menu()
 
+    @classmethod
+    def prompt_user_yes_no(cls, title: str, message: str) -> bool:
+        """Show a yes/no dialog to the user.
+
+        Args:
+            title: The title of the dialog.
+            message: The message to display in the dialog.
+        Returns:
+            True if user selects 'Yes', False if 'No'.
+        """
+        return cls.unsafe_get_backend().prompt_user_yes_no(title, message)
+
+    @classmethod
+    def prompt_user_open_file(cls, title: str = "Select a file", filetypes: Optional[list[tuple[str, str]]] = None) -> Optional[str]:
+        """Show a file open dialog to the user.
+
+        Args:
+            title: The title of the dialog.
+            filetypes: Optional list of (label, pattern) tuples for file types.
+        Returns:
+            The selected file path, or None if cancelled.
+        """
+        return cls.unsafe_get_backend().prompt_user_open_file(title, filetypes)
+
+    @classmethod
+    def prompt_user_save_file(cls, title: str = "Save file as", filetypes: Optional[list[tuple[str, str]]] = None) -> Optional[str]:
+        """Show a file save dialog to the user.
+
+        Args:
+            title: The title of the dialog.
+            filetypes: Optional list of (label, pattern) tuples for file types.
+        Returns:
+            The selected file path, or None if cancelled.
+        """
+        return cls.unsafe_get_backend().prompt_user_save_file(title, filetypes)
+
+    @classmethod
+    def prompt_user_select_directory(cls, title: str = "Select a directory") -> Optional[str]:
+        """Show a directory selection dialog to the user.
+
+        Args:
+            title: The title of the dialog.
+        Returns:
+            The selected directory path, or None if cancelled.
+        """
+        return cls.unsafe_get_backend().prompt_user_select_directory(title)
 
 # Convenience functions for common operations
+
+
 def initialize_gui(
     framework: Optional[Union[GuiFramework, str]] = None
 ) -> bool:

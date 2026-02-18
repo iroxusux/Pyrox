@@ -12,7 +12,7 @@ from pyrox.services.file import (
     get_all_files_in_directory,
     get_open_file,
     get_save_file,
-    get_save_location,
+    get_directory_location,
     is_file_readable,
     remove_all_files,
     save_file,
@@ -88,116 +88,82 @@ class TestFileServices(unittest.TestCase):
         result = get_all_files_in_directory(dir_only)
         self.assertEqual(result, [])
 
-    @patch('tkinter.filedialog.askopenfilename')
-    @patch('tkinter.Tk')
-    def test_get_open_file_basic(self, mock_tk, mock_askopenfilename):
+    @patch('pyrox.services.gui.GuiManager.prompt_user_open_file')
+    def test_get_open_file_basic(self, mock_prompt):
         """Test basic file opening dialog."""
-        mock_root = MagicMock()
-        mock_tk.return_value = mock_root
-        mock_askopenfilename.return_value = '/path/to/file.txt'
+        mock_prompt.return_value = '/path/to/file.txt'
 
         filetypes = [('.txt', 'Text Files'), ('.log', 'Log Files')]
         title = "Select File"
 
-        result = get_open_file(filetypes, title)
+        result = get_open_file(title, filetypes)
 
         self.assertEqual(result, '/path/to/file.txt')
-        mock_root.withdraw.assert_called_once()
-        mock_root.update.assert_called_once()
-        mock_askopenfilename.assert_called_once_with(
-            filetypes=filetypes,
-            title=title
-        )
+        mock_prompt.assert_called_once_with(title, filetypes)
 
-    @patch('tkinter.filedialog.askopenfilename')
-    @patch('tkinter.Tk')
-    def test_get_open_file_no_title(self, mock_tk, mock_askopenfilename):
+    @patch('pyrox.services.gui.GuiManager.prompt_user_open_file')
+    def test_get_open_file_no_title(self, mock_prompt):
         """Test file opening dialog without title."""
-        mock_root = MagicMock()
-        mock_tk.return_value = mock_root
-        mock_askopenfilename.return_value = '/path/to/file.txt'
+        mock_prompt.return_value = '/path/to/file.txt'
 
         filetypes = [('.txt', 'Text Files')]
 
-        _ = get_open_file(filetypes)
+        _ = get_open_file(filetypes=filetypes)
 
-        mock_askopenfilename.assert_called_once_with(
-            filetypes=filetypes,
-            title=None
-        )
+        # Default title is 'Open File'
+        mock_prompt.assert_called_once_with('Open File', filetypes)
 
-    @patch('tkinter.filedialog.askopenfilename')
-    @patch('tkinter.Tk')
-    def test_get_open_file_cancelled(self, mock_tk, mock_askopenfilename):
+    @patch('pyrox.services.gui.GuiManager.prompt_user_open_file')
+    def test_get_open_file_cancelled(self, mock_prompt):
         """Test file opening dialog when user cancels."""
-        mock_root = MagicMock()
-        mock_tk.return_value = mock_root
-        mock_askopenfilename.return_value = ''  # Empty string when cancelled
+        mock_prompt.return_value = ''  # Empty string when cancelled
 
         filetypes = [('.txt', 'Text Files')]
 
-        result = get_open_file(filetypes)
+        result = get_open_file(filetypes=filetypes)
 
         self.assertEqual(result, '')
 
-    @patch('tkinter.filedialog.asksaveasfilename')
-    @patch('tkinter.Tk')
-    def test_get_save_file_basic(self, mock_tk, mock_asksaveasfilename):
+    @patch('pyrox.services.gui.GuiManager.prompt_user_save_file')
+    def test_get_save_file_basic(self, mock_prompt):
         """Test basic save file dialog."""
-        mock_root = MagicMock()
-        mock_tk.return_value = mock_root
-        mock_asksaveasfilename.return_value = '/path/to/save/file.txt'
+        mock_prompt.return_value = '/path/to/save/file.txt'
 
         filetypes = [('.txt', 'Text Files'), ('.log', 'Log Files')]
 
-        result = get_save_file(filetypes)
+        result = get_save_file(filetypes=filetypes)
 
         self.assertEqual(result, '/path/to/save/file.txt')
-        mock_root.withdraw.assert_called_once()
-        mock_root.update.assert_called_once()
-        mock_asksaveasfilename.assert_called_once_with(
-            confirmoverwrite=True,
-            filetypes=filetypes
-        )
+        # Default title is 'Save File As'
+        mock_prompt.assert_called_once_with('Save File As', filetypes)
 
-    @patch('tkinter.filedialog.asksaveasfilename')
-    @patch('tkinter.Tk')
-    def test_get_save_file_cancelled(self, mock_tk, mock_asksaveasfilename):
+    @patch('pyrox.services.gui.GuiManager.prompt_user_save_file')
+    def test_get_save_file_cancelled(self, mock_prompt):
         """Test save file dialog when user cancels."""
-        mock_root = MagicMock()
-        mock_tk.return_value = mock_root
-        mock_asksaveasfilename.return_value = ''
+        mock_prompt.return_value = ''
 
         filetypes = [('.txt', 'Text Files')]
 
-        result = get_save_file(filetypes)
+        result = get_save_file(filetypes=filetypes)
 
         self.assertEqual(result, '')
 
-    @patch('tkinter.filedialog.askdirectory')
-    @patch('tkinter.Tk')
-    def test_get_save_location_basic(self, mock_tk, mock_askdirectory):
+    @patch('pyrox.services.gui.GuiManager.prompt_user_select_directory')
+    def test_get_save_location_basic(self, mock_prompt):
         """Test basic directory selection dialog."""
-        mock_root = MagicMock()
-        mock_tk.return_value = mock_root
-        mock_askdirectory.return_value = '/path/to/directory'
+        mock_prompt.return_value = '/path/to/directory'
 
-        result = get_save_location()
+        result = get_directory_location()
 
         self.assertEqual(result, '/path/to/directory')
-        mock_root.withdraw.assert_called_once()
-        mock_root.update.assert_called_once()
-        mock_askdirectory.assert_called_once()
+        mock_prompt.assert_called_once()
 
-    @patch('tkinter.filedialog.askdirectory')
-    @patch('tkinter.Tk')
-    def test_get_save_location_cancelled(self, mock_tk, mock_askdirectory):
+    @patch('pyrox.services.gui.GuiManager.prompt_user_select_directory')
+    def test_get_save_location_cancelled(self, mock_prompt):
         """Test directory selection when user cancels."""
-        mock_root = MagicMock()
-        mock_tk.return_value = mock_root
-        mock_askdirectory.return_value = ''
+        mock_prompt.return_value = ''
 
-        result = get_save_location()
+        result = get_directory_location()
 
         self.assertEqual(result, '')
 

@@ -106,9 +106,11 @@ class EnvManager:
                     f.read(1)  # Try to read just one character
                 return True
             except (IOError, OSError, PermissionError, UnicodeDecodeError):
+                print(f"File '{file_path}' exists but is not readable.")
                 return False
 
-        except Exception:
+        except Exception as e:
+            print(f"Error checking file '{file_path}': {e}")
             return False
 
     @classmethod

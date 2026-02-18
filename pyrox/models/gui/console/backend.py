@@ -166,5 +166,19 @@ class ConsoleBackend(IGuiBackend):
     def restore_window_geometry(self) -> None:
         pass
 
+    def prompt_user_open_file(self, title: str = "Open File", filetypes: list[tuple[str, str]] | None = None) -> str | None:
+        return input(f"{title} (enter file path): ").strip() or None
+
+    def prompt_user_save_file(
+        self,
+        title: str = "Save File",
+        filetypes: list[tuple[str, str]] | None = None,
+        default_extension: str | None = None
+    ) -> str | None:
+        return input(f"{title} (enter file path to save): ").strip() or None
+
+    def prompt_user_select_directory(self, title: str = "Select Directory") -> str | None:
+        return input(f"{title} (enter directory path): ").strip() or None
+
 
 GuiManager.register_backend(GuiFramework.CONSOLE, ConsoleBackend)
