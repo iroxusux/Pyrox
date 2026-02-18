@@ -248,7 +248,7 @@ class TestGuiManager(unittest.TestCase):
             def prompt_user_yes_no(self, title: str, message: str) -> bool: return False
             def prompt_user_open_file(self, title: str = "Open File", filetypes: list[tuple[str, str]] | None = None) -> str | None: return None
             def prompt_user_save_file(
-                self, title: str = "Save File", filetypes: list[tuple[str, str]] | None = None, default_extension: str | None = None) -> str | None: return None
+                self, title: str = "Save File", filetypes: list[tuple[str, str]] | None = None, default_extension: str | None = None) -> str | None: return None  # noqa: E501
 
             def prompt_user_select_directory(self, title: str = "Select Directory") -> str | None: return None
             def destroy_gui_frame(self, frame: IGuiFrame) -> None: return None
