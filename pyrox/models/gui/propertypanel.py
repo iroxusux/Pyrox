@@ -3,6 +3,11 @@
 This module provides a reusable Tkinter-based property panel for displaying
 and editing object properties using the IHasProperties protocol.
 
+``TkPropertyPanel`` extends ``TkinterTaskFrame`` and therefore ships with a
+title bar and a built-in close button.  The underlying Tkinter widget is
+exposed via ``panel.root``; use that reference wherever a bare widget is
+expected (e.g. when adding to a ``PanedWindow``).
+
 Example Usage:
     ```python
     # Create a property panel
@@ -16,8 +21,8 @@ Example Usage:
     scene_obj = scene.get_scene_object("obj_001")
     panel.set_object(scene_obj, readonly_properties={"id", "type"})
 
-    # Show the panel
-    panel.pack(side=tk.RIGHT, fill=tk.Y)
+    # Add the underlying frame widget to a PanedWindow
+    paned_window.add(panel.root, weight=0)
 
     # Update when selection changes
     panel.refresh()
@@ -27,9 +32,10 @@ import tkinter as tk
 from tkinter import ttk
 from typing import Optional, Dict, Any, Callable
 from pyrox.interfaces.protocols import IHasProperties
+from pyrox.models.gui.tk.frame import TkinterTaskFrame
 
 
-class TkPropertyPanel(ttk.Frame):
+class TkPropertyPanel(TkinterTaskFrame):
     """A reusable Tkinter property panel widget.
 
     This panel displays properties from objects implementing IHasProperties.
@@ -53,10 +59,9 @@ class TkPropertyPanel(ttk.Frame):
     def __init__(
         self,
         parent: tk.Widget,
-        title: str = "Properties",
+        title: str = "properties",
         width: int = 250,
         on_property_changed: Optional[Callable[[str, Any], None]] = None,
-        **kwargs
     ):
         """Initialize the TkPropertyPanel.
 
@@ -66,9 +71,9 @@ class TkPropertyPanel(ttk.Frame):
             width: Width of the panel in pixels
             on_property_changed: Optional callback function(property_name, new_value)
                                  called when a property is modified
-            **kwargs: Additional arguments passed to ttk.Frame
         """
-        super().__init__(parent, width=width, **kwargs)
+        TkinterTaskFrame.__init__(self, name=title, parent=parent)  # type: ignore[arg-type]
+        self.root.configure(width=width)
 
         self._title = title
         self._target_object: Optional[IHasProperties] = None
@@ -81,20 +86,11 @@ class TkPropertyPanel(ttk.Frame):
 
     def _build_ui(self) -> None:
         """Build the property panel UI structure."""
-        # Header
-        self._header = ttk.Label(
-            self,
-            text=self._title,
-            font=("TkDefaultFont", 10, "bold")
-        )
-        self._header.pack(side=tk.TOP, fill=tk.X, padx=10, pady=10)
-
-        ttk.Separator(self, orient=tk.HORIZONTAL).pack(
-            side=tk.TOP, fill=tk.X, padx=5
-        )
+        # Title bar and close button are provided by TkinterTaskFrame.
+        # All content goes into self.content_frame.
 
         # Scrollable content area with canvas and scrollbar
-        container_frame = ttk.Frame(self)
+        container_frame = ttk.Frame(self.content_frame)
         container_frame.pack(side=tk.TOP, fill=tk.BOTH, expand=True, padx=10, pady=10)
 
         # Create canvas for scrolling
@@ -113,15 +109,16 @@ class TkPropertyPanel(ttk.Frame):
         self._canvas.configure(yscrollcommand=self._scrollbar.set)
 
         # Create frame inside canvas to hold properties
-        self._content_frame = ttk.Frame(self._canvas)
+        # Named _properties_frame to avoid collision with TkinterTaskFrame._content_frame
+        self._properties_frame = ttk.Frame(self._canvas)
         self._canvas_window = self._canvas.create_window(
             (0, 0),
-            window=self._content_frame,
+            window=self._properties_frame,
             anchor=tk.NW
         )
 
         # Bind events for scrolling and resizing
-        self._content_frame.bind("<Configure>", self._on_frame_configure)
+        self._properties_frame.bind("<Configure>", self._on_frame_configure)
         self._canvas.bind("<Configure>", self._on_canvas_configure)
         self._canvas.bind("<Enter>", self._bind_mousewheel)
         self._canvas.bind("<Leave>", self._unbind_mousewheel)
@@ -133,7 +130,7 @@ class TkPropertyPanel(ttk.Frame):
             title: New title text
         """
         self._title = title
-        self._header.config(text=title)
+        self._title_label.config(text=title)
 
     def set_object(
         self,
@@ -262,7 +259,7 @@ class TkPropertyPanel(ttk.Frame):
 
     def _clear_properties(self) -> None:
         """Clear all property widgets from the panel."""
-        for widget in self._content_frame.winfo_children():
+        for widget in self._properties_frame.winfo_children():
             widget.destroy()
         self._property_widgets.clear()
         if hasattr(self, '_bool_vars'):
@@ -277,7 +274,7 @@ class TkPropertyPanel(ttk.Frame):
             message: Message to display
         """
         label = ttk.Label(
-            self._content_frame,
+            self._properties_frame,
             text=message,
             foreground="gray"
         )
@@ -312,7 +309,7 @@ class TkPropertyPanel(ttk.Frame):
             readonly: Whether the field is read-only
             field_length: Length of the label field
         """
-        row_frame = ttk.Frame(self._content_frame)
+        row_frame = ttk.Frame(self._properties_frame)
         row_frame.pack(side=tk.TOP, fill=tk.X, pady=2)
 
         # Label
@@ -582,7 +579,8 @@ class TkPropertyPanel(ttk.Frame):
 
     def _on_frame_configure(self, event=None) -> None:
         """Update scroll region when frame size changes."""
-        self._canvas.configure(scrollregion=self._canvas.bbox("all"))
+        if self.root.winfo_exists():
+            self._canvas.configure(scrollregion=self._canvas.bbox("all"))
 
     def _on_canvas_configure(self, event) -> None:
         """Update canvas window width when canvas is resized."""

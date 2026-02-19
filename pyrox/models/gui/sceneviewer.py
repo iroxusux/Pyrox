@@ -212,7 +212,7 @@ class SceneViewerFrame(TkinterTaskFrame):
 
         # Properties panel state
         self._properties_panel_visible: bool = False
-        self._properties_panel: Optional[TkPropertyPanel] = None
+        self._properties_panel: Optional[TkPropertyPanel] = None  # type: ignore[assignment]
         self._properties_panel_current_object_id: Optional[str] = None  # Track displayed object
         self._previous_selection: set[str] = set()  # Track previous selection to detect changes
 
@@ -284,10 +284,10 @@ class SceneViewerFrame(TkinterTaskFrame):
 
     @property
     def properties_panel(self) -> TkPropertyPanel:
-        """Get the properties panel."""
-        if not self._properties_panel:
-            raise RuntimeError("Properties panel not initialized")
-        return self._properties_panel
+        """Get the properties panel, rebuilding it if it was previously closed."""
+        if self._properties_panel is None:
+            self._build_properties_panel()
+        return self._properties_panel  # type: ignore[return-value]
 
     @property
     def scene(self) -> Optional[IScene]:
@@ -576,17 +576,17 @@ class SceneViewerFrame(TkinterTaskFrame):
         panes = list(self._paned_window.panes())
 
         if self._properties_panel_visible:
-            # Show properties panel in the paned window
-            # Check if it's already added to avoid errors
-            if str(self.properties_panel) not in panes:
-                self.properties_panel.master = self._paned_window
-                self._paned_window.add(self.properties_panel, weight=0)
+            # Rebuild if the panel was previously closed via its X button
+            if self._properties_panel is None:
+                self._build_properties_panel()
+            if self._properties_panel is not None and str(self._properties_panel.root) not in panes:
+                self._properties_panel.root.master = self._paned_window
+                self._paned_window.add(self._properties_panel.root, weight=0)
             self._update_properties_panel()
         else:
-            # Hide properties panel by removing from paned window
-            if str(self.properties_panel) in panes:
-                self.properties_panel.pack_forget()
-                self._paned_window.remove(self.properties_panel)
+            if self._properties_panel is not None and str(self._properties_panel.root) in panes:
+                self._properties_panel.root.pack_forget()
+                self._paned_window.remove(self._properties_panel.root)
 
     def toggle_bridge_panel(self) -> None:
         """Toggle the visibility of the scene bridge panel."""
@@ -595,6 +595,9 @@ class SceneViewerFrame(TkinterTaskFrame):
         panes = list(self._paned_window.panes())
 
         if self._bridge_panel_visible:
+            # Rebuild if the panel was previously closed via its X button
+            if self._bridge_panel is None:
+                self._build_bridge_panel()
             if self._bridge_panel is not None and str(self._bridge_panel.root) not in panes:
                 self._bridge_panel.root.master = self._paned_window
                 self._paned_window.add(self._bridge_panel.root, weight=0)
@@ -1123,6 +1126,15 @@ class SceneViewerFrame(TkinterTaskFrame):
             width=250,
             on_property_changed=self._on_property_changed
         )
+
+        def _on_properties_panel_closed(frame):
+            """Reset state when the properties panel's X button destroys the frame."""
+            self._properties_panel = None
+            self._properties_panel_visible = False
+            self._properties_var.set(False)
+            self._properties_panel_current_object_id = None
+
+        self._properties_panel.on_destroy().append(_on_properties_panel_closed)
         # Panel is initially hidden, will be added to paned window when toggled
 
     def _build_bridge_panel(self) -> None:
@@ -1133,6 +1145,14 @@ class SceneViewerFrame(TkinterTaskFrame):
             bridge=self._bridge,
             scene=self._scene,
         )
+
+        def _on_bridge_panel_closed(frame):
+            """Reset state when the bridge panel's X button destroys the frame."""
+            self._bridge_panel = None
+            self._bridge_panel_visible = False
+            self._bridge_var.set(False)
+
+        self._bridge_panel.on_destroy().append(_on_bridge_panel_closed)
         # Panel is initially hidden, will be added to paned window when toggled
 
     def _build_object_palette(self) -> None:

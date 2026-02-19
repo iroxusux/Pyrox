@@ -345,6 +345,11 @@ class SceneBridgeDialog(TkinterTaskFrame):
 
     def _schedule_refresh(self):
         """Schedule periodic refresh."""
+        try:
+            if not self.root.winfo_exists():
+                return
+        except Exception:
+            return
         if self.bridge._active:
             self._refresh_bindings()
         self.root.after(1000, self._schedule_refresh)
