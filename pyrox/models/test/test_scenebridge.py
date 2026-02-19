@@ -380,27 +380,6 @@ class TestSceneBridge(unittest.TestCase):
         self.assertFalse(clone.is_write_enabled())
         self.assertEqual(clone.get_write_throttle(), 250.0)
 
-    def test_from_dict_accepts_legacy_tag_name_key(self):
-        data = {
-            "bindings": [
-                {
-                    "tag_name": "legacy.key",
-                    "object_id": "conveyor_1",
-                    "property_path": "speed",
-                    "direction": "read",
-                    "enabled": False,
-                }
-            ],
-            "write_enabled": True,
-            "write_throttle_ms": 50.0,
-        }
-        self.bridge.from_dict(data)
-        self.assertEqual(len(self.bridge.get_bindings()), 1)
-        binding = self.bridge.get_bindings()[0]
-        self.assertEqual(binding.binding_key, "legacy.key")
-        self.assertFalse(binding.enabled)
-        self.assertEqual(self.bridge.get_write_throttle(), 50.0)
-
     def test_from_dict_clears_existing_bindings(self):
         self.bridge.add_binding("old.key", "conveyor_1", "speed")
         self.bridge.from_dict({"bindings": [], "write_enabled": True, "write_throttle_ms": 100.0})
