@@ -51,6 +51,7 @@ from .physics import PhysicsEngineService
 from .scene import (
     HasSceneMixin,
     SceneRunnerService,
+    SceneBridgeService,
     SceneEvent,
     SceneEventType,
     SceneEventBus,
@@ -132,6 +133,7 @@ __all__ = (
     # Scene imports
     'HasSceneMixin',
     'SceneRunnerService',
+    'SceneBridgeService',
     # Scene events imports
     'SceneEvent',
     'SceneEventType',

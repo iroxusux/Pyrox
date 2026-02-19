@@ -7,6 +7,7 @@ and other interactive objects.
 These are concrete implementations built on top of the PhysicsBody2D protocol
 implementation from pyrox.models.protocols.physics.
 """
+from .actor import TopDownPlayerBody
 from .base import BasePhysicsBody
 from .conveyor import ConveyorBody
 from .crate import CrateBody
@@ -16,6 +17,7 @@ from .sensor import ProximitySensorBody
 from .factory import PhysicsSceneFactory, PhysicsSceneTemplate
 
 __all__ = [
+    'TopDownPlayerBody',
     'BasePhysicsBody',
     'ConveyorBody',
     'CrateBody',

@@ -226,12 +226,26 @@ class SceneviewerApplicationTask(ApplicationTask):
             enabled=False
         )
 
+        # Scene Bridge Panel
+        self.register_menu_command(
+            menu=scene_view_dropdown,
+            registry_id="scene.view.bridge_panel",
+            registry_path="View/Scene Viewer/Bridge Panel",
+            index=10,
+            label="Bridge Panel",
+            command=None,  # To be assigned by SceneViewer
+            accelerator="Ctrl+Alt+B",
+            underline=0,
+            category="scene",
+            enabled=False
+        )
+
         # Connection editor
         self.register_menu_command(
             menu=scene_view_dropdown,
             registry_id="scene.view.connection_editor",
             registry_path="View/Scene Viewer/Connection Editor",
-            index=10,
+            index=11,
             label="Connection Editor",
             command=None,  # To be assigned by SceneViewer
             accelerator="Ctrl+E",
@@ -240,14 +254,14 @@ class SceneviewerApplicationTask(ApplicationTask):
             enabled=False
         )
 
-        scene_view_dropdown.insert_separator(11)
+        scene_view_dropdown.insert_separator(12)
 
         # Entity Names Toggle
         self.register_menu_command(
             menu=scene_view_dropdown,
             registry_id="scene.view.entity_names",
             registry_path="View/Scene Viewer/Entity Names",
-            index=12,
+            index=13,
             label="Entity Names",
             command=None,  # To be assigned by SceneViewer
             accelerator="Ctrl+L",

@@ -142,7 +142,11 @@ from .scene import (
     IScene,
     ISceneObject,
     ISceneObjectFactory,
-    ISceneRunnerService
+    ISceneRunnerService,
+    BindingDirection,
+    ISceneBinding,
+    ISceneBridge,
+    ISceneBoundLayer,
 )
 
 
@@ -248,4 +252,8 @@ __all__ = (
     'ISceneObject',
     'ISceneObjectFactory',
     'ISceneRunnerService',
+    'BindingDirection',
+    'ISceneBinding',
+    'ISceneBridge',
+    'ISceneBoundLayer',
 )

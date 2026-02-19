@@ -18,6 +18,9 @@ from pyrox.models.gui.tk.frame import TkinterTaskFrame
 from pyrox.models.gui import TkPropertyPanel
 from pyrox.models.gui.contextmenu import PyroxContextMenu, MenuItem
 from pyrox.models.gui.connectioneditor import ConnectionEditor
+from pyrox.models.gui.scenebridge import SceneBridgeDialog
+from pyrox.models.scene.scenebridge import SceneBridge
+from pyrox.services.scene import SceneBridgeService
 from pyrox.models.physics import PhysicsSceneFactory
 from pyrox.models.protocols import Area2D, Zoomable
 from pyrox.models.scene import Scene, SceneObject
@@ -210,9 +213,14 @@ class SceneViewerFrame(TkinterTaskFrame):
 
         # Properties panel state
         self._properties_panel_visible: bool = False
-        self._properties_panel: Optional[TkPropertyPanel] = None
+        self._properties_panel: Optional[TkPropertyPanel] = None  # type: ignore[assignment]
         self._properties_panel_current_object_id: Optional[str] = None  # Track displayed object
         self._previous_selection: set[str] = set()  # Track previous selection to detect changes
+
+        # Bridge panel state
+        self._bridge_panel_visible: bool = False
+        self._bridge_panel: Optional[SceneBridgeDialog] = None
+        self._bridge: Optional[SceneBridge] = None
 
         # Drawing and manipulation state
         self._current_tool: str = "select"  # Current tool: select, rectangle, circle, line
@@ -246,6 +254,7 @@ class SceneViewerFrame(TkinterTaskFrame):
         self._design_mode_var: tk.BooleanVar = tk.BooleanVar()
         self._object_palette_var: tk.BooleanVar = tk.BooleanVar()
         self._properties_var: tk.BooleanVar = tk.BooleanVar()
+        self._bridge_var: tk.BooleanVar = tk.BooleanVar()
         self._entity_names_var: tk.BooleanVar = tk.BooleanVar(value=True)
         self._entity_names_visible: bool = True
 
@@ -275,10 +284,10 @@ class SceneViewerFrame(TkinterTaskFrame):
 
     @property
     def properties_panel(self) -> TkPropertyPanel:
-        """Get the properties panel."""
-        if not self._properties_panel:
-            raise RuntimeError("Properties panel not initialized")
-        return self._properties_panel
+        """Get the properties panel, rebuilding it if it was previously closed."""
+        if self._properties_panel is None:
+            self._build_properties_panel()
+        return self._properties_panel  # type: ignore[return-value]
 
     @property
     def scene(self) -> Optional[IScene]:
@@ -338,6 +347,14 @@ class SceneViewerFrame(TkinterTaskFrame):
         self._canvas_object_management_service.set_scene(scene)
         self._canvas_object_management_service.clear()
         self.last_viewport.update(self.viewport)
+
+        # Refresh bridge reference from SceneBridgeService.
+        # The service manages scene changes automatically via SceneEventBus.
+        self._bridge = SceneBridgeService.get_bridge()
+        if self._bridge_panel is not None:
+            if self._bridge is not None:
+                self._bridge_panel.bridge = self._bridge
+            self._bridge_panel.scene = scene
         self._enable_menu_entries(enable=scene is not None)
         self.render_scene()
 
@@ -561,17 +578,40 @@ class SceneViewerFrame(TkinterTaskFrame):
         panes = list(self._paned_window.panes())
 
         if self._properties_panel_visible:
-            # Show properties panel in the paned window
-            # Check if it's already added to avoid errors
-            if str(self.properties_panel) not in panes:
-                self.properties_panel.master = self._paned_window
-                self._paned_window.add(self.properties_panel, weight=0)
+            # Rebuild if the panel was previously closed via its X button
+            if self._properties_panel is None:
+                self._build_properties_panel()
+            if self._properties_panel is not None and str(self._properties_panel.root) not in panes:
+                self._properties_panel.root.master = self._paned_window
+                self._paned_window.add(self._properties_panel.root, weight=0)
             self._update_properties_panel()
         else:
-            # Hide properties panel by removing from paned window
-            if str(self.properties_panel) in panes:
-                self.properties_panel.pack_forget()
-                self._paned_window.remove(self.properties_panel)
+            if self._properties_panel is not None and str(self._properties_panel.root) in panes:
+                self._properties_panel.root.pack_forget()
+                self._paned_window.remove(self._properties_panel.root)
+
+    def toggle_bridge_panel(self) -> None:
+        """Toggle the visibility of the scene bridge panel."""
+        self._bridge_panel_visible = not self._bridge_panel_visible
+        self._bridge_var.set(self._bridge_panel_visible)
+        panes = list(self._paned_window.panes())
+
+        if self._bridge_panel_visible:
+            # Rebuild if the panel was previously closed via its X button
+            if self._bridge_panel is None:
+                self._build_bridge_panel()
+            # If the build failed (no scene loaded yet), roll back visible state
+            if self._bridge_panel is None:
+                self._bridge_panel_visible = False
+                self._bridge_var.set(False)
+                return
+            if str(self._bridge_panel.root) not in panes:
+                self._bridge_panel.root.master = self._paned_window
+                self._paned_window.add(self._bridge_panel.root, weight=0)
+        else:
+            if self._bridge_panel is not None and str(self._bridge_panel.root) in panes:
+                self._bridge_panel.root.pack_forget()
+                self._paned_window.remove(self._bridge_panel.root)
 
     def toggle_entity_names(self) -> None:
         """Toggle entity name labels visibility on the canvas."""
@@ -984,6 +1024,16 @@ class SceneViewerFrame(TkinterTaskFrame):
         self._properties_panel_btn.pack(side=tk.LEFT, padx=2)
         self._create_tooltip(self._properties_panel_btn, "Toggle Properties Panel")
 
+        # Scene Bridge Panel Toggle Button
+        self._bridge_panel_btn = ttk.Button(
+            self._toolbar,
+            text="🔗",  # Link emoji
+            width=3,
+            command=self.toggle_bridge_panel
+        )
+        self._bridge_panel_btn.pack(side=tk.LEFT, padx=2)
+        self._create_tooltip(self._bridge_panel_btn, "Toggle Scene Bridge Panel")
+
         # Separator
         ttk.Separator(self._toolbar, orient=tk.VERTICAL).pack(side=tk.LEFT, fill=tk.Y, padx=5)
 
@@ -1083,6 +1133,37 @@ class SceneViewerFrame(TkinterTaskFrame):
             width=250,
             on_property_changed=self._on_property_changed
         )
+
+        def _on_properties_panel_closed(frame):
+            """Reset state when the properties panel's X button destroys the frame."""
+            self._properties_panel = None
+            self._properties_panel_visible = False
+            self._properties_var.set(False)
+            self._properties_panel_current_object_id = None
+
+        self._properties_panel.on_destroy().append(_on_properties_panel_closed)
+        # Panel is initially hidden, will be added to paned window when toggled
+
+    def _build_bridge_panel(self) -> None:
+        """Build the scene bridge panel."""
+        # Bridge is owned by SceneBridgeService; the viewer only holds a reference.
+        self._bridge = SceneBridgeService.get_bridge()
+        if self._bridge is None:
+            log(self).warning("Cannot open bridge panel: no scene is currently loaded")
+            return
+        self._bridge_panel = SceneBridgeDialog(
+            parent=self._paned_window,
+            bridge=self._bridge,
+            scene=self._scene,
+        )
+
+        def _on_bridge_panel_closed(frame):
+            """Reset state when the bridge panel's X button destroys the frame."""
+            self._bridge_panel = None
+            self._bridge_panel_visible = False
+            self._bridge_var.set(False)
+
+        self._bridge_panel.on_destroy().append(_on_bridge_panel_closed)
         # Panel is initially hidden, will be added to paned window when toggled
 
     def _build_object_palette(self) -> None:
@@ -1419,6 +1500,11 @@ class SceneViewerFrame(TkinterTaskFrame):
         self._enable_entry(
             menu_id="scene.view.properties_panel",
             command=self.toggle_properties_panel,
+            enable=enable
+        )
+        self._enable_entry(
+            menu_id="scene.view.bridge_panel",
+            command=self.toggle_bridge_panel,
             enable=enable
         )
 

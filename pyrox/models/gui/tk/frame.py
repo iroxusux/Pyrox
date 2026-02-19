@@ -95,7 +95,7 @@ class TkinterTaskFrame(
         self.set_root(
             Frame(
                 self.get_parent(),
-                name=name,
+                name=name.lower(),
             ))  # type: ignore  # TODO: Integrate with GuiManager
         self.set_name(name or 'Task Frame')
         self._shown: bool = False
