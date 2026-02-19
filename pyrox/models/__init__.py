@@ -89,7 +89,10 @@ from .task import (
 
 # Scene components
 from .scene import (
+    BindingDirection,
     Scene,
+    SceneBinding,
+    SceneBridge,
     SceneObject,
 )
 
@@ -153,7 +156,10 @@ __all__ = [
     'ApplicationTaskFactory',
 
     # Scene components
+    'BindingDirection',
     'Scene',
+    'SceneBinding',
+    'SceneBridge',
     'SceneObject',
 
     # Physics components
