@@ -62,6 +62,8 @@ class SceneBridge(ISceneBridge):
         self._write_enabled = True
         self._last_write_time: dict[str, float] = {}
         self._write_throttle_ms = 100.0
+        self._last_read_time: dict[str, float] = {}
+        self._read_throttle_ms = 100.0
         self._tick_callback_registered = False
 
     def create_default_bound_object(self) -> ISceneBoundLayer:
@@ -142,6 +144,7 @@ class SceneBridge(ISceneBridge):
             self.stop()
         self._bindings.clear()
         self._last_write_time.clear()
+        self._last_read_time.clear()
         log(self).info("Cleared all bindings")
 
     def get_bindings(self) -> list[ISceneBinding]:
@@ -169,6 +172,13 @@ class SceneBridge(ISceneBridge):
     def set_write_throttle(self, throttle_ms: float) -> None:
         self._write_throttle_ms = throttle_ms
         log(self).info(f"Bridge write throttle set to {throttle_ms}ms")
+
+    def get_read_throttle(self) -> float:
+        return self._read_throttle_ms
+
+    def set_read_throttle(self, throttle_ms: float) -> None:
+        self._read_throttle_ms = throttle_ms
+        log(self).info(f"Bridge read throttle set to {throttle_ms}ms")
 
     def get_binding_stats(self) -> dict[str, Any]:
         read_count = sum(
@@ -230,7 +240,8 @@ class SceneBridge(ISceneBridge):
         self._active = False
         log(self).info("Scene bridge stopped")
 
-    def _on_tick(self) -> None:
+    def _on_tick(self, *_) -> None:
+        self.update_source_to_scene()
         self.update_scene_to_source()
 
     def update_scene_to_source(self) -> None:
@@ -370,6 +381,67 @@ class SceneBridge(ISceneBridge):
 
         return updated
 
+    def update_source_to_scene(self) -> None:
+        """Tick-driven source → scene sync for READ/BOTH bindings.
+
+        Mirrors :meth:`update_scene_to_source` in the opposite direction.  On each
+        tick the bound object is polled for every READ or BOTH binding; values that
+        have not changed since the last application are skipped, and repeated calls
+        within the configured :attr:`read_throttle_ms` window are suppressed.
+
+        Called automatically by :meth:`_on_tick` — invoke manually only when an
+        out-of-band forced refresh is needed.
+        """
+        if not self._active:
+            return
+
+        current_time = time.time() * 1000
+
+        for binding in self._bindings.values():
+            if not binding.enabled:
+                continue
+            if binding.direction not in (BindingDirection.READ, BindingDirection.BOTH):
+                continue
+
+            last_read = self._last_read_time.get(binding.binding_key, 0)
+            if current_time - last_read < self._read_throttle_ms:
+                continue
+
+            try:
+                source_value = self._read_source_value(binding)
+            except Exception as exc:
+                log(self).error(f"Read error for {binding.binding_key}: {exc}")
+                continue
+
+            if source_value is None:
+                continue
+
+            if source_value == binding.last_source_value:
+                continue
+
+            scene_value = source_value
+            if binding.transform:
+                try:
+                    scene_value = binding.transform(source_value)
+                except Exception as exc:
+                    log(self).error(f"Transform error for {binding.binding_key}: {exc}")
+                    continue
+
+            try:
+                self._set_scene_property(binding.object_id, binding.property_path, scene_value)
+                binding.last_source_value = source_value
+                binding.last_scene_value = scene_value
+                self._last_read_time[binding.binding_key] = current_time
+                log(self).debug(
+                    f"Applied source value: {binding.binding_key} = {source_value} "
+                    f"-> {binding.object_id}.{binding.property_path}"
+                )
+            except Exception as exc:
+                log(self).error(
+                    f"Error applying {binding.binding_key} to "
+                    f"{binding.object_id}.{binding.property_path}: {exc}"
+                )
+
     def _apply_source_value_to_scene(self, binding: SceneBinding, source_value: Any) -> None:
         binding.last_source_value = source_value
 
@@ -417,11 +489,23 @@ class SceneBridge(ISceneBridge):
 
         Return True if callback registration was successful.
         """
+        if not self._scene:
+            log(self).error("Cannot register tick callback without a scene")
+            return False
+
+        if callback not in self._scene.on_scene_updated:
+            self._scene.on_scene_updated.append(callback)
+            return True
 
         return False
 
     def _unregister_tick_callback(self, callback: Callable[[], None]) -> None:
         """Hook to unregister periodic callbacks."""
+        if not self._scene:
+            return
+
+        if callback in self._scene.on_scene_updated:
+            self._scene.on_scene_updated.remove(callback)
 
     def _get_scene_property(self, object_id: str, property_path: str) -> Any:
         if not self._scene:
@@ -511,6 +595,7 @@ class SceneBridge(ISceneBridge):
             ],
             "write_enabled": self._write_enabled,
             "write_throttle_ms": self._write_throttle_ms,
+            "read_throttle_ms": self._read_throttle_ms,
         }
 
     def from_dict(self, data: dict[str, Any]) -> None:
@@ -540,3 +625,4 @@ class SceneBridge(ISceneBridge):
 
         self._write_enabled = data.get("write_enabled", True)
         self._write_throttle_ms = data.get("write_throttle_ms", 100.0)
+        self._read_throttle_ms = data.get("read_throttle_ms", 100.0)

@@ -9,6 +9,7 @@ from pyrox.interfaces import (
     IApplication,
     IPhysicsBody2D,
     IScene,
+    ISceneBridge,
     ISceneObject,
     ISceneRunnerService,
 )
@@ -55,7 +56,7 @@ class SceneEvent:
     """Event data for scene-related events."""
 
     event_type: SceneEventType
-    scene: Optional[Any] = None  # The scene object, if applicable
+    scene: Optional[IScene] = None  # The scene object, if applicable
     data: Optional[Dict[str, Any]] = field(default_factory=dict)  # Additional event data
 
 
@@ -193,8 +194,14 @@ class SceneBridgeService:
         SceneRunnerService.load_scene("my_scene.json")  # bridge auto-created
     """
 
-    _bridge: Optional[Any] = None  # SceneBridge instance (Any avoids import at class level)
+    _bridge: Optional[ISceneBridge] = None  # SceneBridge instance
     _initialized: bool = False
+
+    # Registry of named source factories populated before a scene loads.
+    # Each entry is a Callable[[], Any] that produces the source instance.
+    # All registered factories are called when a new bridge is created so
+    # that the bound layer is pre-populated automatically.
+    _source_factories: dict[str, Any] = {}  # name → Callable[[], Any]
 
     def __init__(self) -> None:
         raise TypeError("SceneBridgeService is a static class and cannot be instantiated")
@@ -223,6 +230,7 @@ class SceneBridgeService:
         if cls._bridge and cls._bridge.is_active():
             cls._bridge.stop()
         cls._bridge = None
+        cls._source_factories.clear()
         cls._initialized = False
         log(cls).info("SceneBridgeService reset")
 
@@ -231,12 +239,74 @@ class SceneBridgeService:
     # ------------------------------------------------------------------
 
     @classmethod
-    def get_bridge(cls) -> Optional[Any]:
+    def get_bridge(cls) -> Optional[ISceneBridge]:
         """Return the currently active bridge, or ``None`` if no scene is loaded."""
         return cls._bridge
 
+    # ------------------------------------------------------------------
+    # Source factory registry
+    # ------------------------------------------------------------------
+
     @classmethod
-    def new_bridge(cls, scene: Any) -> None:
+    def register_source_factory(
+        cls,
+        name: str,
+        factory: Callable[[], Any],  # Callable[[], Any]
+    ) -> None:
+        """Register a factory that produces a bound-layer source.
+
+        The factory is called with no arguments each time a new scene is
+        loaded and a fresh :class:`~pyrox.models.scene.sceneboundlayer.SceneBoundLayer`
+        is created.  The returned object is added to the layer under *name*.
+
+        If the service already has an active bridge the source is
+        immediately added to the current bound layer as well.
+
+        Args:
+            name:    Source name (must be a valid Python identifier).
+            factory: Zero-argument callable that returns the source instance.
+
+        Raises:
+            KeyError: If a factory is already registered under *name*.
+        """
+        if name in cls._source_factories:
+            raise KeyError(
+                f"A source factory named '{name}' is already registered. "
+                f"Call unregister_source_factory first to replace it."
+            )
+        cls._source_factories[name] = factory
+        log(cls).info(f"SceneBridgeService: registered source factory '{name}'")
+
+        # If a bridge is already live, add the source to the current layer now.
+        if cls._bridge is not None:
+            from pyrox.models.scene.sceneboundlayer import SceneBoundLayer
+            bound = cls._bridge.get_bound_object()
+            if isinstance(bound, SceneBoundLayer) and not bound.has_source(name):
+                bound.register_source(name, factory())
+
+    @classmethod
+    def unregister_source_factory(cls, name: str) -> None:
+        """Remove a source factory.  No-op if *name* is not registered.
+
+        Does *not* remove the source from the currently active bridge's bound
+        layer — it only prevents the factory from being called on future scene
+        loads.
+        """
+        if name in cls._source_factories:
+            del cls._source_factories[name]
+            log(cls).info(f"SceneBridgeService: unregistered source factory '{name}'")
+
+    @classmethod
+    def list_source_factories(cls) -> list[str]:
+        """Return the names of all registered source factories."""
+        return list(cls._source_factories.keys())
+
+    # --------------------------------------------------------------------
+    # Bridge management
+    # --------------------------------------------------------------------
+
+    @classmethod
+    def new_bridge(cls, scene: IScene | None) -> None:
         """Create and set a new bridge for the given scene.
 
         Args:
@@ -251,6 +321,12 @@ class SceneBridgeService:
             scene=scene,
             bound_object=SceneBoundLayer()
         )
+        bound = cls._bridge.get_bound_object()
+        if not isinstance(bound, SceneBoundLayer):
+            raise TypeError("SceneBridge must be created with a SceneBoundLayer as its bound object")
+        for source_name, factory in cls._source_factories.items():
+            bound.register_source(source_name, factory())
+        log(cls).info("created new SceneBridge for loaded scene")
 
     # ------------------------------------------------------------------
     # Event handlers
@@ -266,8 +342,6 @@ class SceneBridgeService:
         cls.new_bridge(event.scene)
         if not cls._bridge:
             raise RuntimeError("Failed to create SceneBridge for loaded scene")
-
-        log(cls).info("SceneBridgeService: created new SceneBridge for loaded scene")
 
         # Attempt to restore binding config from sidecar file
         filepath = (event.data or {}).get("filepath")

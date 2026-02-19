@@ -6,6 +6,8 @@ from .scenebridge import (
     SceneBridge,
 )
 from .sceneboundlayer import SceneBoundLayer
+from .sources import KeyboardSource
+from . import sources
 
 
 __all__ = [
@@ -15,4 +17,6 @@ __all__ = [
     "SceneBinding",
     "SceneBridge",
     "SceneBoundLayer",
+    "KeyboardSource",
+    "sources",
 ]
