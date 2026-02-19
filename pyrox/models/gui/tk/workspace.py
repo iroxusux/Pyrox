@@ -676,15 +676,7 @@ Status: {info['status']['current_message']}
         for cb in self._sash_callbacks:
             cb('main', pos)
 
-    @property
-    def sidebar_organizer(self) -> PyroxNotebook:
-        """Get the sidebar organizer.
-
-        Returns:
-            PyroxNotebook: The sidebar organizer instance.
-        """
-        if not self._sidebar_organizer:
-            raise RuntimeError("Sidebar organizer not initialized")
+    def get_sidebar_organizer(self) -> Optional[PyroxNotebook]:
         return self._sidebar_organizer
 
     # -------- Sidebar tab management --------

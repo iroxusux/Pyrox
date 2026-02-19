@@ -193,6 +193,16 @@ class IWorkspace(
     def on_main_sash_moved(self, event):
         raise NotImplementedError("on_main_sash_moved must be implemented by subclass")
 
+    @abstractmethod
+    def get_sidebar_organizer(self):
+        """Get the sidebar organizer instance."""
+        raise NotImplementedError("get_sidebar must be implemented by subclass")
+
+    @property
+    def sidebar_organizer(self):
+        """Get the sidebar organizer instance."""
+        return self.get_sidebar_organizer()
+
     # -------- Sidebar tab management --------
 
     @abstractmethod
