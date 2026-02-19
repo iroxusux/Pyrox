@@ -20,6 +20,7 @@ from pyrox.models.gui.contextmenu import PyroxContextMenu, MenuItem
 from pyrox.models.gui.connectioneditor import ConnectionEditor
 from pyrox.models.gui.scenebridge import SceneBridgeDialog
 from pyrox.models.scene.scenebridge import SceneBridge
+from pyrox.services.scene import SceneBridgeService
 from pyrox.models.physics import PhysicsSceneFactory
 from pyrox.models.protocols import Area2D, Zoomable
 from pyrox.models.scene import Scene, SceneObject
@@ -262,7 +263,6 @@ class SceneViewerFrame(TkinterTaskFrame):
         self._build_canvas()
         self._build_status_bar()
         self._build_properties_panel()
-        self._build_bridge_panel()
         self._build_object_palette()
         self._build_context_menus()
         self._bind_events()
@@ -348,10 +348,12 @@ class SceneViewerFrame(TkinterTaskFrame):
         self._canvas_object_management_service.clear()
         self.last_viewport.update(self.viewport)
 
-        # Keep bridge in sync with the active scene
-        if self._bridge is not None:
-            self._bridge.set_scene(scene)
+        # Refresh bridge reference from SceneBridgeService.
+        # The service manages scene changes automatically via SceneEventBus.
+        self._bridge = SceneBridgeService.get_bridge()
         if self._bridge_panel is not None:
+            if self._bridge is not None:
+                self._bridge_panel.bridge = self._bridge
             self._bridge_panel.scene = scene
         self._enable_menu_entries(enable=scene is not None)
         self.render_scene()
@@ -598,7 +600,12 @@ class SceneViewerFrame(TkinterTaskFrame):
             # Rebuild if the panel was previously closed via its X button
             if self._bridge_panel is None:
                 self._build_bridge_panel()
-            if self._bridge_panel is not None and str(self._bridge_panel.root) not in panes:
+            # If the build failed (no scene loaded yet), roll back visible state
+            if self._bridge_panel is None:
+                self._bridge_panel_visible = False
+                self._bridge_var.set(False)
+                return
+            if str(self._bridge_panel.root) not in panes:
                 self._bridge_panel.root.master = self._paned_window
                 self._paned_window.add(self._bridge_panel.root, weight=0)
         else:
@@ -1139,7 +1146,11 @@ class SceneViewerFrame(TkinterTaskFrame):
 
     def _build_bridge_panel(self) -> None:
         """Build the scene bridge panel."""
-        self._bridge = SceneBridge(scene=self._scene)
+        # Bridge is owned by SceneBridgeService; the viewer only holds a reference.
+        self._bridge = SceneBridgeService.get_bridge()
+        if self._bridge is None:
+            log(self).warning("Cannot open bridge panel: no scene is currently loaded")
+            return
         self._bridge_panel = SceneBridgeDialog(
             parent=self._paned_window,
             bridge=self._bridge,

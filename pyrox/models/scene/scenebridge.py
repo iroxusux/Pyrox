@@ -14,6 +14,7 @@ from pyrox.interfaces import (
     IScene,
     ISceneBridge,
     ISceneBinding,
+    ISceneBoundLayer,
 )
 from pyrox.services.logging import log
 
@@ -50,7 +51,7 @@ class SceneBridge(ISceneBridge):
     def __init__(
         self,
         scene: Optional[IScene] = None,
-        bound_object: Optional[Any] = None,
+        bound_object: Optional[ISceneBoundLayer] = None,
     ):
         self._scene = scene
         self._bound_object = (
@@ -63,13 +64,14 @@ class SceneBridge(ISceneBridge):
         self._write_throttle_ms = 100.0
         self._tick_callback_registered = False
 
-    def create_default_bound_object(self) -> Any:
+    def create_default_bound_object(self) -> ISceneBoundLayer:
         """Create the default source object for bindings.
 
         Subclasses should override this to provide domain-specific source objects.
         """
-
-        return {}
+        # Lazy import to avoid circular dependencies with SceneBoundLayer
+        from pyrox.models.scene.sceneboundlayer import SceneBoundLayer
+        return SceneBoundLayer()
 
     def get_scene(self) -> Optional[IScene]:
         return self._scene
@@ -79,10 +81,10 @@ class SceneBridge(ISceneBridge):
             self.stop()
         self._scene = scene
 
-    def get_bound_object(self) -> Any:
+    def get_bound_object(self) -> ISceneBoundLayer:
         return self._bound_object
 
-    def set_bound_object(self, bound_object: Optional[Any]) -> None:
+    def set_bound_object(self, bound_object: Optional[ISceneBoundLayer]) -> None:
         if bound_object is None:
             bound_object = self.create_default_bound_object()
         self._bound_object = bound_object

@@ -43,6 +43,7 @@ class SceneEventType(Enum):
     SCENE_STARTED = auto()  # Scene runner started
     SCENE_STOPPED = auto()  # Scene runner stopped
     SCENE_MODIFIED = auto()  # Scene was modified
+    SCENE_SAVED = auto()    # Scene was saved to disk
     OBJECT_ADDED = auto()  # Object added to scene
     OBJECT_REMOVED = auto()  # Object removed from scene
     OBJECT_SELECTED = auto()  # Object selected in GUI
@@ -163,6 +164,165 @@ class SceneEventBus:
         return len(cls._subscribers.get(event_type, []))
 
 
+class SceneBridgeService:
+    """Static service that owns and manages the active SceneBridge.
+
+    Subscribes to :class:`SceneEventBus` and reacts to scene lifecycle events:
+
+    * **SCENE_LOADED** — creates a new bridge for the incoming scene and
+      attempts to restore binding configuration from a sidecar
+      ``<scene>.bridge.json`` file if one exists.
+    * **SCENE_UNLOADED** — stops and discards the bridge.
+    * **SCENE_SAVED** — serialises the current bridge configuration to a
+      ``<scene>.bridge.json`` sidecar file alongside the scene file.
+
+    This keeps all bridge lifecycle logic out of the GUI.  GUI components
+    retrieve the active bridge via :meth:`get_bridge` and display it through
+    :class:`~pyrox.models.gui.scenebridge.SceneBridgeDialog`, but they no
+    longer own or create the bridge.
+
+    Sidecar convention::
+
+        my_scene.json          ← scene data
+        my_scene.bridge.json   ← bridge binding configuration (auto-managed)
+
+    Typical application startup::
+
+        SceneBridgeService.initialize()   # subscribe to event bus
+        SceneRunnerService.initialize(app)
+        SceneRunnerService.load_scene("my_scene.json")  # bridge auto-created
+    """
+
+    _bridge: Optional[Any] = None  # SceneBridge instance (Any avoids import at class level)
+    _initialized: bool = False
+
+    def __init__(self) -> None:
+        raise TypeError("SceneBridgeService is a static class and cannot be instantiated")
+
+    # ------------------------------------------------------------------
+    # Initialisation
+    # ------------------------------------------------------------------
+
+    @classmethod
+    def initialize(cls) -> None:
+        """Subscribe to SceneEventBus.  Safe to call multiple times."""
+        if cls._initialized:
+            return
+        SceneEventBus.subscribe(SceneEventType.SCENE_LOADED,   cls._on_scene_loaded)
+        SceneEventBus.subscribe(SceneEventType.SCENE_UNLOADED, cls._on_scene_unloaded)
+        SceneEventBus.subscribe(SceneEventType.SCENE_SAVED,    cls._on_scene_saved)
+        cls._initialized = True
+        log(cls).info("SceneBridgeService initialized")
+
+    @classmethod
+    def reset(cls) -> None:
+        """Unsubscribe from all events and clear internal state.  Useful for tests."""
+        SceneEventBus.unsubscribe(SceneEventType.SCENE_LOADED,   cls._on_scene_loaded)
+        SceneEventBus.unsubscribe(SceneEventType.SCENE_UNLOADED, cls._on_scene_unloaded)
+        SceneEventBus.unsubscribe(SceneEventType.SCENE_SAVED,    cls._on_scene_saved)
+        if cls._bridge and cls._bridge.is_active():
+            cls._bridge.stop()
+        cls._bridge = None
+        cls._initialized = False
+        log(cls).info("SceneBridgeService reset")
+
+    # ------------------------------------------------------------------
+    # Public accessor
+    # ------------------------------------------------------------------
+
+    @classmethod
+    def get_bridge(cls) -> Optional[Any]:
+        """Return the currently active bridge, or ``None`` if no scene is loaded."""
+        return cls._bridge
+
+    @classmethod
+    def new_bridge(cls, scene: Any) -> None:
+        """Create and set a new bridge for the given scene.
+
+        Args:
+            scene: The scene to bind the new bridge to
+        """
+        # Lazy import to avoid circular dependencies at module level
+        from pyrox.models.scene.scenebridge import SceneBridge
+        from pyrox.models.scene.sceneboundlayer import SceneBoundLayer
+        if cls._bridge and cls._bridge.is_active():
+            cls._bridge.stop()
+        cls._bridge = SceneBridge(
+            scene=scene,
+            bound_object=SceneBoundLayer()
+        )
+
+    # ------------------------------------------------------------------
+    # Event handlers
+    # ------------------------------------------------------------------
+
+    @classmethod
+    def _on_scene_loaded(cls, event: SceneEvent) -> None:
+        """Create a fresh bridge when a scene is loaded."""
+        # Stop any existing bridge cleanly
+        if cls._bridge and cls._bridge.is_active():
+            cls._bridge.stop()
+
+        cls.new_bridge(event.scene)
+        if not cls._bridge:
+            raise RuntimeError("Failed to create SceneBridge for loaded scene")
+
+        log(cls).info("SceneBridgeService: created new SceneBridge for loaded scene")
+
+        # Attempt to restore binding config from sidecar file
+        filepath = (event.data or {}).get("filepath")
+        if not filepath:
+            return
+        sidecar = cls._sidecar_path(Path(filepath))
+        if not sidecar.is_file():
+            return
+        try:
+            with open(sidecar, 'r') as f:
+                cls._bridge.from_dict(json.load(f))
+            log(cls).info(f"SceneBridgeService: restored bridge config from {sidecar}")
+        except Exception as exc:
+            log(cls).error(f"SceneBridgeService: failed to load bridge config from {sidecar}: {exc}")
+
+    @classmethod
+    def _on_scene_unloaded(cls, event: SceneEvent) -> None:
+        """Stop and discard the bridge when the scene is unloaded."""
+        if cls._bridge:
+            if cls._bridge.is_active():
+                cls._bridge.stop()
+            cls._bridge = None
+            log(cls).info("SceneBridgeService: bridge closed on scene unload")
+
+    @classmethod
+    def _on_scene_saved(cls, event: SceneEvent) -> None:
+        """Persist bridge binding config as a sidecar file alongside the scene."""
+        if not cls._bridge:
+            log(cls).warning("SceneBridgeService: no active bridge to save on scene save")
+            return
+        filepath = (event.data or {}).get("filepath")
+        if not filepath:
+            log(cls).warning("SceneBridgeService: SCENE_SAVED missing filepath — bridge config not saved")
+            return
+        sidecar = cls._sidecar_path(Path(filepath))
+        try:
+            with open(sidecar, 'w') as f:
+                json.dump(cls._bridge.to_dict(), f, indent=4)
+            log(cls).info(f"SceneBridgeService: saved bridge config to {sidecar}")
+        except Exception as exc:
+            log(cls).error(f"SceneBridgeService: failed to save bridge config to {sidecar}: {exc}")
+
+    # ------------------------------------------------------------------
+    # Helpers
+    # ------------------------------------------------------------------
+
+    @staticmethod
+    def _sidecar_path(scene_filepath: Path) -> Path:
+        """Return the bridge config sidecar path for a given scene filepath.
+
+        Example: ``my_scene.json`` → ``my_scene.bridge.json``
+        """
+        return scene_filepath.with_name(scene_filepath.stem + ".bridge.json")
+
+
 class SceneRunnerService(
     ISceneRunnerService,
 ):
@@ -182,6 +342,9 @@ class SceneRunnerService(
     _scene: Optional[IScene] = None
     _environment: Optional[env.EnvironmentService] = None
     _physics_engine: Optional[physics.PhysicsEngineService] = None
+
+    # Scene file tracking (set by load_scene, consumed once by set_scene → SceneEventBus)
+    _last_scene_filepath: Optional[Path] = None
 
     # Events
     _event_id: Optional[int | str] = None
@@ -208,6 +371,9 @@ class SceneRunnerService(
             environment: Optional environment service (creates default if None and enable_physics=True)
             enable_physics: Whether to enable physics simulation
         """
+        # Boot up the SceneBridgeService to ensure it subscribes to events before we set the initial scene
+        SceneBridgeService.initialize()
+
         # Set application context
         cls._app = app
         cls._enable_physics = enable_physics
@@ -265,8 +431,10 @@ class SceneRunnerService(
 
         SceneEventBus.publish(SceneEvent(
             event_type=event_type,
-            scene=scene
+            scene=scene,
+            data={"filepath": cls._last_scene_filepath} if cls._last_scene_filepath else {},
         ))
+        cls._last_scene_filepath = None
 
     @classmethod
     def new_scene(cls) -> None:
@@ -299,6 +467,7 @@ class SceneRunnerService(
             from pyrox.models.scene import Scene
             data = json.load(f)
             scene = Scene.from_dict(data)
+            cls._last_scene_filepath = filepath
             cls.set_scene(scene)
 
     @classmethod
@@ -322,6 +491,12 @@ class SceneRunnerService(
         data = cls._scene.to_dict()
         with open(filepath, 'w') as f:
             json.dump(data, f, indent=4)
+
+        SceneEventBus.publish(SceneEvent(
+            event_type=SceneEventType.SCENE_SAVED,
+            scene=cls._scene,
+            data={"filepath": filepath},
+        ))
 
     @classmethod
     def get_physics_engine(cls) -> physics.PhysicsEngineService | None:

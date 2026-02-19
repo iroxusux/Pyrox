@@ -1,6 +1,7 @@
 from .scene import IScene, ISceneRunnerService
 from .sceneobject import ISceneObject, ISceneObjectFactory
 from .scenebridge import BindingDirection, ISceneBinding, ISceneBridge
+from .sceneboundlayer import ISceneBoundLayer
 
 __all__ = [
     "IScene",
@@ -10,4 +11,5 @@ __all__ = [
     "BindingDirection",
     "ISceneBinding",
     "ISceneBridge",
+    "ISceneBoundLayer",
 ]

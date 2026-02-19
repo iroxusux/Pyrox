@@ -5,6 +5,7 @@ from .scenebridge import (
     SceneBinding,
     SceneBridge,
 )
+from .sceneboundlayer import SceneBoundLayer
 
 
 __all__ = [
@@ -13,4 +14,5 @@ __all__ = [
     "BindingDirection",
     "SceneBinding",
     "SceneBridge",
+    "SceneBoundLayer",
 ]

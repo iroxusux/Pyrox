@@ -146,6 +146,7 @@ from .scene import (
     BindingDirection,
     ISceneBinding,
     ISceneBridge,
+    ISceneBoundLayer,
 )
 
 
@@ -254,4 +255,5 @@ __all__ = (
     'BindingDirection',
     'ISceneBinding',
     'ISceneBridge',
+    'ISceneBoundLayer',
 )

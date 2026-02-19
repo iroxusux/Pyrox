@@ -12,6 +12,7 @@ from typing import Optional
 from pyrox.interfaces import BindingDirection, IScene, ISceneBinding
 from pyrox.models.gui.tk.frame import TkinterTaskFrame
 from pyrox.models.scene.scenebridge import SceneBridge
+from pyrox.models.scene.sceneboundlayer import SceneBoundLayer
 from pyrox.services.logging import log
 
 
@@ -436,13 +437,27 @@ class AddBindingDialog(tk.Toplevel):
         tk.Button(button_frame, text="Cancel", command=self.destroy).pack(side=tk.RIGHT)
 
     def _browse_keys(self):
-        """Browse binding keys already registered in the bridge."""
-        existing_keys = sorted({b.binding_key for b in self.bridge.get_bindings()})
-        if not existing_keys:
-            messagebox.showinfo("No Keys", "No binding keys registered yet")
-            return
+        """Browse available binding keys.
 
-        dialog = ItemSelectionDialog(self, "Select Binding Key", existing_keys)
+        When the bridge's bound object is a :class:`~pyrox.models.scene.sceneboundlayer.SceneBoundLayer`
+        the browser shows all registered sources and their introspected properties in a
+        two-pane picker.  Otherwise it falls back to the set of keys already used in
+        existing bindings.
+        """
+        bound_obj = self.bridge.get_bound_object()
+        if isinstance(bound_obj, SceneBoundLayer):
+            dialog = BoundLayerKeyBrowserDialog(self, bound_obj)
+        else:
+            # Fallback: keys that already appear in existing bindings
+            existing_keys = sorted({b.binding_key for b in self.bridge.get_bindings()})
+            if not existing_keys:
+                messagebox.showinfo("No Keys",
+                                    "No binding keys available.\n"
+                                    "Register a SceneBoundLayer as the bound object to "
+                                    "browse available source properties.")
+                return
+            dialog = ItemSelectionDialog(self, "Select Binding Key", existing_keys)
+
         self.wait_window(dialog)
 
         if hasattr(dialog, 'selected_item'):
@@ -543,6 +558,118 @@ class EditBindingDialog(tk.Toplevel):
 # ---------------------------------------------------------------------------
 # Generic selection helper
 # ---------------------------------------------------------------------------
+
+class BoundLayerKeyBrowserDialog(tk.Toplevel):
+    """Two-pane browser for :class:`~pyrox.models.scene.sceneboundlayer.SceneBoundLayer` keys.
+
+    Left pane: registered source names.
+    Right pane: public properties of the selected source.
+
+    Selecting a source and a property composes the full ``"source.property"``
+    binding key and stores it in ``self.selected_item``.
+    """
+
+    def __init__(self, parent, layer: SceneBoundLayer):
+        super().__init__(parent)
+        self.layer = layer
+        self.title("Browse Bound Layer Sources")
+        self.geometry("560x340")
+        self.resizable(True, True)
+        self.transient(parent)
+        self.grab_set()
+
+        # --- top hint label ---
+        tk.Label(
+            self,
+            text="Select a source (left), then a property (right), then click Select.",
+            anchor=tk.W, padx=8, pady=4,
+        ).pack(fill=tk.X)
+
+        panes = tk.Frame(self)
+        panes.pack(fill=tk.BOTH, expand=True, padx=8, pady=4)
+
+        # Left pane — sources
+        left = tk.LabelFrame(panes, text="Sources")
+        left.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=(0, 4))
+
+        left_scroll = tk.Scrollbar(left)
+        left_scroll.pack(side=tk.RIGHT, fill=tk.Y)
+        self._source_listbox = tk.Listbox(left, yscrollcommand=left_scroll.set, exportselection=False)
+        self._source_listbox.pack(fill=tk.BOTH, expand=True)
+        left_scroll.config(command=self._source_listbox.yview)
+
+        for name in layer.list_sources():
+            self._source_listbox.insert(tk.END, name)
+
+        self._source_listbox.bind('<<ListboxSelect>>', self._on_source_selected)
+
+        # Right pane — properties of selected source
+        right = tk.LabelFrame(panes, text="Properties")
+        right.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=(4, 0))
+
+        right_scroll = tk.Scrollbar(right)
+        right_scroll.pack(side=tk.RIGHT, fill=tk.Y)
+        self._prop_listbox = tk.Listbox(right, yscrollcommand=right_scroll.set, exportselection=False)
+        self._prop_listbox.pack(fill=tk.BOTH, expand=True)
+        right_scroll.config(command=self._prop_listbox.yview)
+
+        self._prop_listbox.bind('<Double-Button-1>', lambda _e: self._select())
+
+        # Preview label
+        self._preview_var = tk.StringVar(value="")
+        tk.Label(self, textvariable=self._preview_var, anchor=tk.W, padx=8,
+                 fg="#444").pack(fill=tk.X)
+
+        self._source_listbox.bind('<<ListboxSelect>>', self._on_source_selected)
+        self._prop_listbox.bind('<<ListboxSelect>>', self._on_prop_selected)
+
+        # Buttons
+        btn_frame = tk.Frame(self)
+        btn_frame.pack(side=tk.BOTTOM, fill=tk.X, padx=8, pady=6)
+        tk.Button(btn_frame, text="Select", command=self._select).pack(side=tk.RIGHT, padx=4)
+        tk.Button(btn_frame, text="Cancel", command=self.destroy).pack(side=tk.RIGHT)
+
+        # Pre-select first source
+        if layer.list_sources():
+            self._source_listbox.selection_set(0)
+            self._on_source_selected(None)
+
+    def _on_source_selected(self, _event) -> None:
+        """Populate the property pane for the currently selected source."""
+        sel = self._source_listbox.curselection()
+        if not sel:
+            return
+        source_name = self._source_listbox.get(sel[0])
+        props = self.layer.enumerate_source_properties(source_name)
+        self._prop_listbox.delete(0, tk.END)
+        for p in props:
+            self._prop_listbox.insert(tk.END, p)
+        self._preview_var.set(f"key: {source_name}." if props else f"key: {source_name}.<property>")
+
+    def _on_prop_selected(self, _event) -> None:
+        """Update the preview label."""
+        src_sel = self._source_listbox.curselection()
+        prop_sel = self._prop_listbox.curselection()
+        if src_sel and prop_sel:
+            src = self._source_listbox.get(src_sel[0])
+            prop = self._prop_listbox.get(prop_sel[0])
+            self._preview_var.set(f"key: {src}.{prop}")
+
+    def _select(self) -> None:
+        """Compose and store the selected binding key, then close."""
+        src_sel = self._source_listbox.curselection()
+        prop_sel = self._prop_listbox.curselection()
+        if not src_sel:
+            messagebox.showwarning("No Source", "Please select a source first", parent=self)
+            return
+        if not prop_sel:
+            messagebox.showwarning("No Property", "Please select a property first", parent=self)
+            return
+        src = self._source_listbox.get(src_sel[0])
+        prop = self._prop_listbox.get(prop_sel[0])
+        self.selected_item = f"{src}.{prop}"
+        self.destroy()
+
 
 class ItemSelectionDialog(tk.Toplevel):
     """Generic single-item selection dialog backed by a listbox."""
