@@ -43,7 +43,7 @@ class SceneBinding:
 class SceneBridge(ISceneBridge):
     """Generic service that bridges scene object properties with a source object.
 
-    Subclasses can override the hook methods to integrate transports such as PLC,
+    Subclasses can override the hook methods to integrate transports such as
     sockets, queues, APIs, file watchers, or simulation buses.
     """
 
@@ -150,11 +150,6 @@ class SceneBridge(ISceneBridge):
 
     def get_bindings_for_key(self, binding_key: str) -> list[ISceneBinding]:
         return [binding for binding in self._bindings.values() if binding.binding_key == binding_key]
-
-    def get_bindings_for_tag(self, tag_name: str) -> list[ISceneBinding]:
-        """Backward-compatible alias for older PLC-oriented naming."""
-
-        return self.get_bindings_for_key(tag_name)
 
     def is_active(self) -> bool:
         return self._active
@@ -502,7 +497,6 @@ class SceneBridge(ISceneBridge):
             "bindings": [
                 {
                     "binding_key": binding.binding_key,
-                    "tag_name": binding.binding_key,
                     "object_id": binding.object_id,
                     "property_path": binding.property_path,
                     "direction": binding.direction.value,
@@ -521,7 +515,7 @@ class SceneBridge(ISceneBridge):
         self.clear_bindings()
 
         for binding_data in data.get("bindings", []):
-            binding_key = binding_data.get("binding_key") or binding_data.get("tag_name")
+            binding_key = binding_data.get("binding_key")
             if not binding_key:
                 continue
 
@@ -544,6 +538,3 @@ class SceneBridge(ISceneBridge):
 
         self._write_enabled = data.get("write_enabled", True)
         self._write_throttle_ms = data.get("write_throttle_ms", 100.0)
-
-
-PlcSceneBridge = SceneBridge

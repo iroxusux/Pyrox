@@ -4,7 +4,6 @@ from .scenebridge import (
     BindingDirection,
     SceneBinding,
     SceneBridge,
-    PlcSceneBridge,
 )
 
 
@@ -14,5 +13,4 @@ __all__ = [
     "BindingDirection",
     "SceneBinding",
     "SceneBridge",
-    "PlcSceneBridge",
 ]

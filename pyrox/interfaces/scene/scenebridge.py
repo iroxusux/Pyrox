@@ -25,7 +25,7 @@ class ISceneBinding(Protocol):
     """
 
     binding_key: str
-    """Unique key that identifies the source value (e.g. tag name, socket topic)."""
+    """Unique key that identifies the source value (e.g. a topic, channel name, or path)."""
 
     object_id: str
     """ID of the target scene object."""
@@ -59,8 +59,8 @@ class ISceneBridge(ABC):
     """Abstract contract for a scene bridge engine.
 
     A bridge synchronizes data between an external source object and scene object
-    properties. Implementations integrate domain-specific transports (PLC, sockets,
-    queues, simulation buses, etc.) by overriding the protected hook methods while
+    properties. Implementations integrate domain-specific transports (sockets,
+    queues, file watchers, simulation buses, etc.) by overriding the protected hook methods while
     inheriting the full binding management and sync lifecycle from the base class.
 
     Typical usage::
@@ -90,7 +90,7 @@ class ISceneBridge(ABC):
         """Return the default source object when none is provided.
 
         Override in subclasses to provide a domain-specific default
-        (e.g. a tag table, a socket client, a live OPC-UA session).
+        (e.g. a plain dict, a socket client, a live data session object).
         """
         ...
 
@@ -191,11 +191,6 @@ class ISceneBridge(ABC):
     @abstractmethod
     def get_bindings_for_key(self, binding_key: str) -> list[ISceneBinding]:
         """Return all bindings for a given source key."""
-        ...
-
-    @abstractmethod
-    def get_bindings_for_tag(self, tag_name: str) -> list[ISceneBinding]:
-        """Backward-compatible alias for :meth:`get_bindings_for_key`."""
         ...
 
     # ------------------------------------------------------------------
