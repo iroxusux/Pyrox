@@ -9,9 +9,8 @@ import tkinter as tk
 from tkinter import ttk, messagebox
 from typing import Optional
 
-from pyrox.interfaces import BindingDirection, IScene, ISceneBinding
+from pyrox.interfaces import BindingDirection, IScene, ISceneBinding, ISceneBridge
 from pyrox.models.gui.tk.frame import TkinterTaskFrame
-from pyrox.models.scene.scenebridge import SceneBridge
 from pyrox.models.scene.sceneboundlayer import SceneBoundLayer
 from pyrox.services.logging import log
 
@@ -30,7 +29,7 @@ class SceneBridgeDialog(TkinterTaskFrame):
     def __init__(
         self,
         parent,
-        bridge: SceneBridge,
+        bridge: ISceneBridge,
         scene: Optional[IScene] = None,
     ):
         super().__init__(
@@ -208,13 +207,13 @@ class SceneBridgeDialog(TkinterTaskFrame):
         """Update status bar and button states."""
         bindings = self.bridge.get_bindings()
         enabled_count = sum(1 for b in bindings if b.enabled)
-        active_status = "ACTIVE" if self.bridge._active else "STOPPED"
+        active_status = "ACTIVE" if self.bridge.is_active() else "STOPPED"
 
         self.status_var.set(
             f"{active_status} | {enabled_count}/{len(bindings)} bindings enabled"
         )
 
-        if self.bridge._active:
+        if self.bridge.is_active():
             self.start_button.config(state=tk.DISABLED)
             self.stop_button.config(state=tk.NORMAL)
         else:
@@ -351,7 +350,7 @@ class SceneBridgeDialog(TkinterTaskFrame):
                 return
         except Exception:
             return
-        if self.bridge._active:
+        if self.bridge.is_active():
             self._refresh_bindings()
         self.root.after(1000, self._schedule_refresh)
 
@@ -363,7 +362,7 @@ class SceneBridgeDialog(TkinterTaskFrame):
 class AddBindingDialog(tk.Toplevel):
     """Dialog for adding a new scene bridge binding."""
 
-    def __init__(self, parent, bridge: SceneBridge, scene: Optional[IScene]):
+    def __init__(self, parent, bridge: ISceneBridge, scene: Optional[IScene]):
         super().__init__(parent)
         self.bridge = bridge
         self.scene = scene
@@ -516,7 +515,7 @@ class AddBindingDialog(tk.Toplevel):
 class EditBindingDialog(tk.Toplevel):
     """Dialog for editing an existing binding."""
 
-    def __init__(self, parent, bridge: SceneBridge, binding: ISceneBinding):
+    def __init__(self, parent, bridge: ISceneBridge, binding: ISceneBinding):
         super().__init__(parent)
         self.bridge = bridge
         self.binding = binding
