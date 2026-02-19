@@ -841,27 +841,50 @@ Status: {info['status']['current_message']}
         if not self.sidebar_organizer:
             raise RuntimeError("Sidebar organizer not initialized")
 
-        container = PyroxFrameContainer(master=self.sidebar_organizer)
-        widget.pack(in_=container.frame.root, fill='both', expand=True, padx=2, pady=2)
-
-        # Add to sidebar organizer
+        # Create the tab first so we can parent the container to the tab frame,
+        # avoiding z-order conflicts that arise when the notebook lifts its active
+        # tab frame above sibling widgets placed via pack(in_=...).
         display_name = f"{icon} {tab_name}" if icon else tab_name
         tab_id, _ = self.sidebar_organizer.add_frame_tab(
             display_name,
-            PyroxFrameContainer,  # Use PyroxFrame class
+            PyroxFrameContainer,
             closeable=closeable
         )
 
-        # Get the actual frame and replace its content with our container
         tab_frame_container = self.sidebar_organizer.get_tab_frame(tab_id)
-        if tab_frame_container:
-            frame = tab_frame_container.frame
-            if not frame:
-                raise RuntimeError("Failed to get sidebar tab frame")
-            # Clear the frame and add our container
-            for child in frame.root.winfo_children():
-                child.destroy()
-            container.frame.pack(in_=frame.root, fill='both', expand=True)
+        if not tab_frame_container:
+            raise RuntimeError("Failed to get sidebar tab frame")
+        frame = tab_frame_container.frame
+        if not frame:
+            raise RuntimeError("Failed to get sidebar tab frame")
+
+        # Clear any children created by add_frame_tab
+        for child in frame.root.winfo_children():
+            child.destroy()
+
+        # Create container as a DIRECT child of the tab frame so it participates
+        # in the notebook's z-order management correctly.
+        container = PyroxFrameContainer(master=frame.root)
+        container.frame.pack(fill='both', expand=True)
+
+        # Place the widget inside the container.  If the caller created the widget
+        # with master=sidebar_organizer (legacy usage) it will be a sibling of the
+        # tab frame at the notebook level; pack(in_=) positions it visually inside
+        # the container while widget.lift() and the tab-change binding ensure it
+        # stays above the tab frame background after the notebook lifts the tab.
+        widget.pack(in_=container.frame.root, fill='both', expand=True, padx=2, pady=2)
+        widget.lift()
+
+        # Re-lift the widget each time this tab becomes active so it is never
+        # hidden behind the (empty) tab-frame background that the notebook raises.
+        def _on_tab_selected_lift(event, _w=widget):
+            try:
+                _w.lift()
+            except Exception:
+                pass
+        self.sidebar_organizer.bind(
+            '<<NotebookTabChanged>>', _on_tab_selected_lift, add='+'
+        )
 
         # Store references
         self._mounted_widgets[widget_id] = widget
