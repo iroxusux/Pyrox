@@ -10,6 +10,7 @@ from .frame import (
 )
 from .logframe import LogFrame
 from .meta import ObjectEditField
+from .objectexplorer import TkObjectExplorer
 from .propertypanel import TkPropertyPanel
 from .pyroxguiobject import PyroxGuiObject
 from .sceneviewer import SceneViewerFrame
@@ -32,5 +33,6 @@ __all__ = (
     'PyroxYamlEditor',
     'SceneViewerFrame',
     'tk',
+    'TkObjectExplorer',
     'TkPropertyPanel',
 )

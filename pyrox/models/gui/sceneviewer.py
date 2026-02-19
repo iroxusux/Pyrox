@@ -10,6 +10,7 @@ from tkinter import ttk
 from typing import Callable, Optional, Tuple
 from pyrox.interfaces import (
     IScene,
+    ISceneBridge,
     ISceneObject,
     ISceneRunnerService,
     IViewport
@@ -18,8 +19,8 @@ from pyrox.models.gui.tk.frame import TkinterTaskFrame
 from pyrox.models.gui import TkPropertyPanel
 from pyrox.models.gui.contextmenu import PyroxContextMenu, MenuItem
 from pyrox.models.gui.connectioneditor import ConnectionEditor
+from pyrox.models.gui.objectexplorer import TkObjectExplorer
 from pyrox.models.gui.scenebridge import SceneBridgeDialog
-from pyrox.models.scene.scenebridge import SceneBridge
 from pyrox.services.scene import SceneBridgeService
 from pyrox.models.physics import PhysicsSceneFactory
 from pyrox.models.protocols import Area2D, Zoomable
@@ -220,7 +221,12 @@ class SceneViewerFrame(TkinterTaskFrame):
         # Bridge panel state
         self._bridge_panel_visible: bool = False
         self._bridge_panel: Optional[SceneBridgeDialog] = None
-        self._bridge: Optional[SceneBridge] = None
+        self._bridge: Optional[ISceneBridge] = None
+
+        # Object explorer state
+        self._object_explorer_visible: bool = False
+        self._object_explorer: Optional[TkObjectExplorer] = None
+        self._object_explorer_var: tk.BooleanVar = tk.BooleanVar()
 
         # Drawing and manipulation state
         self._current_tool: str = "select"  # Current tool: select, rectangle, circle, line
@@ -263,6 +269,7 @@ class SceneViewerFrame(TkinterTaskFrame):
         self._build_canvas()
         self._build_status_bar()
         self._build_properties_panel()
+        self._build_object_explorer()
         self._build_object_palette()
         self._build_context_menus()
         self._bind_events()
@@ -355,6 +362,8 @@ class SceneViewerFrame(TkinterTaskFrame):
             if self._bridge is not None:
                 self._bridge_panel.bridge = self._bridge
             self._bridge_panel.scene = scene
+        if self._object_explorer is not None:
+            self._object_explorer.set_scene(scene)
         self._enable_menu_entries(enable=scene is not None)
         self.render_scene()
 
@@ -589,6 +598,25 @@ class SceneViewerFrame(TkinterTaskFrame):
             if self._properties_panel is not None and str(self._properties_panel.root) in panes:
                 self._properties_panel.root.pack_forget()
                 self._paned_window.remove(self._properties_panel.root)
+
+    def toggle_object_explorer(self) -> None:
+        """Toggle the visibility of the object explorer panel."""
+        self._object_explorer_visible = not self._object_explorer_visible
+        self._object_explorer_var.set(self._object_explorer_visible)
+        panes = list(self._paned_window.panes())
+
+        if self._object_explorer_visible:
+            if self._object_explorer is None:
+                self._build_object_explorer()
+            if self._object_explorer is not None:
+                if str(self._object_explorer.root) not in panes:
+                    self._object_explorer.root.master = self._paned_window
+                    self._paned_window.add(self._object_explorer.root, weight=0)
+                self._object_explorer.set_scene(self._scene)
+        else:
+            if self._object_explorer is not None and str(self._object_explorer.root) in panes:
+                self._object_explorer.root.pack_forget()
+                self._paned_window.remove(self._object_explorer.root)
 
     def toggle_bridge_panel(self) -> None:
         """Toggle the visibility of the scene bridge panel."""
@@ -1034,6 +1062,16 @@ class SceneViewerFrame(TkinterTaskFrame):
         self._bridge_panel_btn.pack(side=tk.LEFT, padx=2)
         self._create_tooltip(self._bridge_panel_btn, "Toggle Scene Bridge Panel")
 
+        # Object Explorer Toggle Button
+        self._object_explorer_btn = ttk.Button(
+            self._toolbar,
+            text="🗂️",  # File cabinet emoji
+            width=3,
+            command=self.toggle_object_explorer
+        )
+        self._object_explorer_btn.pack(side=tk.LEFT, padx=2)
+        self._create_tooltip(self._object_explorer_btn, "Toggle Object Explorer")
+
         # Separator
         ttk.Separator(self._toolbar, orient=tk.VERTICAL).pack(side=tk.LEFT, fill=tk.Y, padx=5)
 
@@ -1143,6 +1181,25 @@ class SceneViewerFrame(TkinterTaskFrame):
 
         self._properties_panel.on_destroy().append(_on_properties_panel_closed)
         # Panel is initially hidden, will be added to paned window when toggled
+
+    def _build_object_explorer(self) -> None:
+        """Build the object explorer side panel."""
+        self._object_explorer = TkObjectExplorer(
+            parent=self._paned_window,
+            title="object explorer",
+            width=230,
+            on_selection_changed=self._on_object_explorer_selection,
+        )
+        self._object_explorer.set_scene(self._scene)
+
+        def _on_explorer_closed(frame):
+            """Reset state when the explorer's X button destroys the frame."""
+            self._object_explorer = None
+            self._object_explorer_visible = False
+            self._object_explorer_var.set(False)
+
+        self._object_explorer.on_destroy().append(_on_explorer_closed)
+        # Panel is initially hidden; added to PanedWindow when toggled
 
     def _build_bridge_panel(self) -> None:
         """Build the scene bridge panel."""
@@ -2098,10 +2155,12 @@ class SceneViewerFrame(TkinterTaskFrame):
             return None
 
         try:
-            from pyrox.services import IdGeneratorService
-
-            # Generate new ID
-            obj_data['id'] = IdGeneratorService.get_id()
+            # Clear the body's id so BasePhysicsBody.__init__ generates a fresh one.
+            # (The SceneObject's own .id is proxied to physics_body.id via __getattribute__,
+            # so replacing only the top-level obj_data['id'] has no effect — the body id
+            # is what actually gets reused and collides with the original object.)
+            if 'body' in obj_data:
+                obj_data['body'].pop('id', None)
 
             # Create object from data
             new_obj = SceneObject.from_dict(obj_data)
@@ -2237,6 +2296,22 @@ class SceneViewerFrame(TkinterTaskFrame):
                             self._render_scene_object(obj_id, scene_obj)
 
         log(self).debug(f"Property '{property_name}' changed to: {new_value}")
+
+    def _on_object_explorer_selection(self, obj_id: str) -> None:
+        """Handle object selection triggered by the object explorer.
+
+        Selects the chosen object in the canvas (clearing any previous
+        selection) and updates the properties panel to match.
+
+        Args:
+            obj_id: ID of the scene object the user clicked in the explorer.
+        """
+        if not self._scene:
+            return
+        if obj_id not in self._scene.scene_objects:
+            return
+        self.select_object(obj_id, clear_previous=True)
+        self._update_properties_panel()
 
 
 __all__ = ['SceneViewerFrame']
