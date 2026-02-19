@@ -18,6 +18,8 @@ from pyrox.models.gui.tk.frame import TkinterTaskFrame
 from pyrox.models.gui import TkPropertyPanel
 from pyrox.models.gui.contextmenu import PyroxContextMenu, MenuItem
 from pyrox.models.gui.connectioneditor import ConnectionEditor
+from pyrox.models.gui.scenebridge import SceneBridgeDialog
+from pyrox.models.scene.scenebridge import SceneBridge
 from pyrox.models.physics import PhysicsSceneFactory
 from pyrox.models.protocols import Area2D, Zoomable
 from pyrox.models.scene import Scene, SceneObject
@@ -214,6 +216,11 @@ class SceneViewerFrame(TkinterTaskFrame):
         self._properties_panel_current_object_id: Optional[str] = None  # Track displayed object
         self._previous_selection: set[str] = set()  # Track previous selection to detect changes
 
+        # Bridge panel state
+        self._bridge_panel_visible: bool = False
+        self._bridge_panel: Optional[SceneBridgeDialog] = None
+        self._bridge: Optional[SceneBridge] = None
+
         # Drawing and manipulation state
         self._current_tool: str = "select"  # Current tool: select, rectangle, circle, line
         self._draw_start_x: Optional[float] = None
@@ -246,6 +253,7 @@ class SceneViewerFrame(TkinterTaskFrame):
         self._design_mode_var: tk.BooleanVar = tk.BooleanVar()
         self._object_palette_var: tk.BooleanVar = tk.BooleanVar()
         self._properties_var: tk.BooleanVar = tk.BooleanVar()
+        self._bridge_var: tk.BooleanVar = tk.BooleanVar()
         self._entity_names_var: tk.BooleanVar = tk.BooleanVar(value=True)
         self._entity_names_visible: bool = True
 
@@ -254,6 +262,7 @@ class SceneViewerFrame(TkinterTaskFrame):
         self._build_canvas()
         self._build_status_bar()
         self._build_properties_panel()
+        self._build_bridge_panel()
         self._build_object_palette()
         self._build_context_menus()
         self._bind_events()
@@ -338,6 +347,12 @@ class SceneViewerFrame(TkinterTaskFrame):
         self._canvas_object_management_service.set_scene(scene)
         self._canvas_object_management_service.clear()
         self.last_viewport.update(self.viewport)
+
+        # Keep bridge in sync with the active scene
+        if self._bridge is not None:
+            self._bridge.set_scene(scene)
+        if self._bridge_panel is not None:
+            self._bridge_panel.scene = scene
         self._enable_menu_entries(enable=scene is not None)
         self.render_scene()
 
@@ -572,6 +587,21 @@ class SceneViewerFrame(TkinterTaskFrame):
             if str(self.properties_panel) in panes:
                 self.properties_panel.pack_forget()
                 self._paned_window.remove(self.properties_panel)
+
+    def toggle_bridge_panel(self) -> None:
+        """Toggle the visibility of the scene bridge panel."""
+        self._bridge_panel_visible = not self._bridge_panel_visible
+        self._bridge_var.set(self._bridge_panel_visible)
+        panes = list(self._paned_window.panes())
+
+        if self._bridge_panel_visible:
+            if self._bridge_panel is not None and str(self._bridge_panel.root) not in panes:
+                self._bridge_panel.root.master = self._paned_window
+                self._paned_window.add(self._bridge_panel.root, weight=0)
+        else:
+            if self._bridge_panel is not None and str(self._bridge_panel.root) in panes:
+                self._bridge_panel.root.pack_forget()
+                self._paned_window.remove(self._bridge_panel.root)
 
     def toggle_entity_names(self) -> None:
         """Toggle entity name labels visibility on the canvas."""
@@ -984,6 +1014,16 @@ class SceneViewerFrame(TkinterTaskFrame):
         self._properties_panel_btn.pack(side=tk.LEFT, padx=2)
         self._create_tooltip(self._properties_panel_btn, "Toggle Properties Panel")
 
+        # Scene Bridge Panel Toggle Button
+        self._bridge_panel_btn = ttk.Button(
+            self._toolbar,
+            text="🔗",  # Link emoji
+            width=3,
+            command=self.toggle_bridge_panel
+        )
+        self._bridge_panel_btn.pack(side=tk.LEFT, padx=2)
+        self._create_tooltip(self._bridge_panel_btn, "Toggle Scene Bridge Panel")
+
         # Separator
         ttk.Separator(self._toolbar, orient=tk.VERTICAL).pack(side=tk.LEFT, fill=tk.Y, padx=5)
 
@@ -1082,6 +1122,16 @@ class SceneViewerFrame(TkinterTaskFrame):
             title="Object Properties",
             width=250,
             on_property_changed=self._on_property_changed
+        )
+        # Panel is initially hidden, will be added to paned window when toggled
+
+    def _build_bridge_panel(self) -> None:
+        """Build the scene bridge panel."""
+        self._bridge = SceneBridge(scene=self._scene)
+        self._bridge_panel = SceneBridgeDialog(
+            parent=self._paned_window,
+            bridge=self._bridge,
+            scene=self._scene,
         )
         # Panel is initially hidden, will be added to paned window when toggled
 
@@ -1419,6 +1469,11 @@ class SceneViewerFrame(TkinterTaskFrame):
         self._enable_entry(
             menu_id="scene.view.properties_panel",
             command=self.toggle_properties_panel,
+            enable=enable
+        )
+        self._enable_entry(
+            menu_id="scene.view.bridge_panel",
+            command=self.toggle_bridge_panel,
             enable=enable
         )
 
