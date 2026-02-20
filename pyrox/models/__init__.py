@@ -65,7 +65,6 @@ from .physics import (
 # GUI components
 from .gui import (
     LogFrame,
-    PyroxGuiObject,
     SceneViewerFrame,
 )
 
@@ -138,8 +137,6 @@ __all__ = [
 
     # GUI components
     'LogFrame',
-    'PyroxFrameContainer',
-    'PyroxGuiObject',
     'SceneViewerFrame',
 
     # Services components

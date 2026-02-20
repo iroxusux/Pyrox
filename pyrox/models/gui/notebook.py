@@ -130,14 +130,11 @@ class PyroxNotebook(ttk.Notebook):
             raise ValueError(f"Tab ID '{tab_id}' already exists")
 
         # Create the frame
-        try:
-            frame_kwargs['master'] = self
-            frame = frame_class(**frame_kwargs)
-        except Exception as e:
-            raise ValueError(f"Failed to create frame: {e}")
+        frame_kwargs['master'] = self
+        frame = frame_class(**frame_kwargs)
 
         # Add to notebook
-        self.add(frame.frame.root, text=text)
+        self.add(frame, text=text)
 
         # Store references
         self._tab_frames[tab_id] = frame

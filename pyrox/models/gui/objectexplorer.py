@@ -60,7 +60,7 @@ class TkObjectExplorer(TkinterTaskFrame):
 
     def __init__(
         self,
-        parent: tk.Widget,
+        parent: tk.Widget | tk.Misc,
         title: str = "object explorer",
         width: int = 230,
         on_selection_changed: Optional[Callable[[str], None]] = None,
@@ -277,3 +277,154 @@ class TkObjectExplorer(TkinterTaskFrame):
 
         widget.bind('<Enter>', _show)
         widget.bind('<Leave>', _hide)
+
+
+# ---------------------------------------------------------------------------
+# Demo
+# ---------------------------------------------------------------------------
+
+def create_demo_window() -> tk.Tk:
+    """Create a standalone demo window for :class:`TkObjectExplorer`.
+
+    Builds a realistic mock scene with objects in several categories so every
+    feature of the panel (grouping, search, selection callback, empty / loaded
+    states) can be exercised without depending on a live scene engine.
+
+    Returns:
+        tk.Tk: The configured root window (caller must call ``mainloop()``).
+    """
+    # ------------------------------------------------------------------
+    # Lightweight stand-ins for IScene / ISceneObject
+    # ------------------------------------------------------------------
+
+    class _MockObject:
+        def __init__(self, obj_id: str, name: str, obj_type: str) -> None:
+            self.id = obj_id
+            self._name = name
+            self._scene_object_type = obj_type
+
+        def get_name(self) -> str:
+            return self._name
+
+    class _MockScene:
+        def __init__(self, objects: list[_MockObject]) -> None:
+            self.scene_objects: dict[str, _MockObject] = {o.id: o for o in objects}
+
+    # ------------------------------------------------------------------
+    # Sample scene data
+    # ------------------------------------------------------------------
+
+    _CONVEYOR_OBJECTS = [
+        _MockObject('conv_001', 'Main Infeed Conveyor', 'Conveyor'),
+        _MockObject('conv_002', 'Accumulation Lane A', 'Conveyor'),
+        _MockObject('conv_003', 'Transfer Belt 1', 'Conveyor'),
+        _MockObject('conv_004', 'Exit Spiral', 'Conveyor'),
+    ]
+
+    _SENSOR_OBJECTS = [
+        _MockObject('sens_001', 'Photo Eye PE-01', 'Sensor'),
+        _MockObject('sens_002', 'Photo Eye PE-02', 'Sensor'),
+        _MockObject('sens_003', 'Proximity PX-01', 'Sensor'),
+        _MockObject('sens_004', 'Light Curtain LC-01', 'Sensor'),
+        _MockObject('sens_005', 'Barcode Scanner BC-01', 'Sensor'),
+    ]
+
+    _MOTOR_OBJECTS = [
+        _MockObject('mtr_001', 'Drive M1 — Infeed', 'Motor'),
+        _MockObject('mtr_002', 'Drive M2 — Accumulation', 'Motor'),
+        _MockObject('mtr_003', 'Drive M3 — Exit', 'Motor'),
+    ]
+
+    _ROBOT_OBJECTS = [
+        _MockObject('rob_001', 'Pick & Place Robot A', 'Robot'),
+        _MockObject('rob_002', 'Pick & Place Robot B', 'Robot'),
+    ]
+
+    _FULL_SCENE = _MockScene(
+        _CONVEYOR_OBJECTS + _SENSOR_OBJECTS + _MOTOR_OBJECTS + _ROBOT_OBJECTS
+    )
+
+    _SMALL_SCENE = _MockScene(_CONVEYOR_OBJECTS[:2] + _SENSOR_OBJECTS[:2])
+
+    _EMPTY_SCENE = _MockScene([])
+
+    # ------------------------------------------------------------------
+    # Root window
+    # ------------------------------------------------------------------
+
+    root = tk.Tk()
+    root.title("TkObjectExplorer — Demo")
+    root.geometry("750x520")
+
+    # ------------------------------------------------------------------
+    # Top: selection feedback + scene controls
+    # ------------------------------------------------------------------
+
+    toolbar = ttk.Frame(root)
+    toolbar.pack(side=tk.TOP, fill=tk.X, padx=8, pady=(8, 0))
+
+    ttk.Label(toolbar, text="Load scene:").pack(side=tk.LEFT, padx=(0, 4))
+
+    status_var = tk.StringVar(value="No object selected yet.")
+
+    def _on_selection(obj_id: str) -> None:
+        status_var.set(f"Selected object ID: {obj_id}")
+
+    explorer = TkObjectExplorer(
+        parent=root,
+        title="Object Explorer",
+        on_selection_changed=_on_selection,
+    )
+
+    ttk.Button(
+        toolbar,
+        text="Full scene (14 objects)",
+        command=lambda: explorer.set_scene(_FULL_SCENE),  # type: ignore[arg-type]
+    ).pack(side=tk.LEFT, padx=2)
+
+    ttk.Button(
+        toolbar,
+        text="Small scene (4 objects)",
+        command=lambda: explorer.set_scene(_SMALL_SCENE),  # type: ignore[arg-type]
+    ).pack(side=tk.LEFT, padx=2)
+
+    ttk.Button(
+        toolbar,
+        text="Empty scene",
+        command=lambda: explorer.set_scene(_EMPTY_SCENE),  # type: ignore[arg-type]
+    ).pack(side=tk.LEFT, padx=2)
+
+    ttk.Button(
+        toolbar,
+        text="Clear (no scene)",
+        command=lambda: explorer.set_scene(None),
+    ).pack(side=tk.LEFT, padx=2)
+
+    # ------------------------------------------------------------------
+    # Explorer panel (fills remaining space)
+    # ------------------------------------------------------------------
+
+    explorer.root.pack(fill=tk.BOTH, expand=True, padx=8, pady=8)
+
+    # Kick off with the full scene so there is something to see immediately
+    explorer.set_scene(_FULL_SCENE)  # type: ignore[arg-type]
+
+    # ------------------------------------------------------------------
+    # Status bar
+    # ------------------------------------------------------------------
+
+    ttk.Separator(root, orient=tk.HORIZONTAL).pack(fill=tk.X)
+    ttk.Label(
+        root,
+        textvariable=status_var,
+        relief=tk.SUNKEN,
+        anchor=tk.W,
+        padding=(6, 2),
+    ).pack(fill=tk.X, side=tk.BOTTOM)
+
+    return root
+
+
+if __name__ == "__main__":
+    demo_window = create_demo_window()
+    demo_window.mainloop()

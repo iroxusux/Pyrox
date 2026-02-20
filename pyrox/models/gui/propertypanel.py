@@ -58,7 +58,7 @@ class TkPropertyPanel(TkinterTaskFrame):
 
     def __init__(
         self,
-        parent: tk.Widget,
+        parent: tk.Widget | tk.Misc,
         title: str = "properties",
         width: int = 250,
         on_property_changed: Optional[Callable[[str, Any], None]] = None,
@@ -716,3 +716,157 @@ class TkPropertyPanel(TkinterTaskFrame):
 
 
 __all__ = ['TkPropertyPanel']
+
+
+# ---------------------------------------------------------------------------
+# Demo
+# ---------------------------------------------------------------------------
+
+def create_demo_window() -> tk.Tk:
+    """Create a standalone demo window for :class:`TkPropertyPanel`.
+
+    Builds several mock objects that implement :class:`~pyrox.interfaces.protocols.IHasProperties`
+    so every widget type (Entry, Checkbutton, Listbox, read-only Label,
+    colour Entry) and the property-change callback can be exercised without
+    a live scene.
+
+    Returns:
+        tk.Tk: The configured root window (caller must call ``mainloop()``).
+    """
+
+    # ------------------------------------------------------------------
+    # Minimal IHasProperties stand-in
+    # ------------------------------------------------------------------
+
+    class _MockObject:
+        """Simple dict-backed property object."""
+
+        def __init__(self, label: str, props: Dict[str, Any]) -> None:
+            self._label = label
+            self._props: Dict[str, Any] = dict(props)
+
+        def __repr__(self) -> str:
+            return self._label
+
+        def get_properties(self) -> Dict[str, Any]:
+            return dict(self._props)
+
+        def get_property(self, name: str) -> Any:
+            return self._props.get(name)
+
+        def set_property(self, name: str, value: Any) -> None:
+            self._props[name] = value
+
+    # ------------------------------------------------------------------
+    # Sample objects with varied property types
+    # ------------------------------------------------------------------
+
+    _CONVEYOR = _MockObject("Conveyor Belt A", {
+        "id":          "conv_001",          # read-only
+        "name":        "Main Infeed Belt",
+        "speed_m_s":   1.25,
+        "width_mm":    600,
+        "enabled":     True,
+        "reversible":  False,
+        "fill_color":  "#4a90d9",
+        "tags":        ["infeed", "zone-1", "auto"],
+    })
+
+    _SENSOR = _MockObject("Proximity Sensor PX-01", {
+        "id":           "sens_001",          # read-only
+        "name":         "PX-01 Entry Gate",
+        "range_mm":     250,
+        "hysteresis":   0.05,
+        "normally_open": True,
+        "active":       False,
+        "mount_angle":  0.0,
+        "channels":     ["ch0", "ch1"],
+    })
+
+    _ROBOT = _MockObject("Pick & Place Robot A", {
+        "id":              "rob_001",        # read-only
+        "name":            "Robot A",
+        "max_speed_mm_s":  800,
+        "payload_kg":      2.5,
+        "simulation_mode": True,
+        "home_position":   [0.0, 0.0, 450.0],
+        "highlight_color": "#e74c3c",
+        "programs":        ["pick_program", "place_program", "home_routine"],
+    })
+
+    _OBJECTS = [_CONVEYOR, _SENSOR, _ROBOT]
+
+    # ------------------------------------------------------------------
+    # Root window
+    # ------------------------------------------------------------------
+
+    root = tk.Tk()
+    root.title("TkPropertyPanel — Demo")
+    root.geometry("420x580")
+
+    # ------------------------------------------------------------------
+    # Toolbar: object switcher + status
+    # ------------------------------------------------------------------
+
+    toolbar = ttk.Frame(root)
+    toolbar.pack(side=tk.TOP, fill=tk.X, padx=8, pady=(8, 0))
+
+    ttk.Label(toolbar, text="Inspect:").pack(side=tk.LEFT, padx=(0, 4))
+
+    status_var = tk.StringVar(value="No change yet.")
+
+    def _on_change(prop_name: str, new_value: Any) -> None:
+        status_var.set(f"Changed  '{prop_name}'  →  {new_value!r}")
+
+    panel = TkPropertyPanel(
+        parent=root,
+        title="Properties",
+        on_property_changed=_on_change,
+    )
+
+    def _load(obj: _MockObject) -> None:
+        panel.set_title(str(obj))
+        panel.set_object(obj, readonly_properties={"id"})  # type: ignore[arg-type]
+        status_var.set(f"Loaded: {obj}")
+
+    for obj in _OBJECTS:
+        ttk.Button(
+            toolbar,
+            text=str(obj),
+            command=lambda o=obj: _load(o),
+        ).pack(side=tk.LEFT, padx=2)
+
+    ttk.Button(
+        toolbar,
+        text="Clear",
+        command=lambda: (panel.set_object(None), status_var.set("Panel cleared.")),
+    ).pack(side=tk.LEFT, padx=(6, 2))
+
+    # ------------------------------------------------------------------
+    # Property panel (fills remaining space)
+    # ------------------------------------------------------------------
+
+    panel.root.pack(fill=tk.BOTH, expand=True, padx=8, pady=8)
+
+    # Load the first object immediately
+    _load(_CONVEYOR)
+
+    # ------------------------------------------------------------------
+    # Status bar
+    # ------------------------------------------------------------------
+
+    ttk.Separator(root, orient=tk.HORIZONTAL).pack(fill=tk.X)
+    ttk.Label(
+        root,
+        textvariable=status_var,
+        relief=tk.SUNKEN,
+        anchor=tk.W,
+        padding=(6, 2),
+    ).pack(fill=tk.X, side=tk.BOTTOM)
+
+    return root
+
+
+if __name__ == "__main__":
+    demo_window = create_demo_window()
+    demo_window.mainloop()

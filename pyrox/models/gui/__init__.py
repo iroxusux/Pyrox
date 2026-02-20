@@ -9,7 +9,6 @@ from .logframe import LogFrame
 from .meta import ObjectEditField
 from .objectexplorer import TkObjectExplorer
 from .propertypanel import TkPropertyPanel
-from .pyroxguiobject import PyroxGuiObject
 from .sceneviewer import SceneViewerFrame
 from .theme import DefaultTheme
 from .yamleditor import PyroxYamlEditor
@@ -25,7 +24,6 @@ __all__ = (
     'PyroxCommandBar',
     'PyroxContextMenu',
     'PyroxTaskFrame',
-    'PyroxGuiObject',
     'PyroxYamlEditor',
     'SceneViewerFrame',
     'tk',

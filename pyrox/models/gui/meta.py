@@ -11,9 +11,7 @@ from .theme import DefaultTheme
 __all__ = [
     'ObjectEditField',
     'TextWidgetStream',
-    'PyroxNotebook',
     'PyroxPanedWindow',
-    'PyroxTreeview',
 ]
 
 
@@ -34,24 +32,6 @@ class ObjectEditField:
     display_name: str
     display_type: type[Union[tk.Widget, TtkWidget]]
     editable: bool = False
-
-
-class PyroxNotebook(ttk.Notebook):
-    """A notebook widget with Pyrox default theme."""
-
-    def __init__(
-        self,
-        master=None,
-        tab_pos: str = 'n',
-    ) -> None:
-        self._configure_style(tab_pos)
-        super().__init__(master)
-
-    def _configure_style(self, tab_pos) -> None:
-        # Ensure shared theme is created and applied
-
-        style = ttk.Style()
-        style.configure('TNotebook', tabposition=tab_pos)
 
 
 class PyroxPanedWindow(ttk.PanedWindow):
@@ -82,52 +62,6 @@ class PyroxText(Text):
             borderwidth=DefaultTheme.borderwidth,
             relief=DefaultTheme.relief,  # type: ignore
         )
-
-
-class PyroxTreeview(ttk.Treeview):
-    """A treeview widget with Pyrox default theme."""
-
-    def __init__(
-        self,
-        master=None,
-        **kwargs
-    ) -> None:
-        super().__init__(master, **kwargs)
-        self._configure_style()
-        self.bind('<Motion>', self._on_hover)
-
-    def _configure_style(self) -> None:
-        self._setup_hover_tags()
-
-    def _on_hover(self, event):
-        """Handle mouse hover over items."""
-        item = self.identify_row(event.y)
-        self.tk.call(self, 'tag', 'remove', 'hover')
-        self.tk.call(self, 'tag', 'add', 'hover', item)
-
-    def _setup_hover_tags(self):
-        """Set up tags for hover effects."""
-        # Configure hover tag with your desired color
-        self.tag_configure('hover',
-                           foreground=DefaultTheme.foreground_hover,
-                           background=DefaultTheme.background_hover)
-
-    def clear_all(self) -> None:
-        """Clear all items from the treeview."""
-        for item in self.get_children():
-            self.delete(item)
-
-    def expand_all(self, item: str = '') -> None:
-        """Expand all items in the treeview."""
-        for child in self.get_children(item):
-            self.item(child, open=True)
-            self.expand_all(child)
-
-    def collapse_all(self, item: str = '') -> None:
-        """Collapse all items in the treeview."""
-        for child in self.get_children(item):
-            self.item(child, open=False)
-            self.collapse_all(child)
 
 
 class TextWidgetStream:
