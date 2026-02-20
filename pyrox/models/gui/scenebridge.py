@@ -7,7 +7,7 @@ from __future__ import annotations
 
 import tkinter as tk
 from tkinter import ttk, messagebox
-from typing import Optional
+from typing import Any, Optional
 
 from pyrox.interfaces import BindingDirection, IScene, ISceneBinding, ISceneBridge
 from pyrox.models.gui.tk.frame import TkinterTaskFrame
@@ -707,3 +707,196 @@ class ItemSelectionDialog(tk.Toplevel):
         if selection:
             self.selected_item = self.listbox.get(selection[0])
             self.destroy()
+
+
+# ---------------------------------------------------------------------------
+# Demo
+# ---------------------------------------------------------------------------
+
+def create_demo_window() -> tk.Tk:
+    """Create a standalone demo window for :class:`SceneBridgeDialog`.
+
+    Builds lightweight mock implementations of :class:`~pyrox.interfaces.ISceneBridge`,
+    :class:`~pyrox.interfaces.ISceneBinding`, and :class:`~pyrox.interfaces.IScene`
+    so every panel feature (add / edit / remove / toggle / start / stop, periodic
+    refresh) can be exercised without a live scene engine.
+
+    Returns:
+        tk.Tk: The configured root window (caller must call ``mainloop()``).
+    """
+
+    # ------------------------------------------------------------------
+    # Mock binding
+    # ------------------------------------------------------------------
+
+    class _MockBinding:
+        def __init__(
+            self,
+            key: str,
+            object_id: str,
+            property_path: str,
+            direction: BindingDirection = BindingDirection.READ,
+            description: str = "",
+            enabled: bool = True,
+            source_val: Any = None,
+            scene_val: Any = None,
+        ) -> None:
+            self.binding_key = key
+            self.object_id = object_id
+            self.property_path = property_path
+            self.direction = direction
+            self.description = description
+            self.enabled = enabled
+            self.last_source_value = source_val
+            self.last_scene_value = scene_val
+
+    # ------------------------------------------------------------------
+    # Mock scene object (for the "Browse objects" picker)
+    # ------------------------------------------------------------------
+
+    class _MockSceneObject:
+        def __init__(self, obj_id: str) -> None:
+            self._id = obj_id
+
+        def get_id(self) -> str:
+            return self._id
+
+    # ------------------------------------------------------------------
+    # Mock scene
+    # ------------------------------------------------------------------
+
+    class _MockScene:
+        def __init__(self, objects: list[_MockSceneObject]) -> None:
+            self._objects = objects
+
+        def get_scene_objects(self) -> list[_MockSceneObject]:
+            return list(self._objects)
+
+    # ------------------------------------------------------------------
+    # Mock bridge
+    # ------------------------------------------------------------------
+
+    class _MockBridge:
+        def __init__(self, bindings: list[_MockBinding]) -> None:
+            self._bindings: list[_MockBinding] = list(bindings)
+            self._active = False
+
+        def get_bindings(self) -> list[_MockBinding]:
+            return list(self._bindings)
+
+        def is_active(self) -> bool:
+            return self._active
+
+        def start(self) -> None:
+            self._active = True
+
+        def stop(self) -> None:
+            self._active = False
+
+        def get_bound_object(self) -> None:
+            return None
+
+        def add_binding(
+            self,
+            binding_key: str,
+            object_id: str,
+            property_path: str,
+            direction: BindingDirection = BindingDirection.READ,
+            description: str = "",
+        ) -> None:
+            self._bindings.append(_MockBinding(
+                binding_key, object_id, property_path,
+                direction, description,
+            ))
+
+        def remove_binding(
+            self, binding_key: str, object_id: str, property_path: str
+        ) -> None:
+            self._bindings = [
+                b for b in self._bindings
+                if not (
+                    b.binding_key == binding_key
+                    and b.object_id == object_id
+                    and b.property_path == property_path
+                )
+            ]
+
+        def clear_bindings(self) -> None:
+            self._bindings.clear()
+
+    # ------------------------------------------------------------------
+    # Seed data
+    # ------------------------------------------------------------------
+
+    _mock_scene = _MockScene([
+        _MockSceneObject("conv_001"),
+        _MockSceneObject("conv_002"),
+        _MockSceneObject("sens_001"),
+        _MockSceneObject("rob_001"),
+        _MockSceneObject("rob_002"),
+    ])
+
+    _mock_bridge = _MockBridge([
+        _MockBinding(
+            key="plc.conveyor_speed",
+            object_id="conv_001",
+            property_path="speed_m_s",
+            direction=BindingDirection.READ,
+            description="Conveyor A belt speed",
+            enabled=True,
+            source_val=1.25,
+            scene_val=1.25,
+        ),
+        _MockBinding(
+            key="plc.conveyor_enabled",
+            object_id="conv_001",
+            property_path="enabled",
+            direction=BindingDirection.BOTH,
+            description="Conveyor A run command",
+            enabled=True,
+            source_val=True,
+            scene_val=True,
+        ),
+        _MockBinding(
+            key="plc.sensor_active",
+            object_id="sens_001",
+            property_path="active",
+            direction=BindingDirection.READ,
+            description="Entry gate proximity sensor",
+            enabled=False,
+            source_val=False,
+            scene_val=None,
+        ),
+        _MockBinding(
+            key="plc.robot_speed",
+            object_id="rob_001",
+            property_path="max_speed_mm_s",
+            direction=BindingDirection.WRITE,
+            description="Robot A maximum speed setpoint",
+            enabled=True,
+            source_val=None,
+            scene_val=800,
+        ),
+    ])
+
+    # ------------------------------------------------------------------
+    # Root window + dialog
+    # ------------------------------------------------------------------
+
+    root = tk.Tk()
+    root.title("SceneBridgeDialog — Demo")
+    root.geometry("980x460")
+
+    dialog = SceneBridgeDialog(
+        parent=root,
+        bridge=_mock_bridge,   # type: ignore[arg-type]
+        scene=_mock_scene,     # type: ignore[arg-type]
+    )
+    dialog.root.pack(fill=tk.BOTH, expand=True, padx=8, pady=8)
+
+    return root
+
+
+if __name__ == "__main__":
+    demo_window = create_demo_window()
+    demo_window.mainloop()

@@ -15,8 +15,6 @@ from enum import Enum
 import threading
 import time
 import math
-
-from pyrox.models.gui.frame import PyroxFrameContainer
 from pyrox.models.gui.theme import DefaultTheme
 
 
@@ -74,7 +72,7 @@ class LoadingConfig:
     pulse_on_complete: bool = True
 
 
-class PyroxLoadingBar(PyroxFrameContainer):
+class PyroxLoadingBar(ttk.Frame):
     """
     A flexible and powerful loading bar widget for progress indication.
 
@@ -192,10 +190,10 @@ class PyroxLoadingBar(PyroxFrameContainer):
 
     def _create_widgets(self) -> None:
         """Create and layout the loading bar widgets."""
-        self.frame_root.grid_columnconfigure(0, weight=1)
+        self.grid_columnconfigure(0, weight=1)
 
         # Main container for the loading bar
-        bar_frame = ttk.Frame(self.frame_root)
+        bar_frame = ttk.Frame(self)
         bar_frame.grid(row=0, column=0, sticky='ew', padx=2, pady=2)
         bar_frame.grid_columnconfigure(0, weight=1)
 
@@ -215,7 +213,7 @@ class PyroxLoadingBar(PyroxFrameContainer):
         self._canvas.grid(row=0, column=0, sticky='ew', pady=1)
 
         # Text information frame
-        info_frame = ttk.Frame(self.frame_root)
+        info_frame = ttk.Frame(self)
         info_frame.grid(row=1, column=0, sticky='ew', padx=2)
         info_frame.grid_columnconfigure(1, weight=1)
 
@@ -280,7 +278,7 @@ class PyroxLoadingBar(PyroxFrameContainer):
         canvas_height = self._canvas.winfo_height()
 
         if canvas_width <= 1:  # Canvas not yet rendered
-            self.frame_root.after(10, self._update_display)
+            self.after(10, self._update_display)
             return
 
         # Draw border
@@ -632,7 +630,7 @@ class PyroxLoadingBar(PyroxFrameContainer):
                 self._pulse_alpha += 0.1 * self.config.animation_speed
 
                 # Schedule UI update on main thread
-                self.frame_root.after_idle(self._update_display)
+                self.after_idle(self._update_display)
 
                 # Control animation speed (60 FPS target)
                 time.sleep(1.0 / 60.0 / self.config.animation_speed)
@@ -820,7 +818,7 @@ class PyroxLoadingBar(PyroxFrameContainer):
 
         # Pulse effect on completion
         if self.config.pulse_on_complete:
-            self.frame_root.after(100, self._completion_pulse)
+            self.after(100, self._completion_pulse)
 
         self._update_display()
 
@@ -882,7 +880,7 @@ class PyroxLoadingBar(PyroxFrameContainer):
             self._start_animation()
 
             # Stop pulse after short duration and restore mode
-            self.frame_root.after(500, lambda: self._stop_pulse_and_restore(original_mode, pulse_count + 1))
+            self.after(500, lambda: self._stop_pulse_and_restore(original_mode, pulse_count + 1))
 
     def _stop_pulse_and_restore(self, original_mode: LoadingMode, pulse_count: int) -> None:
         """Stop pulsing and restore original mode."""
@@ -892,7 +890,7 @@ class PyroxLoadingBar(PyroxFrameContainer):
 
         # Continue pulsing if needed
         if pulse_count < 3:
-            self.frame_root.after(200, lambda: self._completion_pulse(pulse_count))
+            self.after(200, lambda: self._completion_pulse(pulse_count))
 
     def get_progress(self) -> tuple[float, float]:
         """
@@ -932,7 +930,7 @@ class PyroxLoadingBar(PyroxFrameContainer):
     def destroy(self) -> None:
         """Clean up resources when widget is destroyed."""
         self._stop_animation()
-        self.frame.destroy()
+        self.destroy()
 
 
 class PyroxTkLoadingBar(tk.Toplevel):
@@ -949,7 +947,7 @@ class PyroxTkLoadingBar(tk.Toplevel):
     ) -> None:
         super().__init__(master, **kwargs)
         self.loading_bar = PyroxLoadingBar(self, config=config)
-        self.loading_bar.frame.pack(fill=tk.BOTH, expand=True)
+        self.loading_bar.pack(fill=tk.BOTH, expand=True)
 
         # Disable top bar controls, but keep window viewable
         self.overrideredirect(True)
@@ -1022,7 +1020,7 @@ if __name__ == '__main__':
         height=28
     )
     loading_bar1 = PyroxLoadingBar(examples_frame, config=config1)
-    loading_bar1.frame_root.grid(row=1, column=0, sticky='ew', padx=10, pady=(0, 10))
+    loading_bar1.grid(row=1, column=0, sticky='ew', padx=10, pady=(0, 10))
 
     # Example 2: Indeterminate loading bar
     ex2_label = ttk.Label(examples_frame, text="Indeterminate Activity Indicator:")
@@ -1036,7 +1034,7 @@ if __name__ == '__main__':
         height=20
     )
     loading_bar2 = PyroxLoadingBar(examples_frame, config=config2)
-    loading_bar2.frame_root.grid(row=3, column=0, sticky='ew', padx=10, pady=(0, 10))
+    loading_bar2.grid(row=3, column=0, sticky='ew', padx=10, pady=(0, 10))
 
     # Example 3: Pulse loading bar
     ex3_label = ttk.Label(examples_frame, text="Pulse Animation (Warning Style):")
@@ -1050,7 +1048,7 @@ if __name__ == '__main__':
         height=24
     )
     loading_bar3 = PyroxLoadingBar(examples_frame, config=config3)
-    loading_bar3.frame_root.grid(row=5, column=0, sticky='ew', padx=10, pady=(0, 10))
+    loading_bar3.grid(row=5, column=0, sticky='ew', padx=10, pady=(0, 10))
 
     # Example 4: Wave animation
     ex4_label = ttk.Label(examples_frame, text="Wave Animation:")
@@ -1064,7 +1062,7 @@ if __name__ == '__main__':
         height=32
     )
     loading_bar4 = PyroxLoadingBar(examples_frame, config=config4)
-    loading_bar4.frame_root.grid(row=7, column=0, sticky='ew', padx=10, pady=(0, 10))
+    loading_bar4.grid(row=7, column=0, sticky='ew', padx=10, pady=(0, 10))
 
     # Example 5: Spinner
     ex5_label = ttk.Label(examples_frame, text="Spinner Animation:")
@@ -1077,7 +1075,7 @@ if __name__ == '__main__':
         height=36
     )
     loading_bar5 = PyroxLoadingBar(examples_frame, config=config5)
-    loading_bar5.frame_root.grid(row=9, column=0, sticky='ew', padx=10, pady=(0, 15))
+    loading_bar5.grid(row=9, column=0, sticky='ew', padx=10, pady=(0, 15))
 
     # Example 6: Toplevel loading bar
     ex6_label = ttk.Label(examples_frame, text="Toplevel Loading Bar:")
