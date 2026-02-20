@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import unittest
+from unittest.mock import MagicMock, patch
 
 from pyrox.models.scene.sources.keyboard import KeyboardSource, _DECLARED_KEYS
 from pyrox.models.scene.sceneboundlayer import SceneBoundLayer
@@ -11,7 +12,12 @@ class TestKeyboardSourceDeclaredKeys(unittest.TestCase):
     """Declared keys appear as False bool instance attributes on construction."""
 
     def setUp(self):
+        self.root_patcher = patch("pyrox.services.gui.TkGuiManager.get_root", return_value=MagicMock())
+        self.root_patcher.start()
         self.kb = KeyboardSource()
+
+    def tearDown(self):
+        self.root_patcher.stop()
 
     def test_declared_keys_are_instance_attributes(self):
         for key in _DECLARED_KEYS:
@@ -29,7 +35,12 @@ class TestKeyboardSourcePressRelease(unittest.TestCase):
     """press / release update the attribute and internal set."""
 
     def setUp(self):
+        self.root_patcher = patch("pyrox.services.gui.TkGuiManager.get_root", return_value=MagicMock())
+        self.root_patcher.start()
         self.kb = KeyboardSource()
+
+    def tearDown(self):
+        self.root_patcher.stop()
 
     def test_press_declared_key_sets_attribute_true(self):
         self.kb.press("w")
@@ -91,8 +102,16 @@ class TestKeyboardSourcePressRelease(unittest.TestCase):
 class TestKeyboardSourceIntrospection(unittest.TestCase):
     """SceneBoundLayer can enumerate KeyboardSource properties."""
 
+    def setUp(self):
+        self.root_patcher = patch("pyrox.services.gui.TkGuiManager.get_root", return_value=MagicMock())
+        self.root_patcher.start()
+        self.kb = KeyboardSource()
+
+    def tearDown(self):
+        self.root_patcher.stop()
+
     def test_enumerate_finds_declared_keys(self):
-        kb = KeyboardSource()
+        kb = self.kb
         layer = SceneBoundLayer()
         layer.register_source("keyboard", kb)
 
@@ -101,7 +120,7 @@ class TestKeyboardSourceIntrospection(unittest.TestCase):
             self.assertIn(key, props, f"'{key}' should appear in enumerated properties")
 
     def test_list_binding_keys_includes_keyboard_keys(self):
-        kb = KeyboardSource()
+        kb = self.kb
         layer = SceneBoundLayer()
         layer.register_source("keyboard", kb)
 
@@ -117,7 +136,7 @@ class TestKeyboardSourceIntrospection(unittest.TestCase):
         class _B(SceneBridge):
             def create_default_bound_object(self) -> SceneBoundLayer: return SceneBoundLayer()
 
-        kb = KeyboardSource()
+        kb = self.kb
         layer = SceneBoundLayer()
         layer.register_source("keyboard", kb)
         bridge = _B(bound_object=layer)

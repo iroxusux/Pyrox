@@ -9,9 +9,10 @@ from pyrox.interfaces import (
     EnvironmentKeys,
     IApplication,
     IApplicationTask,
-    IGuiBackend,
     IWorkspace,
 )
+
+from pyrox.services import TkGuiManager
 
 from pyrox.models import (
     ApplicationTaskFactory,
@@ -63,26 +64,12 @@ class Application(
             str))
 
         # Initialize GUI backend
-        self.backend.create_root_window()
-        self.backend.restore_window_geometry()
-        self.backend.create_application_gui_menu()
-        self.backend.subscribe_to_window_change_event(self.backend.save_window_geometry)
-        self.backend.reroute_excepthook(self.except_hook)
-        self.backend.subscribe_to_window_close_event(self.on_close)
-        self.backend.set_title(
-            self.env.get(
-                EnvironmentKeys.core.APP_WINDOW_TITLE,
-                'Pyrox Application',
-                str
-            )
-        )
-        self.backend.set_icon(
-            self.env.get(
-                EnvironmentKeys.core.APP_ICON,
-                '',
-                str
-            )
-        )
+        TkGuiManager.create_root()
+        TkGuiManager.create_root_menu()
+        TkGuiManager.config_from_env()
+        TkGuiManager.subscribe_to_window_change_event(TkGuiManager.save_root_geometry)
+        TkGuiManager.reroute_excepthook(self.except_hook)
+        TkGuiManager.subscribe_to_window_close_event(self.on_close)
 
         # Set up logging
         self.logging.register_callback_to_captured_streams(self.log_stream.write)
@@ -91,19 +78,10 @@ class Application(
         self._tasks: list[IApplicationTask] = []
 
         # Initialize workspace
-        self._workspace = TkWorkspace(master=self.backend.root_window)
+        self._workspace = TkWorkspace(master=TkGuiManager.get_root())
 
         # Build default tasks
         ApplicationTaskFactory.build_tasks(self)
-
-    @property
-    def backend(self) -> IGuiBackend:
-        """The GUI backend for this Application.
-
-        Returns:
-            IGuiBackend: The GUI backend instance.
-        """
-        return self.gui.unsafe_get_backend()
 
     @property
     def log_stream(self) -> TextIOWrapper:
@@ -246,30 +224,30 @@ class Application(
 
         This method changes the cursor to a busy state, indicating that the application is processing.
         """
-        self.backend.update_cursor('wait')
+        self.gui.get_root().config(cursor='wait')
 
     def set_app_state_normal(self) -> None:
         """Set the application state to normal.
 
         This method changes the cursor back to normal, indicating that the application is ready for user interaction.
         """
-        self.backend.update_cursor('')
+        self.gui.get_root().config(cursor='')
 
     def run(self) -> int:
         """Start the application."""
         super().run()
-        self.backend.schedule_event(
+        self.gui.schedule_event(
             100,
             lambda: self.log().info('Ready...')
         )
-        self.backend.focus_main_window()
-        self.backend.run_main_loop()
+        self.gui.focus_root()
+        self.gui.run_main_loop()
         return 0
 
     def stop(self, stop_code: int = 0) -> None:
         """Stop the application."""
         super().stop()
-        self.backend.quit_application()
+        self.gui.quit_application()
         sys.exit(stop_code)
 
 

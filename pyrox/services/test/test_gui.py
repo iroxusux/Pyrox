@@ -1,525 +1,564 @@
-"""Unit tests for GUI framework management services."""
+"""Unit tests for TkGuiManager in pyrox/services/gui.py."""
 
-import os
+from __future__ import annotations
+
+import tkinter as tk
 import unittest
-from typing import Any, Callable
-from unittest.mock import patch
+from unittest.mock import MagicMock, Mock, patch
 
-from pyrox.interfaces import IApplicationGuiMenu, IGuiBackend, IGuiFrame, GuiFramework
-from pyrox.interfaces.gui.menu import IGuiMenu
-from pyrox.services.env import EnvManager
-from pyrox.services.gui import (
-    GuiManager,
-    initialize_gui,
-    run_gui,
-    quit_gui,
-    get_gui_info,
-    is_gui_mode,
-)
+from pyrox.interfaces.constants import EnvironmentKeys
+from pyrox.services.gui import TkGuiManager
+from pyrox.services.menu_registry import MenuRegistry
 
 
-class MockGuiBackend(IGuiBackend):
-    """Mock GUI backend for testing purposes."""
+# ---------------------------------------------------------------------------
+# Helpers
+# ---------------------------------------------------------------------------
 
-    def __init__(self, available: bool = True):
-        self.available = available
-        self.main_loop_called = False
-        self.quit_called = False
-        self.windows_created = []
-        self.windows_destroyed = []
-
-    @property
-    def framework_name(self) -> str:
-        return "MockFramework"
-
-    def get_framework(self) -> GuiFramework:
-        return GuiFramework.CONSOLE
-
-    def initialize(self) -> bool: return True
-    def is_available(self) -> bool: return self.available
-    def config_from_env(self) -> None: return None
-    def set_title(self, title: str) -> None: return None
-    def cancel_scheduled_event(self, event_id: int | str) -> None: return None
-    def get_root_menu(self) -> Any: return None
-
-    def create_root_window(self, **kwargs) -> Any:
-        window = f"MockWindow({kwargs})"
-        self.windows_created.append(window)
-        return window
-
-    def update_framekwork_tasks(self) -> None: return None
-    def run_main_loop(self, window=None) -> None: self.main_loop_called = True
-    def quit_application(self) -> None: self.quit_called = True
-    def destroy_gui_window(self, window, **kwargs) -> None: self.windows_destroyed.append(window)
-    def bind_hotkey(self, hotkey: str, callback: Any, **kwargs) -> None: pass
-    def configure_root_from_env(self, **kwargs) -> None: pass
-    def create_application_gui_menu(self, **kwargs) -> IApplicationGuiMenu: pass  # type: ignore
-    def create_gui_frame(self, **kwargs) -> IGuiFrame: pass  # type: ignore
-    def create_gui_menu(self, **kwargs) -> Any: pass
-    def get_framework_backend(self) -> Any: pass
-    def get_gui_application_menu(self) -> IApplicationGuiMenu: pass  # type: ignore
-    def get_gui_window(self) -> Any: pass
-    def reroute_excepthook(self, callback: Callable[..., Any]) -> None: pass
-    def create_gui_window(self, **kwargs) -> Any: pass
-    def get_backend(self) -> Any: return None
-    def get_root_application_menu(self) -> Any: return None
-    def get_root_window(self) -> Any: return None
-    def schedule_event(self, delay_ms: int, callback: Callable[..., Any], **kwargs) -> int | str: return ''
-    def set_icon(self, icon_path: str) -> None: pass
-    def update_cursor(self, cursor: str) -> None: pass
-    def prompt_user_yes_no(self, title: str, message: str) -> bool: return True
-
-    def prompt_user_open_file(self, title: str = "Open File",
-                              filetypes: list[tuple[str, str]] | None = None) -> str | None: return "/mock/file.txt"
-    def prompt_user_save_file(self, title: str = "Save File", filetypes: list[tuple[str, str]]
-                              | None = None, default_extension: str | None = None) -> str | None: return "/mock/save.txt"
-
-    def prompt_user_select_directory(self, title: str = "Select Directory") -> str | None: return "/mock/directory"
-    def destroy_gui_frame(self, frame: IGuiFrame) -> None: return None
-    def destroy_gui_menu(self, menu: IGuiMenu) -> None: return None
-    def setup_keybinds(self, **kwargs) -> None: pass
-    def subscribe_to_window_change_event(self, callback: Callable[..., Any]) -> None: pass
-    def subscribe_to_window_close_event(self, callback: Callable[..., Any]) -> None: pass
-    def focus_main_window(self) -> None: pass
-    def restore_window_geometry(self) -> None: pass
-    def save_window_geometry(self) -> None: pass
-    def get_title(self) -> str: return "Mock Title"
+def _reset_manager() -> None:
+    """Reset all TkGuiManager class-level state between tests."""
+    TkGuiManager._initialized = False
+    TkGuiManager._root_window = None
+    TkGuiManager._root_menu = None
+    TkGuiManager._file_menu = None
+    TkGuiManager._edit_menu = None
+    TkGuiManager._view_menu = None
+    TkGuiManager._tools_menu = None
+    TkGuiManager._help_menu = None
+    if hasattr(TkGuiManager, '_after_id'):
+        TkGuiManager._after_id = None
 
 
-class TestGuiFramework(unittest.TestCase):
-    """Test cases for GuiFramework enum."""
+# ---------------------------------------------------------------------------
+# Instantiation
+# ---------------------------------------------------------------------------
 
-    def test_framework_values(self):
-        """Test that all framework enums have correct values."""
-        self.assertEqual(GuiFramework.TKINTER.value, "tkinter")
-        self.assertEqual(GuiFramework.QT.value, "qt")
-        self.assertEqual(GuiFramework.WX.value, "wx")
-        self.assertEqual(GuiFramework.KIVY.value, "kivy")
-        self.assertEqual(GuiFramework.PYGAME.value, "pygame")
-        self.assertEqual(GuiFramework.CONSOLE.value, "console")
+class TestTkGuiManagerInstantiation(unittest.TestCase):
+    """TkGuiManager is a static class — instantiation must be prevented."""
 
-
-class TestGuiBackend(unittest.TestCase):
-    """Test cases for GuiBackend abstract base class."""
-
-    def test_cannot_instantiate_abstract_class(self):
-        """Test that GuiBackend cannot be instantiated directly."""
-        # This should be handled by the type system, but we can test it exists
-        self.assertTrue(hasattr(IGuiBackend, '__abstractmethods__'))
-        self.assertTrue(len(IGuiBackend.__abstractmethods__) > 0)
-
-
-class TestGuiManager(unittest.TestCase):
-    """Test cases for GuiManager class."""
-
-    def setUp(self):
-        """Set up test fixtures."""
-        # Reset GuiManager state
-        GuiManager._current_backend = None
-        GuiManager._framework = GuiFramework.TKINTER
-        GuiManager._initialized = False
-        GuiManager._root_window = None
-
-        # Clean up loading bar window attribute from previous tests
-        if hasattr(GuiManager, '_loading_bar_window'):
-            delattr(GuiManager, '_loading_bar_window')
-
-        # Store original backends
-        self.original_backends = GuiManager._backends.copy()
-
-        # Clear environment variables that might interfere
-        self.original_env = dict(os.environ)
-        os.environ.pop('PYROX_GUI_FRAMEWORK', None)
-        os.environ.pop('PYROX_AUTO_INIT_GUI', None)
-
-    def tearDown(self):
-        """Clean up test fixtures."""
-        # Restore GuiManager state
-        GuiManager._current_backend = None
-        GuiManager._framework = GuiFramework.TKINTER
-        GuiManager._initialized = False
-        GuiManager._root_window = None
-        GuiManager._backends = self.original_backends
-
-        # Restore environment
-        os.environ.clear()
-        os.environ.update(self.original_env)
-
-    def test_cannot_instantiate(self):
-        """Test that GuiManager cannot be instantiated."""
+    def test_cannot_be_instantiated(self):
+        """Calling TkGuiManager() raises TypeError."""
         with self.assertRaises(TypeError):
-            GuiManager()
-
-    def test_initialize_default_framework(self):
-        """Test initialization with default framework."""
-        GuiManager._backends[GuiFramework.TKINTER] = MockGuiBackend
-
-        result = GuiManager.initialize()
-
-        self.assertTrue(result)
-        self.assertTrue(GuiManager._initialized)
-        self.assertEqual(GuiManager._framework, GuiFramework.TKINTER)
-        self.assertIsInstance(GuiManager._current_backend, MockGuiBackend)
-
-    def test_initialize_with_framework_parameter(self):
-        """Test initialization with framework parameter."""
-        mock_backend = MockGuiBackend()
-        GuiManager._backends[GuiFramework.CONSOLE] = lambda: mock_backend  # type: ignore
-
-        result = GuiManager.initialize(GuiFramework.CONSOLE)
-
-        self.assertTrue(result)
-        self.assertEqual(GuiManager._framework, GuiFramework.CONSOLE)
-
-    def test_initialize_with_string_parameter(self):
-        """Test initialization with string framework parameter."""
-        mock_backend = MockGuiBackend()
-        GuiManager._backends[GuiFramework.CONSOLE] = lambda: mock_backend  # type: ignore
-
-        result = GuiManager.initialize("console")
-
-        self.assertTrue(result)
-        self.assertEqual(GuiManager._framework, GuiFramework.CONSOLE)
-
-    def test_initialize_with_invalid_string_falls_back(self):
-        """Test initialization with invalid string falls back to tkinter."""
-        mock_backend = MockGuiBackend()
-        GuiManager._backends[GuiFramework.TKINTER] = lambda: mock_backend  # type: ignore
-
-        result = GuiManager.initialize("invalid_framework")
-
-        self.assertTrue(result)
-        self.assertEqual(GuiManager._framework, GuiFramework.TKINTER)
-
-    @patch.dict(EnvManager._env_vars, {'UI_FRAMEWORK': 'console'})
-    def test_initialize_from_environment(self):
-        """Test initialization from environment variable."""
-        mock_backend = MockGuiBackend()
-        GuiManager._backends[GuiFramework.CONSOLE] = lambda: mock_backend  # type: ignore
-
-        result = GuiManager.initialize()
-
-        self.assertTrue(result)
-        self.assertEqual(GuiManager._framework, GuiFramework.CONSOLE)
-
-    @patch.dict(os.environ, {'UI_FRAMEWORK': 'invalid'})
-    def test_initialize_from_invalid_environment_falls_back(self):
-        """Test initialization from invalid environment falls back to tkinter."""
-        mock_backend = MockGuiBackend()
-        GuiManager._backends[GuiFramework.TKINTER] = lambda: mock_backend  # type: ignore
-
-        result = GuiManager.initialize()
-
-        self.assertTrue(result)
-        self.assertEqual(GuiManager._framework, GuiFramework.TKINTER)
-
-    def test_initialize_raises_err_if_unavailable(self):
-        """Test fallback to console if GUI framework is unavailable."""
-        # Create a mock unavailable backend class
-        class UnavailableBackend(IGuiBackend):
-            def bind_hotkey(self, hotkey: str, callback: Any, **kwargs) -> None: return None
-            def cancel_scheduled_event(self, event_id: int | str) -> None: return None
-            def config_from_env(self) -> None: return None
-            def update_framekwork_tasks(self) -> None: pass
-            def get_root_menu(self) -> Any: return None
-            def set_icon(self, icon_path: str) -> None: return None
-            def is_available(self): return False
-            def initialize(self): return False
-            def configure_root_from_env(self, **kwargs) -> None: return None
-            def create_application_gui_menu(self, **kwargs) -> IApplicationGuiMenu: return None  # type: ignore
-            def create_gui_frame(self, **kwargs) -> IGuiFrame: pass  # type: ignore
-            def create_gui_menu(self, **kwargs) -> Any: return None
-            def create_root_window(self, **kwargs): return None  # type: ignore
-            def get_framework_backend(self) -> Any: return None
-            def get_gui_application_menu(self) -> IApplicationGuiMenu: pass  # type: ignore
-            def get_gui_window(self): return None  # type: ignore
-            def reroute_excepthook(self, callback: Callable[..., Any]) -> None: return None
-            def run_main_loop(self, root_window=None): pass  # type: ignore
-            def quit_application(self): pass
-            def create_gui_window(self, **kwargs): return None  # type: ignore
-            def set_title(self, title: str) -> None: return None
-            def schedule_event(self, delay_ms: int, callback: Callable[..., Any], **kwargs) -> int | str: return ''
-            def set_app_icon(self, icon_path: str) -> None: return None
-            def setup_keybinds(self, **kwargs) -> None: return None
-            def subscribe_to_window_change_event(self, callback: Callable[..., Any]) -> None: return None
-            def subscribe_to_window_close_event(self, callback: Callable[..., Any]) -> None: return None
-            def destroy_gui_window(self, window, **kwargs): pass
-            def update_cursor(self, cursor: str) -> None: return None
-            def prompt_user_yes_no(self, title: str, message: str) -> bool: return False
-            def prompt_user_open_file(self, title: str = "Open File", filetypes: list[tuple[str, str]] | None = None) -> str | None: return None
-            def prompt_user_save_file(
-                self, title: str = "Save File", filetypes: list[tuple[str, str]] | None = None, default_extension: str | None = None) -> str | None: return None  # noqa: E501
-
-            def prompt_user_select_directory(self, title: str = "Select Directory") -> str | None: return None
-            def destroy_gui_frame(self, frame: IGuiFrame) -> None: return None
-            def destroy_gui_menu(self, menu: IGuiMenu) -> None: return None
-            def get_root_application_menu(self) -> Any: return None
-            def get_backend(self) -> Any: return None
-            def get_root_window(self) -> Any: return None
-            def get_framework(self): return GuiFramework.TKINTER
-            def focus_main_window(self) -> None: pass
-            def restore_window_geometry(self) -> None: pass
-            def save_window_geometry(self) -> None: pass
-            @property
-            def framework_name(self): return "Unavailable"
-            def get_title(self) -> str: return "Unavailable Title"
-
-        GuiManager._backends[GuiFramework.TKINTER] = UnavailableBackend
-
-        with self.assertRaises(RuntimeError) as context:
-            GuiManager.initialize()
-        self.assertIn("Backend for framework tkinter is not available.", str(context.exception))
-
-    def test_initialize_already_initialized_returns_true(self):
-        """Test that initialize returns True if already initialized."""
-        GuiManager._initialized = True
-        result = GuiManager.initialize()
-        self.assertTrue(result)
-
-    def test_get_framework(self):
-        """Test getting current framework."""
-        mock_backend = MockGuiBackend()
-        GuiManager._backends[GuiFramework.CONSOLE] = lambda: mock_backend  # type: ignore
-        GuiManager.initialize(GuiFramework.CONSOLE)
-
-        framework = GuiManager.get_framework()
-        self.assertEqual(framework, GuiFramework.CONSOLE)
-
-    def test_get_backend(self):
-        """Test getting current backend."""
-        mock_backend = MockGuiBackend()
-        GuiManager._backends[GuiFramework.CONSOLE] = lambda: mock_backend  # type: ignore
-        GuiManager.initialize(GuiFramework.CONSOLE)
-
-        backend = GuiManager.get_backend()
-        self.assertEqual(backend, mock_backend)
-
-    def test_is_gui_available_true_for_gui_framework(self):
-        """Test is_gui_available returns True for GUI frameworks."""
-        mock_backend = MockGuiBackend()
-        GuiManager._backends[GuiFramework.TKINTER] = lambda: mock_backend  # type: ignore
-        GuiManager.initialize(GuiFramework.TKINTER)
-
-        self.assertTrue(GuiManager.is_gui_available())
-
-    def test_is_gui_available_false_for_console(self):
-        """Test is_gui_available returns False for console."""
-        mock_backend = MockGuiBackend()
-        GuiManager._backends[GuiFramework.CONSOLE] = lambda: mock_backend  # type: ignore
-        GuiManager.initialize(GuiFramework.CONSOLE)
-
-        self.assertFalse(GuiManager.is_gui_available())
-
-    def test_run_main_loop(self):
-        """Test running main loop."""
-        mock_backend = MockGuiBackend()
-        GuiManager._backends[GuiFramework.CONSOLE] = lambda: mock_backend  # type: ignore
-        GuiManager.initialize(GuiFramework.CONSOLE)
-
-        GuiManager.run_main_loop()
-        self.assertTrue(mock_backend.main_loop_called)
-
-    def test_quit_application(self):
-        """Test quitting application."""
-        mock_backend = MockGuiBackend()
-        GuiManager._current_backend = mock_backend
-
-        GuiManager.quit_application()
-        self.assertTrue(mock_backend.quit_called)
-
-    def test_register_backend(self):
-        """Test registering custom backend."""
-        class CustomBackend(MockGuiBackend):
-            def initialize(self): return True
-            def is_available(self): return True
-            def create_root_window(self, **kwargs): return None
-            def run_main_loop(self, window=None): pass
-            def quit_application(self): pass
-            @property
-            def framework_name(self): return "Custom"
-
-        GuiManager.register_backend(GuiFramework.QT, CustomBackend)
-        self.assertEqual(GuiManager._backends[GuiFramework.QT], CustomBackend)
-
-    def test_get_available_frameworks(self):
-        """Test getting available frameworks."""
-        available_backend = MockGuiBackend(available=True)
-        unavailable_backend = MockGuiBackend(available=False)
-
-        GuiManager._backends = {  # type: ignore
-            GuiFramework.TKINTER: lambda: available_backend,
-            GuiFramework.QT: lambda: unavailable_backend,
-            GuiFramework.CONSOLE: lambda: available_backend,
-        }
-
-        available = GuiManager.get_available_frameworks()
-        self.assertIn(GuiFramework.TKINTER, available)
-        self.assertIn(GuiFramework.CONSOLE, available)
-        self.assertNotIn(GuiFramework.QT, available)
-
-    def test_switch_framework(self):
-        """Test switching frameworks."""
-        mock_backend = MockGuiBackend()
-        GuiManager._backends[GuiFramework.CONSOLE] = lambda: mock_backend  # type: ignore
-        GuiManager._initialized = True
-
-        result = GuiManager.switch_framework(GuiFramework.CONSOLE)
-
-        self.assertTrue(result)
-        self.assertEqual(GuiManager._framework, GuiFramework.CONSOLE)
-
-    def test_switch_framework_with_string(self):
-        """Test switching frameworks with string parameter."""
-        mock_backend = MockGuiBackend()
-        GuiManager._backends[GuiFramework.CONSOLE] = lambda: mock_backend  # type: ignore
-
-        result = GuiManager.switch_framework("console")
-
-        self.assertTrue(result)
-        self.assertEqual(GuiManager._framework, GuiFramework.CONSOLE)
-
-    def test_switch_framework_invalid_string(self):
-        """Test switching frameworks with invalid string returns False."""
-        result = GuiManager.switch_framework("invalid")
-        self.assertFalse(result)
-
-    def test_get_info(self):
-        """Test getting GUI information."""
-        mock_backend = MockGuiBackend()
-        GuiManager._backends[GuiFramework.CONSOLE] = lambda: mock_backend  # type: ignore
-        GuiManager.initialize(GuiFramework.CONSOLE)
-        GuiManager._root_window = "TestWindow"
-
-        info = GuiManager.get_info()
-
-        expected_keys = [
-            'framework', 'backend_name', 'initialized',
-            'gui_available', 'has_root_window', 'available_frameworks'
-        ]
-        for key in expected_keys:
-            self.assertIn(key, info)
-
-        self.assertEqual(info['framework'], 'console')
-        self.assertEqual(info['backend_name'], 'MockFramework')
-        self.assertTrue(info['initialized'])
-        self.assertFalse(info['gui_available'])
-        self.assertTrue(info['has_root_window'])
+            TkGuiManager()  # type: ignore[call-arg]
 
 
-class TestConvenienceFunctions(unittest.TestCase):
-    """Test cases for convenience functions."""
+# ---------------------------------------------------------------------------
+# Root Window Management
+# ---------------------------------------------------------------------------
+
+class TestTkGuiManagerRootWindow(unittest.TestCase):
+    """Tests for root window creation and retrieval."""
 
     def setUp(self):
-        """Set up test fixtures."""
-        # Reset GuiManager state
-        GuiManager._current_backend = None
-        GuiManager._framework = GuiFramework.TKINTER
-        GuiManager._initialized = False
-        GuiManager._root_window = None
-
-        # Store original backends
-        self.original_backends = GuiManager._backends.copy()
+        _reset_manager()
+        MenuRegistry.clear()
 
     def tearDown(self):
-        """Clean up test fixtures."""
-        # Restore GuiManager state
-        GuiManager._current_backend = None
-        GuiManager._framework = GuiFramework.TKINTER
-        GuiManager._initialized = False
-        GuiManager._root_window = None
-        GuiManager._backends = self.original_backends
+        _reset_manager()
+        MenuRegistry.clear()
 
-    def test_initialize_gui(self):
-        """Test initialize_gui convenience function."""
-        mock_backend = MockGuiBackend()
-        GuiManager._backends[GuiFramework.CONSOLE] = lambda: mock_backend  # type: ignore
+    # ---- get_root ----
 
-        result = initialize_gui(GuiFramework.CONSOLE)
-        self.assertTrue(result)
+    def test_get_root_raises_before_initialization(self):
+        """get_root() raises RuntimeError when no window exists yet."""
+        with self.assertRaises(RuntimeError, msg="Root window not initialized"):
+            TkGuiManager.get_root()
 
-    def test_run_gui(self):
-        """Test run_gui convenience function."""
-        mock_backend = MockGuiBackend()
-        GuiManager._backends[GuiFramework.CONSOLE] = lambda: mock_backend  # type: ignore
-        GuiManager.initialize(GuiFramework.CONSOLE)
+    # ---- create_root_window ----
 
-        run_gui()
-        self.assertTrue(mock_backend.main_loop_called)
+    @patch('pyrox.services.gui.ThemeManager')
+    @patch('pyrox.services.gui.EnvManager')
+    @patch('pyrox.services.gui.tk.Tk')
+    def test_create_root_window_returns_tk_instance(
+        self, mock_tk_class, mock_env, mock_theme
+    ):
+        """create_root_window() constructs and returns a tk.Tk instance."""
+        mock_root = MagicMock()
+        mock_tk_class.return_value = mock_root
+        mock_env.get.return_value = '800x600'
 
-    def test_quit_gui(self):
-        """Test quit_gui convenience function."""
-        mock_backend = MockGuiBackend()
-        GuiManager._current_backend = mock_backend
+        result = TkGuiManager.create_root()
 
-        quit_gui()
-        self.assertTrue(mock_backend.quit_called)
+        mock_tk_class.assert_called_once()
+        self.assertIs(result, mock_root)
 
-    def test_get_gui_info(self):
-        """Test get_gui_info convenience function."""
-        mock_backend = MockGuiBackend()
-        GuiManager._backends[GuiFramework.CONSOLE] = lambda: mock_backend  # type: ignore
-        GuiManager.initialize(GuiFramework.CONSOLE)
+    @patch('pyrox.services.gui.ThemeManager')
+    @patch('pyrox.services.gui.EnvManager')
+    @patch('pyrox.services.gui.tk.Tk')
+    def test_create_root_window_calls_theme_setup(
+        self, mock_tk_class, mock_env, mock_theme
+    ):
+        """create_root_window() ensures the theme is applied."""
+        mock_tk_class.return_value = MagicMock()
+        mock_env.get.return_value = '800x600'
 
-        info = get_gui_info()
-        self.assertIsInstance(info, dict)
-        self.assertIn('framework', info)
+        TkGuiManager.create_root()
 
-    def test_is_gui_mode_true(self):
-        """Test is_gui_mode convenience function returns True for GUI."""
-        mock_backend = MockGuiBackend()
-        GuiManager._backends[GuiFramework.TKINTER] = lambda: mock_backend  # type: ignore
-        GuiManager.initialize(GuiFramework.TKINTER)
+        mock_theme.ensure_theme_created.assert_called_once()
 
-        self.assertTrue(is_gui_mode())
+    @patch('pyrox.services.gui.ThemeManager')
+    @patch('pyrox.services.gui.EnvManager')
+    @patch('pyrox.services.gui.tk.Tk')
+    def test_create_root_window_is_idempotent(
+        self, mock_tk_class, mock_env, mock_theme
+    ):
+        """create_root_window() returns the existing window on subsequent calls."""
+        mock_root = MagicMock()
+        mock_tk_class.return_value = mock_root
+        mock_env.get.return_value = '800x600'
 
-    def test_is_gui_mode_false(self):
-        """Test is_gui_mode convenience function returns False for console."""
-        mock_backend = MockGuiBackend()
-        GuiManager._backends[GuiFramework.CONSOLE] = lambda: mock_backend  # type: ignore
-        GuiManager.initialize(GuiFramework.CONSOLE)
+        first = TkGuiManager.create_root()
+        second = TkGuiManager.create_root()
 
-        self.assertFalse(is_gui_mode())
+        mock_tk_class.assert_called_once()
+        self.assertIs(first, second)
+
+    @patch('pyrox.services.gui.ThemeManager')
+    @patch('pyrox.services.gui.EnvManager')
+    @patch('pyrox.services.gui.tk.Tk')
+    def test_get_root_returns_created_window(
+        self, mock_tk_class, mock_env, mock_theme
+    ):
+        """get_root() returns the window after create_root_window()."""
+        mock_root = MagicMock()
+        mock_tk_class.return_value = mock_root
+        mock_env.get.return_value = '800x600'
+
+        TkGuiManager.create_root()
+        result = TkGuiManager.get_root()
+
+        self.assertIs(result, mock_root)
+
+    # ---- focus / quit / run loop ----
+
+    def _with_mock_root(self):
+        """Inject a mock root directly (no Tk()). Returns the mock."""
+        mock_root = MagicMock()
+        TkGuiManager._root_window = mock_root
+        return mock_root
+
+    def test_focus_root_window_calls_focus(self):
+        """focus_root_window() delegates to window.focus()."""
+        mock_root = self._with_mock_root()
+        TkGuiManager.focus_root()
+        mock_root.focus.assert_called_once()
+
+    def test_quit_application_calls_quit(self):
+        """quit_application() delegates to window.quit()."""
+        mock_root = self._with_mock_root()
+        TkGuiManager.quit_application()
+        mock_root.quit.assert_called_once()
+
+    def test_run_main_loop_calls_mainloop(self):
+        """run_main_loop() delegates to window.mainloop()."""
+        mock_root = self._with_mock_root()
+        TkGuiManager.run_main_loop()
+        mock_root.mainloop.assert_called_once()
 
 
-class TestAutoInitialization(unittest.TestCase):
-    """Test cases for auto-initialization feature."""
+# ---------------------------------------------------------------------------
+# Window Title
+# ---------------------------------------------------------------------------
 
-    @patch.dict(os.environ, {'UI_AUTO_INIT': 'true'})
-    def test_auto_init_when_enabled(self):
-        """Test that auto-initialization occurs when environment variable is set."""
-        # Reset GuiManager state first
-        from pyrox.services.gui import GuiManager
-        GuiManager._initialized = False
-        GuiManager._current_backend = None
+class TestTkGuiManagerTitle(unittest.TestCase):
+    """Tests for get_title() and set_title()."""
 
-        # Re-import to check auto-init behavior
-        import importlib
-        import pyrox.services.gui
-        importlib.reload(pyrox.services.gui)
+    def setUp(self):
+        _reset_manager()
+        self.mock_root = MagicMock()
+        TkGuiManager._root_window = self.mock_root
 
-        # Again, reload to get the actual object from reloaded memory
-        from pyrox.services.gui import GuiManager
-        GuiManager._backends[GuiFramework.TKINTER] = MockGuiBackend
-        GuiManager.initialize(None)  # Ensure initialization
+    def tearDown(self):
+        _reset_manager()
 
-        self.assertTrue(GuiManager._initialized)
+    def test_set_title_updates_window(self):
+        """set_title() calls title() on the root window."""
+        TkGuiManager.set_title("My Application")
+        self.mock_root.title.assert_called_with("My Application")
 
-    @patch.dict(os.environ, {'UI_AUTO_INIT': 'false'})
-    @patch('pyrox.services.gui.initialize_gui')
-    def test_auto_init_when_disabled(self, mock_initialize):
-        """Test that auto-initialization does not occur when disabled."""
-        # Reset GuiManager state first
-        from pyrox.services.gui import GuiManager
-        GuiManager._initialized = False
-        GuiManager._current_backend = None
+    def test_set_title_raises_type_error_for_non_string(self):
+        """set_title() raises TypeError when title is not a string."""
+        for bad in (42, None, ['title'], object()):
+            with self.subTest(bad=bad):
+                with self.assertRaises(TypeError):
+                    TkGuiManager.set_title(bad)  # type: ignore[arg-type]
 
-        # Re-import to check auto-init behavior
-        import importlib
-        import pyrox.services.gui
-        importlib.reload(pyrox.services.gui)
+    def test_get_title_returns_window_title(self):
+        """get_title() returns the value reported by the window."""
+        self.mock_root.title.return_value = "App Title"
+        result = TkGuiManager.get_title(None)
+        self.assertEqual(result, "App Title")
 
-        # Should not be called due to false value
-        mock_initialize.assert_not_called()
+    def test_set_title_with_explicit_window(self):
+        """set_title() uses the supplied window instead of root."""
+        custom = MagicMock()
+        TkGuiManager.set_title("Custom", window=custom)
+        custom.title.assert_called_with("Custom")
+        self.mock_root.title.assert_not_called()
+
+    def test_get_title_with_explicit_window(self):
+        """get_title() uses the supplied window instead of root."""
+        custom = MagicMock()
+        custom.title.return_value = "Custom Title"
+        result = TkGuiManager.get_title(custom)
+        self.assertEqual(result, "Custom Title")
+        self.mock_root.title.assert_not_called()
+
+
+# ---------------------------------------------------------------------------
+# Window Icon
+# ---------------------------------------------------------------------------
+
+class TestTkGuiManagerIcon(unittest.TestCase):
+    """Tests for set_icon()."""
+
+    def setUp(self):
+        _reset_manager()
+        self.mock_root = MagicMock()
+        TkGuiManager._root_window = self.mock_root
+
+    def tearDown(self):
+        _reset_manager()
+
+    def test_set_icon_raises_type_error_for_non_string(self):
+        """set_icon() raises TypeError when path is not a string."""
+        for bad in (123, None, ['icon.ico']):
+            with self.subTest(bad=bad):
+                with self.assertRaises(TypeError):
+                    TkGuiManager.set_icon(bad)  # type: ignore[arg-type]
+
+    def test_set_icon_on_root_window(self):
+        """set_icon() calls iconbitmap on the root window by default."""
+        TkGuiManager.set_icon("resources/icon.ico")
+        self.mock_root.iconbitmap.assert_called_with("resources/icon.ico")
+
+    def test_set_icon_on_custom_window(self):
+        """set_icon() calls iconbitmap on a supplied window."""
+        custom = MagicMock()
+        TkGuiManager.set_icon("resources/icon.ico", window=custom)
+        custom.iconbitmap.assert_called_with("resources/icon.ico")
+        self.mock_root.iconbitmap.assert_not_called()
+
+
+# ---------------------------------------------------------------------------
+# Event Handling
+# ---------------------------------------------------------------------------
+
+class TestTkGuiManagerEvents(unittest.TestCase):
+    """Tests for hotkey binding, event scheduling, and protocol hooks."""
+
+    def setUp(self):
+        _reset_manager()
+        self.mock_root = MagicMock()
+        TkGuiManager._root_window = self.mock_root
+
+    def tearDown(self):
+        _reset_manager()
+
+    # ---- bind_hotkey ----
+
+    def test_bind_hotkey_registers_with_root(self):
+        """bind_hotkey() calls bind() on the root window."""
+        callback = Mock()
+        TkGuiManager.bind_hotkey('<Control-s>', callback)
+        self.mock_root.bind.assert_called_once()
+        bound_hotkey = self.mock_root.bind.call_args[0][0]
+        self.assertEqual(bound_hotkey, '<Control-s>')
+
+    def test_bind_hotkey_wrapper_invokes_callback(self):
+        """The wrapper passed to bind() calls the original callback on key event."""
+        callback = Mock()
+        TkGuiManager.bind_hotkey('<Control-s>', callback)
+        wrapper = self.mock_root.bind.call_args[0][1]
+        wrapper(Mock())  # simulate Tkinter key event
+        callback.assert_called_once()
+
+    # ---- schedule / cancel ----
+
+    def test_schedule_event_calls_after(self):
+        """schedule_event() delegates to root.after()."""
+        callback = Mock()
+        self.mock_root.after.return_value = 42
+
+        result = TkGuiManager.schedule_event(500, callback)
+
+        self.mock_root.after.assert_called_with(500, callback)
+        self.assertEqual(result, 42)
+
+    def test_cancel_scheduled_event_calls_after_cancel(self):
+        """cancel_scheduled_event() delegates to root.after_cancel() with string id."""
+        TkGuiManager.cancel_scheduled_event(42)
+        self.mock_root.after_cancel.assert_called_with("42")
+
+    # ---- window event subscriptions ----
+
+    def test_subscribe_to_window_change_event_binds_configure(self):
+        """subscribe_to_window_change_event() binds the <Configure> event."""
+        callback = Mock()
+        TkGuiManager.subscribe_to_window_change_event(callback)
+        self.mock_root.bind.assert_called_once()
+        self.assertEqual(self.mock_root.bind.call_args[0][0], '<Configure>')
+
+    def test_subscribe_to_window_close_event_sets_protocol(self):
+        """subscribe_to_window_close_event() sets WM_DELETE_WINDOW protocol."""
+        callback = Mock()
+        TkGuiManager.subscribe_to_window_close_event(callback)
+        self.mock_root.protocol.assert_called_once_with("WM_DELETE_WINDOW", callback)
+
+    # ---- reroute_excepthook ----
+
+    def test_reroute_excepthook_sets_report_callback_exception(self):
+        """reroute_excepthook() assigns the callback to tk.report_callback_exception."""
+        original = getattr(tk, 'report_callback_exception', None)
+        callback = Mock()
+        try:
+            TkGuiManager.reroute_excepthook(callback)
+            self.assertIs(tk.report_callback_exception, callback)  # type: ignore[attr-defined]
+        finally:
+            if original is not None:
+                tk.report_callback_exception = original  # type: ignore[attr-defined]
+
+
+# ---------------------------------------------------------------------------
+# Root Menu Management
+# ---------------------------------------------------------------------------
+
+class TestTkGuiManagerRootMenu(unittest.TestCase):
+    """Tests for root menu creation and sub-menu accessors."""
+
+    def setUp(self):
+        _reset_manager()
+        MenuRegistry.clear()
+        self.mock_root = MagicMock()
+        TkGuiManager._root_window = self.mock_root
+
+    def tearDown(self):
+        _reset_manager()
+        MenuRegistry.clear()
+
+    @patch('pyrox.services.gui.tk.Menu')
+    def test_create_root_menu_returns_menu(self, mock_menu_class):
+        """create_root_menu() creates a tk.Menu and attaches it to root."""
+        mock_menu = MagicMock()
+        mock_menu_class.return_value = mock_menu
+
+        result = TkGuiManager.create_root_menu()
+
+        self.assertIsNotNone(result)
+
+    @patch('pyrox.services.gui.tk.Menu')
+    def test_create_root_menu_configures_root(self, mock_menu_class):
+        """create_root_menu() calls root.config(menu=...) to attach the menu."""
+        mock_menu = MagicMock()
+        mock_menu_class.return_value = mock_menu
+
+        TkGuiManager.create_root_menu()
+
+        self.mock_root.config.assert_called_with(menu=mock_menu)
+
+    @patch('pyrox.services.gui.tk.Menu')
+    def test_create_root_menu_is_idempotent(self, mock_menu_class):
+        """create_root_menu() returns the same menu object on repeated calls."""
+        mock_menu_class.return_value = MagicMock()
+
+        first = TkGuiManager.create_root_menu()
+        second = TkGuiManager.create_root_menu()
+
+        self.assertIs(first, second)
+
+    @patch('pyrox.services.gui.tk.Menu')
+    def test_create_root_menu_registers_five_submenus(self, mock_menu_class):
+        """create_root_menu() registers all five standard menus in MenuRegistry."""
+        mock_menu_class.return_value = MagicMock()
+
+        TkGuiManager.create_root_menu()
+
+        for menu_id in ('file_menu', 'edit_menu', 'view_menu', 'tools_menu', 'help_menu'):
+            with self.subTest(menu_id=menu_id):
+                self.assertIsNotNone(MenuRegistry.get_item(menu_id))
+
+    @patch('pyrox.services.gui.tk.Menu')
+    def test_create_root_menu_adds_cascades(self, mock_menu_class):
+        """create_root_menu() adds five cascades to the root menu."""
+        mock_menu = MagicMock()
+        mock_menu_class.return_value = mock_menu
+
+        TkGuiManager.create_root_menu()
+
+        self.assertEqual(mock_menu.add_cascade.call_count, 5)
+
+    def test_get_root_menu_raises_before_initialization(self):
+        """get_root_menu() raises RuntimeError if menu has not been created."""
+        with self.assertRaises(RuntimeError):
+            TkGuiManager.get_root_menu()
+
+    @patch('pyrox.services.gui.tk.Menu')
+    def test_get_root_menu_after_creation(self, mock_menu_class):
+        """get_root_menu() returns the menu after create_root_menu()."""
+        mock_menu_class.return_value = MagicMock()
+        created = TkGuiManager.create_root_menu()
+        self.assertIs(TkGuiManager.get_root_menu(), created)
+
+    def test_submenu_accessors_raise_before_creation(self):
+        """All sub-menu getters raise RuntimeError before create_root_menu()."""
+        accessors = [
+            TkGuiManager.get_file_menu,
+            TkGuiManager.get_edit_menu,
+            TkGuiManager.get_view_menu,
+            TkGuiManager.get_tools_menu,
+            TkGuiManager.get_help_menu,
+        ]
+        for accessor in accessors:
+            with self.subTest(accessor=accessor.__name__):
+                with self.assertRaises(RuntimeError):
+                    accessor()
+
+    @patch('pyrox.services.gui.tk.Menu')
+    def test_submenu_accessors_after_creation(self, mock_menu_class):
+        """All sub-menu getters return valid widgets after create_root_menu()."""
+        mock_menu_class.return_value = MagicMock()
+        TkGuiManager.create_root_menu()
+
+        for accessor in (
+            TkGuiManager.get_file_menu,
+            TkGuiManager.get_edit_menu,
+            TkGuiManager.get_view_menu,
+            TkGuiManager.get_tools_menu,
+            TkGuiManager.get_help_menu,
+        ):
+            with self.subTest(accessor=accessor.__name__):
+                self.assertIsNotNone(accessor())
+
+    @patch('pyrox.services.gui.tk.Menu')
+    def test_submenus_owned_by_tk_gui_manager(self, mock_menu_class):
+        """All registered sub-menus are owned by 'TkGuiManager'."""
+        mock_menu_class.return_value = MagicMock()
+        TkGuiManager.create_root_menu()
+
+        items = MenuRegistry.get_items_by_owner('TkGuiManager')
+        self.assertEqual(len(items), 5)
+        for item in items:
+            with self.subTest(menu_id=item.menu_id):
+                self.assertEqual(item.owner, 'TkGuiManager')
+
+
+# ---------------------------------------------------------------------------
+# Window Geometry Save / Restore
+# ---------------------------------------------------------------------------
+
+class TestTkGuiManagerWindowGeometry(unittest.TestCase):
+    """Tests for save_window_geometry() and restore_window_geometry()."""
+
+    def setUp(self):
+        _reset_manager()
+        self.mock_root = MagicMock()
+        TkGuiManager._root_window = self.mock_root
+        TkGuiManager._after_id = None
+
+    def tearDown(self):
+        _reset_manager()
+
+    # ---- save_window_geometry ----
+
+    @patch('pyrox.services.gui.EnvManager')
+    def test_save_window_geometry_schedules_delayed_event(self, _mock_env):
+        """save_window_geometry() calls after() exactly once."""
+        self.mock_root.after.return_value = 99
+
+        TkGuiManager.save_root_geometry()
+
+        self.mock_root.after.assert_called_once()
+        self.assertEqual(TkGuiManager._after_id, 99)
+
+    @patch('pyrox.services.gui.EnvManager')
+    def test_save_window_geometry_cancels_pending_event(self, _mock_env):
+        """save_window_geometry() cancels the previous pending event."""
+        TkGuiManager._after_id = 50
+        self.mock_root.after.return_value = 99
+
+        TkGuiManager.save_root_geometry()
+
+        self.mock_root.after_cancel.assert_called_with("50")
+
+    @patch('pyrox.services.gui.EnvManager')
+    def test_save_window_geometry_no_cancel_when_no_pending(self, _mock_env):
+        """save_window_geometry() does not cancel anything when no event is pending."""
+        TkGuiManager._after_id = None
+        self.mock_root.after.return_value = 1
+
+        TkGuiManager.save_root_geometry()
+
+        self.mock_root.after_cancel.assert_not_called()
+
+    # ---- restore_window_geometry ----
+
+    @patch('pyrox.services.gui.EnvManager')
+    def test_restore_window_geometry_enables_fullscreen(self, mock_env):
+        """restore_window_geometry() sets fullscreen when env flag is True."""
+        def _get(key, default=None, cast_type=None):
+            if key == EnvironmentKeys.ui.UI_WINDOW_FULLSCREEN:
+                return True
+            return default
+
+        mock_env.get.side_effect = _get
+
+        TkGuiManager.restore_root_geometry()
+
+        self.mock_root.attributes.assert_any_call('-fullscreen', True)
+
+    @patch('pyrox.services.gui.EnvManager')
+    def test_restore_window_geometry_applies_size_and_position(self, mock_env):
+        """restore_window_geometry() builds and applies a full geometry string."""
+        def _get(key, default=None, cast_type=None):
+            mapping = {
+                EnvironmentKeys.ui.UI_WINDOW_FULLSCREEN: False,
+                EnvironmentKeys.ui.UI_WINDOW_POSITION: (100, 200),
+                EnvironmentKeys.ui.UI_WINDOW_SIZE: '1024x768',
+                EnvironmentKeys.ui.UI_WINDOW_STATE: 'normal',
+            }
+            return mapping.get(key, default)
+
+        mock_env.get.side_effect = _get
+
+        TkGuiManager.restore_root_geometry()
+
+        self.mock_root.geometry.assert_called_with('1024x768+100+200')
+
+    @patch('pyrox.services.gui.EnvManager')
+    def test_restore_window_geometry_applies_window_state(self, mock_env):
+        """restore_window_geometry() restores the saved window state."""
+        def _get(key, default=None, cast_type=None):
+            mapping = {
+                EnvironmentKeys.ui.UI_WINDOW_FULLSCREEN: False,
+                EnvironmentKeys.ui.UI_WINDOW_POSITION: None,
+                EnvironmentKeys.ui.UI_WINDOW_SIZE: None,
+                EnvironmentKeys.ui.UI_WINDOW_STATE: 'zoomed',
+            }
+            return mapping.get(key, default)
+
+        mock_env.get.side_effect = _get
+
+        TkGuiManager.restore_root_geometry()
+
+        self.mock_root.state.assert_called_with('zoomed')
+
+    @patch('pyrox.services.gui.EnvManager')
+    def test_restore_window_geometry_size_only(self, mock_env):
+        """restore_window_geometry() handles size without position gracefully."""
+        def _get(key, default=None, cast_type=None):
+            mapping = {
+                EnvironmentKeys.ui.UI_WINDOW_FULLSCREEN: False,
+                EnvironmentKeys.ui.UI_WINDOW_POSITION: None,
+                EnvironmentKeys.ui.UI_WINDOW_SIZE: '800x600',
+                EnvironmentKeys.ui.UI_WINDOW_STATE: 'normal',
+            }
+            return mapping.get(key, default)
+
+        mock_env.get.side_effect = _get
+
+        TkGuiManager.restore_root_geometry()
+
+        self.mock_root.geometry.assert_called_with('800x600')
 
 
 if __name__ == '__main__':

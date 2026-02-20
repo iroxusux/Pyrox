@@ -14,7 +14,7 @@ from pyrox.interfaces import (
     ISceneRunnerService,
 )
 
-from pyrox.services import GuiManager, log, physics
+from pyrox.services import TkGuiManager, log, physics
 from pyrox.services import environment as env
 from pyrox.services.file import get_open_file, get_save_file
 
@@ -655,7 +655,7 @@ class SceneRunnerService(
         log(cls).debug("Scene runner started")
 
         # Schedule periodic updates
-        cls._event_id = GuiManager.unsafe_get_backend().schedule_event(
+        cls._event_id = TkGuiManager.schedule_event(
             cls._update_interval_ms,
             lambda: cls._run_scene()
         )
@@ -669,7 +669,7 @@ class SceneRunnerService(
 
         # Cancel scheduled updates
         if cls._event_id:
-            GuiManager.unsafe_get_backend().cancel_scheduled_event(cls._event_id)
+            TkGuiManager.cancel_scheduled_event(cls._event_id)
 
         # Reset state
         cls._event_id = None
@@ -702,7 +702,7 @@ class SceneRunnerService(
         cls._scene.update(time_delta)
 
         # Schedule scene update on the main thread
-        cls._event_id = GuiManager.unsafe_get_backend().schedule_event(
+        cls._event_id = TkGuiManager.schedule_event(
             cls._update_interval_ms,
             lambda: cls._run_scene()
         )

@@ -7,64 +7,27 @@ from unittest.mock import MagicMock, patch
 from pyrox.application import Application
 
 
-class TestApplicationBootstrap(unittest.TestCase):
-    """Test cases for application bootstraping in init."""
-
-    def setUp(self) -> None:
-        self.gui_manager_patcher = patch('pyrox.models.services.GuiManager')
-        self.logging_manager_patcher = patch('pyrox.models.services.LoggingManager')
-        self.env_manager_patcher = patch('pyrox.models.services.EnvManager')
-        self.workspace_patcher = patch('pyrox.application.TkWorkspace')
-        self.platform_dir_patcher = patch('pyrox.models.services.PlatformDirectoryService')
-
-        self.mock_gui_manager = self.gui_manager_patcher.start()
-        self.mock_logging_manager = self.logging_manager_patcher.start()
-        self.mock_env_manager = self.env_manager_patcher.start()
-        self.mock_workspace = self.workspace_patcher.start()
-        self.mock_platform_dir = self.platform_dir_patcher.start()
-
-        self.mock_backend = MagicMock()
-        self.mock_gui_manager.unsafe_get_backend.return_value = self.mock_backend
-        self.mock_log_stream = MagicMock(spec=TextIOWrapper)
-        self.mock_platform_dir.get_log_file_stream.return_value = self.mock_log_stream
-
-    def tearDown(self):
-        """Clean up after tests."""
-        self.gui_manager_patcher.stop()
-        self.logging_manager_patcher.stop()
-        self.env_manager_patcher.stop()
-        self.workspace_patcher.stop()
-        self.platform_dir_patcher.stop()
-
-    def test_bootstrap_executes_without_error(self):
-        """Test that _bootstrap function runs without error."""
-        try:
-            Application()
-        except Exception as e:
-            self.fail(f"_bootstrap raised an exception: {e}")
-
-
 class TestApplicationInitialization(unittest.TestCase):
     """Test cases for Application initialization."""
 
     def setUp(self):
         """Set up test fixtures."""
         # Mock all the service classes
-        self.gui_manager_patcher = patch('pyrox.models.services.GuiManager')
+        self.gui_manager_patcher = patch('pyrox.application.TkGuiManager')
+        self.task_factory_patcher = patch('pyrox.application.ApplicationTaskFactory')
         self.logging_manager_patcher = patch('pyrox.models.services.LoggingManager')
         self.env_manager_patcher = patch('pyrox.models.services.EnvManager')
         self.workspace_patcher = patch('pyrox.application.TkWorkspace')
         self.platform_dir_patcher = patch('pyrox.models.services.PlatformDirectoryService')
 
         self.mock_gui_manager = self.gui_manager_patcher.start()
+        self.mock_task_factory = self.task_factory_patcher.start()
         self.mock_logging_manager = self.logging_manager_patcher.start()
         self.mock_env_manager = self.env_manager_patcher.start()
         self.mock_workspace = self.workspace_patcher.start()
         self.mock_platform_dir = self.platform_dir_patcher.start()
 
-        # Create mock backend
-        self.mock_backend = MagicMock()
-        self.mock_gui_manager.unsafe_get_backend.return_value = self.mock_backend
+        self.mock_task_factory.build_tasks = MagicMock()
 
         # Mock log stream
         self.mock_log_stream = MagicMock(spec=TextIOWrapper)
@@ -73,6 +36,7 @@ class TestApplicationInitialization(unittest.TestCase):
     def tearDown(self):
         """Clean up after tests."""
         self.gui_manager_patcher.stop()
+        self.task_factory_patcher.stop()
         self.logging_manager_patcher.stop()
         self.env_manager_patcher.stop()
         self.workspace_patcher.stop()
@@ -101,29 +65,23 @@ class TestApplicationInitialization(unittest.TestCase):
         # Verify the write method of log_stream was passed
         self.assertIsNotNone(call_args)
 
-    def test_application_creates_root_window_on_init(self):
-        """Test that Application creates root window during initialization."""
+    def test_application_creates_root_on_init(self):
+        """Test that Application creates root during initialization."""
         _ = Application()
 
-        self.mock_backend.create_root_window.assert_called_once()
+        self.mock_gui_manager.create_root.assert_called_once()
 
-    def test_application_creates_gui_menu_on_init(self):
-        """Test that Application creates GUI menu during initialization."""
+    def test_application_config_from_env_on_init(self):
+        """Test that Application config_from_env during initialization."""
         _ = Application()
 
-        self.mock_backend.create_application_gui_menu.assert_called_once()
-
-    def test_application_restores_window_geometry_on_init(self):
-        """Test that Application restores window geometry during initialization."""
-        _ = Application()
-
-        self.mock_backend.restore_window_geometry.assert_called_once()
+        self.mock_gui_manager.config_from_env.assert_called_once()
 
     def test_application_subscribes_to_window_change_event(self):
         """Test that Application subscribes to window change events."""
         _ = Application()
 
-        self.mock_backend.subscribe_to_window_change_event.assert_called_once()
+        self.mock_gui_manager.subscribe_to_window_change_event.assert_called_once()
 
     def test_application_creates_workspace(self):
         """Test that Application creates a workspace instance."""
@@ -147,25 +105,13 @@ class TestApplicationInitialization(unittest.TestCase):
         """Test that Application reroutes exception hook during initialization."""
         app = Application()
 
-        self.mock_backend.reroute_excepthook.assert_called_once_with(app.except_hook)
+        self.mock_gui_manager.reroute_excepthook.assert_called_once_with(app.except_hook)
 
     def test_application_subscribes_to_close_event_on_init(self):
         """Test that Application subscribes to window close event during initialization."""
         app = Application()
 
-        self.mock_backend.subscribe_to_window_close_event.assert_called_once_with(app.on_close)
-
-    def test_application_sets_window_title_on_init(self):
-        """Test that Application sets window title during initialization."""
-        _ = Application()
-
-        self.mock_backend.set_title.assert_called_once()
-
-    def test_application_sets_window_icon_on_init(self):
-        """Test that Application sets window icon during initialization."""
-        _ = Application()
-
-        self.mock_backend.set_icon.assert_called_once()
+        self.mock_gui_manager.subscribe_to_window_close_event.assert_called_once_with(app.on_close)
 
 
 class TestApplicationProperties(unittest.TestCase):
@@ -173,20 +119,26 @@ class TestApplicationProperties(unittest.TestCase):
 
     def setUp(self):
         """Set up test fixtures."""
-        self.gui_manager_patcher = patch('pyrox.models.services.GuiManager')
+        # Both namespaces must be patched: pyrox.application for direct calls in
+        # Application.__init__, and pyrox.models.services for self.gui property access.
+        self.gui_manager_app_patcher = patch('pyrox.application.TkGuiManager')
+        self.gui_manager_patcher = patch('pyrox.models.services.TkGuiManager')
+        self.task_factory_patcher = patch('pyrox.application.ApplicationTaskFactory')
         self.logging_manager_patcher = patch('pyrox.models.services.LoggingManager')
         self.env_manager_patcher = patch('pyrox.models.services.EnvManager')
         self.workspace_patcher = patch('pyrox.application.TkWorkspace')
         self.platform_dir_patcher = patch('pyrox.models.services.PlatformDirectoryService')
 
+        self.gui_manager_app_patcher.start()
         self.mock_gui_manager = self.gui_manager_patcher.start()
+        self.mock_task_factory = self.task_factory_patcher.start()
         self.mock_logging_manager = self.logging_manager_patcher.start()
         self.mock_env_manager = self.env_manager_patcher.start()
         self.mock_workspace = self.workspace_patcher.start()
         self.mock_platform_dir = self.platform_dir_patcher.start()
 
-        self.mock_backend = MagicMock()
-        self.mock_gui_manager.unsafe_get_backend.return_value = self.mock_backend
+        self.mock_task_factory.build_tasks = MagicMock()
+
         self.mock_log_stream = MagicMock(spec=TextIOWrapper)
         self.mock_platform_dir.get_log_file_stream.return_value = self.mock_log_stream
 
@@ -194,7 +146,9 @@ class TestApplicationProperties(unittest.TestCase):
 
     def tearDown(self):
         """Clean up after tests."""
+        self.gui_manager_app_patcher.stop()
         self.gui_manager_patcher.stop()
+        self.task_factory_patcher.stop()
         self.logging_manager_patcher.stop()
         self.env_manager_patcher.stop()
         self.workspace_patcher.stop()
@@ -205,13 +159,6 @@ class TestApplicationProperties(unittest.TestCase):
         result = self.app.env
 
         self.assertEqual(result, self.mock_env_manager)
-
-    def test_gui_property_returns_backend_instance(self):
-        """Test that gui property returns GUI backend instance."""
-        result = self.app.backend
-
-        self.assertEqual(result, self.mock_backend)
-        self.mock_gui_manager.unsafe_get_backend.assert_called()
 
     def test_gui_mgr_property_returns_gui_manager_class(self):
         """Test that gui_mgr property returns GuiManager class."""
@@ -259,22 +206,27 @@ class TestApplicationMethods(unittest.TestCase):
 
     def setUp(self):
         """Set up test fixtures."""
-        self.gui_manager_patcher = patch('pyrox.models.services.GuiManager')
+        # Both namespaces must be patched: pyrox.application for direct calls in
+        # Application.__init__, and pyrox.models.services for self.gui property access.
+        self.gui_manager_app_patcher = patch('pyrox.application.TkGuiManager')
+        self.gui_manager_patcher = patch('pyrox.models.services.TkGuiManager')
+        self.task_factory_patcher = patch('pyrox.application.ApplicationTaskFactory')
         self.logging_manager_patcher = patch('pyrox.models.services.LoggingManager')
         self.env_manager_patcher = patch('pyrox.models.services.EnvManager')
         self.workspace_patcher = patch('pyrox.application.TkWorkspace')
         self.platform_dir_patcher = patch('pyrox.models.services.PlatformDirectoryService')
         self.log_patcher = patch('pyrox.models.services.LoggingManager')
 
+        self.gui_manager_app_patcher.start()
         self.mock_gui_manager = self.gui_manager_patcher.start()
+        self.mock_task_factory = self.task_factory_patcher.start()
         self.mock_logging_manager = self.logging_manager_patcher.start()
         self.mock_env_manager = self.env_manager_patcher.start()
         self.mock_workspace_class = self.workspace_patcher.start()
         self.mock_platform_dir = self.platform_dir_patcher.start()
         self.mock_log = self.log_patcher.start()
 
-        self.mock_backend = MagicMock()
-        self.mock_gui_manager.unsafe_get_backend.return_value = self.mock_backend
+        self.mock_task_factory.build_tasks = MagicMock()
         self.mock_log_stream = MagicMock(spec=TextIOWrapper)
         self.mock_platform_dir.get_log_file_stream.return_value = self.mock_log_stream
 
@@ -286,7 +238,9 @@ class TestApplicationMethods(unittest.TestCase):
 
     def tearDown(self):
         """Clean up after tests."""
+        self.gui_manager_app_patcher.stop()
         self.gui_manager_patcher.stop()
+        self.task_factory_patcher.stop()
         self.logging_manager_patcher.stop()
         self.env_manager_patcher.stop()
         self.workspace_patcher.stop()
@@ -333,46 +287,34 @@ class TestApplicationMethods(unittest.TestCase):
         mock_stop.assert_called_once()
         self.mock_gui_manager.quit_application.assert_called_once()
 
-    def test_set_app_state_busy_updates_cursor(self):
-        """Test set_app_state_busy updates cursor to wait."""
-        self.app.set_app_state_busy()
-
-        self.mock_backend.update_cursor.assert_called_once()
-
-    def test_set_app_state_normal_updates_cursor(self):
-        """Test set_app_state_normal updates cursor to default."""
-        self.app.set_app_state_normal()
-
-        self.mock_backend.update_cursor.assert_called_once()
-
     def test_run_method_schedules_ready_event(self):
         """Test run method schedules ready log event."""
         with patch.object(self.app, 'run', wraps=self.app.run):
-            self.mock_backend.run_main_loop.return_value = None
+            self.mock_gui_manager.run_main_loop.return_value = None
 
             _ = self.app.run()
 
-        self.mock_backend.schedule_event.assert_called()
+        self.mock_gui_manager.schedule_event.assert_called()
 
-    def test_run_method_focuses_main_window(self):
+    def test_run_method_focuses_root(self):
         """Test run method focuses main window."""
-        self.mock_backend.run_main_loop.return_value = None
+        self.mock_gui_manager.run_main_loop.return_value = None
 
         _ = self.app.run()
 
-        self.mock_backend.focus_main_window.assert_called_once()
+        self.mock_gui_manager.focus_root.assert_called_once()
 
     def test_run_method_runs_main_loop(self):
         """Test run method runs GUI main loop."""
-        self.mock_backend.run_main_loop.return_value = None
+        self.mock_gui_manager.run_main_loop.return_value = None
 
         _ = self.app.run()
 
-        self.mock_backend.run_main_loop.assert_called_once()
+        self.mock_gui_manager.run_main_loop.assert_called_once()
 
     def test_run_method_returns_zero(self):
         """Test run method returns 0 on success."""
-        self.mock_backend.run_main_loop.return_value = None
+        self.mock_gui_manager.run_main_loop.return_value = None
 
         result = self.app.run()
 
@@ -384,21 +326,25 @@ class TestApplicationIntegration(unittest.TestCase):
 
     def setUp(self):
         """Set up test fixtures."""
-        self.gui_manager_patcher = patch('pyrox.models.services.GuiManager')
+        # Both namespaces must be patched: pyrox.application for direct calls in
+        # Application.__init__, and pyrox.models.services for self.gui property access.
+        self.gui_manager_app_patcher = patch('pyrox.application.TkGuiManager')
+        self.gui_manager_patcher = patch('pyrox.models.services.TkGuiManager')
+        self.task_factory_patcher = patch('pyrox.application.ApplicationTaskFactory')
         self.logging_manager_patcher = patch('pyrox.models.services.LoggingManager')
         self.env_manager_patcher = patch('pyrox.models.services.EnvManager')
         self.workspace_patcher = patch('pyrox.application.TkWorkspace')
         self.platform_dir_patcher = patch('pyrox.models.services.PlatformDirectoryService')
-        self.log_patcher = patch('pyrox.models.services.LoggingManager')
 
+        self.gui_manager_app_patcher.start()
         self.mock_gui_manager = self.gui_manager_patcher.start()
+        self.mock_task_factory = self.task_factory_patcher.start()
         self.mock_logging_manager = self.logging_manager_patcher.start()
         self.mock_env_manager = self.env_manager_patcher.start()
         self.mock_workspace_class = self.workspace_patcher.start()
         self.mock_platform_dir = self.platform_dir_patcher.start()
 
-        self.mock_backend = MagicMock()
-        self.mock_gui_manager.unsafe_get_backend.return_value = self.mock_backend
+        self.mock_task_factory.build_tasks = MagicMock()
         self.mock_log_stream = MagicMock(spec=TextIOWrapper)
         self.mock_platform_dir.get_log_file_stream.return_value = self.mock_log_stream
 
@@ -407,7 +353,9 @@ class TestApplicationIntegration(unittest.TestCase):
 
     def tearDown(self):
         """Clean up after tests."""
+        self.gui_manager_app_patcher.stop()
         self.gui_manager_patcher.stop()
+        self.task_factory_patcher.stop()
         self.logging_manager_patcher.stop()
         self.env_manager_patcher.stop()
         self.workspace_patcher.stop()
@@ -436,7 +384,6 @@ class TestApplicationIntegration(unittest.TestCase):
         # Test all property accessors
         self.assertIsNotNone(app.env)
         self.assertIsNotNone(app.gui)
-        self.assertIsNotNone(app.backend)
         self.assertIsNotNone(app.logging)
         self.assertIsNotNone(app.directory)
         self.assertIsNotNone(app.log_stream)

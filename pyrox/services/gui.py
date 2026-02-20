@@ -5,255 +5,390 @@ based on environment configuration.
 It supports multiple GUI frameworks
 and provides a unified interface for GUI operations.
 """
-from typing import Any, Dict, Optional, Type, Union
-from pyrox.services import EnvManager, log
+import tkinter as tk
+from tkinter import filedialog
+from pathlib import Path
+from typing import Any, Callable, Union
+from pyrox.services import EnvManager, log, ThemeManager, MenuRegistry
 from pyrox.interfaces import (
     EnvironmentKeys,
-    IGuiBackend,
-    IGuiWindow,
-    IApplicationGuiMenu,
-    GuiFramework,
 )
 
 
-class GuiManager:
-    """Static manager for GUI framework selection and operations."""
+class TkGuiManager:
+    """Static manager for Tk GUI operations."""
 
     # Class-level storage
-    _current_backend: Optional[IGuiBackend] = None
-    _framework: GuiFramework
-    _backends: Dict[GuiFramework, Type[IGuiBackend]] = {}
     _initialized: bool = False
-    _root_window: Any = None
-    _root_menu: Any = None
+    _root_window: tk.Tk | None = None
+    _root_menu: tk.Menu | None = None
+
+    # Store additional menus for the root menu so we can access them globally
+    _file_menu: tk.Menu | None = None
+    _edit_menu: tk.Menu | None = None
+    _view_menu: tk.Menu | None = None
+    _tools_menu: tk.Menu | None = None
+    _help_menu: tk.Menu | None = None
 
     def __init__(self):
         """Prevent instantiation of static class."""
         raise TypeError("GuiManager is a static class and cannot be instantiated")
 
+    # --------------------------------------------------
+    # GUI Binding Methods
+    # --------------------------------------------------
+
     @classmethod
-    def _get_framework_name(
+    def bind_hotkey(
         cls,
-        framework: Optional[Union[GuiFramework, str]]
-    ) -> str:
-        value = 'tkinter'  # Default
-
-        if not framework:
-            log(cls).debug("Setting GUI framework from environment variable.")
-            return EnvManager.get(
-                EnvironmentKeys.ui.UI_FRAMEWORK,
-                default='tkinter'
-            )
-
-        if isinstance(framework, str):
-            try:
-                value = GuiFramework(framework.lower()).value
-            except ValueError:
-                log(cls).warning(f"Invalid GUI framework specified: {framework}. Using 'tkinter'.")
-        else:
-            value = framework.value
-
-        return value
-
-    @classmethod
-    def _set_backend(cls) -> None:
-        """Set the current GUI backend based on the selected framework."""
-        backend_class = cls._backends.get(cls._framework)
-        if not backend_class:
-            raise KeyError(f"No backend registered for framework: {cls._framework.value}")
-
-        cls._current_backend = backend_class()
-        if not cls._current_backend.is_available():
-            raise RuntimeError(f"Backend for framework {cls._framework.value} is not available.")
-        cls._initialized = cls._current_backend.initialize()
-
-    @classmethod
-    def _set_framework(
-        cls,
-        framework_name: str
+        hotkey: str,
+        callback: Callable,
+        **kwargs
     ) -> None:
-        """Set the current GUI framework.
+        """Bind a global hotkey to a callback function.
 
         Args:
-            framework_name: The name of the GUI framework to set.
+            hotkey: The hotkey string to bind (e.g., '<Control-s>').
+            callback: The function to call when the hotkey is pressed.
+            **kwargs: Additional keyword arguments (unused in Tkinter implementation).
+
+        Raises:
+            RuntimeError: If the root window is not initialized.
         """
-        try:
-            cls._framework = GuiFramework(framework_name.lower())
-        except ValueError:
-            log(cls).error(f"Invalid GUI framework specified: {framework_name}.")
-            cls._framework = GuiFramework.TKINTER
+        def on_key_event(event):
+            callback()
+
+        cls.get_root().bind(hotkey, on_key_event)
+
+    # --------------------------------------------------
+    # Gui Event Handling
+    # --------------------------------------------------
 
     @classmethod
-    def get_available_frameworks(cls) -> list[GuiFramework]:
-        """Get list of available GUI frameworks on this system."""
-        available = []
-        for framework, backend_class in cls._backends.items():
-            backend = backend_class()
-            if backend.is_available():
-                available.append(framework)
-        return available
-
-    @classmethod
-    def get_backend(cls) -> Optional[IGuiBackend]:
-        """Get the current GUI backend."""
-        if not cls._initialized:
-            cls.initialize()
-        return cls._current_backend
-
-    @classmethod
-    def get_framework(cls) -> GuiFramework:
-        """Get the current GUI framework."""
-        if not cls._initialized:
-            cls.initialize()
-        return cls._framework
-
-    @classmethod
-    def get_info(cls) -> Dict[str, Any]:
-        """Get information about the current GUI configuration."""
-        if not cls._initialized:
-            cls.initialize()
-
-        return {
-            'framework': cls._framework.value if cls._framework else None,
-            'backend_name': cls._current_backend.framework_name if cls._current_backend else None,
-            'initialized': cls._initialized,
-            'gui_available': cls.is_gui_available(),
-            'has_root_window': cls._root_window is not None,
-            'available_frameworks': [f.value for f in cls.get_available_frameworks()],
-        }
-
-    @classmethod
-    def initialize(
+    def schedule_event(
         cls,
-        framework: Optional[Union[GuiFramework, str]] = None
-    ) -> bool:
-        """Initialize the GUI manager with specified or environment framework.
-
-        Args:
-            framework: GUI framework to use. If None, reads from environment.
-
-        Returns:
-            True if initialization was successful.
-        """
-        if cls._initialized:
-            return True
-
-        log(cls).debug("Initializing GUI Manager...")
-        cls._set_framework(cls._get_framework_name(framework))
-        cls._set_backend()
-
-        return cls._initialized
+        delay_ms: int,
+        callback: Callable[..., Any],
+        **kwargs
+    ) -> Union[int, str]:
+        """Schedule a callback to be called after a delay in milliseconds."""
+        return cls.get_root().after(delay_ms, callback, **kwargs)
 
     @classmethod
-    def is_gui_available(cls) -> bool:
-        """Check if GUI is available (not console mode)."""
-        if not cls._initialized:
-            cls.initialize()
-        return cls._framework != GuiFramework.CONSOLE
+    def cancel_scheduled_event(cls, event_id: int | str) -> None:
+        cls.get_root().after_cancel(str(event_id))
 
     @classmethod
-    def quit_application(cls) -> None:
-        """Quit the GUI application."""
-        if cls._current_backend:
-            cls._current_backend.quit_application()
+    def subscribe_to_window_change_event(cls, callback: Callable[..., Any]) -> None:
+        """Subscribe to the window change event."""
+        cls.get_root().bind("<Configure>", lambda event: callback())
 
     @classmethod
-    def register_backend(cls, framework: GuiFramework, backend_class: Type[IGuiBackend]) -> None:
-        """Register a custom GUI backend.
-
-        Args:
-            framework: The framework enum value.
-            backend_class: The backend class to register.
-        """
-        cls._backends[framework] = backend_class
-
-    @classmethod
-    def run_main_loop(cls, root_window: Any = None) -> None:
-        """Run the GUI main loop."""
-        if not cls._initialized:
-            cls.initialize()
-
-        if cls._current_backend:
-            window = root_window or cls._root_window
-            cls._current_backend.run_main_loop(window)
-
-    @classmethod
-    def unsafe_get_backend(cls) -> IGuiBackend:
-        """Get the current GUI backend, initializing if necessary.
-        Will raise an exception, haulting execution, if unable to initialize the backend.
-        """
-        if not cls._initialized:
-            cls.initialize()
-        if not cls._current_backend:
-            raise RuntimeError("No GUI backend available!")
-        return cls._current_backend
-
-    @classmethod
-    def switch_framework(cls, framework: Union[GuiFramework, str]) -> bool:
-        """Switch to a different GUI framework.
-
-        Args:
-            framework: The framework to switch to.
-
-        Returns:
-            True if switch was successful.
-        """
-        if isinstance(framework, str):
-            try:
-                framework = GuiFramework(framework.lower())
-            except ValueError:
-                return False
-
-        # Reset state
-        cls._initialized = False
-        cls._current_backend = None
-        cls._root_window = None
-
-        # Initialize with new framework
-        return cls.initialize(framework)
+    def subscribe_to_window_close_event(cls, callback: Callable[..., Any]) -> None:
+        """Subscribe to the window close event."""
+        cls.get_root().protocol("WM_DELETE_WINDOW", callback)
 
     # --------------------------------------------------
-    # Helper methods for backend operations
+    # Gui Configuration
     # --------------------------------------------------
 
     @classmethod
-    def gui_window(cls) -> IGuiWindow:
-        """Get the root window of the GUI application."""
-        return cls.unsafe_get_backend().get_gui_window()
+    def config_from_env(cls, **kwargs) -> None:
+        """Configure the root window from environment variables.
+
+        This method can be expanded to read specific environment variables
+        and apply configurations to the root window as needed.
+        """
+        cls.set_title(
+            EnvManager.get(
+                EnvironmentKeys.core.APP_WINDOW_TITLE,
+                default=kwargs.get('title', 'Pyrox Application')
+            )
+        )
+
+        cls.get_root().wm_geometry(
+            EnvManager.get(
+                EnvironmentKeys.ui.UI_WINDOW_SIZE,
+                default=kwargs.get('geometry', '800x600')
+            )
+        )
+
+        icon_path = EnvManager.get(
+            EnvironmentKeys.core.APP_ICON,
+            None,
+            str
+        )
+
+        if icon_path and Path(icon_path).is_file():
+            cls.get_root().iconbitmap(str(icon_path))
+        else:
+            log(cls).warning(f'Icon file not found: {icon_path}.')
+
+        # Apply any additional configurations passed in kwargs
+        cls.get_root().config(**kwargs)
 
     @classmethod
-    def gui_menu(cls) -> IApplicationGuiMenu:
-        """Get the root menu of the GUI application."""
-        return cls.unsafe_get_backend().get_gui_application_menu()
+    def set_icon(
+        cls,
+        icon_path: str,
+        window: tk.Tk | tk.Toplevel | None = None
+    ) -> None:
+        """Set the application icon for the Tkinter root window."""
+        if not isinstance(icon_path, str):
+            raise TypeError('Icon path must be a string representing the file path to the icon.')
+
+        window = window or cls.get_root()
+        window.iconbitmap(icon_path)
 
     @classmethod
-    def root_window(cls) -> Any:
-        """Get the root window object of the GUI application."""
-        if not cls._current_backend:
-            raise RuntimeError("GUI backend is not initialized.")
-        return cls._current_backend.get_root_window()
+    def get_title(
+        cls,
+        window: tk.Tk | tk.Toplevel | None
+    ) -> str:
+        """Get the application window title.
+
+        Returns:
+            The current window title.
+        """
+        window = window or cls.get_root()
+        return window.title()
 
     @classmethod
-    def root_menu(cls) -> Any:
-        """Get the root menu object of the GUI application."""
-        if not cls._current_backend:
-            raise RuntimeError("GUI backend is not initialized.")
-        return cls._current_backend.get_root_menu()
-
-    @classmethod
-    def prompt_user_yes_no(cls, title: str, message: str) -> bool:
-        """Show a yes/no dialog to the user.
+    def set_title(
+        cls,
+        title: str,
+        window: tk.Tk | tk.Toplevel | None = None
+    ) -> None:
+        """Set the application window title.
 
         Args:
-            title: The title of the dialog.
-            message: The message to display in the dialog.
-        Returns:
-            True if user selects 'Yes', False if 'No'.
+            title: The new window title.
         """
-        return cls.unsafe_get_backend().prompt_user_yes_no(title, message)
+        if not isinstance(title, str):
+            raise TypeError('Title must be a string.')
+
+        window = window or cls.get_root()
+        window.title(title)
+
+    # --------------------------------------------------
+    # Root Management
+    # --------------------------------------------------
 
     @classmethod
-    def prompt_user_open_file(cls, title: str = "Select a file", filetypes: Optional[list[tuple[str, str]]] = None) -> Optional[str]:
+    def create_root(cls, **kwargs) -> tk.Tk:
+        if cls._root_window is not None:
+            return cls._root_window
+
+        cls._root_window = tk.Tk()
+        cls.config_from_env(**kwargs)
+        ThemeManager.ensure_theme_created()
+        return cls._root_window
+
+    @classmethod
+    def get_root(cls) -> tk.Tk:
+        if not cls._root_window:
+            raise RuntimeError("Root window not initialized")
+
+        return cls._root_window
+
+    @classmethod
+    def focus_root(cls) -> None:
+        cls.get_root().focus()
+
+    @classmethod
+    def _store_root_state(cls) -> None:
+        """Store the current window state in environment variables.
+        """
+        cls._after_id = None  # Reset after_id since the event has fired
+
+        size = cls.get_root().size()
+        EnvManager.set(
+            EnvironmentKeys.ui.UI_WINDOW_SIZE,
+            f'{size[0]}x{size[1]}'
+        )
+
+        position = cls.get_root().winfo_rootx(), cls.get_root().winfo_rooty()
+        EnvManager.set(
+            EnvironmentKeys.ui.UI_WINDOW_POSITION,
+            str(position)
+        )
+
+        state = cls.get_root().state()
+        EnvManager.set(
+            EnvironmentKeys.ui.UI_WINDOW_STATE,
+            state
+        )
+
+        fullscreen = cls.get_root().attributes('-fullscreen')
+        EnvManager.set(
+            EnvironmentKeys.ui.UI_WINDOW_FULLSCREEN,
+            str(fullscreen)
+        )
+
+    @classmethod
+    def save_root_geometry(cls) -> None:
+        """Handle window resize events.
+        """
+        if cls._after_id:  # If we've scheduled an event, cancel it
+            cls.cancel_scheduled_event(cls._after_id)
+
+        cls._after_id = cls.schedule_event(500, cls._store_root_state)
+
+    @classmethod
+    def restore_root_geometry(cls) -> None:
+        full_screen = EnvManager.get(
+            key=EnvironmentKeys.ui.UI_WINDOW_FULLSCREEN,
+            default=False,
+            cast_type=bool
+        )
+        if full_screen:
+            cls.get_root().attributes('-fullscreen', True)
+
+        window_position = EnvManager.get(
+            key=EnvironmentKeys.ui.UI_WINDOW_POSITION,
+            default=None,
+            cast_type=tuple
+        )
+
+        # Restore window size and position if available
+        geometry_str = ''
+        if window_position and len(window_position) == 2:
+            geometry_str = f'+{window_position[0]}+{window_position[1]}'
+        window_size = EnvManager.get(
+            key=EnvironmentKeys.ui.UI_WINDOW_SIZE,
+            default=None,
+            cast_type=str
+        )
+        if window_size:
+            window_size_arr = window_size.split('x')
+            if len(window_size_arr) == 2:
+                geometry_str = f'{window_size_arr[0]}x{window_size_arr[1]}{geometry_str}'
+        if geometry_str:
+            cls.get_root().geometry(geometry_str)
+
+        window_state = EnvManager.get(
+            key=EnvironmentKeys.ui.UI_WINDOW_STATE,
+            default='normal',
+            cast_type=str
+        )
+        if window_state:
+            cls.get_root().state(window_state)
+
+    # --------------------------------------------------
+    # Root Menu Management
+    # --------------------------------------------------
+
+    @classmethod
+    def create_root_menu(cls) -> tk.Menu:
+        if cls._root_menu is not None:
+            return cls._root_menu
+
+        cls._root_menu = tk.Menu(cls.get_root())
+        cls.get_root().config(menu=cls._root_menu)
+
+        # create additional menus here
+        MenuRegistry.register_item(
+            menu_id='file_menu',
+            menu_path='root/file',
+            menu_widget=tk.Menu(cls._root_menu, tearoff=0),
+            menu_index=0,
+            owner='TkGuiManager',
+            metadata={'category': 'root'},
+        )
+        MenuRegistry.register_item(
+            menu_id='edit_menu',
+            menu_path='root/edit',
+            menu_widget=tk.Menu(cls._root_menu, tearoff=0),
+            menu_index=1,
+            owner='TkGuiManager',
+            metadata={'category': 'root'},
+        )
+        MenuRegistry.register_item(
+            menu_id='view_menu',
+            menu_path='root/view',
+            menu_widget=tk.Menu(cls._root_menu, tearoff=0),
+            menu_index=2,
+            owner='TkGuiManager',
+            metadata={'category': 'root'},
+        )
+        MenuRegistry.register_item(
+            menu_id='tools_menu',
+            menu_path='root/tools',
+            menu_widget=tk.Menu(cls._root_menu, tearoff=0),
+            menu_index=3,
+            owner='TkGuiManager',
+            metadata={'category': 'root'},
+        )
+        MenuRegistry.register_item(
+            menu_id='help_menu',
+            menu_path='root/help',
+            menu_widget=tk.Menu(cls._root_menu, tearoff=0),
+            menu_index=4,
+            owner='TkGuiManager',
+            metadata={'category': 'root'},
+        )
+
+        # add the additional menus to the root menu
+        cls._root_menu.add_cascade(label="File", menu=cls.get_file_menu())
+        cls._root_menu.add_cascade(label="Edit", menu=cls.get_edit_menu())
+        cls._root_menu.add_cascade(label="View", menu=cls.get_view_menu())
+        cls._root_menu.add_cascade(label="Tools", menu=cls.get_tools_menu())
+        cls._root_menu.add_cascade(label="Help", menu=cls.get_help_menu())
+
+        return cls._root_menu
+
+    @classmethod
+    def get_file_menu(cls) -> tk.Menu:
+        descriptor = MenuRegistry.get_item('file_menu')
+        if not descriptor:
+            raise RuntimeError("File menu not found in MenuRegistry")
+        return descriptor.menu_widget
+
+    @classmethod
+    def get_edit_menu(cls) -> tk.Menu:
+        descriptor = MenuRegistry.get_item('edit_menu')
+        if not descriptor:
+            raise RuntimeError("Edit menu not found in MenuRegistry")
+        return descriptor.menu_widget
+
+    @classmethod
+    def get_view_menu(cls) -> tk.Menu:
+        descriptor = MenuRegistry.get_item('view_menu')
+        if not descriptor:
+            raise RuntimeError("View menu not found in MenuRegistry")
+        return descriptor.menu_widget
+
+    @classmethod
+    def get_tools_menu(cls) -> tk.Menu:
+        descriptor = MenuRegistry.get_item('tools_menu')
+        if not descriptor:
+            raise RuntimeError("Tools menu not found in MenuRegistry")
+        return descriptor.menu_widget
+
+    @classmethod
+    def get_help_menu(cls) -> tk.Menu:
+        descriptor = MenuRegistry.get_item('help_menu')
+        if not descriptor:
+            raise RuntimeError("Help menu not found in MenuRegistry")
+        return descriptor.menu_widget
+
+    @classmethod
+    def get_root_menu(cls) -> tk.Menu:
+        if not cls._root_menu:
+            raise RuntimeError("Root menu not initialized")
+
+        return cls._root_menu
+
+    # --------------------------------------------------
+    # Gui user input handling
+    # --------------------------------------------------
+
+    @classmethod
+    def prompt_user_open_file(
+        cls,
+        title: str = "Open file",
+        filetypes: list[tuple[str, str]] | None = None
+    ) -> str | None:
         """Show a file open dialog to the user.
 
         Args:
@@ -262,10 +397,19 @@ class GuiManager:
         Returns:
             The selected file path, or None if cancelled.
         """
-        return cls.unsafe_get_backend().prompt_user_open_file(title, filetypes)
+        file_path = filedialog.askopenfilename(
+            parent=cls.get_root(),
+            title=title,
+            filetypes=filetypes or [("All files", "*.*")]
+        )
+        return file_path if file_path else None
 
     @classmethod
-    def prompt_user_save_file(cls, title: str = "Save file as", filetypes: Optional[list[tuple[str, str]]] = None) -> Optional[str]:
+    def prompt_user_save_file(
+        cls,
+        title: str = "Save file as",
+        filetypes: list[tuple[str, str]] | None = None
+    ) -> str | None:
         """Show a file save dialog to the user.
 
         Args:
@@ -274,10 +418,18 @@ class GuiManager:
         Returns:
             The selected file path, or None if cancelled.
         """
-        return cls.unsafe_get_backend().prompt_user_save_file(title, filetypes)
+        file_path = filedialog.asksaveasfilename(
+            parent=cls.get_root(),
+            title=title,
+            filetypes=filetypes or [("All files", "*.*")]
+        )
+        return file_path if file_path else None
 
     @classmethod
-    def prompt_user_select_directory(cls, title: str = "Select a directory") -> Optional[str]:
+    def prompt_user_select_directory(
+        cls,
+        title: str = "Select directory"
+    ) -> str | None:
         """Show a directory selection dialog to the user.
 
         Args:
@@ -285,68 +437,35 @@ class GuiManager:
         Returns:
             The selected directory path, or None if cancelled.
         """
-        return cls.unsafe_get_backend().prompt_user_select_directory(title)
+        directory_path = filedialog.askdirectory(
+            parent=cls.get_root(),
+            title=title
+        )
+        return directory_path if directory_path else None
 
-# Convenience functions for common operations
+    # --------------------------------------------------
+    # Gui Lifecycle Management
+    # --------------------------------------------------
 
+    @classmethod
+    def run_main_loop(cls) -> None:
+        """Start the Tkinter main loop."""
+        cls.get_root().mainloop()
 
-def initialize_gui(
-    framework: Optional[Union[GuiFramework, str]] = None
-) -> bool:
-    """Initialize the GUI system.
+    @classmethod
+    def quit_application(cls) -> None:
+        """Quit the Tkinter application."""
+        cls.get_root().quit()
 
-    Args:
-        framework: Optional framework to use. Defaults to environment variable.
+    # --------------------------------------------------
+    # Exception Handling
+    # --------------------------------------------------
 
-    Returns:
-        True if initialization successful.
-    """
-    return GuiManager.initialize(framework)
-
-
-def register_backend(
-    framework: GuiFramework,
-    backend_class: Type[IGuiBackend]
-) -> None:
-    """Register a custom GUI backend.
-
-    Args:
-        framework: The framework enum value.
-        backend_class: The backend class to register.
-    """
-    GuiManager.register_backend(framework, backend_class)
-
-
-def run_gui(window: Any = None) -> None:
-    """Run the GUI main loop.
-
-    Args:
-        window: Optional window to run. Uses root window if None.
-    """
-    GuiManager.run_main_loop(window)
-
-
-def quit_gui() -> None:
-    """Quit the GUI application."""
-    GuiManager.quit_application()
-
-
-def get_gui_info() -> Dict[str, Any]:
-    """Get information about the current GUI configuration."""
-    return GuiManager.get_info()
-
-
-def is_gui_mode() -> bool:
-    """Check if running in GUI mode (not console)."""
-    return GuiManager.is_gui_available()
+    @classmethod
+    def reroute_excepthook(cls, callback: Callable[..., Any]) -> None:
+        tk.report_callback_exception = callback  # type: ignore
 
 
 __all__ = (
-    'GuiManager',
-    'GuiFramework',
-    'initialize_gui',
-    'run_gui',
-    'quit_gui',
-    'get_gui_info',
-    'is_gui_mode',
+    'TkGuiManager',
 )

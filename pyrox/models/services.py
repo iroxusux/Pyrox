@@ -1,10 +1,10 @@
 """Services models for consistent access to services across the application.
 """
 from logging import Logger
-from typing import Any
-from pyrox.interfaces import IApplicationGuiMenu, IGuiMenu, EnvironmentKeys
+import tkinter as tk
+from pyrox.interfaces import EnvironmentKeys
 from pyrox.models import CoreRunnableMixin
-from pyrox.services import EnvManager, LoggingManager, GuiManager, PlatformDirectoryService
+from pyrox.services import EnvManager, LoggingManager, TkGuiManager, PlatformDirectoryService
 
 
 class SupportsEnvServices:
@@ -41,54 +41,44 @@ class SupportsGUIServices:
     """Model for accessing GUI related services."""
 
     @property
-    def gui(self) -> type[GuiManager]:
-        """Access the GuiManager service."""
-        return GuiManager
+    def gui(self) -> type[TkGuiManager]:
+        """Access the TkGuiManager service."""
+        return TkGuiManager
 
     @property
-    def main_window(self) -> Any:
-        """Access the application's main window via GuiManager Service."""
-        return GuiManager.unsafe_get_backend().get_root_window()
+    def root_window(self) -> tk.Tk:
+        """Access the application's root window via TkGuiManager Service."""
+        return self.gui.get_root()
 
     @property
-    def app_menu(self) -> IApplicationGuiMenu:
-        """Access the application's gui menu via GuiManager Service."""
-        return self.gui_app_menu
+    def root_menu(self) -> tk.Menu:
+        """Access the application's root menu via TkGuiManager Service."""
+        return self.gui.get_root_menu()
 
     @property
-    def gui_app_menu(self) -> IApplicationGuiMenu:
-        """Access the application's gui menu via GuiManager Service."""
-        return GuiManager.unsafe_get_backend().get_gui_application_menu()
+    def file_menu(self) -> tk.Menu:
+        """Access the application's file menu via TkGuiManager Service."""
+        return self.gui.get_file_menu()
 
     @property
-    def root_menu(self) -> Any:
-        """Access the application's root menu via GuiManager Service."""
-        return GuiManager.unsafe_get_backend().get_root_application_menu()
+    def edit_menu(self) -> tk.Menu:
+        """Access the application's edit menu via TkGuiManager Service."""
+        return self.gui.get_edit_menu()
 
     @property
-    def file_menu(self) -> IGuiMenu:
-        """Access the application's file menu via GuiManager Service."""
-        return self.app_menu.get_file_menu()
+    def view_menu(self) -> tk.Menu:
+        """Access the application's view menu via TkGuiManager Service."""
+        return self.gui.get_view_menu()
 
     @property
-    def edit_menu(self) -> IGuiMenu:
-        """Access the application's edit menu via GuiManager Service."""
-        return self.app_menu.get_edit_menu()
+    def help_menu(self) -> tk.Menu:
+        """Access the application's help menu via TkGuiManager Service."""
+        return self.gui.get_help_menu()
 
     @property
-    def view_menu(self) -> IGuiMenu:
-        """Access the application's view menu via GuiManager Service."""
-        return self.app_menu.get_view_menu()
-
-    @property
-    def help_menu(self) -> IGuiMenu:
-        """Access the application's help menu via GuiManager Service."""
-        return self.app_menu.get_help_menu()
-
-    @property
-    def tools_menu(self) -> IGuiMenu:
-        """Access the application's tools menu via GuiManager Service."""
-        return self.app_menu.get_tools_menu()
+    def tools_menu(self) -> tk.Menu:
+        """Access the application's tools menu via TkGuiManager Service."""
+        return self.gui.get_tools_menu()
 
 
 class SupportsPlatformDirectoryServices:

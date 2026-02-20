@@ -11,8 +11,6 @@ import tkinter as tk
 from tkinter import ttk
 from typing import Dict, List, Optional, Callable, Union
 from dataclasses import dataclass
-
-from pyrox.models.gui.frame import PyroxFrameContainer
 from pyrox.models.gui.theme import DefaultTheme
 
 
@@ -42,7 +40,7 @@ class CommandButton:
     width: Optional[int] = None
 
 
-class PyroxCommandBar(PyroxFrameContainer):
+class PyroxCommandBar(ttk.Frame):
     """
     A command bar widget for adding and managing command buttons.
 
@@ -142,9 +140,9 @@ class PyroxCommandBar(PyroxFrameContainer):
         """Create the main command bar layout."""
         # Configure grid weights for proper expansion
         if self.orientation == 'horizontal':
-            self.frame_root.grid_rowconfigure(0, weight=1)
+            self.grid_rowconfigure(0, weight=1)
         else:
-            self.frame_root.grid_columnconfigure(0, weight=1)
+            self.grid_columnconfigure(0, weight=1)
 
     def add_button(self, button_config: CommandButton) -> None:
         """
@@ -161,7 +159,7 @@ class PyroxCommandBar(PyroxFrameContainer):
 
         # Create the button
         button = tk.Button(
-            self.frame_root,
+            self,
             text=self._format_button_text(button_config),
             command=lambda: self._handle_button_click(button_config),
             state=tk.NORMAL if button_config.enabled else tk.DISABLED,
@@ -206,7 +204,7 @@ class PyroxCommandBar(PyroxFrameContainer):
             int: Index of the added separator for later reference.
         """
         separator = ttk.Separator(
-            self.frame_root,
+            self,
             orient='vertical' if self.orientation == 'horizontal' else 'horizontal'
         )
 
@@ -670,7 +668,7 @@ if __name__ == '__main__':
         button_padding=(5, 3),
         show_tooltips=True
     )
-    command_bar.frame.pack(fill=tk.X, pady=(0, 10))
+    command_bar.pack(fill=tk.X, pady=(0, 10))
 
     # Add test buttons with different configurations
     command_bar.add_button(CommandButton(

@@ -6,7 +6,7 @@ import shutil
 from io import TextIOWrapper
 
 from .env import EnvManager
-from .gui import GuiManager
+from .gui import TkGuiManager
 from pyrox.interfaces import EnvironmentKeys
 
 
@@ -239,7 +239,7 @@ def get_open_file(
     Returns:
         str | None: file location
     """
-    return GuiManager.prompt_user_open_file(title, filetypes)
+    return TkGuiManager.prompt_user_open_file(title, filetypes)
 
 
 def get_save_file(
@@ -254,7 +254,7 @@ def get_save_file(
     Returns:
         str | None: file location
     """
-    return GuiManager.prompt_user_save_file(title, filetypes)
+    return TkGuiManager.prompt_user_save_file(title, filetypes)
 
 
 def get_directory_location(title: str = "Select a Directory") -> str | None:
@@ -265,7 +265,7 @@ def get_directory_location(title: str = "Select a Directory") -> str | None:
     Returns:
         str | None: directory
     """
-    return GuiManager.prompt_user_select_directory(title=title)
+    return TkGuiManager.prompt_user_select_directory(title=title)
 
 
 def is_file_readable(

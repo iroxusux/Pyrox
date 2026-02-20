@@ -47,9 +47,8 @@ class TkinterMenu(IGuiMenu, TkinterGuiWidget):
     def _process_binding_info(self, kwargs: dict) -> None:
         binding_info = kwargs.pop('binding_info', None)
         if binding_info and isinstance(binding_info, tuple) and len(binding_info) == 2:
-            from pyrox.services.gui import GuiManager
-            backend = GuiManager.unsafe_get_backend()
-            backend.bind_hotkey(binding_info[0], binding_info[1])
+            from pyrox.services.gui import TkGuiManager
+            TkGuiManager.bind_hotkey(*binding_info)
 
     def add_checkbutton(
         self,
@@ -299,9 +298,8 @@ class TkinterApplicationMenu(IApplicationGuiMenu, TkinterMenu):
         self.menu.add_cascade(label='View', menu=self._view.menu, accelerator='<Alt>V', underline=0)
         self.menu.add_cascade(label='Help', menu=self._help.menu, accelerator='<Alt>H', underline=0)
 
-        from pyrox.services.gui import GuiManager
-        root = GuiManager.unsafe_get_backend().get_root_window()
-        root.config(menu=self.menu)
+        from pyrox.services.gui import TkGuiManager
+        TkGuiManager.get_root().config(menu=self.menu)
         return True
 
     def get_edit_menu(self) -> TkinterMenu:

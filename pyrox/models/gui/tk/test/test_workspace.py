@@ -14,13 +14,12 @@ class WorkspaceTestBase(unittest.TestCase):
         # Patch all tkinter modules to prevent actual tk initialization
         self.mock_tk_patcher = patch('pyrox.models.gui.tk.workspace.tk')
         self.mock_ttk_patcher = patch('pyrox.models.gui.tk.workspace.ttk')
-        self.mock_backend_patcher = patch('pyrox.models.services.GuiManager')
+        self.mock_backend_patcher = patch('pyrox.models.services.TkGuiManager')
         self.mock_gui_backend_patcher = patch('pyrox.models.gui.tk.frame.Frame')
 
         # Patch PyroxNotebook, LogFrame, and PyroxFrameContainer to prevent their initialization
         self.mock_notebook_patcher = patch('pyrox.models.gui.tk.workspace.PyroxNotebook')
         self.mock_logframe_patcher = patch('pyrox.models.gui.tk.workspace.LogFrame')
-        self.mock_framecontainer_patcher = patch('pyrox.models.gui.tk.workspace.PyroxFrameContainer')
 
         # Start all patchers
         self.mock_tk = self.mock_tk_patcher.start()
@@ -29,7 +28,6 @@ class WorkspaceTestBase(unittest.TestCase):
         self.mock_frame_class = self.mock_gui_backend_patcher.start()
         self.mock_notebook_class = self.mock_notebook_patcher.start()
         self.mock_logframe_class = self.mock_logframe_patcher.start()
-        self.mock_framecontainer_class = self.mock_framecontainer_patcher.start()
 
         # Create mock backend instance with methods
         self.mock_backend_instance = MagicMock()
@@ -85,7 +83,6 @@ class WorkspaceTestBase(unittest.TestCase):
     def tearDown(self) -> None:
         """Tear down test fixtures."""
         # Stop all patchers in reverse order
-        self.mock_framecontainer_patcher.stop()
         self.mock_logframe_patcher.stop()
         self.mock_notebook_patcher.stop()
         self.mock_gui_backend_patcher.stop()
@@ -132,12 +129,6 @@ class TestWorkspaceInitialization(WorkspaceTestBase):
 
 class TestWorkspaceProperties(WorkspaceTestBase):
     """Test cases for Workspace properties."""
-
-    def test_window_property_returns_window(self):
-        """Test that window property returns the window."""
-        workspace = TkWorkspace()
-
-        self.assertIsNotNone(workspace.window)
 
     def test_main_paned_window_property_returns_paned_window(self):
         """Test that main_paned_window property returns the initialized paned window."""

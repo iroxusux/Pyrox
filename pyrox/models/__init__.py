@@ -65,7 +65,6 @@ from .physics import (
 # GUI components
 from .gui import (
     LogFrame,
-    PyroxFrameContainer,
     PyroxGuiObject,
     SceneViewerFrame,
 )

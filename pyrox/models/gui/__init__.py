@@ -1,13 +1,10 @@
 from . import meta
-from . import console
 from . import tk
 
 from .commandbar import PyroxCommandBar, CommandButton
 from .connectioneditor import ConnectionEditor
 from .contextmenu import PyroxContextMenu, MenuItem as ContextMenuItem
-from .frame import (
-    PyroxFrameContainer,
-)
+from .frame import PyroxTaskFrame
 from .logframe import LogFrame
 from .meta import ObjectEditField
 from .objectexplorer import TkObjectExplorer
@@ -18,7 +15,6 @@ from .theme import DefaultTheme
 from .yamleditor import PyroxYamlEditor
 
 __all__ = (
-    'console',
     'CommandButton',
     'ConnectionEditor',
     'ContextMenuItem',
@@ -28,7 +24,7 @@ __all__ = (
     'meta',
     'PyroxCommandBar',
     'PyroxContextMenu',
-    'PyroxFrameContainer',
+    'PyroxTaskFrame',
     'PyroxGuiObject',
     'PyroxYamlEditor',
     'SceneViewerFrame',
