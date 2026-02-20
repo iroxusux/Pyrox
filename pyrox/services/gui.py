@@ -6,7 +6,7 @@ It supports multiple GUI frameworks
 and provides a unified interface for GUI operations.
 """
 import tkinter as tk
-from tkinter import filedialog
+from tkinter import filedialog, messagebox
 from pathlib import Path
 from typing import Any, Callable, Union
 from pyrox.services import EnvManager, log, ThemeManager, MenuRegistry
@@ -442,6 +442,26 @@ class TkGuiManager:
             title=title
         )
         return directory_path if directory_path else None
+
+    @classmethod
+    def prompt_user_yes_no(
+        cls,
+        title: str,
+        message: str
+    ) -> bool:
+        """Show a yes/no confirmation dialog to the user.
+
+        Args:
+            title: The title of the dialog.
+            message: The message to display in the dialog.
+        Returns:
+            True if the user clicked "Yes", False if "No".
+        """
+        return messagebox.askyesno(
+            parent=cls.get_root(),
+            title=title,
+            message=message
+        )
 
     # --------------------------------------------------
     # Gui Lifecycle Management
