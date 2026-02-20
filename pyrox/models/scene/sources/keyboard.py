@@ -25,7 +25,7 @@ custom factory that adds extra attributes after construction.
 """
 from __future__ import annotations
 from pyrox.services.scene import SceneBridgeService
-from pyrox.services.gui import GuiManager
+from pyrox.services.gui import TkGuiManager
 
 from typing import FrozenSet
 
@@ -78,11 +78,16 @@ class KeyboardSource:
         # Internal set for fast membership tests and dynamic key support.
         object.__setattr__(self, '_pressed', set())
 
-        # Bind to GUI Keyboard events to press and release keys as they change.  This is a no-op if no GUI is active.
-        root = GuiManager.unsafe_get_backend().root_window
-        root.bind("<KeyPress>", lambda e: self.press(e.keysym))
-        root.bind("<KeyRelease>", lambda e: self.release(e.keysym))
-        root.bind("<FocusOut>", lambda e: self.release_all())
+        # Bind to GUI keyboard events when a root window is available.
+        # This is a convenience only — if no GUI is active the KeyboardSource
+        # still works; callers are responsible for driving press/release manually.
+        try:
+            root = TkGuiManager.get_root()
+            root.bind("<KeyPress>", lambda e: self.press(e.keysym))
+            root.bind("<KeyRelease>", lambda e: self.release(e.keysym))
+            root.bind("<FocusOut>", lambda e: self.release_all())
+        except RuntimeError:
+            pass  # No GUI initialized; bindings must be wired by the caller.
 
     # ------------------------------------------------------------------
     # Input methods — call these from your GUI event handler

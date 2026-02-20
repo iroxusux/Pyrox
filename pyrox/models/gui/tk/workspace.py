@@ -12,14 +12,11 @@ import tkinter as tk
 from tkinter import ttk, TclError
 from typing import Optional, Callable, Any
 from pyrox.models.gui.logframe import LogFrame
-from pyrox.models.gui.frame import PyroxFrameContainer
 from pyrox.models.gui.notebook import PyroxNotebook
 from pyrox.models.gui.tk.frame import TkinterGuiFrame
 
 from pyrox.interfaces import (
     EnvironmentKeys,
-    IGuiBackend,
-    IGuiWindow,
     IWorkspace,
     ITaskFrame
 )
@@ -59,7 +56,7 @@ class TkWorkspace(
 
     def __init__(
         self,
-        master: Optional[tk.Widget] = None,
+        master: Optional[tk.Widget | tk.Misc] = None,
     ) -> None:
         TkinterGuiFrame.__init__(
             self,
@@ -102,7 +99,7 @@ class TkWorkspace(
         self._after_id = None  # For debouncing workspace geometry saves
 
         # Subscribe to window geometry change events to save workspace geometry
-        self.backend.subscribe_to_window_change_event(self.save_workspace_geometry)
+        self.gui.subscribe_to_window_change_event(self.save_workspace_geometry)
 
         # Build the workspace layout
         self._create_layout()
@@ -133,8 +130,8 @@ class TkWorkspace(
         """
         self.log().debug("Creating log window")
         self.log_window = LogFrame(self.log_paned_window)
-        self.log_paned_window.add(self.log_window.frame.root)
-        self.gui.unsafe_get_backend().schedule_event(10, self._set_initial_log_window_height)
+        self.log_paned_window.add(self.log_window)
+        self.gui.schedule_event(10, self._set_initial_log_window_height)
 
     def _create_main_paned_window(self) -> None:
         """Create the main paned window for layout."""
@@ -152,7 +149,7 @@ class TkWorkspace(
             max_tabs=10
         )
         self.main_paned_window.add(self.sidebar_organizer)
-        self.gui.unsafe_get_backend().schedule_event(100, self._set_initial_sidebar_width)
+        self.gui.schedule_event(100, self._set_initial_sidebar_width)
 
     def _create_status_bar(self) -> None:
         """Create the status bar at the bottom."""
@@ -230,9 +227,9 @@ class TkWorkspace(
         Cancels any pending save and schedules a new one after a delay.
         """
         if self._after_id:  # If we've scheduled an event, cancel it
-            self.backend.cancel_scheduled_event(self._after_id)
+            self.gui.cancel_scheduled_event(self._after_id)
 
-        self._after_id = self.backend.schedule_event(
+        self._after_id = self.gui.schedule_event(
             500,
             self._store_workspace_geometry
         )
@@ -262,13 +259,13 @@ Status: {info['status']['current_message']}
 """
 
         # Create info dialog
-        info_window = tk.Toplevel(self.window.root)
+        info_window = tk.Toplevel(self.gui.get_root())
         info_window.title("Workspace Information")
         info_window.geometry("400x300")
         info_window.resizable(False, False)
 
         # Center the window
-        info_window.transient(self.window.root.winfo_toplevel())
+        info_window.transient(self.gui.get_root().winfo_toplevel())
         info_window.grab_set()
 
         text_widget = tk.Text(
@@ -360,11 +357,9 @@ Status: {info['status']['current_message']}
     ) -> None:
         """Unregister a frame from the view menubar.
         """
-        view_menu = self.gui.unsafe_get_backend().get_gui_application_menu().get_view_menu()
-        try:
-            view_menu.remove_item(frame.name)
-        except TclError:
-            pass  # Menu item may not exist
+        index = self.gui.get_view_menu().index(frame.name)
+        if index is not None:
+            self.gui.get_view_menu().delete(index)
 
     def _unregister_workspace_frame(
         self,
@@ -448,10 +443,10 @@ Status: {info['status']['current_message']}
         frame: ITaskFrame
     ) -> None:
         """Register a frame to the view menubar."""
-        view_menu = self.gui.unsafe_get_backend().get_gui_application_menu().get_view_menu()
-        view_menu.add_checkbutton(
+        view_menu = self.gui.get_view_menu()
+        view_menu.insert_checkbutton(
             label=frame.name,
-            variable=frame.shown,
+            variable=tk.BooleanVar(value=frame.shown),
             command=lambda f=frame: self._raise_frame(f),
             index='end',
         )
@@ -592,7 +587,7 @@ Status: {info['status']['current_message']}
 
     # -------- Sidebar management --------
 
-    def _on_sidebar_tab_selected(self, tab_id: str, frame: PyroxFrameContainer) -> None:
+    def _on_sidebar_tab_selected(self, tab_id: str, frame) -> None:
         """Handle sidebar tab selection."""
         # Find widget_id from tab_id
         widget_id = None
@@ -610,7 +605,7 @@ Status: {info['status']['current_message']}
                 except Exception as e:
                     print(f"Error in on_workspace_changed callback: {e}")
 
-    def _on_sidebar_tab_added(self, tab_id: str, frame: PyroxFrameContainer) -> None:
+    def _on_sidebar_tab_added(self, tab_id: str, frame) -> None:
         """Handle sidebar tab addition."""
         self.set_status("New sidebar tab added")
 
@@ -646,8 +641,8 @@ Status: {info['status']['current_message']}
         if not self.main_paned_window:
             return None
 
-        self.gui.unsafe_get_backend().update_framekwork_tasks()
-        screen_width = self.main_window.winfo_width()
+        self.gui.get_root().update_idletasks()  # Ensure we have the latest geometry
+        screen_width = self.root_window.winfo_width()
 
         try:
             sash_pos = self.main_paned_window.sashpos(0)
@@ -662,8 +657,8 @@ Status: {info['status']['current_message']}
         if not self.main_paned_window:
             raise RuntimeError("Main paned window not initialized")
 
-        self.gui.unsafe_get_backend().update_framekwork_tasks()
-        total_width = self.window.width
+        self.gui.get_root().update_idletasks()  # Ensure we have the latest geometry
+        total_width = self.gui.get_root().winfo_width()
         sidebar_width = int(total_width * perc_of_window)
         self.main_paned_window.sashpos(0, sidebar_width)
         self.env.set(
@@ -847,7 +842,7 @@ Status: {info['status']['current_message']}
         display_name = f"{icon} {tab_name}" if icon else tab_name
         tab_id, _ = self.sidebar_organizer.add_frame_tab(
             display_name,
-            PyroxFrameContainer,
+            ttk.Frame,
             closeable=closeable
         )
 
@@ -864,15 +859,15 @@ Status: {info['status']['current_message']}
 
         # Create container as a DIRECT child of the tab frame so it participates
         # in the notebook's z-order management correctly.
-        container = PyroxFrameContainer(master=frame.root)
-        container.frame.pack(fill='both', expand=True)
+        container = ttk.Frame(master=frame.root)
+        container.pack(fill='both', expand=True)
 
         # Place the widget inside the container.  If the caller created the widget
         # with master=sidebar_organizer (legacy usage) it will be a sibling of the
         # tab frame at the notebook level; pack(in_=) positions it visually inside
         # the container while widget.lift() and the tab-change binding ensure it
         # stays above the tab frame background after the notebook lifts the tab.
-        widget.pack(in_=container.frame.root, fill='both', expand=True, padx=2, pady=2)
+        widget.pack(in_=container, fill='both', expand=True, padx=2, pady=2)
         widget.lift()
 
         # Re-lift the widget each time this tab becomes active so it is never
@@ -1013,8 +1008,8 @@ Status: {info['status']['current_message']}
         if not self.log_paned_window:
             return None
 
-        self.gui.unsafe_get_backend().update_framekwork_tasks()
-        screen_height = self.main_window.winfo_height()
+        self.gui.get_root().update_idletasks()  # Ensure we have the latest geometry
+        screen_height = self.root_window.winfo_height()
 
         try:
             sash_pos = self.log_paned_window.sashpos(0)
@@ -1026,8 +1021,8 @@ Status: {info['status']['current_message']}
 
     def set_log_window_height(self, perc_of_window: float) -> None:
         """Set the log window height as a percentage of the window height."""
-        self.gui.unsafe_get_backend().update_framekwork_tasks()
-        total_height = self.window.height
+        self.gui.get_root().update_idletasks()  # Ensure we have the latest geometry
+        total_height = self.gui.get_root().winfo_height()
         log_height = int(total_height * perc_of_window)
         self.log_paned_window.sashpos(0, total_height - log_height)
         self.env.set(
@@ -1053,15 +1048,6 @@ Status: {info['status']['current_message']}
     # ------- Properties --------
 
     @property
-    def backend(self) -> IGuiBackend:
-        """Get the GUI backend instance.
-
-        Returns:
-            IGuiBackend: The GUI backend instance.
-        """
-        return self.gui.unsafe_get_backend()
-
-    @property
     def log_paned_window(self) -> ttk.PanedWindow:
         """Get the log paned window.
 
@@ -1084,15 +1070,6 @@ Status: {info['status']['current_message']}
         return self._main_paned_window
 
     @property
-    def app_menu(self) -> Any:
-        """Get the main application menu.
-
-        Returns:
-            The main application menu instance.
-        """
-        return self.gui.unsafe_get_backend().get_root_application_menu()
-
-    @property
     def status_bar(self) -> ttk.Frame:
         """Get the status bar.
 
@@ -1113,12 +1090,3 @@ Status: {info['status']['current_message']}
         if not self._status_label:
             raise RuntimeError("Status label not initialized")
         return self._status_label
-
-    @property
-    def window(self) -> IGuiWindow:
-        """Get the main application window.
-
-        Returns:
-            The main application window instance.
-        """
-        return self.gui.unsafe_get_backend().get_gui_window()

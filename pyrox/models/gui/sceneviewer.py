@@ -1277,6 +1277,21 @@ class SceneViewerFrame(TkinterTaskFrame):
             icon="📋"
         ))
         self._canvas_context_menu.add_item(MenuItem(
+            id="zoom_in",
+            label="Zoom In",
+            command=lambda: self._viewport_zooming_service.zoom_in(factor=1.25),
+            accelerator="Ctrl++",
+            icon="🔍➕",
+            separator_before=True
+        ))
+        self._canvas_context_menu.add_item(MenuItem(
+            id="zoom_out",
+            label="Zoom Out",
+            command=lambda: self._viewport_zooming_service.zoom_out(factor=1.25),
+            accelerator="Ctrl+-",
+            icon="🔍➖"
+        ))
+        self._canvas_context_menu.add_item(MenuItem(
             id="reset_view",
             label="Reset View",
             command=self._context_reset_view,
@@ -1294,6 +1309,31 @@ class SceneViewerFrame(TkinterTaskFrame):
             label="Toggle Snap to Grid",
             command=self.toggle_snap_to_grid,
             icon="🧲"
+        ))
+        self._canvas_context_menu.add_item(MenuItem(
+            id="toggle_entity_names",
+            label="Toggle Entity Names",
+            command=self.toggle_entity_names,
+            icon="🏷️"
+        ))
+        self._canvas_context_menu.add_item(MenuItem(
+            id="toggle_properties_panel",
+            label="Toggle Properties Panel",
+            command=self.toggle_properties_panel,
+            icon="📋",
+            separator_before=True
+        ))
+        self._canvas_context_menu.add_item(MenuItem(
+            id="toggle_object_explorer",
+            label="Toggle Object Explorer",
+            command=self.toggle_object_explorer,
+            icon="🗂️"
+        ))
+        self._canvas_context_menu.add_item(MenuItem(
+            id="toggle_bridge_panel",
+            label="Toggle Bridge Panel",
+            command=self.toggle_bridge_panel,
+            icon="🔗"
         ))
 
         # Populate object context menu

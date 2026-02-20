@@ -3,8 +3,9 @@
 Tasks are used to add additional functionality to the application via the toolbar
 in the main application frame or as background services.
 """
+import tkinter as tk
 from typing import Callable
-from pyrox.interfaces import IApplication, IApplicationTask, IGuiMenu
+from pyrox.interfaces import IApplication, IApplicationTask
 from pyrox.models import ServicesRunnableMixin
 from pyrox.services import log, MenuRegistry
 from pyrox.models.factory import MetaFactory, FactoryTypeMeta
@@ -24,7 +25,7 @@ class ApplicationTaskFactory(MetaFactory):
             application: The application instance to build tasks for.
         """
         tasks = cls.get_registered_types().values()
-        log(cls).info(f'Building {len(tasks)} tasks for application {application.name}')
+        log(cls).debug(f'Building {len(tasks)} tasks for application {application.name}')
         for task in tasks:
             if issubclass(task, ApplicationTask):
                 log(cls).debug(f'Registering task: {task.__name__}')
@@ -91,7 +92,7 @@ class ApplicationTask(
 
     def register_menu_command(
         self,
-        menu: IGuiMenu,
+        menu: tk.Menu,
         registry_id: str,
         registry_path: str,
         index: int,
@@ -106,7 +107,9 @@ class ApplicationTask(
         """Register a command to the application's menu bar.
         Additionally, register the command with the MenuRegistry.
         """
-        menu.add_item(
+        command = command if command is not None else lambda: None  # No-op if no command provided
+
+        menu.insert_command(
             index=index,
             label=label,
             command=command,
@@ -114,12 +117,12 @@ class ApplicationTask(
             underline=underline
         )
         if not enabled:
-            menu.disable_item(index)
+            menu.entryconfig(index, state=tk.DISABLED)  # Disable the menu item if not enabled
 
         MenuRegistry.register_item(
             menu_id=registry_id,
             menu_path=registry_path,
-            menu_widget=menu.menu,
+            menu_widget=menu,
             menu_index=index,
             owner=self.__class__.__name__,
             command=command,
@@ -129,24 +132,24 @@ class ApplicationTask(
 
     def register_submenu(
         self,
-        menu: IGuiMenu,
-        submenu: IGuiMenu,
+        menu: tk.Menu,
+        submenu: tk.Menu,
         registry_id: str,
         registry_path: str,
         index: int,
         label: str,
         underline: int,
         category: str | None = None
-    ) -> IGuiMenu:
+    ) -> tk.Menu:
         """Register a submenu to the application's menu bar.
         Additionally, register the submenu with the MenuRegistry.
 
         Returns:
             IGuiMenu: The created submenu instance.
         """
-        menu.insert_submenu(
+        menu.insert_cascade(
             label=label,
-            submenu=submenu,
+            menu=submenu,
             index=index,
             underline=underline
         )
@@ -154,7 +157,7 @@ class ApplicationTask(
         MenuRegistry.register_item(
             menu_id=registry_id,
             menu_path=registry_path,
-            menu_widget=submenu.menu,
+            menu_widget=submenu,
             menu_index=index,
             owner=self.__class__.__name__,
             category=category

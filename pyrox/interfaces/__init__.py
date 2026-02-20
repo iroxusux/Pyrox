@@ -91,8 +91,6 @@ from .services import (
     IEnvironmentManager,
     ILogger,
     ILoggingManager,
-    IThemeManager,
-    IConfigurationManager,
 )
 
 # Application interfaces
@@ -101,27 +99,9 @@ from .application import (
     IApplicationTask,
 )
 
-# Event interfaces
-from .events import (
-    IObserver,
-    ISubscribable,
-    IEventPublisher,
-    INotificationService,
-)
-
-# Integration interfaces
-from .integration import (
-    IServiceRegistry,
-    IBackendRegistry,
-    IDependencyInjector,
-    IPluginManager,
-)
-
 # GUI interfaces
 from .gui import (
     IApplicationGuiMenu,
-    GuiFramework,
-    IGuiBackend,
     IGuiComponent,
     IGuiFrame,
     ITaskFrame,
@@ -209,8 +189,6 @@ __all__ = (
     'IBasePhysicsBody',
 
     # GUI Interfaces
-    'GuiFramework',
-    'IGuiBackend',
     'IGuiWidget',
     'IGuiWindow',
     'IGuiMenu',
@@ -225,24 +203,10 @@ __all__ = (
     'IEnvironmentManager',
     'ILogger',
     'ILoggingManager',
-    'IThemeManager',
-    'IConfigurationManager',
 
     # Application Interfaces
     'IApplication',
     'IApplicationTask',
-
-    # Event Interfaces
-    'IObserver',
-    'ISubscribable',
-    'IEventPublisher',
-    'INotificationService',
-
-    # Integration Interfaces
-    'IServiceRegistry',
-    'IBackendRegistry',
-    'IDependencyInjector',
-    'IPluginManager',
 
     # Connection Interfaces
     'IConnectionRegistry',

@@ -47,7 +47,7 @@ class HelpTask(ApplicationTask):
             registry_path="Help/About Pyrox",
             index=0,
             label="About Pyrox",
-            command=lambda: show_help_window(self.gui.root_window()),  # Show about/help window
+            command=lambda: show_help_window(self.gui.get_root()),  # Show about/help window
             accelerator="F1",
             underline=0,
             category="help",

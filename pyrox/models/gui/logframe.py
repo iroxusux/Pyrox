@@ -6,14 +6,13 @@ from typing import Callable, Optional, TextIO, Union
 import tkinter as tk
 from tkinter import ttk
 from pyrox.models.gui import meta
-from pyrox.models.gui.frame import PyroxFrameContainer
 from pyrox.services.logging import LoggingManager, log
 
 
 __all__ = ('LogFrame',)
 
 
-class LogFrame(PyroxFrameContainer):
+class LogFrame(ttk.Frame):
     """Enhanced log window that captures both logging and stderr/stdout.
 
     Automatically connects to the LoggingManager to display log messages from sys.stdout and sys.stderr.
@@ -22,20 +21,21 @@ class LogFrame(PyroxFrameContainer):
 
     def __init__(
         self,
-        parent
+        master: ttk.Widget | tk.Misc,
+        name: str = 'logframe',
     ) -> None:
-        super().__init__(master=parent)
+        super().__init__(master=master, name=name)
 
         # Create toolbar frame
-        self._toolbar = PyroxFrameContainer(
-            master=self.frame.root,
+        self._toolbar = ttk.Frame(
+            master=self,
             height=30,
         )
-        self._toolbar.frame.pack(
+        self._toolbar.pack(
             fill=tk.X,
             side=tk.TOP
         )
-        self._toolbar.frame.pack_propagate(False)
+        self._toolbar.pack_propagate(False)
 
         self._setup_toolbar()
         self._setup_text_widget()
@@ -61,7 +61,7 @@ class LogFrame(PyroxFrameContainer):
         self._trim_log_text_lines()
         self._logtext.config(state='disabled')
         self._logtext.update_idletasks()
-        self.frame.update_idletasks()
+        self.update_idletasks()
 
     @staticmethod
     def _get_msg_colors(tag: str) -> tuple[str, str]:
@@ -119,7 +119,7 @@ class LogFrame(PyroxFrameContainer):
 
     def _setup_text_widget(self):
         """Setup the main text widget and scrollbar."""
-        text_frame = ttk.Frame(self.frame.root)
+        text_frame = ttk.Frame(self)
         text_frame.pack(
             side=tk.BOTTOM,
             fill=tk.BOTH,
@@ -296,7 +296,7 @@ class LogFrame(PyroxFrameContainer):
         """Add a custom button to the toolbar."""
 
         button = ttk.Button(
-            self._toolbar.frame.root,
+            self._toolbar,
             text=text,
             command=command,
             width=8,
@@ -312,7 +312,7 @@ class LogFrame(PyroxFrameContainer):
         default_option: Optional[str] = None
     ) -> ttk.OptionMenu:
         """Add a custom dropdown to the toolbar."""
-        variable = tk.StringVar(self._toolbar.frame.root)
+        variable = tk.StringVar(self._toolbar)
 
         if len(options) == 0:
             raise ValueError('Options list cannot be empty.')
@@ -324,7 +324,7 @@ class LogFrame(PyroxFrameContainer):
             raise ValueError(f'Default option "{default_option}" not in options list.')
 
         dropdown = ttk.OptionMenu(
-            self._toolbar.frame.root,
+            self._toolbar,
             variable,
             default_option,
             *options,
@@ -341,7 +341,7 @@ class LogFrame(PyroxFrameContainer):
             self._logtext.config(state='normal')
             self._logtext.delete('1.0', 'end')
             self._logtext.config(state='disabled')
-            self.frame.update()
+            self.update()
         except tk.TclError as e:
             print(f'Error clearing log window: {e}')
 
@@ -393,7 +393,7 @@ if __name__ == '__main__':
     generate_pushbutton.pack(side=tk.LEFT, padx=5, pady=5)
 
     log_frame = LogFrame(root)
-    log_frame.frame.pack(fill=tk.BOTH, expand=True)
+    log_frame.pack(fill=tk.BOTH, expand=True)
 
     # Test logging
     log('test').info("This is an info message.")

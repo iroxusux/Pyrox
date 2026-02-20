@@ -32,15 +32,10 @@ class TestSceneRunnerService(unittest.TestCase):
         self.mock_scene.on_scene_object_added = []
         self.mock_scene.on_scene_object_removed = []
 
-        # Create mock backend for GuiManager
-        self.mock_backend = Mock()
-        self.mock_backend.schedule_event = Mock(return_value="event_id_123")
-        self.mock_backend.cancel_scheduled_event = Mock()
-
         # Patch GuiManager to return the mock backend
-        self.gui_manager_patcher = patch('pyrox.services.scene.GuiManager')
+        self.gui_manager_patcher = patch('pyrox.services.scene.TkGuiManager')
         self.mock_gui_manager_class = self.gui_manager_patcher.start()
-        self.mock_gui_manager_class.unsafe_get_backend.return_value = self.mock_backend
+        self.mock_gui_manager_class.schedule_event.return_value = "event_id_123"
 
         # Reset the static class state
         SceneRunnerService._running = False
@@ -49,8 +44,6 @@ class TestSceneRunnerService(unittest.TestCase):
         SceneRunnerService._environment = None
         SceneRunnerService._physics_engine = None
         SceneRunnerService._event_id = None
-        SceneRunnerService._on_tick_callbacks = []
-        SceneRunnerService._on_scene_load_callbacks = []
         SceneRunnerService._update_interval_ms = 16
 
         # Clear event bus subscriptions
@@ -69,8 +62,6 @@ class TestSceneRunnerService(unittest.TestCase):
         SceneRunnerService._environment = None
         SceneRunnerService._physics_engine = None
         SceneRunnerService._event_id = None
-        SceneRunnerService._on_tick_callbacks = []
-        SceneRunnerService._on_scene_load_callbacks = []
 
         # Clear event bus subscriptions
         SceneEventBus.clear()
@@ -177,7 +168,6 @@ class TestSceneRunnerService(unittest.TestCase):
         SceneRunnerService.run()
 
         self.assertTrue(SceneRunnerService._running)
-        self.mock_backend.schedule_event.assert_called_once()
         self.assertEqual(SceneRunnerService._event_id, "event_id_123")
 
     def test_run_when_already_running(self):
@@ -189,10 +179,10 @@ class TestSceneRunnerService(unittest.TestCase):
         )
 
         SceneRunnerService.run()
-        call_count_1 = self.mock_backend.schedule_event.call_count
+        call_count_1 = self.mock_gui_manager_class.schedule_event.call_count
 
         SceneRunnerService.run()  # Call again
-        call_count_2 = self.mock_backend.schedule_event.call_count
+        call_count_2 = self.mock_gui_manager_class.schedule_event.call_count
 
         # Should not schedule again
         self.assertEqual(call_count_1, call_count_2)
@@ -209,7 +199,7 @@ class TestSceneRunnerService(unittest.TestCase):
         SceneRunnerService.stop()
 
         self.assertFalse(SceneRunnerService._running)
-        self.mock_backend.cancel_scheduled_event.assert_called_once_with("event_id_123")
+        self.mock_gui_manager_class.cancel_scheduled_event.assert_called_once_with("event_id_123")
         self.assertIsNone(SceneRunnerService._event_id)
 
     def test_stop_when_not_running(self):
@@ -335,13 +325,13 @@ class TestSceneRunnerService(unittest.TestCase):
         )
 
         SceneRunnerService.run()
-        initial_call_count = self.mock_backend.schedule_event.call_count
+        initial_call_count = self.mock_gui_manager_class.schedule_event.call_count
 
         SceneRunnerService._run_scene()
 
         # Should schedule again
         self.assertGreater(
-            self.mock_backend.schedule_event.call_count,
+            self.mock_gui_manager_class.schedule_event.call_count,
             initial_call_count
         )
 

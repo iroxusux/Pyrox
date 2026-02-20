@@ -8,7 +8,6 @@ for efficient UI management.
 import tkinter as tk
 from tkinter import ttk
 from typing import Dict, List, Optional, Callable, Any
-from pyrox.models.gui.frame import PyroxFrameContainer
 
 
 class PyroxNotebook(ttk.Notebook):
@@ -52,7 +51,7 @@ class PyroxNotebook(ttk.Notebook):
         self.enable_tab_reordering = enable_tab_reordering
 
         # Internal tracking
-        self._tab_frames: Dict[str, PyroxFrameContainer] = {}
+        self._tab_frames: Dict[str, ttk.Frame] = {}
         self._tab_data: Dict[str, Dict[str, Any]] = {}
         self._tab_callbacks: Dict[str, Callable] = {}
         self._tab_counter = 0
@@ -60,9 +59,9 @@ class PyroxNotebook(ttk.Notebook):
         self._context_menu: Optional[tk.Menu] = None
 
         # Event callbacks
-        self.on_tab_added: Optional[Callable[[str, PyroxFrameContainer], None]] = None
+        self.on_tab_added: Optional[Callable[[str, ttk.Frame], None]] = None
         self.on_tab_removed: Optional[Callable[[str], None]] = None
-        self.on_tab_selected: Optional[Callable[[str, PyroxFrameContainer], None]] = None
+        self.on_tab_selected: Optional[Callable[[str, ttk.Frame], None]] = None
         self.on_tab_renamed: Optional[Callable[[str, str, str], None]] = None
 
         # Set up event bindings
@@ -96,11 +95,11 @@ class PyroxNotebook(ttk.Notebook):
     def add_frame_tab(
         self,
         text: str,
-        frame_class: type = PyroxFrameContainer,
+        frame_class: type = ttk.Frame,
         tab_id: Optional[str] = None,
         closeable: bool = True,
         **frame_kwargs
-    ) -> tuple[str, PyroxFrameContainer]:
+    ) -> tuple[str, ttk.Frame]:
         """
         Add a new tab with a PyroxFrame.
 
@@ -181,7 +180,7 @@ class PyroxNotebook(ttk.Notebook):
         frame = self._tab_frames[tab_id]
 
         # Remove from notebook
-        self.forget(frame.frame)
+        self.forget(frame)
 
         # Clean up references
         del self._tab_frames[tab_id]
@@ -198,7 +197,7 @@ class PyroxNotebook(ttk.Notebook):
 
         return True
 
-    def get_tab_frame(self, tab_id: str) -> Optional[PyroxFrameContainer]:
+    def get_tab_frame(self, tab_id: str) -> Optional[ttk.Frame]:
         """Get the frame associated with a tab ID."""
         return self._tab_frames.get(tab_id)
 
@@ -211,7 +210,7 @@ class PyroxNotebook(ttk.Notebook):
                     return tab_id
         return None
 
-    def get_current_tab_frame(self) -> Optional[PyroxFrameContainer]:
+    def get_current_tab_frame(self) -> Optional[ttk.Frame]:
         """Get the frame of the currently selected tab."""
         tab_id = self.get_current_tab_id()
         return self.get_tab_frame(tab_id) if tab_id else None
@@ -224,7 +223,7 @@ class PyroxNotebook(ttk.Notebook):
         """Select a tab by ID."""
         frame = self.get_tab_frame(tab_id)
         if frame:
-            self.select(frame.frame)
+            self.select(frame)
             return True
         return False
 
@@ -435,7 +434,7 @@ def create_demo_window():
     )
 
     # Add some demo content classes
-    class TextDemoFrame(PyroxFrameContainer):
+    class TextDemoFrame(ttk.Frame):
         """Demo frame with text content."""
 
         def __init__(self, master, content="Sample content"):
@@ -443,7 +442,7 @@ def create_demo_window():
 
             # Add a text widget with sample content
             text_widget = tk.Text(
-                self.frame_root,
+                self,
                 wrap='word',
                 font=('Consolas', 10),
                 bg='#101010',
@@ -453,14 +452,14 @@ def create_demo_window():
             text_widget.pack(fill='both', expand=True, padx=5, pady=5)
             text_widget.insert('1.0', content)
 
-    class TreeDemoFrame(PyroxFrameContainer):
+    class TreeDemoFrame(ttk.Frame):
         """Demo frame with treeview content."""
 
         def __init__(self, master):
             super().__init__(master=master)
 
             # Add a simple treeview
-            tree = ttk.Treeview(self.frame_root, columns=('value',), show='tree headings')
+            tree = ttk.Treeview(self, columns=('value',), show='tree headings')
             tree.heading('#0', text='Item')
             tree.heading('value', text='Value')
 
@@ -473,16 +472,16 @@ def create_demo_window():
 
             tree.pack(fill='both', expand=True, padx=5, pady=5)
 
-    class ButtonDemoFrame(PyroxFrameContainer):
+    class ButtonDemoFrame(ttk.Frame):
         """Demo frame with buttons and controls."""
 
         def __init__(self, master):
             super().__init__(master=master)
 
             # Add various controls
-            ttk.Label(self.frame_root, text="Control Demo").pack(pady=10)
+            ttk.Label(self, text="Control Demo").pack(pady=10)
 
-            button_frame = ttk.Frame(self.frame_root)
+            button_frame = ttk.Frame(self)
             button_frame.pack(fill='x', padx=10, pady=5)
 
             ttk.Button(button_frame, text="Button 1").pack(side='left', padx=5)
@@ -490,13 +489,13 @@ def create_demo_window():
             ttk.Button(button_frame, text="Button 3").pack(side='left', padx=5)
 
             # Add entry and combobox
-            entry_frame = ttk.Frame(self.frame_root)
+            entry_frame = ttk.Frame(self)
             entry_frame.pack(fill='x', padx=10, pady=5)
 
             ttk.Label(entry_frame, text="Entry:").pack(side='left')
             ttk.Entry(entry_frame).pack(side='left', fill='x', expand=True, padx=5)
 
-            combo_frame = ttk.Frame(self.frame_root)
+            combo_frame = ttk.Frame(self)
             combo_frame.pack(fill='x', padx=10, pady=5)
 
             ttk.Label(combo_frame, text="Combo:").pack(side='left')
@@ -615,13 +614,13 @@ Total Tabs: {notebook.get_tab_count()}
     status_bar.pack(fill='x', side='bottom')
 
     # Set up event callbacks
-    def on_tab_added_callback(tab_id: str, frame: PyroxFrameContainer):
+    def on_tab_added_callback(tab_id: str, frame: ttk.Frame):
         status_var.set(f"Tab added: {tab_id}")
 
     def on_tab_removed_callback(tab_id: str):
         status_var.set(f"Tab removed: {tab_id}")
 
-    def on_tab_selected_callback(tab_id: str, frame: PyroxFrameContainer):
+    def on_tab_selected_callback(tab_id: str, frame: ttk.Frame):
         info = notebook.get_tab_info(tab_id)
         if info:
             status_var.set(f"Selected: {info['text']} (ID: {tab_id})")

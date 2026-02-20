@@ -121,7 +121,7 @@ class SceneBridge(ISceneBridge):
         if self._active and direction in (BindingDirection.READ, BindingDirection.BOTH):
             self._on_binding_activated(binding)
 
-        log(self).info(
+        log(self).debug(
             f"Added binding: {binding_key} -> {object_id}.{property_path} ({direction.value})"
         )
         return binding
@@ -136,7 +136,7 @@ class SceneBridge(ISceneBridge):
             self._on_binding_deactivated(binding)
 
         del self._bindings[binding_id]
-        log(self).info(f"Removed binding: {binding_id}")
+        log(self).debug(f"Removed binding: {binding_id}")
         return True
 
     def clear_bindings(self) -> None:
@@ -145,7 +145,7 @@ class SceneBridge(ISceneBridge):
         self._bindings.clear()
         self._last_write_time.clear()
         self._last_read_time.clear()
-        log(self).info("Cleared all bindings")
+        log(self).debug("Cleared all bindings")
 
     def get_bindings(self) -> list[ISceneBinding]:
         return list(self._bindings.values())
@@ -164,21 +164,21 @@ class SceneBridge(ISceneBridge):
 
     def set_write_enabled(self, enabled: bool) -> None:
         self._write_enabled = enabled
-        log(self).info(f"Bridge write {'enabled' if enabled else 'disabled'}")
+        log(self).debug(f"Bridge write {'enabled' if enabled else 'disabled'}")
 
     def get_write_throttle(self) -> float:
         return self._write_throttle_ms
 
     def set_write_throttle(self, throttle_ms: float) -> None:
         self._write_throttle_ms = throttle_ms
-        log(self).info(f"Bridge write throttle set to {throttle_ms}ms")
+        log(self).debug(f"Bridge write throttle set to {throttle_ms}ms")
 
     def get_read_throttle(self) -> float:
         return self._read_throttle_ms
 
     def set_read_throttle(self, throttle_ms: float) -> None:
         self._read_throttle_ms = throttle_ms
-        log(self).info(f"Bridge read throttle set to {throttle_ms}ms")
+        log(self).debug(f"Bridge read throttle set to {throttle_ms}ms")
 
     def get_binding_stats(self) -> dict[str, Any]:
         read_count = sum(
@@ -222,7 +222,7 @@ class SceneBridge(ISceneBridge):
             self._tick_callback_registered = self._register_tick_callback(self._on_tick)
 
         self._active = True
-        log(self).info(f"Scene bridge started with {len(self._bindings)} bindings")
+        log(self).debug(f"Scene bridge started with {len(self._bindings)} bindings")
 
     def stop(self) -> None:
         if not self._active:
@@ -238,7 +238,7 @@ class SceneBridge(ISceneBridge):
 
         self._on_stop()
         self._active = False
-        log(self).info("Scene bridge stopped")
+        log(self).debug("Scene bridge stopped")
 
     def _on_tick(self, *_) -> None:
         self.update_source_to_scene()
@@ -283,10 +283,6 @@ class SceneBridge(ISceneBridge):
 
             binding.last_scene_value = scene_value
             self._last_write_time[binding.binding_key] = current_time
-            log(self).debug(
-                f"Wrote source value: {binding.binding_key} = {source_value} "
-                f"(from {binding.object_id}.{binding.property_path})"
-            )
 
     def force_write_binding(self, binding_key: str, object_id: str, property_path: str) -> bool:
         binding_id = self._binding_id(binding_key, object_id, property_path)
@@ -324,7 +320,7 @@ class SceneBridge(ISceneBridge):
 
         binding.last_scene_value = scene_value
         self._last_write_time[binding.binding_key] = time.time() * 1000
-        log(self).info(f"Force wrote source value: {binding.binding_key} = {source_value}")
+        log(self).debug(f"Force wrote source value: {binding.binding_key} = {source_value}")
         return True
 
     def handle_source_update(
@@ -432,10 +428,6 @@ class SceneBridge(ISceneBridge):
                 binding.last_source_value = source_value
                 binding.last_scene_value = scene_value
                 self._last_read_time[binding.binding_key] = current_time
-                log(self).debug(
-                    f"Applied source value: {binding.binding_key} = {source_value} "
-                    f"-> {binding.object_id}.{binding.property_path}"
-                )
             except Exception as exc:
                 log(self).error(
                     f"Error applying {binding.binding_key} to "
@@ -456,10 +448,6 @@ class SceneBridge(ISceneBridge):
         try:
             self._set_scene_property(binding.object_id, binding.property_path, scene_value)
             binding.last_scene_value = scene_value
-            log(self).debug(
-                f"Set {binding.object_id}.{binding.property_path} = {scene_value} "
-                f"(from {binding.binding_key})"
-            )
         except Exception as exc:
             log(self).error(
                 f"Error setting {binding.object_id}.{binding.property_path} from "

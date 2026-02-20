@@ -2,6 +2,7 @@
 This file is paired with the Sceneviewer GUI to initialize all command bar buttons.
 They intialize as disabled until a sceneviewer is running, but all the buttons will occupy a space in the menu.
 """
+import tkinter as tk
 from pyrox.interfaces.application import IApplication
 from pyrox.models import ApplicationTask, Scene
 from pyrox.models.gui import SceneViewerFrame
@@ -71,8 +72,8 @@ class SceneviewerApplicationTask(ApplicationTask):
         )
 
         # ---------- Edit Menu ----------
-        scene_edit_dropdown = self.gui.unsafe_get_backend().create_gui_menu(
-            master=self.edit_menu.menu,
+        scene_edit_dropdown = tk.Menu(
+            master=self.edit_menu,
             tearoff=0
         )
 
@@ -90,7 +91,7 @@ class SceneviewerApplicationTask(ApplicationTask):
         )
 
         self.register_submenu(
-            menu=self.gui.gui_menu().edit_menu,
+            menu=self.edit_menu,
             submenu=scene_edit_dropdown,
             registry_id="scene.edit",
             registry_path="Edit/Scene Viewer",
@@ -115,8 +116,8 @@ class SceneviewerApplicationTask(ApplicationTask):
             subcategory="persistent"
         )
 
-        scene_view_dropdown = self.gui.unsafe_get_backend().create_gui_menu(
-            master=self.view_menu.menu,
+        scene_view_dropdown = tk.Menu(
+            master=self.view_menu,
             tearoff=0
         )
 
@@ -271,7 +272,7 @@ class SceneviewerApplicationTask(ApplicationTask):
         )
 
         self.register_submenu(
-            menu=self.gui.gui_menu().view_menu,
+            menu=self.view_menu,
             submenu=scene_view_dropdown,
             registry_id="scene.view",
             registry_path="View/Scene Viewer",

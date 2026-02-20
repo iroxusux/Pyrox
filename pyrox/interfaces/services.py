@@ -7,7 +7,7 @@ dependencies, enabling clean separation of concerns.
 
 from __future__ import annotations
 from abc import ABC, abstractmethod
-from typing import Any, Dict, List, Optional, TextIO
+from typing import Any, Optional, TextIO
 
 
 class IEnvironmentManager(ABC):
@@ -54,7 +54,7 @@ class IEnvironmentManager(ABC):
         pass
 
     @abstractmethod
-    def get_all(self, prefix: Optional[str] = None) -> Dict[str, str]:
+    def get_all(self, prefix: Optional[str] = None) -> dict[str, str]:
         """Get all environment variables, optionally filtered by prefix.
 
         Args:
@@ -244,147 +244,8 @@ class ILoggingManager(ABC):
         pass
 
 
-class IThemeManager(ABC):
-    """Interface for theme management.
-
-    Provides functionality for managing application themes, styles,
-    and visual appearance across different GUI frameworks.
-    """
-
-    @abstractmethod
-    def load_theme(self, theme_name: str) -> bool:
-        """Load a theme by name.
-
-        Args:
-            theme_name: Name of the theme to load.
-
-        Returns:
-            bool: True if theme was loaded successfully.
-        """
-        pass
-
-    @abstractmethod
-    def get_current_theme(self) -> str:
-        """Get the name of the currently active theme.
-
-        Returns:
-            str: Current theme name.
-        """
-        pass
-
-    @abstractmethod
-    def get_available_themes(self) -> List[str]:
-        """Get list of available theme names.
-
-        Returns:
-            List[str]: List of available theme names.
-        """
-        pass
-
-    @abstractmethod
-    def register_theme(self, name: str, theme_data: Dict[str, Any]) -> None:
-        """Register a new theme.
-
-        Args:
-            name: Theme name.
-            theme_data: Theme configuration data.
-        """
-        pass
-
-    @abstractmethod
-    def apply_to_component(self, component: Any, style_name: Optional[str] = None) -> None:
-        """Apply theme styling to a GUI component.
-
-        Args:
-            component: The GUI component to style.
-            style_name: Optional specific style name to apply.
-        """
-        pass
-
-
-class IConfigurationManager(ABC):
-    """Interface for configuration management.
-
-    Provides functionality for loading, saving, and managing application
-    configuration from various sources and formats.
-    """
-
-    @abstractmethod
-    def load_config(self, config_path: str) -> bool:
-        """Load configuration from a file.
-
-        Args:
-            config_path: Path to the configuration file.
-
-        Returns:
-            bool: True if loaded successfully.
-        """
-        pass
-
-    @abstractmethod
-    def save_config(self, config_path: str) -> bool:
-        """Save configuration to a file.
-
-        Args:
-            config_path: Path to save the configuration.
-
-        Returns:
-            bool: True if saved successfully.
-        """
-        pass
-
-    @abstractmethod
-    def get_value(self, key: str, default: Any = None) -> Any:
-        """Get a configuration value.
-
-        Args:
-            key: Configuration key (supports dot notation for nested values).
-            default: Default value if key not found.
-
-        Returns:
-            Any: The configuration value.
-        """
-        pass
-
-    @abstractmethod
-    def set_value(self, key: str, value: Any) -> None:
-        """Set a configuration value.
-
-        Args:
-            key: Configuration key (supports dot notation for nested values).
-            value: The value to set.
-        """
-        pass
-
-    @abstractmethod
-    def has_key(self, key: str) -> bool:
-        """Check if a configuration key exists.
-
-        Args:
-            key: The key to check.
-
-        Returns:
-            bool: True if key exists, False otherwise.
-        """
-        pass
-
-    @abstractmethod
-    def get_section(self, section: str) -> Dict[str, Any]:
-        """Get all values from a configuration section.
-
-        Args:
-            section: Section name.
-
-        Returns:
-            Dict[str, Any]: Section configuration values.
-        """
-        pass
-
-
 __all__ = (
     'IEnvironmentManager',
     'ILogger',
     'ILoggingManager',
-    'IThemeManager',
-    'IConfigurationManager',
 )

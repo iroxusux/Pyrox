@@ -88,7 +88,7 @@ class TestFileServices(unittest.TestCase):
         result = get_all_files_in_directory(dir_only)
         self.assertEqual(result, [])
 
-    @patch('pyrox.services.gui.GuiManager.prompt_user_open_file')
+    @patch('pyrox.services.gui.TkGuiManager.prompt_user_open_file')
     def test_get_open_file_basic(self, mock_prompt):
         """Test basic file opening dialog."""
         mock_prompt.return_value = '/path/to/file.txt'
@@ -101,7 +101,7 @@ class TestFileServices(unittest.TestCase):
         self.assertEqual(result, '/path/to/file.txt')
         mock_prompt.assert_called_once_with(title, filetypes)
 
-    @patch('pyrox.services.gui.GuiManager.prompt_user_open_file')
+    @patch('pyrox.services.gui.TkGuiManager.prompt_user_open_file')
     def test_get_open_file_no_title(self, mock_prompt):
         """Test file opening dialog without title."""
         mock_prompt.return_value = '/path/to/file.txt'
@@ -113,7 +113,7 @@ class TestFileServices(unittest.TestCase):
         # Default title is 'Open File'
         mock_prompt.assert_called_once_with('Open File', filetypes)
 
-    @patch('pyrox.services.gui.GuiManager.prompt_user_open_file')
+    @patch('pyrox.services.gui.TkGuiManager.prompt_user_open_file')
     def test_get_open_file_cancelled(self, mock_prompt):
         """Test file opening dialog when user cancels."""
         mock_prompt.return_value = ''  # Empty string when cancelled
@@ -124,7 +124,7 @@ class TestFileServices(unittest.TestCase):
 
         self.assertEqual(result, '')
 
-    @patch('pyrox.services.gui.GuiManager.prompt_user_save_file')
+    @patch('pyrox.services.gui.TkGuiManager.prompt_user_save_file')
     def test_get_save_file_basic(self, mock_prompt):
         """Test basic save file dialog."""
         mock_prompt.return_value = '/path/to/save/file.txt'
@@ -137,7 +137,7 @@ class TestFileServices(unittest.TestCase):
         # Default title is 'Save File As'
         mock_prompt.assert_called_once_with('Save File As', filetypes)
 
-    @patch('pyrox.services.gui.GuiManager.prompt_user_save_file')
+    @patch('pyrox.services.gui.TkGuiManager.prompt_user_save_file')
     def test_get_save_file_cancelled(self, mock_prompt):
         """Test save file dialog when user cancels."""
         mock_prompt.return_value = ''
@@ -148,7 +148,7 @@ class TestFileServices(unittest.TestCase):
 
         self.assertEqual(result, '')
 
-    @patch('pyrox.services.gui.GuiManager.prompt_user_select_directory')
+    @patch('pyrox.services.gui.TkGuiManager.prompt_user_select_directory')
     def test_get_save_location_basic(self, mock_prompt):
         """Test basic directory selection dialog."""
         mock_prompt.return_value = '/path/to/directory'
@@ -158,7 +158,7 @@ class TestFileServices(unittest.TestCase):
         self.assertEqual(result, '/path/to/directory')
         mock_prompt.assert_called_once()
 
-    @patch('pyrox.services.gui.GuiManager.prompt_user_select_directory')
+    @patch('pyrox.services.gui.TkGuiManager.prompt_user_select_directory')
     def test_get_save_location_cancelled(self, mock_prompt):
         """Test directory selection when user cancels."""
         mock_prompt.return_value = ''

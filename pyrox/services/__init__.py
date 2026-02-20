@@ -22,8 +22,14 @@ from .id import IdGeneratorService
 # Theme imports
 from .theme import ThemeManager
 
+# Menu registry imports
+from .menu_registry import (
+    MenuRegistry,
+    MenuItemDescriptor
+)
+
 # GUI imports
-from .gui import GuiManager
+from .gui import TkGuiManager
 
 # File imports
 from .file import (
@@ -57,11 +63,6 @@ from .scene import (
     SceneEventBus,
 )
 
-# Menu registry imports
-from .menu_registry import (
-    MenuRegistry,
-    MenuItemDescriptor
-)
 
 # Canvas imports
 from .canvas import CanvasObjectManagmenentService
@@ -116,7 +117,7 @@ __all__ = (
     # Theme imports
     'ThemeManager',
     # GUI imports
-    'GuiManager',
+    'TkGuiManager',
     # File imports
     'get_open_file',
     'get_save_file',

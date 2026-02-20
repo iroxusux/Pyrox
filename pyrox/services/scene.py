@@ -14,7 +14,7 @@ from pyrox.interfaces import (
     ISceneRunnerService,
 )
 
-from pyrox.services import GuiManager, log, physics
+from pyrox.services import TkGuiManager, log, physics
 from pyrox.services import environment as env
 from pyrox.services.file import get_open_file, get_save_file
 
@@ -219,7 +219,7 @@ class SceneBridgeService:
         SceneEventBus.subscribe(SceneEventType.SCENE_UNLOADED, cls._on_scene_unloaded)
         SceneEventBus.subscribe(SceneEventType.SCENE_SAVED,    cls._on_scene_saved)
         cls._initialized = True
-        log(cls).info("SceneBridgeService initialized")
+        log(cls).debug("SceneBridgeService initialized")
 
     @classmethod
     def reset(cls) -> None:
@@ -275,7 +275,7 @@ class SceneBridgeService:
                 f"Call unregister_source_factory first to replace it."
             )
         cls._source_factories[name] = factory
-        log(cls).info(f"SceneBridgeService: registered source factory '{name}'")
+        log(cls).debug(f"SceneBridgeService: registered source factory '{name}'")
 
         # If a bridge is already live, add the source to the current layer now.
         if cls._bridge is not None:
@@ -294,7 +294,7 @@ class SceneBridgeService:
         """
         if name in cls._source_factories:
             del cls._source_factories[name]
-            log(cls).info(f"SceneBridgeService: unregistered source factory '{name}'")
+            log(cls).debug(f"SceneBridgeService: unregistered source factory '{name}'")
 
     @classmethod
     def list_source_factories(cls) -> list[str]:
@@ -652,10 +652,10 @@ class SceneRunnerService(
         cls._running = True
         cls._current_time = datetime.now().timestamp()
 
-        log(cls).info("Scene runner started")
+        log(cls).debug("Scene runner started")
 
         # Schedule periodic updates
-        cls._event_id = GuiManager.unsafe_get_backend().schedule_event(
+        cls._event_id = TkGuiManager.schedule_event(
             cls._update_interval_ms,
             lambda: cls._run_scene()
         )
@@ -669,11 +669,11 @@ class SceneRunnerService(
 
         # Cancel scheduled updates
         if cls._event_id:
-            GuiManager.unsafe_get_backend().cancel_scheduled_event(cls._event_id)
+            TkGuiManager.cancel_scheduled_event(cls._event_id)
 
         # Reset state
         cls._event_id = None
-        log(cls).info(f"Scene runner stopped with code {stop_code}")
+        log(cls).debug(f"Scene runner stopped with code {stop_code}")
 
     @classmethod
     def _run_scene(cls) -> None:
@@ -702,7 +702,7 @@ class SceneRunnerService(
         cls._scene.update(time_delta)
 
         # Schedule scene update on the main thread
-        cls._event_id = GuiManager.unsafe_get_backend().schedule_event(
+        cls._event_id = TkGuiManager.schedule_event(
             cls._update_interval_ms,
             lambda: cls._run_scene()
         )
