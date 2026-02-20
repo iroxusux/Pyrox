@@ -849,17 +849,14 @@ Status: {info['status']['current_message']}
         tab_frame_container = self.sidebar_organizer.get_tab_frame(tab_id)
         if not tab_frame_container:
             raise RuntimeError("Failed to get sidebar tab frame")
-        frame = tab_frame_container.frame
-        if not frame:
-            raise RuntimeError("Failed to get sidebar tab frame")
 
         # Clear any children created by add_frame_tab
-        for child in frame.root.winfo_children():
+        for child in tab_frame_container.winfo_children():
             child.destroy()
 
         # Create container as a DIRECT child of the tab frame so it participates
         # in the notebook's z-order management correctly.
-        container = ttk.Frame(master=frame.root)
+        container = ttk.Frame(master=tab_frame_container)
         container.pack(fill='both', expand=True)
 
         # Place the widget inside the container.  If the caller created the widget
