@@ -24,7 +24,7 @@ class ApplicationTaskFactory(MetaFactory):
             application: The application instance to build tasks for.
         """
         tasks = cls.get_registered_types().values()
-        log(cls).info(f'Building {len(tasks)} tasks for application {application.name}')
+        log(cls).debug(f'Building {len(tasks)} tasks for application {application.name}')
         for task in tasks:
             if issubclass(task, ApplicationTask):
                 log(cls).debug(f'Registering task: {task.__name__}')
