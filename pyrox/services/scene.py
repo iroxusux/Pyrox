@@ -1,8 +1,8 @@
 from dataclasses import dataclass, field
 from datetime import datetime
-from enum import Enum, auto
+from enum import auto
 import importlib
-from typing import Any, Callable, Dict, List, Optional, Union
+from typing import Any, Callable
 import json
 from pathlib import Path
 from pyrox.interfaces import (
@@ -16,27 +16,28 @@ from pyrox.interfaces import (
 
 from pyrox.services import TkGuiManager, log, physics
 from pyrox.services import environment as env
+from pyrox.services.bus import EventBus, Event, EventType
 from pyrox.services.file import get_open_file, get_save_file
 
 
 class HasSceneMixin:
     def __init__(
         self,
-        scene: Optional[IScene] = None,
+        scene: IScene | None = None,
     ):
         self._scene = scene
 
-    def get_scene(self) -> Optional[IScene]:
+    def get_scene(self) -> IScene | None:
         return self._scene
 
-    def set_scene(self, scene: Optional[IScene]) -> None:
+    def set_scene(self, scene: IScene | None) -> None:
         self._scene = scene
 
     @property
-    def scene(self) -> Optional[IScene]: return self.get_scene()
+    def scene(self) -> IScene | None: return self.get_scene()
 
 
-class SceneEventType(Enum):
+class SceneEventType(EventType):
     """Types of scene-related events."""
 
     SCENE_LOADED = auto()  # A scene was loaded
@@ -52,15 +53,15 @@ class SceneEventType(Enum):
 
 
 @dataclass
-class SceneEvent:
+class SceneEvent(Event[SceneEventType]):
     """Event data for scene-related events."""
 
     event_type: SceneEventType
-    scene: Optional[IScene] = None  # The scene object, if applicable
-    data: Optional[Dict[str, Any]] = field(default_factory=dict)  # Additional event data
+    scene: IScene | None = None  # The scene object, if applicable
+    data: dict[str, Any] = field(default_factory=dict)  # Additional event data
 
 
-class SceneEventBus:
+class SceneEventBus(EventBus[SceneEventType, SceneEvent]):
     """Static event bus for scene-related events.
 
     This provides a centralized pub/sub system for scene events, enabling
@@ -82,90 +83,7 @@ class SceneEventBus:
         # Unsubscribe
         SceneEventBus.unsubscribe(SceneEventType.SCENE_LOADED, on_scene_loaded)
     """
-
-    _subscribers: Dict[SceneEventType, List[Callable[[SceneEvent], None]]] = {}
-
-    @classmethod
-    def subscribe(
-        cls,
-        event_type: SceneEventType,
-        callback: Callable[[SceneEvent], None]
-    ) -> None:
-        """Subscribe to a scene event type.
-
-        Args:
-            event_type: The type of event to subscribe to
-            callback: Function to call when the event occurs.
-                     Should accept a SceneEvent parameter.
-        """
-        if event_type not in cls._subscribers:
-            cls._subscribers[event_type] = []
-
-        if callback not in cls._subscribers[event_type]:
-            cls._subscribers[event_type].append(callback)
-            log(cls).debug(f"Subscribed {callback.__name__} to {event_type.name}")
-
-    @classmethod
-    def unsubscribe(
-        cls,
-        event_type: SceneEventType,
-        callback: Callable[[SceneEvent], None]
-    ) -> None:
-        """Unsubscribe from a scene event type.
-
-        Args:
-            event_type: The type of event to unsubscribe from
-            callback: The callback function to remove
-        """
-        if event_type in cls._subscribers:
-            if callback in cls._subscribers[event_type]:
-                cls._subscribers[event_type].remove(callback)
-                log(cls).debug(f"Unsubscribed {callback.__name__} from {event_type.name}")
-
-    @classmethod
-    def publish(
-        cls,
-        event: SceneEvent
-    ) -> None:
-        """Publish a scene event to all subscribers.
-
-        Args:
-            event: The event to publish
-        """
-        subscribers = cls._subscribers.get(event.event_type, [])
-
-        log(cls).debug(f"Publishing {event.event_type.name} to {len(subscribers)} subscribers")
-
-        # Call each subscriber, removing any that raise exceptions
-        dead_callbacks = []
-        for callback in subscribers.copy():
-            try:
-                callback(event)
-            except Exception as e:
-                log(cls).error(f"Error in event subscriber {callback.__name__}: {e}")
-                dead_callbacks.append(callback)
-
-        # Remove dead callbacks
-        for callback in dead_callbacks:
-            cls.unsubscribe(event.event_type, callback)
-
-    @classmethod
-    def clear(cls) -> None:
-        """Clear all subscriptions. Useful for testing."""
-        cls._subscribers.clear()
-        log(cls).debug("Cleared all event subscriptions")
-
-    @classmethod
-    def get_subscriber_count(cls, event_type: SceneEventType) -> int:
-        """Get the number of subscribers for an event type.
-
-        Args:
-            event_type: The event type to query
-
-        Returns:
-            Number of subscribers
-        """
-        return len(cls._subscribers.get(event_type, []))
+    pass
 
 
 class SceneBridgeService:
@@ -197,7 +115,7 @@ class SceneBridgeService:
         SceneRunnerService.load_scene("my_scene.json")  # bridge auto-created
     """
 
-    _bridge: Optional[ISceneBridge] = None  # SceneBridge instance
+    _bridge: ISceneBridge | None = None  # SceneBridge instance
     _initialized: bool = False
 
     # Registry of named source factories populated before a scene loads.
@@ -242,7 +160,7 @@ class SceneBridgeService:
     # ------------------------------------------------------------------
 
     @classmethod
-    def get_bridge(cls) -> Optional[ISceneBridge]:
+    def get_bridge(cls) -> ISceneBridge | None:
         """Return the currently active bridge, or ``None`` if no scene is loaded."""
         return cls._bridge
 
@@ -418,12 +336,12 @@ class SceneRunnerService(
     _current_time = datetime.now().timestamp()
 
     # Objects and services
-    _scene: Optional[IScene] = None
-    _environment: Optional[env.EnvironmentService] = None
-    _physics_engine: Optional[physics.PhysicsEngineService] = None
+    _scene: IScene | None = None
+    _environment: env.EnvironmentService | None = None
+    _physics_engine: physics.PhysicsEngineService | None = None
 
     # Scene file tracking (set by load_scene, consumed once by set_scene → SceneEventBus)
-    _last_scene_filepath: Optional[Path] = None
+    _last_scene_filepath: Path | None = None
 
     # Events
     _event_id: str | None = None
@@ -435,9 +353,9 @@ class SceneRunnerService(
     def initialize(
         cls,
         app: IApplication,
-        scene: Optional[IScene] = None,
-        physics_engine: Optional[physics.PhysicsEngineService] = None,
-        environment: Optional[env.EnvironmentService] = None,
+        scene: IScene | None = None,
+        physics_engine: physics.PhysicsEngineService | None = None,
+        environment: env.EnvironmentService | None = None,
         enable_physics: bool = False,
         update_interval: int = 16  # ~60 FPS (16ms)
     ):
@@ -482,7 +400,7 @@ class SceneRunnerService(
         cls._event_id = None
 
     @classmethod
-    def get_scene(cls) -> Optional[IScene]:
+    def get_scene(cls) -> IScene | None:
         """Get the scene being managed.
 
         Returns:
@@ -493,7 +411,7 @@ class SceneRunnerService(
     @classmethod
     def set_scene(
         cls,
-        scene: Optional[IScene]
+        scene: IScene | None
     ) -> None:
         """Set the scene to be managed.
 
@@ -526,7 +444,7 @@ class SceneRunnerService(
     @classmethod
     def load_scene(
         cls,
-        filepath: Optional[str | Path] = None
+        filepath: str | Path | None = None
     ) -> None:
         if not filepath:
             filepath = get_open_file(
@@ -552,7 +470,7 @@ class SceneRunnerService(
     @classmethod
     def save_scene(
         cls,
-        filepath: Optional[str | Path] = None
+        filepath: str | Path | None = None
     ) -> None:
         if not cls._scene:
             log(cls).warning("No scene to save")
@@ -733,7 +651,7 @@ class SceneRunnerService(
         cls._update_interval_ms = int(1000 / fps)
 
     @classmethod
-    def add_physics_body(cls, body: Union[IPhysicsBody2D, ISceneObject]) -> None:
+    def add_physics_body(cls, body: IPhysicsBody2D | ISceneObject) -> None:
         """Add a physics body to the simulation.
 
         Args:
