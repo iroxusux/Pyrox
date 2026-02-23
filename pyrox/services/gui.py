@@ -547,9 +547,9 @@ class TkGuiManager:
         menu: tk.Menu,
         index: int,
         label: str,
-        command: Callable | None,
-        accelerator: str,
-        underline: int,
+        command: Callable | None = None,
+        accelerator: str = '',
+        underline: int = 0,
     ) -> None:
         """Helper method to insert a menu command with an accelerator key binding."""
         original_command = command

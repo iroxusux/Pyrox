@@ -107,7 +107,7 @@ class SceneviewerApplicationTask(ApplicationTask):
             menu=self.view_menu,
             registry_id="scene.open_scene_viewer",
             registry_path="View/Scene Viewer",
-            index=0,
+            index=3,
             label="View Scene",
             command=self._open_scene_viewer,
             accelerator="Ctrl+Shift+S",
@@ -276,7 +276,7 @@ class SceneviewerApplicationTask(ApplicationTask):
             submenu=scene_view_dropdown,
             registry_id="scene.view",
             registry_path="View/Scene Viewer",
-            index=0,
+            index=2,
             label="Scene Viewer",
             underline=0,
             category="scene"

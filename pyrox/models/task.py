@@ -74,9 +74,9 @@ class ApplicationTask(
         registry_path: str,
         index: int,
         label: str,
-        command: Callable | None,
-        accelerator: str,
-        underline: int,
+        command: Callable | None = None,
+        accelerator: str = '',
+        underline: int = 0,
         category: str | None = None,
         subcategory: str | None = None,
         enabled: bool = True
