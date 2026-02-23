@@ -3,9 +3,11 @@
 Tasks are used to add additional functionality to the application via the toolbar
 in the main application frame or as background services.
 """
+import tkinter as tk
+from typing import Callable
 from pyrox.interfaces import IApplication, IApplicationTask
 from pyrox.models import ServicesRunnableMixin
-from pyrox.services import log
+from pyrox.services import log, MenuRegistry, TkGuiManager
 from pyrox.models.factory import MetaFactory, FactoryTypeMeta
 
 
@@ -65,8 +67,82 @@ class ApplicationTask(
         """
         self._application = application
 
+    def register_menu_command(
+        self,
+        menu: tk.Menu,
+        registry_id: str,
+        registry_path: str,
+        index: int,
+        label: str,
+        command: Callable | None,
+        accelerator: str,
+        underline: int,
+        category: str | None = None,
+        subcategory: str | None = None,
+        enabled: bool = True
+    ) -> None:
+        """Register a command to the application's menu bar.
+        Additionally, register the command with the MenuRegistry.
+        """
+        TkGuiManager.insert_menu_command_with_accelerator(
+            menu=menu,
+            index=index,
+            label=label,
+            command=command,
+            accelerator=accelerator,
+            underline=underline,
+        )
+
+        if not enabled:
+            menu.entryconfig(index, state=tk.DISABLED)  # Disable the menu item if not enabled
+
+        MenuRegistry.register_item(
+            menu_id=registry_id,
+            menu_path=registry_path,
+            menu_widget=menu,
+            menu_index=index,
+            owner=self.__class__.__name__,
+            command=command,
+            category=category,
+            subcategory=subcategory,
+        )
+
+    def register_submenu(
+        self,
+        menu: tk.Menu,
+        submenu: tk.Menu,
+        registry_id: str,
+        registry_path: str,
+        index: int,
+        label: str,
+        underline: int,
+        category: str | None = None
+    ) -> tk.Menu:
+        """Register a submenu to the application's menu bar.
+        Additionally, register the submenu with the MenuRegistry.
+
+        Returns:
+            IGuiMenu: The created submenu instance.
+        """
+        menu.insert_cascade(
+            label=label,
+            menu=submenu,
+            index=index,
+            underline=underline
+        )
+
+        MenuRegistry.register_item(
+            menu_id=registry_id,
+            menu_path=registry_path,
+            menu_widget=submenu,
+            menu_index=index,
+            owner=self.__class__.__name__,
+            category=category
+        )
+
+        return submenu
+
     __all__ = (
         'ApplicationTask',
         'ApplicationTaskFactory',
-
     )

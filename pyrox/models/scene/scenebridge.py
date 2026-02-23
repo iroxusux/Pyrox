@@ -253,6 +253,7 @@ class SceneBridge(ISceneBridge):
         for binding in self._bindings.values():
             if not binding.enabled:
                 continue
+
             if binding.direction not in (BindingDirection.WRITE, BindingDirection.BOTH):
                 continue
 
@@ -273,12 +274,14 @@ class SceneBridge(ISceneBridge):
                     source_value = binding.inverse_transform(scene_value)
                 except Exception as exc:
                     log(self).error(f"Transform error for {binding.binding_key}: {exc}")
+                    binding.enabled = False
                     continue
 
             try:
                 self._write_source_value(binding, source_value)
             except Exception as exc:
                 log(self).error(f"Write error for {binding.binding_key}: {exc}")
+                binding.enabled = False
                 continue
 
             binding.last_scene_value = scene_value
@@ -396,6 +399,7 @@ class SceneBridge(ISceneBridge):
         for binding in self._bindings.values():
             if not binding.enabled:
                 continue
+
             if binding.direction not in (BindingDirection.READ, BindingDirection.BOTH):
                 continue
 
@@ -407,6 +411,7 @@ class SceneBridge(ISceneBridge):
                 source_value = self._read_source_value(binding)
             except Exception as exc:
                 log(self).error(f"Read error for {binding.binding_key}: {exc}")
+                binding.enabled = False
                 continue
 
             if source_value is None:
@@ -421,6 +426,7 @@ class SceneBridge(ISceneBridge):
                     scene_value = binding.transform(source_value)
                 except Exception as exc:
                     log(self).error(f"Transform error for {binding.binding_key}: {exc}")
+                    binding.enabled = False
                     continue
 
             try:
@@ -433,6 +439,7 @@ class SceneBridge(ISceneBridge):
                     f"Error applying {binding.binding_key} to "
                     f"{binding.object_id}.{binding.property_path}: {exc}"
                 )
+                binding.enabled = False
 
     def _apply_source_value_to_scene(self, binding: SceneBinding, source_value: Any) -> None:
         binding.last_source_value = source_value

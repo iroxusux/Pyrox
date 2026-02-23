@@ -7,12 +7,58 @@ and provides a unified interface for GUI operations.
 """
 import tkinter as tk
 from tkinter import filedialog, messagebox
-from pathlib import Path
-from typing import Any, Callable, Union
-from pyrox.services import EnvManager, log, ThemeManager, MenuRegistry
+from typing import Callable
+from pyrox.services import EnvManager, ThemeManager, MenuRegistry
 from pyrox.interfaces import (
     EnvironmentKeys,
 )
+
+
+_MODIFIER_MAP: dict[str, str] = {
+    'ctrl': 'Control',
+    'control': 'Control',
+    'alt': 'Alt',
+    'shift': 'Shift',
+    'meta': 'Meta',
+    'cmd': 'Command',
+    'win': 'Win',
+}
+
+
+def _accelerator_to_tk_binding(accelerator: str) -> str | None:
+    """Convert a human-readable accelerator string to a Tkinter key binding.
+
+    Examples::
+
+        'Ctrl+Q'       -> '<Control-q>'
+        'Ctrl+Shift+S' -> '<Control-Shift-S>'
+        'F1'           -> '<F1>'
+        'Alt+F4'       -> '<Alt-F4>'
+
+    Returns None if the string cannot be parsed.
+    """
+    if not accelerator:
+        return None
+
+    parts = [p.strip() for p in accelerator.split('+')]
+    modifiers: list[str] = []
+    key: str | None = None
+
+    for part in parts:
+        mapped = _MODIFIER_MAP.get(part.lower())
+        if mapped:
+            modifiers.append(mapped)
+        else:
+            key = part
+
+    if key is None or not key.strip():
+        return None
+
+    # Lowercase single alpha characters unless Shift is a modifier
+    if len(key) == 1 and key.isalpha() and 'Shift' not in modifiers:
+        key = key.lower()
+
+    return '<' + '-'.join(modifiers + [key]) + '>'
 
 
 class TkGuiManager:
@@ -29,6 +75,9 @@ class TkGuiManager:
     _view_menu: tk.Menu | None = None
     _tools_menu: tk.Menu | None = None
     _help_menu: tk.Menu | None = None
+
+    # Debounce handle for save_root_geometry
+    _after_id: str | None = None
 
     def __init__(self):
         """Prevent instantiation of static class."""
@@ -68,23 +117,27 @@ class TkGuiManager:
     def schedule_event(
         cls,
         delay_ms: int,
-        callback: Callable[..., Any],
+        callback: Callable[..., None],
         **kwargs
-    ) -> Union[int, str]:
+    ) -> str:
         """Schedule a callback to be called after a delay in milliseconds."""
         return cls.get_root().after(delay_ms, callback, **kwargs)
 
     @classmethod
-    def cancel_scheduled_event(cls, event_id: int | str) -> None:
-        cls.get_root().after_cancel(str(event_id))
+    def cancel_scheduled_event(cls, event_id: str) -> None:
+        cls.get_root().after_cancel(event_id)
 
     @classmethod
-    def subscribe_to_window_change_event(cls, callback: Callable[..., Any]) -> None:
-        """Subscribe to the window change event."""
-        cls.get_root().bind("<Configure>", lambda event: callback())
+    def subscribe_to_window_change_event(cls, callback: Callable[..., None]) -> None:
+        """Subscribe to the window change event.
+
+        Uses add='+' so that multiple subscribers can coexist without
+        overwriting each other's bindings.
+        """
+        cls.get_root().bind("<Configure>", lambda event: callback(), add='+')
 
     @classmethod
-    def subscribe_to_window_close_event(cls, callback: Callable[..., Any]) -> None:
+    def subscribe_to_window_close_event(cls, callback: Callable[..., None]) -> None:
         """Subscribe to the window close event."""
         cls.get_root().protocol("WM_DELETE_WINDOW", callback)
 
@@ -99,6 +152,7 @@ class TkGuiManager:
         This method can be expanded to read specific environment variables
         and apply configurations to the root window as needed.
         """
+        # Restore window title
         cls.set_title(
             EnvManager.get(
                 EnvironmentKeys.core.APP_WINDOW_TITLE,
@@ -106,31 +160,28 @@ class TkGuiManager:
             )
         )
 
-        cls.get_root().wm_geometry(
-            EnvManager.get(
-                EnvironmentKeys.ui.UI_WINDOW_SIZE,
-                default=kwargs.get('geometry', '800x600')
-            )
-        )
+        # Restore window geometry and position
+        cls.restore_root_geometry()
 
-        icon_path = EnvManager.get(
-            EnvironmentKeys.core.APP_ICON,
-            None,
-            str
-        )
-
-        if icon_path and Path(icon_path).is_file():
-            cls.get_root().iconbitmap(str(icon_path))
-        else:
-            log(cls).warning(f'Icon file not found: {icon_path}.')
+        # Restore window icon
+        cls.set_icon(cls.get_default_icon_path())
 
         # Apply any additional configurations passed in kwargs
         cls.get_root().config(**kwargs)
 
     @classmethod
+    def get_default_icon_path(cls) -> str | None:
+        """Get the default icon path for the application."""
+        return EnvManager.get(
+            EnvironmentKeys.core.APP_ICON,
+            None,
+            str
+        )
+
+    @classmethod
     def set_icon(
         cls,
-        icon_path: str,
+        icon_path: str | None,
         window: tk.Tk | tk.Toplevel | None = None
     ) -> None:
         """Set the application icon for the Tkinter root window."""
@@ -201,10 +252,11 @@ class TkGuiManager:
         """
         cls._after_id = None  # Reset after_id since the event has fired
 
-        size = cls.get_root().size()
+        w = cls.get_root().winfo_width()
+        h = cls.get_root().winfo_height()
         EnvManager.set(
             EnvironmentKeys.ui.UI_WINDOW_SIZE,
-            f'{size[0]}x{size[1]}'
+            f'{w}x{h}'
         )
 
         position = cls.get_root().winfo_rootx(), cls.get_root().winfo_rooty()
@@ -304,16 +356,16 @@ class TkGuiManager:
             metadata={'category': 'root'},
         )
         MenuRegistry.register_item(
-            menu_id='view_menu',
-            menu_path='root/view',
+            menu_id='tools_menu',
+            menu_path='root/tools',
             menu_widget=tk.Menu(cls._root_menu, tearoff=0),
             menu_index=2,
             owner='TkGuiManager',
             metadata={'category': 'root'},
         )
         MenuRegistry.register_item(
-            menu_id='tools_menu',
-            menu_path='root/tools',
+            menu_id='view_menu',
+            menu_path='root/view',
             menu_widget=tk.Menu(cls._root_menu, tearoff=0),
             menu_index=3,
             owner='TkGuiManager',
@@ -331,8 +383,8 @@ class TkGuiManager:
         # add the additional menus to the root menu
         cls._root_menu.add_cascade(label="File", menu=cls.get_file_menu())
         cls._root_menu.add_cascade(label="Edit", menu=cls.get_edit_menu())
-        cls._root_menu.add_cascade(label="View", menu=cls.get_view_menu())
         cls._root_menu.add_cascade(label="Tools", menu=cls.get_tools_menu())
+        cls._root_menu.add_cascade(label="View", menu=cls.get_view_menu())
         cls._root_menu.add_cascade(label="Help", menu=cls.get_help_menu())
 
         return cls._root_menu
@@ -482,8 +534,38 @@ class TkGuiManager:
     # --------------------------------------------------
 
     @classmethod
-    def reroute_excepthook(cls, callback: Callable[..., Any]) -> None:
+    def reroute_excepthook(cls, callback: Callable[..., None]) -> None:
         tk.report_callback_exception = callback  # type: ignore
+
+    # --------------------------------------------------
+    # Additional utility methods can be added here as needed
+    # --------------------------------------------------
+
+    @classmethod
+    def insert_menu_command_with_accelerator(
+        cls,
+        menu: tk.Menu,
+        index: int,
+        label: str,
+        command: Callable | None,
+        accelerator: str,
+        underline: int,
+    ) -> None:
+        """Helper method to insert a menu command with an accelerator key binding."""
+        original_command = command
+        command = command if command is not None else lambda: None  # No-op if no command provided
+
+        menu.insert_command(
+            index=index,
+            label=label,
+            command=command,
+            accelerator=accelerator,
+            underline=underline
+        )
+        tk_binding = _accelerator_to_tk_binding(accelerator)
+
+        if tk_binding and original_command:  # only bind if a real command was provided
+            cls.bind_hotkey(tk_binding, command)
 
 
 __all__ = (
