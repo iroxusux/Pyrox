@@ -7,9 +7,8 @@ and provides a unified interface for GUI operations.
 """
 import tkinter as tk
 from tkinter import filedialog, messagebox
-from pathlib import Path
-from typing import Any, Callable, Union
-from pyrox.services import EnvManager, log, ThemeManager, MenuRegistry
+from typing import Callable
+from pyrox.services import EnvManager, ThemeManager, MenuRegistry
 from pyrox.interfaces import (
     EnvironmentKeys,
 )
@@ -29,6 +28,9 @@ class TkGuiManager:
     _view_menu: tk.Menu | None = None
     _tools_menu: tk.Menu | None = None
     _help_menu: tk.Menu | None = None
+
+    # Debounce handle for save_root_geometry
+    _after_id: str | None = None
 
     def __init__(self):
         """Prevent instantiation of static class."""
@@ -68,23 +70,27 @@ class TkGuiManager:
     def schedule_event(
         cls,
         delay_ms: int,
-        callback: Callable[..., Any],
+        callback: Callable[..., None],
         **kwargs
-    ) -> Union[int, str]:
+    ) -> str:
         """Schedule a callback to be called after a delay in milliseconds."""
         return cls.get_root().after(delay_ms, callback, **kwargs)
 
     @classmethod
-    def cancel_scheduled_event(cls, event_id: int | str) -> None:
-        cls.get_root().after_cancel(str(event_id))
+    def cancel_scheduled_event(cls, event_id: str) -> None:
+        cls.get_root().after_cancel(event_id)
 
     @classmethod
-    def subscribe_to_window_change_event(cls, callback: Callable[..., Any]) -> None:
-        """Subscribe to the window change event."""
-        cls.get_root().bind("<Configure>", lambda event: callback())
+    def subscribe_to_window_change_event(cls, callback: Callable[..., None]) -> None:
+        """Subscribe to the window change event.
+
+        Uses add='+' so that multiple subscribers can coexist without
+        overwriting each other's bindings.
+        """
+        cls.get_root().bind("<Configure>", lambda event: callback(), add='+')
 
     @classmethod
-    def subscribe_to_window_close_event(cls, callback: Callable[..., Any]) -> None:
+    def subscribe_to_window_close_event(cls, callback: Callable[..., None]) -> None:
         """Subscribe to the window close event."""
         cls.get_root().protocol("WM_DELETE_WINDOW", callback)
 
@@ -99,6 +105,7 @@ class TkGuiManager:
         This method can be expanded to read specific environment variables
         and apply configurations to the root window as needed.
         """
+        # Restore window title
         cls.set_title(
             EnvManager.get(
                 EnvironmentKeys.core.APP_WINDOW_TITLE,
@@ -106,31 +113,28 @@ class TkGuiManager:
             )
         )
 
-        cls.get_root().wm_geometry(
-            EnvManager.get(
-                EnvironmentKeys.ui.UI_WINDOW_SIZE,
-                default=kwargs.get('geometry', '800x600')
-            )
-        )
+        # Restore window geometry and position
+        cls.restore_root_geometry()
 
-        icon_path = EnvManager.get(
-            EnvironmentKeys.core.APP_ICON,
-            None,
-            str
-        )
-
-        if icon_path and Path(icon_path).is_file():
-            cls.get_root().iconbitmap(str(icon_path))
-        else:
-            log(cls).warning(f'Icon file not found: {icon_path}.')
+        # Restore window icon
+        cls.set_icon(cls.get_default_icon_path())
 
         # Apply any additional configurations passed in kwargs
         cls.get_root().config(**kwargs)
 
     @classmethod
+    def get_default_icon_path(cls) -> str | None:
+        """Get the default icon path for the application."""
+        return EnvManager.get(
+            EnvironmentKeys.core.APP_ICON,
+            None,
+            str
+        )
+
+    @classmethod
     def set_icon(
         cls,
-        icon_path: str,
+        icon_path: str | None,
         window: tk.Tk | tk.Toplevel | None = None
     ) -> None:
         """Set the application icon for the Tkinter root window."""
@@ -201,10 +205,11 @@ class TkGuiManager:
         """
         cls._after_id = None  # Reset after_id since the event has fired
 
-        size = cls.get_root().size()
+        w = cls.get_root().winfo_width()
+        h = cls.get_root().winfo_height()
         EnvManager.set(
             EnvironmentKeys.ui.UI_WINDOW_SIZE,
-            f'{size[0]}x{size[1]}'
+            f'{w}x{h}'
         )
 
         position = cls.get_root().winfo_rootx(), cls.get_root().winfo_rooty()
@@ -482,7 +487,7 @@ class TkGuiManager:
     # --------------------------------------------------
 
     @classmethod
-    def reroute_excepthook(cls, callback: Callable[..., Any]) -> None:
+    def reroute_excepthook(cls, callback: Callable[..., None]) -> None:
         tk.report_callback_exception = callback  # type: ignore
 
 
