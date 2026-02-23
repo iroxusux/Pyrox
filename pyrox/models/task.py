@@ -3,11 +3,9 @@
 Tasks are used to add additional functionality to the application via the toolbar
 in the main application frame or as background services.
 """
-import tkinter as tk
-from typing import Callable
 from pyrox.interfaces import IApplication, IApplicationTask
 from pyrox.models import ServicesRunnableMixin
-from pyrox.services import log, MenuRegistry
+from pyrox.services import log
 from pyrox.models.factory import MetaFactory, FactoryTypeMeta
 
 
@@ -27,28 +25,18 @@ class ApplicationTaskFactory(MetaFactory):
         tasks = cls.get_registered_types().values()
         log(cls).debug(f'Building {len(tasks)} tasks for application {application.name}')
         for task in tasks:
-            if issubclass(task, ApplicationTask):
-                log(cls).debug(f'Registering task: {task.__name__}')
-            else:
-                log(cls).warning(f'Task {task.__name__} is not a subclass of ApplicationTask and will be ignored.')
-            task(application=application).inject()  # Instantiate to ensure registration
+            task(application=application)
 
 
 class ApplicationTask(
     IApplicationTask,
     ServicesRunnableMixin,
-    metaclass=FactoryTypeMeta['ApplicationTask', ApplicationTaskFactory]
+    metaclass=FactoryTypeMeta[ApplicationTaskFactory]
 ):
     """Application task to add additional functionality to the application.
-
-    Normally, these tasks are injected into the application's main menu toolbar.
-    If not injected, the task is still available to run programmatically.
-
     Args:
         application: The parent application of this task.
     """
-
-    supports_registering = False  # This class can't be used to match anything
 
     def __init__(
         self,
@@ -56,20 +44,7 @@ class ApplicationTask(
     ) -> None:
         super().__init__()
         self._application = application
-        self._injected = False
-
-    def __init_subclass__(cls, **kwargs):
-        super().__init_subclass__(**kwargs)
-        cls.supports_registering = True  # Subclasses can be used to match
-
-    @classmethod
-    def get_factory(cls):
-        """Get the factory associated with this task type.
-
-        Returns:
-            ApplicationTaskFactory: The factory class for application tasks.
-        """
-        return ApplicationTaskFactory
+        self._application.register_task(self)
 
     def get_application(self) -> IApplication:
         """Get the parent application of this task.
@@ -89,96 +64,6 @@ class ApplicationTask(
             application: The application instance to set.
         """
         self._application = application
-
-    def register_menu_command(
-        self,
-        menu: tk.Menu,
-        registry_id: str,
-        registry_path: str,
-        index: int,
-        label: str,
-        command: Callable | None,
-        accelerator: str,
-        underline: int,
-        category: str | None = None,
-        subcategory: str | None = None,
-        enabled: bool = True
-    ) -> None:
-        """Register a command to the application's menu bar.
-        Additionally, register the command with the MenuRegistry.
-        """
-        command = command if command is not None else lambda: None  # No-op if no command provided
-
-        menu.insert_command(
-            index=index,
-            label=label,
-            command=command,
-            accelerator=accelerator,
-            underline=underline
-        )
-        if not enabled:
-            menu.entryconfig(index, state=tk.DISABLED)  # Disable the menu item if not enabled
-
-        MenuRegistry.register_item(
-            menu_id=registry_id,
-            menu_path=registry_path,
-            menu_widget=menu,
-            menu_index=index,
-            owner=self.__class__.__name__,
-            command=command,
-            category=category,
-            subcategory=subcategory,
-        )
-
-    def register_submenu(
-        self,
-        menu: tk.Menu,
-        submenu: tk.Menu,
-        registry_id: str,
-        registry_path: str,
-        index: int,
-        label: str,
-        underline: int,
-        category: str | None = None
-    ) -> tk.Menu:
-        """Register a submenu to the application's menu bar.
-        Additionally, register the submenu with the MenuRegistry.
-
-        Returns:
-            IGuiMenu: The created submenu instance.
-        """
-        menu.insert_cascade(
-            label=label,
-            menu=submenu,
-            index=index,
-            underline=underline
-        )
-
-        MenuRegistry.register_item(
-            menu_id=registry_id,
-            menu_path=registry_path,
-            menu_widget=submenu,
-            menu_index=index,
-            owner=self.__class__.__name__,
-            category=category
-        )
-
-        return submenu
-
-    def inject(self) -> None:
-        """Inject this task into the hosting application.
-        """
-        if self._injected:
-            log(self).warning(f'Task {self.__class__.__name__} is already injected into application {self.application.name}.')
-            return
-        self.application.register_task(self)
-        self._injected = True
-
-    def uninject(self) -> None:
-        """Remove this task from the hosting application.
-        """
-        self.application.unregister_task(self)
-        self._injected = False
 
     __all__ = (
         'ApplicationTask',

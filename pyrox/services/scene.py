@@ -321,11 +321,10 @@ class SceneBridgeService:
             scene=scene,
             bound_object=SceneBoundLayer()
         )
-        bound = cls._bridge.get_bound_object()
-        if not isinstance(bound, SceneBoundLayer):
+        if not isinstance(cls._bridge.get_bound_object(), SceneBoundLayer):
             raise TypeError("SceneBridge must be created with a SceneBoundLayer as its bound object")
         for source_name, factory in cls._source_factories.items():
-            bound.register_source(source_name, factory())
+            cls._bridge.get_bound_object().register_source(source_name, factory())
         log(cls).info("created new SceneBridge for loaded scene")
 
     # ------------------------------------------------------------------
@@ -343,6 +342,9 @@ class SceneBridgeService:
         if not cls._bridge:
             raise RuntimeError("Failed to create SceneBridge for loaded scene")
 
+        cls._bridge.start()
+        log(cls).debug("SceneBridgeService: bridge started for loaded scene")
+
         # Attempt to restore binding config from sidecar file
         filepath = (event.data or {}).get("filepath")
         if not filepath:
@@ -353,7 +355,7 @@ class SceneBridgeService:
         try:
             with open(sidecar, 'r') as f:
                 cls._bridge.from_dict(json.load(f))
-            log(cls).info(f"SceneBridgeService: restored bridge config from {sidecar}")
+            log(cls).debug(f"SceneBridgeService: restored bridge config from {sidecar}")
         except Exception as exc:
             log(cls).error(f"SceneBridgeService: failed to load bridge config from {sidecar}: {exc}")
 
@@ -364,7 +366,7 @@ class SceneBridgeService:
             if cls._bridge.is_active():
                 cls._bridge.stop()
             cls._bridge = None
-            log(cls).info("SceneBridgeService: bridge closed on scene unload")
+            log(cls).debug("SceneBridgeService: bridge closed on scene unload")
 
     @classmethod
     def _on_scene_saved(cls, event: SceneEvent) -> None:
@@ -380,7 +382,7 @@ class SceneBridgeService:
         try:
             with open(sidecar, 'w') as f:
                 json.dump(cls._bridge.to_dict(), f, indent=4)
-            log(cls).info(f"SceneBridgeService: saved bridge config to {sidecar}")
+            log(cls).debug(f"SceneBridgeService: saved bridge config to {sidecar}")
         except Exception as exc:
             log(cls).error(f"SceneBridgeService: failed to save bridge config to {sidecar}: {exc}")
 

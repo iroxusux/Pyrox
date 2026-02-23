@@ -69,22 +69,6 @@ class IApplicationTask(
         """
         ...
 
-    @abstractmethod
-    def inject(self) -> None:
-        """Inject this task into the application context.
-        This method should be overridden by subclasses to implement
-        specific injection behavior.
-        """
-        ...
-
-    @abstractmethod
-    def uninject(self) -> None:
-        """Remove this task from the application context.
-        This method should be overridden by subclasses to implement
-        specific un-injection behavior.
-        """
-        ...
-
 
 class IApplication(
     INameable,

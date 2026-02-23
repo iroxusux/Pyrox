@@ -1,8 +1,12 @@
 """Unit tests for factory.py module."""
 import sys
+import types
 import unittest
+from abc import abstractmethod
+from typing import Generic, TypeVar
 from unittest.mock import MagicMock, patch
 
+from pyrox.interfaces.protocols.meta import IFactoryMixinProtocolMeta
 from pyrox.models.factory import (
     FactoryTypeMeta,
     MetaFactory,
@@ -24,15 +28,10 @@ class TestMetaFactory(unittest.TestCase):
 
     def tearDown(self):
         """Clean up test fixtures."""
-        # Clear registered types after each test
         if hasattr(self.TestFactory, '_registered_types'):
             self.TestFactory._registered_types.clear()
-
-    def test_inheritance(self):
-        """Test that MetaFactory inherits from ABCMeta and Loggable."""
-        from abc import ABCMeta
-
-        self.assertTrue(issubclass(MetaFactory, ABCMeta))
+        if hasattr(self.TestFactory, '_base_type'):
+            del self.TestFactory._base_type
 
     def test_init_subclass_initializes_registered_types(self):
         """Test that __init_subclass__ initializes _registered_types."""
@@ -397,397 +396,469 @@ class TestMetaFactory(unittest.TestCase):
         self.assertIn('Type2', Factory2.get_registered_types())
         self.assertNotIn('Type2', Factory1.get_registered_types())
 
+    # ------------------------------------------------------------------
+    # _base_type enforcement
+    # ------------------------------------------------------------------
+
+    def test_register_type_accepts_subclass_when_base_type_set(self):
+        """register_type accepts a subclass of _base_type."""
+        class Base:
+            pass
+
+        class Sub(Base):
+            pass
+
+        self.TestFactory._base_type = Base
+        self.TestFactory.register_type(Sub)
+
+        self.assertIn('Sub', self.TestFactory._registered_types)
+
+    def test_register_type_rejects_non_subclass_when_base_type_set(self):
+        """register_type raises TypeError when type is not a subclass of _base_type."""
+        class Base:
+            pass
+
+        class Unrelated:
+            pass
+
+        self.TestFactory._base_type = Base
+
+        with self.assertRaises(TypeError) as ctx:
+            self.TestFactory.register_type(Unrelated)
+
+        self.assertIn('subclass', str(ctx.exception))
+
+    def test_register_type_accepts_base_type_itself(self):
+        """register_type accepts _base_type itself (issubclass(X, X) is True)."""
+        class Base:
+            pass
+
+        self.TestFactory._base_type = Base
+        self.TestFactory.register_type(Base)
+
+        self.assertIn('Base', self.TestFactory._registered_types)
+
+    def test_register_type_no_base_type_accepts_anything(self):
+        """When _base_type is not set, any type can be registered."""
+        class Anything:
+            pass
+
+        self.TestFactory.register_type(Anything)
+        self.assertIn('Anything', self.TestFactory._registered_types)
+
 
 class TestFactoryTypeMeta(unittest.TestCase):
     """Test cases for FactoryTypeMeta class."""
 
     def setUp(self):
-        """Set up test fixtures."""
-        # Create a test factory
         class TestFactory(MetaFactory):
             pass
-
         self.TestFactory = TestFactory
-        self.TestFactory._registered_types = {}
 
     def tearDown(self):
-        """Clean up test fixtures."""
-        # Clean up any registered types
         if hasattr(self.TestFactory, '_registered_types'):
             self.TestFactory._registered_types.clear()
-
-    def test_inheritance(self):
-        """Test that FactoryTypeMeta inherits from ABCMeta and Loggable."""
-        from abc import ABCMeta
-        from typing import Generic
-
-        self.assertTrue(issubclass(FactoryTypeMeta, ABCMeta))
-        self.assertTrue(issubclass(FactoryTypeMeta, Generic))
-
-    def test_class_attributes(self):
-        """Test default class attributes."""
-        self.assertIsNone(FactoryTypeMeta.supporting_class)
-        self.assertTrue(FactoryTypeMeta.supports_registering)
-
-    def test_new_with_registration_disabled(self):
-        """Test __new__ when supports_registering is False."""
-        class TestType(metaclass=FactoryTypeMeta):
-            supports_registering = False
-
-            @classmethod
-            def get_factory(cls):
-                return self.TestFactory
-
-        # Should not be registered
-        self.assertEqual(len(self.TestFactory.get_registered_types()), 0)
-
-    def test_new_with_no_factory(self):
-        """Test __new__ when get_factory returns None."""
-        class TestType(metaclass=FactoryTypeMeta):
-            @classmethod
-            def get_factory(cls):
-                return None
-
-        # Should not be registered
-        self.assertEqual(len(self.TestFactory.get_registered_types()), 0)
-
-    def test_new_with_successful_registration(self):
-        """Test __new__ with successful registration."""
-        class TestType(metaclass=FactoryTypeMeta):
-            @classmethod
-            def get_factory(cls):
-                return self.TestFactory
-
-        # Should be registered
-        self.assertIn('TestType', self.TestFactory.get_registered_types())
-        self.assertEqual(self.TestFactory.get_registered_types()['TestType'], TestType)
-
-    def test_get_factory_not_implemented(self):
-        """Test that get_factory raises NotImplementedError."""
-        with self.assertRaises(NotImplementedError) as context:
-            FactoryTypeMeta.get_factory()
-
-        self.assertIn('Subclasses must implement get_factory', str(context.exception))
-
-    def test_init_method(self):
-        """Test __init__ method."""
-        # This is mostly about ensuring the method exists and calls super()
-        # The actual functionality is tested through class creation
-
-        class TestType(metaclass=FactoryTypeMeta):
-            test_attr = 'test'
-
-            @classmethod
-            def get_factory(cls):
-                return self.TestFactory
-
-        self.assertEqual(TestType.test_attr, 'test')
-
-    def test_supporting_class_inheritance(self):
-        """Test supporting_class attribute inheritance."""
-        class BaseType(metaclass=FactoryTypeMeta):
-            supporting_class = str
-
-            @classmethod
-            def get_factory(cls):
-                return self.TestFactory
-
-        class DerivedType(BaseType):
-            pass
-
-        self.assertEqual(BaseType.supporting_class, str)
-        self.assertEqual(DerivedType.supporting_class, str)
-
-    def test_supports_registering_inheritance(self):
-        """Test supports_registering attribute inheritance."""
-        class BaseType(metaclass=FactoryTypeMeta):
-            supports_registering = False
-
-            @classmethod
-            def get_factory(cls):
-                return self.TestFactory
-
-        class DerivedType(BaseType):
-            pass
-
-        self.assertFalse(BaseType.supports_registering)
-        self.assertFalse(DerivedType.supports_registering)
-
-
-class TestIntegration(unittest.TestCase):
-    """Integration tests for factory module components."""
-
-    def setUp(self):
-        """Set up test fixtures."""
-        class TestFactory(MetaFactory):
-            pass
-
-        self.TestFactory = TestFactory
-        self.TestFactory._registered_types = {}
-
-    def tearDown(self):
-        """Clean up test fixtures."""
-        if hasattr(self.TestFactory, '_registered_types'):
-            self.TestFactory._registered_types.clear()
-
-    def test_complete_factory_workflow(self):
-        """Test complete workflow from registration to instance creation."""
-        # Define a type with FactoryTypeMeta
-        class TestWidget(metaclass=FactoryTypeMeta):
-            def __init__(self, name, value=None):
-                self.name = name
-                self.value = value
-
-            @classmethod
-            def get_factory(cls):
-                return self.TestFactory
-
-        # Verify registration
-        self.assertIn('TestWidget', self.TestFactory.get_registered_types())
-
-        # Create instance through factory
-        instance = self.TestFactory.create_instance('TestWidget', 'test_widget', value=42)
-
-        self.assertIsInstance(instance, TestWidget)
-        self.assertEqual(instance.name, 'test_widget')  # type: ignore
-        self.assertEqual(instance.value, 42)  # type: ignore
-
-    def test_supporting_class_workflow(self):
-        """Test workflow with supporting_class attribute."""
-        class Controller:
-            pass
-
-        class WidgetController(metaclass=FactoryTypeMeta):
-            supporting_class = Controller
-
-            def __init__(self, name):
-                self.name = name
-
-            @classmethod
-            def get_factory(cls):
-                return self.TestFactory
-
-        registered_types = self.TestFactory.get_registered_types()
-
-        # Should be registered by Controller name, not class name
-        self.assertNotIn(WidgetController, registered_types)
-
-        # Test retrieval by supporting class
-        controller_instance = Controller()  # Create instance of Controller, not WidgetController
-        with patch.object(self.TestFactory, '_reload_class_module', return_value=WidgetController):
-            result = self.TestFactory.get_registered_type_by_supporting_class(controller_instance)
-            self.assertEqual(result, WidgetController)
-
-        # Also test with the Controller class directly
-        with patch.object(self.TestFactory, '_reload_class_module', return_value=WidgetController):
-            result = self.TestFactory.get_registered_type_by_supporting_class(Controller)
-            self.assertEqual(result, WidgetController)
-
-    def test_multiple_types_same_factory(self):
-        """Test multiple types registered to same factory."""
-        class Widget1(metaclass=FactoryTypeMeta):
-            @classmethod
-            def get_factory(cls):
-                return self.TestFactory
-
-        class Widget2(metaclass=FactoryTypeMeta):
-            @classmethod
-            def get_factory(cls):
-                return self.TestFactory
-
-        class Widget3(metaclass=FactoryTypeMeta):
-            @classmethod
-            def get_factory(cls):
-                return self.TestFactory
-
-        registered_types = self.TestFactory.get_registered_types()
-
-        self.assertEqual(len(registered_types), 3)
-        self.assertIn('Widget1', registered_types)
-        self.assertIn('Widget2', registered_types)
-        self.assertIn('Widget3', registered_types)
-
-    def test_inheritance_with_factory_types(self):
-        """Test inheritance patterns with factory types."""
-        class BaseWidget(metaclass=FactoryTypeMeta):
-            def __init__(self, name):
-                self.name = name
-
-            @classmethod
-            def get_factory(cls):
-                return self.TestFactory
-
-        class SpecialWidget(BaseWidget):
-            def __init__(self, name, special_value):
-                super().__init__(name)
-                self.special_value = special_value
-
-        # Both should be registered
-        registered_types = self.TestFactory.get_registered_types()
-        self.assertIn('BaseWidget', registered_types)
-        self.assertIn('SpecialWidget', registered_types)
-
-        # Create instances
-        base_instance = self.TestFactory.create_instance('BaseWidget', 'base')
-        special_instance = self.TestFactory.create_instance('SpecialWidget', 'special', 'special_val')
-
-        self.assertIsInstance(base_instance, BaseWidget)
-        self.assertIsInstance(special_instance, SpecialWidget)
-        self.assertEqual(special_instance.special_value, 'special_val')  # type: ignore
-
-    def test_factory_type_discovery(self):
-        """Test discovering available factory types."""
-        class Type1(metaclass=FactoryTypeMeta):
-            @classmethod
-            def get_factory(cls):
-                return self.TestFactory
-
-        class Type2(metaclass=FactoryTypeMeta):
-            @classmethod
-            def get_factory(cls):
-                return self.TestFactory
-
-        class Type3(metaclass=FactoryTypeMeta):
-            supports_registering = False  # This shouldn't appear
-
-            @classmethod
-            def get_factory(cls):
-                return self.TestFactory
-
-        available_types = self.TestFactory.get_available_types()
-
-        self.assertEqual(set(available_types), {'Type1', 'Type2'})
-        self.assertNotIn('Type3', available_types)
-
-    def test_error_handling_in_registration(self):
-        """Test error handling during type registration."""
-        # Test with a factory that doesn't have _registered_types
-        class BadFactory(MetaFactory):
-            pass
-
-        delattr(BadFactory, '_registered_types')
-
-        with self.assertRaises(RuntimeError):
-            class BadType(metaclass=FactoryTypeMeta):
-                @classmethod
-                def get_factory(cls):
-                    return BadFactory
-
-    def test_module_reloading_integration(self):
-        """Test module reloading functionality."""
-        # Create a mock type with module info
-
-        class TestClass:
-            pass
-
-        class TestType:
-            __name__ = 'TestType'
-            __module__ = 'test_module'
-            supporting_class = TestClass
-
-        # Register it
-        self.TestFactory.register_type(TestType)
-
-        # Create a real module-like object and add the TestType to it
-        import types
-        mock_module = types.ModuleType('test_module')
-        mock_module.TestType = TestType  # type: ignore
-
-        with patch.object(sys, 'modules', {'test_module': mock_module}):
-            with patch('pyrox.models.factory.importlib.reload') as mock_reload:
-                # Test getting by supporting class (which triggers reload)
-                result = self.TestFactory.get_registered_type_by_supporting_class('TestClass', True)
-
-                mock_reload.assert_called_once_with(mock_module)
-                self.assertEqual(result, TestType)
-
-    def test_complex_type_hierarchy(self):
-        """Test complex type hierarchy with factory registration."""
-        class BaseController(metaclass=FactoryTypeMeta):
-            supporting_class = 'Controller'  # type: ignore
-
-            @classmethod
-            def get_factory(cls):
-                return self.TestFactory
-
-        class DatabaseController(BaseController):
-            supporting_class = 'DatabaseController'  # type: ignore
-
-        class APIController(BaseController):
-            supporting_class = 'APIController'  # type: ignore
-
-        class SpecialAPIController(APIController):
-            supporting_class = 'SpecialAPIController'  # type: ignore
-
-        registered_types = self.TestFactory.get_registered_types()
-
-        # All should be registered by their supporting_class names
-        self.assertIn('BaseController', registered_types)
-        self.assertIn('DatabaseController', registered_types)
-        self.assertIn('APIController', registered_types)
-        self.assertIn('SpecialAPIController', registered_types)
-
-        # Test instance creation
-        api_instance = self.TestFactory.create_instance('APIController')
-        self.assertIsInstance(api_instance, APIController)
-
-    def test_generic_type_support(self):
-        """Test that generic types work with the factory system."""
-        from typing import Generic, TypeVar
-
-        T = TypeVar('T')
-
-        class GenericWidget(Generic[T], metaclass=FactoryTypeMeta):
-            def __init__(self, item: T):
-                self.item = item
-
-            @classmethod
-            def get_factory(cls):
-                return self.TestFactory
-
-        # Should be registered
-        self.assertIn('GenericWidget', self.TestFactory.get_registered_types())
-
-        # Create instance (Python doesn't enforce generic types at runtime)
-        instance = self.TestFactory.create_instance('GenericWidget', "test_string")
-        self.assertIsInstance(instance, GenericWidget)
-        self.assertEqual(instance.item, "test_string")  # type: ignore
-
-    def test_factory_isolation(self):
-        """Test that different factories are properly isolated."""
+        if hasattr(self.TestFactory, '_base_type'):
+            del self.TestFactory._base_type
+
+    # ------------------------------------------------------------------
+    # Metaclass structure
+    # ------------------------------------------------------------------
+
+    def test_inherits_from_IFactoryMixinProtocolMeta(self):
+        """FactoryTypeMeta must be a subclass of IFactoryMixinProtocolMeta to
+        resolve the Protocol / ABCMeta diamond when bases use Protocol."""
+        self.assertTrue(issubclass(FactoryTypeMeta, IFactoryMixinProtocolMeta))
+
+    def test_bound_factory_is_none_by_default(self):
+        """Bare FactoryTypeMeta carries no factory binding."""
+        self.assertIsNone(FactoryTypeMeta._bound_factory)
+
+    # ------------------------------------------------------------------
+    # __class_getitem__
+    # ------------------------------------------------------------------
+
+    def test_class_getitem_returns_metaclass_subclass(self):
+        """FactoryTypeMeta[F] returns a subclass of FactoryTypeMeta."""
+        BoundMeta = FactoryTypeMeta[self.TestFactory]
+        self.assertTrue(issubclass(BoundMeta, FactoryTypeMeta))
+
+    def test_class_getitem_binds_factory(self):
+        """The returned metaclass carries the specified factory."""
+        BoundMeta = FactoryTypeMeta[self.TestFactory]
+        self.assertIs(BoundMeta._bound_factory, self.TestFactory)
+
+    def test_class_getitem_rejects_non_type(self):
+        with self.assertRaises(TypeError):
+            FactoryTypeMeta['not_a_type']  # type: ignore
+
+    def test_each_parameterisation_is_independent(self):
+        """Two FactoryTypeMeta[F] calls with different factories are independent."""
         class Factory1(MetaFactory):
             pass
 
         class Factory2(MetaFactory):
             pass
 
-        class Type1(metaclass=FactoryTypeMeta):
-            @classmethod
-            def get_factory(cls):
-                return Factory1
+        Meta1 = FactoryTypeMeta[Factory1]
+        Meta2 = FactoryTypeMeta[Factory2]
 
-        class Type2(metaclass=FactoryTypeMeta):
-            @classmethod
-            def get_factory(cls):
-                return Factory2
+        self.assertIs(Meta1._bound_factory, Factory1)
+        self.assertIs(Meta2._bound_factory, Factory2)
 
-        # Each factory should only have its own types
-        self.assertIn('Type1', Factory1.get_registered_types())
-        self.assertNotIn('Type2', Factory1.get_registered_types())
+    # ------------------------------------------------------------------
+    # No bound factory → nothing registered
+    # ------------------------------------------------------------------
 
-        self.assertIn('Type2', Factory2.get_registered_types())
-        self.assertNotIn('Type1', Factory2.get_registered_types())
+    def test_no_bound_factory_class_not_registered(self):
+        """A class using bare FactoryTypeMeta is not added to any factory."""
+        class UnboundType(metaclass=FactoryTypeMeta):
+            pass
 
-        # Instance creation should work correctly
-        instance1 = Factory1.create_instance('Type1')
-        instance2 = Factory2.create_instance('Type2')
+        self.assertEqual(len(self.TestFactory.get_registered_types()), 0)
 
-        self.assertIsInstance(instance1, Type1)
-        self.assertIsInstance(instance2, Type2)
+    # ------------------------------------------------------------------
+    # Abstract vs concrete registration
+    # ------------------------------------------------------------------
 
-        # Cross-factory creation should fail
-        self.assertIsNone(Factory1.create_instance('Type2'))
-        self.assertIsNone(Factory2.create_instance('Type1'))
+    def test_abstract_base_not_registered_but_anchors_base_type(self):
+        """The abstract base sets _base_type but is not itself registered."""
+        BoundMeta = FactoryTypeMeta[self.TestFactory]
+
+        class AbstractBase(metaclass=BoundMeta):
+            @abstractmethod
+            def run(self): ...
+
+        self.assertNotIn('AbstractBase', self.TestFactory.get_registered_types())
+        self.assertIs(self.TestFactory._base_type, AbstractBase)
+
+    def test_concrete_subclass_auto_registered(self):
+        """A concrete subclass is automatically registered on class definition."""
+        BoundMeta = FactoryTypeMeta[self.TestFactory]
+
+        class AbstractBase(metaclass=BoundMeta):
+            @abstractmethod
+            def run(self): ...
+
+        class ConcreteImpl(AbstractBase):
+            def run(self): pass
+
+        self.assertIn('ConcreteImpl', self.TestFactory.get_registered_types())
+        self.assertIs(self.TestFactory.get_registered_types()['ConcreteImpl'], ConcreteImpl)
+
+    def test_concrete_base_registered_and_anchors_base_type(self):
+        """A concrete first class is registered and anchors _base_type."""
+        BoundMeta = FactoryTypeMeta[self.TestFactory]
+
+        class ConcreteBase(metaclass=BoundMeta):
+            pass
+
+        self.assertIn('ConcreteBase', self.TestFactory.get_registered_types())
+        self.assertIs(self.TestFactory._base_type, ConcreteBase)
+
+    def test_multiple_concrete_subclasses_all_registered(self):
+        """Every concrete subclass of the abstract base is registered."""
+        BoundMeta = FactoryTypeMeta[self.TestFactory]
+
+        class AbstractBase(metaclass=BoundMeta):
+            @abstractmethod
+            def run(self): ...
+
+        class Impl1(AbstractBase):
+            def run(self): pass
+
+        class Impl2(AbstractBase):
+            def run(self): pass
+
+        class Impl3(AbstractBase):
+            def run(self): pass
+
+        registered = self.TestFactory.get_registered_types()
+        self.assertIn('Impl1', registered)
+        self.assertIn('Impl2', registered)
+        self.assertIn('Impl3', registered)
+        self.assertEqual(len(registered), 3)
+
+    # ------------------------------------------------------------------
+    # Type enforcement
+    # ------------------------------------------------------------------
+
+    def test_unrelated_type_rejected_by_register_type(self):
+        """Manually registering an unrelated type after _base_type is anchored raises TypeError."""
+        BoundMeta = FactoryTypeMeta[self.TestFactory]
+
+        class AbstractBase(metaclass=BoundMeta):
+            @abstractmethod
+            def run(self): ...
+
+        class Intruder:
+            pass
+
+        with self.assertRaises(TypeError):
+            self.TestFactory.register_type(Intruder)
+
+
+class TestIntegration(unittest.TestCase):
+    """Integration tests for factory module components."""
+
+    # Each test creates its own factory to avoid _base_type state bleed.
+    def _make_factory(self):
+        class F(MetaFactory):
+            pass
+        return F
+
+    # ------------------------------------------------------------------
+    # Basic workflow
+    # ------------------------------------------------------------------
+
+    def test_complete_workflow(self):
+        """Registration → lookup → instantiation using a bound metaclass."""
+        F = self._make_factory()
+        BoundMeta = FactoryTypeMeta[F]
+
+        class Widget(metaclass=BoundMeta):
+            @abstractmethod
+            def render(self): ...
+
+        class ButtonWidget(Widget):
+            def __init__(self, label: str):
+                self.label = label
+
+            def render(self): pass
+
+        self.assertIn('ButtonWidget', F.get_registered_types())
+        instance = F.create_instance('ButtonWidget', 'OK')
+        self.assertIsInstance(instance, ButtonWidget)
+        self.assertEqual(instance.label, 'OK')  # type: ignore
+
+    # ------------------------------------------------------------------
+    # Inheritance
+    # ------------------------------------------------------------------
+
+    def test_concrete_base_and_subclass_both_registered(self):
+        """When the base is concrete, both it and its subclass register."""
+        F = self._make_factory()
+        BoundMeta = FactoryTypeMeta[F]
+
+        class BaseWidget(metaclass=BoundMeta):
+            def __init__(self, name: str):
+                self.name = name
+
+        class SpecialWidget(BaseWidget):
+            def __init__(self, name: str, value: int):
+                super().__init__(name)
+                self.value = value
+
+        registered = F.get_registered_types()
+        self.assertIn('BaseWidget', registered)
+        self.assertIn('SpecialWidget', registered)
+
+        special = F.create_instance('SpecialWidget', 'special', 99)
+        self.assertIsInstance(special, SpecialWidget)
+        self.assertEqual(special.value, 99)  # type: ignore
+
+    def test_deep_inheritance_chain(self):
+        """Concrete classes at every level of a deep hierarchy are registered."""
+        F = self._make_factory()
+        BoundMeta = FactoryTypeMeta[F]
+
+        class Base(metaclass=BoundMeta):
+            @abstractmethod
+            def run(self): ...
+
+        class Mid(Base):
+            def run(self): pass
+
+        class Leaf(Mid):
+            pass
+
+        registered = F.get_registered_types()
+        self.assertNotIn('Base', registered)
+        self.assertIn('Mid', registered)
+        self.assertIn('Leaf', registered)
+
+    def test_abstract_intermediate_not_registered(self):
+        """An intermediate abstract class is skipped."""
+        F = self._make_factory()
+        BoundMeta = FactoryTypeMeta[F]
+
+        class Root(metaclass=BoundMeta):
+            @abstractmethod
+            def run(self): ...
+
+        class AbstractMid(Root):
+            @abstractmethod
+            def extra(self): ...
+
+        class Concrete(AbstractMid):
+            def run(self): pass
+            def extra(self): pass
+
+        registered = F.get_registered_types()
+        self.assertNotIn('Root', registered)
+        self.assertNotIn('AbstractMid', registered)
+        self.assertIn('Concrete', registered)
+
+    def test_multiple_concrete_subclasses_same_factory(self):
+        """Multiple concrete subclasses all register into the same factory."""
+        F = self._make_factory()
+        BoundMeta = FactoryTypeMeta[F]
+
+        class Base(metaclass=BoundMeta):
+            @abstractmethod
+            def run(self): ...
+
+        class Task1(Base):
+            def run(self): pass
+
+        class Task2(Base):
+            def run(self): pass
+
+        class Task3(Base):
+            def run(self): pass
+
+        registered = F.get_registered_types()
+        self.assertEqual(len(registered), 3)
+        self.assertIn('Task1', registered)
+        self.assertIn('Task2', registered)
+        self.assertIn('Task3', registered)
+
+    # ------------------------------------------------------------------
+    # Factory isolation
+    # ------------------------------------------------------------------
+
+    def test_two_factories_are_isolated(self):
+        """Types wired to different factories are kept separate."""
+        F1 = self._make_factory()
+        F2 = self._make_factory()
+        Meta1 = FactoryTypeMeta[F1]
+        Meta2 = FactoryTypeMeta[F2]
+
+        class Base1(metaclass=Meta1):
+            @abstractmethod
+            def run(self): ...
+
+        class Type1(Base1):
+            def run(self): pass
+
+        class Base2(metaclass=Meta2):
+            @abstractmethod
+            def run(self): ...
+
+        class Type2(Base2):
+            def run(self): pass
+
+        self.assertIn('Type1', F1.get_registered_types())
+        self.assertNotIn('Type2', F1.get_registered_types())
+        self.assertIn('Type2', F2.get_registered_types())
+        self.assertNotIn('Type1', F2.get_registered_types())
+
+        self.assertIsNone(F1.create_instance('Type2'))
+        self.assertIsNone(F2.create_instance('Type1'))
+
+    # ------------------------------------------------------------------
+    # Type enforcement
+    # ------------------------------------------------------------------
+
+    def test_unrelated_type_rejected_at_registration(self):
+        """Manually registering a type unrelated to _base_type raises TypeError."""
+        F = self._make_factory()
+        BoundMeta = FactoryTypeMeta[F]
+
+        class Base(metaclass=BoundMeta):
+            @abstractmethod
+            def run(self): ...
+
+        class Outsider:
+            pass
+
+        with self.assertRaises(TypeError):
+            F.register_type(Outsider)
+
+    def test_uninitialised_factory_raises_on_registration(self):
+        """A factory whose _registered_types was deleted raises RuntimeError."""
+        F = self._make_factory()
+        delattr(F, '_registered_types')
+
+        class SomeType:
+            pass
+
+        with self.assertRaises(RuntimeError):
+            F.register_type(SomeType)
+
+    # ------------------------------------------------------------------
+    # supporting_class lookup
+    # ------------------------------------------------------------------
+
+    def test_supporting_class_lookup(self):
+        """Types can be retrieved by their supporting_class attribute."""
+        F = self._make_factory()
+        BoundMeta = FactoryTypeMeta[F]
+
+        class Controller:
+            pass
+
+        class Base(metaclass=BoundMeta):
+            @abstractmethod
+            def run(self): ...
+
+        class ControllerAdapter(Base):
+            supporting_class = Controller
+            def run(self): pass
+
+        self.assertIs(F.get_registered_type_by_supporting_class(Controller), ControllerAdapter)
+        self.assertIs(F.get_registered_type_by_supporting_class(Controller()), ControllerAdapter)
+
+    # ------------------------------------------------------------------
+    # Generic types
+    # ------------------------------------------------------------------
+
+    def test_generic_class_registered(self):
+        """Generic[T] subclasses integrate transparently with the factory."""
+        T = TypeVar('T')
+        F = self._make_factory()
+        BoundMeta = FactoryTypeMeta[F]
+
+        class Base(metaclass=BoundMeta):
+            @abstractmethod
+            def process(self): ...
+
+        class Container(Base, Generic[T]):
+            def __init__(self, item: T):
+                self.item = item
+
+            def process(self): pass
+
+        self.assertIn('Container', F.get_registered_types())
+        instance = F.create_instance('Container', 'hello')
+        self.assertEqual(instance.item, 'hello')  # type: ignore
+
+    # ------------------------------------------------------------------
+    # Module reloading
+    # ------------------------------------------------------------------
+
+    def test_module_reloading_integration(self):
+        """_reload_class_module re-registers the refreshed class."""
+        F = self._make_factory()
+
+        class Controller:
+            pass
+
+        class MyAdapter:
+            supporting_class = Controller
+
+        MyAdapter.__module__ = 'test_module'  # needed so _reload_class_module can locate it
+        F.register_type(MyAdapter)
+
+        mock_module = types.ModuleType('test_module')
+        mock_module.MyAdapter = MyAdapter  # type: ignore
+
+        with patch.object(sys, 'modules', {'test_module': mock_module}):
+            with patch('pyrox.models.factory.importlib.reload') as mock_reload:
+                mock_reload.return_value = mock_module
+                result = F.get_registered_type_by_supporting_class(Controller, reload_class=True)
+                mock_reload.assert_called_once_with(mock_module)
+                self.assertIs(result, MyAdapter)
 
 
 if __name__ == '__main__':
