@@ -1,9 +1,8 @@
 """Factory metas for Pyrox framework base classes and utilities.
 """
-from abc import ABCMeta
 import importlib
 import sys
-from typing import Any, Dict, Generic, List, Optional, Type, TypeVar, Union
+from typing import Any, Type
 
 from pyrox.interfaces.protocols.meta import IFactoryMixinProtocolMeta
 from pyrox.services.logging import log
@@ -15,10 +14,7 @@ __all__ = (
 )
 
 
-T = TypeVar('T')
-
-
-class MetaFactory(ABCMeta):
+class MetaFactory:
     """Meta class for factory patterns.
 
     This meta class is used to create factories that can register and retrieve types.
@@ -26,10 +22,10 @@ class MetaFactory(ABCMeta):
 
     def __init_subclass__(cls, **kwargs):
         super().__init_subclass__(**kwargs)
-        cls._registered_types: Dict[str, type] = {}
+        cls._registered_types: dict[str, type] = {}
 
     @classmethod
-    def _get_class_from_module(cls, module, class_name: str) -> Optional[Type]:
+    def _get_class_from_module(cls, module, class_name: str) -> Type | None:
         """Get a class from a module by name, handling various naming patterns."""
         # Direct lookup
         if hasattr(module, class_name):
@@ -45,15 +41,9 @@ class MetaFactory(ABCMeta):
         return klass
 
     @classmethod
-    def _get_class_register_name(cls, type_class) -> str:
-        """Get the name used for registering the class in the factory."""
-        # Use the same logic as register_type to get the correct key
-        return type_class.__name__
-
-    @classmethod
     def _reload_class_module(
         cls,
-        class_type: Optional[Type[T]]
+        class_type: Type[Any] | None
     ) -> Type:
         """Reload the module of the given class type to ensure the latest version is used.
 
@@ -92,7 +82,7 @@ class MetaFactory(ABCMeta):
         type_name: str,
         *args,
         **kwargs
-    ) -> Optional[Any]:
+    ) -> Any | None:
         """Create an instance of the specified type."""
         type_class = cls.get_registered_types().get(type_name)
         if type_class:
@@ -101,15 +91,15 @@ class MetaFactory(ABCMeta):
         return None
 
     @classmethod
-    def get_available_types(cls) -> List[str]:
+    def get_available_types(cls) -> list[str]:
         """Get list of available type names."""
         return list(cls.get_registered_types().keys())
 
     @classmethod
     def get_registered_type(
         cls,
-        type_name: Union[str, object]
-    ) -> Optional[type]:
+        type_name: str | object
+    ) -> type | None:
         """Get the registered type class for the given type name.
 
         Args:
@@ -130,9 +120,9 @@ class MetaFactory(ABCMeta):
     @classmethod
     def get_registered_type_by_supporting_class(
         cls,
-        supporting_class: Union[object, str, type],
+        supporting_class: object | str | type,
         reload_class: bool = False
-    ) -> Optional[type]:
+    ) -> type | None:
         """Get the registered type class that supports the given class.
 
         Args:
@@ -188,71 +178,56 @@ class MetaFactory(ABCMeta):
     @classmethod
     def register_type(
         cls,
-        type_class: Type[T]
+        type_class: Type[Any]
     ) -> None:
         """Register a type with the factory.
 
         Args:
             type_class: The class type to register.
         """
+        base = getattr(cls, '_base_type', None)
+        if base is not None and not issubclass(type_class, base):
+            raise TypeError(f'Type {type_class} must be a subclass of {base} to be registered in {cls.__name__}.')
+
         if not hasattr(cls, '_registered_types'):
             raise RuntimeError(f'Factory {cls.__name__} is not properly initialized.')
 
-        type_name = cls._get_class_register_name(type_class)
-        if not type_name:
-            raise ValueError(f'Cannot register type {type_class} without a valid name.')
-        log(cls).debug(f'Registering type {type_name} with factory {cls.__name__}')
-        cls._registered_types[type_name] = type_class
+        log(cls).debug(f'Registering type {type_class.__name__} with factory {cls.__name__}')
+        cls._registered_types[type_class.__name__] = type_class
 
 
-F = TypeVar('F', bound=MetaFactory)
-
-
-class FactoryTypeMeta(IFactoryMixinProtocolMeta, Generic[T, F]):
+class FactoryTypeMeta(IFactoryMixinProtocolMeta):
     """Meta class for types that are used in factory patterns.
     """
-    supporting_class: Optional[Type] = None  # The class that this type supports, if any. i.e., 'Controller'
-    supports_registering: bool = True  # Whether this class should be registered with a factory.
-
-    def __init__(
-        cls,
-        name,
-        bases,
-        attrs,
-        **_
-    ) -> None:
-        super().__init__(name, bases, attrs)
+    _bound_factory: Type[MetaFactory] | None = None
 
     def __new__(
-        cls,
+        mcs,
         name,
         bases,
-        attrs,
-        **_
+        namespace,
+        **kwargs
     ) -> Type:
-        new_cls = super().__new__(cls, name, bases, attrs)
-        if new_cls.supports_registering is False:
-            return new_cls
-
-        factory = new_cls.get_factory()
+        cls = super().__new__(mcs, name, bases, namespace, **kwargs)
+        factory = getattr(mcs, '_bound_factory', None)
         if factory is None:
-            log(cls).debug(f'FactoryTypeMeta: No factory found for class {name}.')
-            return new_cls
+            return cls  # No factory bound, just return the class
 
-        if (new_cls.__name__ != 'FactoryTypeMeta'):
-            factory.register_type(new_cls)
-        else:
-            log(cls).debug(
-                f'FactoryTypeMeta: Class {name} is the factory class itself or does not subclass it.'
-            )
+        # First class through the door (the abstract base) anchors the allowed type
+        if getattr(factory, '_base_type', None) is None:
+            factory._base_type = cls
 
-        return new_cls
+        # No abstract methods means this is a concrete class that should be registered
+        if not cls.__abstractmethods__:
+            factory.register_type(cls)
 
-    @classmethod
-    def get_factory(cls) -> Optional[Type[F]]:
-        """Get the factory associated with this type, if any.
+        return cls
 
-        Returns:
-            Optional[MetaFactory]: The factory, or None if not set.
+    def __class_getitem__(cls, factory):
+        """Returns a parameterized metaclass with the factory pre-bound.
+
+        e.g. metaclass=FactoryTypeMeta[ApplicationTaskFactory]
         """
-        raise NotImplementedError("Subclasses must implement get_factory")
+        if not isinstance(factory, type):
+            raise TypeError(f'Expected a factory type, got {factory!r}')
+        return type(cls.__name__, (cls,), {'_bound_factory': factory})
