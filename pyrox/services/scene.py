@@ -123,7 +123,10 @@ class SceneEventBus:
                 log(cls).debug(f"Unsubscribed {callback.__name__} from {event_type.name}")
 
     @classmethod
-    def publish(cls, event: SceneEvent) -> None:
+    def publish(
+        cls,
+        event: SceneEvent
+    ) -> None:
         """Publish a scene event to all subscribers.
 
         Args:
@@ -423,7 +426,7 @@ class SceneRunnerService(
     _last_scene_filepath: Optional[Path] = None
 
     # Events
-    _event_id: Optional[int | str] = None
+    _event_id: str | None = None
 
     def __init__(self):
         raise ValueError("SceneRunnerService is a static class and cannot be initialized directly!")
