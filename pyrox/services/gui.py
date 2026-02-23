@@ -14,6 +14,53 @@ from pyrox.interfaces import (
 )
 
 
+_MODIFIER_MAP: dict[str, str] = {
+    'ctrl': 'Control',
+    'control': 'Control',
+    'alt': 'Alt',
+    'shift': 'Shift',
+    'meta': 'Meta',
+    'cmd': 'Command',
+    'win': 'Win',
+}
+
+
+def _accelerator_to_tk_binding(accelerator: str) -> str | None:
+    """Convert a human-readable accelerator string to a Tkinter key binding.
+
+    Examples::
+
+        'Ctrl+Q'       -> '<Control-q>'
+        'Ctrl+Shift+S' -> '<Control-Shift-S>'
+        'F1'           -> '<F1>'
+        'Alt+F4'       -> '<Alt-F4>'
+
+    Returns None if the string cannot be parsed.
+    """
+    if not accelerator:
+        return None
+
+    parts = [p.strip() for p in accelerator.split('+')]
+    modifiers: list[str] = []
+    key: str | None = None
+
+    for part in parts:
+        mapped = _MODIFIER_MAP.get(part.lower())
+        if mapped:
+            modifiers.append(mapped)
+        else:
+            key = part
+
+    if key is None or not key.strip():
+        return None
+
+    # Lowercase single alpha characters unless Shift is a modifier
+    if len(key) == 1 and key.isalpha() and 'Shift' not in modifiers:
+        key = key.lower()
+
+    return '<' + '-'.join(modifiers + [key]) + '>'
+
+
 class TkGuiManager:
     """Static manager for Tk GUI operations."""
 
@@ -309,16 +356,16 @@ class TkGuiManager:
             metadata={'category': 'root'},
         )
         MenuRegistry.register_item(
-            menu_id='view_menu',
-            menu_path='root/view',
+            menu_id='tools_menu',
+            menu_path='root/tools',
             menu_widget=tk.Menu(cls._root_menu, tearoff=0),
             menu_index=2,
             owner='TkGuiManager',
             metadata={'category': 'root'},
         )
         MenuRegistry.register_item(
-            menu_id='tools_menu',
-            menu_path='root/tools',
+            menu_id='view_menu',
+            menu_path='root/view',
             menu_widget=tk.Menu(cls._root_menu, tearoff=0),
             menu_index=3,
             owner='TkGuiManager',
@@ -336,8 +383,8 @@ class TkGuiManager:
         # add the additional menus to the root menu
         cls._root_menu.add_cascade(label="File", menu=cls.get_file_menu())
         cls._root_menu.add_cascade(label="Edit", menu=cls.get_edit_menu())
-        cls._root_menu.add_cascade(label="View", menu=cls.get_view_menu())
         cls._root_menu.add_cascade(label="Tools", menu=cls.get_tools_menu())
+        cls._root_menu.add_cascade(label="View", menu=cls.get_view_menu())
         cls._root_menu.add_cascade(label="Help", menu=cls.get_help_menu())
 
         return cls._root_menu
@@ -489,6 +536,36 @@ class TkGuiManager:
     @classmethod
     def reroute_excepthook(cls, callback: Callable[..., None]) -> None:
         tk.report_callback_exception = callback  # type: ignore
+
+    # --------------------------------------------------
+    # Additional utility methods can be added here as needed
+    # --------------------------------------------------
+
+    @classmethod
+    def insert_menu_command_with_accelerator(
+        cls,
+        menu: tk.Menu,
+        index: int,
+        label: str,
+        command: Callable | None,
+        accelerator: str,
+        underline: int,
+    ) -> None:
+        """Helper method to insert a menu command with an accelerator key binding."""
+        original_command = command
+        command = command if command is not None else lambda: None  # No-op if no command provided
+
+        menu.insert_command(
+            index=index,
+            label=label,
+            command=command,
+            accelerator=accelerator,
+            underline=underline
+        )
+        tk_binding = _accelerator_to_tk_binding(accelerator)
+
+        if tk_binding and original_command:  # only bind if a real command was provided
+            cls.bind_hotkey(tk_binding, command)
 
 
 __all__ = (

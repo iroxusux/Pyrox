@@ -106,15 +106,16 @@ class TestApplicationTask(unittest.TestCase):
 
         self.assertIs(task.get_application(), mock_app_b)
 
-    def test_register_menu_command_inserts_command(self):
-        """Test that register_menu_command calls menu.insert_command."""
+    def test_register_menu_command_delegates_to_tk_gui_manager(self):
+        """register_menu_command delegates insertion+binding to TkGuiManager."""
         mock_app = self._make_application()
         task = ApplicationTask(application=mock_app)
 
         mock_menu = MagicMock(spec=tk.Menu)
         dummy_command = MagicMock()
 
-        with patch('pyrox.models.task.MenuRegistry') as _:
+        with patch('pyrox.models.task.TkGuiManager.insert_menu_command_with_accelerator') as mock_insert, \
+                patch('pyrox.models.task.MenuRegistry'):
             task.register_menu_command(
                 menu=mock_menu,
                 registry_id='file.open',
@@ -126,7 +127,8 @@ class TestApplicationTask(unittest.TestCase):
                 underline=0,
             )
 
-        mock_menu.insert_command.assert_called_once_with(
+        mock_insert.assert_called_once_with(
+            menu=mock_menu,
             index=0,
             label='Open',
             command=dummy_command,
@@ -135,12 +137,13 @@ class TestApplicationTask(unittest.TestCase):
         )
 
     def test_register_menu_command_noop_when_no_command(self):
-        """Test that a None command is replaced with a no-op lambda."""
+        """None command is passed through to insert_menu_command_with_accelerator without raising."""
         mock_app = self._make_application()
         task = ApplicationTask(application=mock_app)
         mock_menu = MagicMock(spec=tk.Menu)
 
-        with patch('pyrox.models.task.MenuRegistry'):
+        with patch('pyrox.models.task.TkGuiManager.insert_menu_command_with_accelerator') as mock_insert, \
+                patch('pyrox.models.task.MenuRegistry'):
             task.register_menu_command(
                 menu=mock_menu,
                 registry_id='file.save',
@@ -152,11 +155,9 @@ class TestApplicationTask(unittest.TestCase):
                 underline=0,
             )
 
-        # The command passed to insert_command should be callable (no-op lambda)
-        _, kwargs = mock_menu.insert_command.call_args
-        self.assertTrue(callable(kwargs['command']))
-        # Calling the no-op should not raise
-        kwargs['command']()
+        # None is forwarded; the no-op substitution happens inside TkGuiManager
+        mock_insert.assert_called_once()
+        self.assertIsNone(mock_insert.call_args.kwargs['command'])
 
     def test_register_menu_command_disables_when_not_enabled(self):
         """Test that a disabled menu command calls entryconfig with DISABLED state."""
@@ -164,7 +165,8 @@ class TestApplicationTask(unittest.TestCase):
         task = ApplicationTask(application=mock_app)
         mock_menu = MagicMock(spec=tk.Menu)
 
-        with patch('pyrox.models.task.MenuRegistry'):
+        with patch('pyrox.models.task.TkGuiManager.insert_menu_command_with_accelerator'), \
+                patch('pyrox.models.task.MenuRegistry'):
             task.register_menu_command(
                 menu=mock_menu,
                 registry_id='edit.undo',
@@ -185,7 +187,8 @@ class TestApplicationTask(unittest.TestCase):
         task = ApplicationTask(application=mock_app)
         mock_menu = MagicMock(spec=tk.Menu)
 
-        with patch('pyrox.models.task.MenuRegistry'):
+        with patch('pyrox.models.task.TkGuiManager.insert_menu_command_with_accelerator'), \
+                patch('pyrox.models.task.MenuRegistry'):
             task.register_menu_command(
                 menu=mock_menu,
                 registry_id='edit.redo',
@@ -207,7 +210,8 @@ class TestApplicationTask(unittest.TestCase):
         mock_menu = MagicMock(spec=tk.Menu)
         dummy_command = MagicMock()
 
-        with patch('pyrox.models.task.MenuRegistry') as mock_registry:
+        with patch('pyrox.models.task.TkGuiManager.insert_menu_command_with_accelerator'), \
+                patch('pyrox.models.task.MenuRegistry') as mock_registry:
             task.register_menu_command(
                 menu=mock_menu,
                 registry_id='file.exit',

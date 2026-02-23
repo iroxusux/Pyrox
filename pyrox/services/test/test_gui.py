@@ -7,7 +7,7 @@ import unittest
 from unittest.mock import MagicMock, Mock, patch
 
 from pyrox.interfaces.constants import EnvironmentKeys
-from pyrox.services.gui import TkGuiManager
+from pyrox.services.gui import TkGuiManager, _accelerator_to_tk_binding
 from pyrox.services.menu_registry import MenuRegistry
 
 
@@ -25,8 +25,7 @@ def _reset_manager() -> None:
     TkGuiManager._view_menu = None
     TkGuiManager._tools_menu = None
     TkGuiManager._help_menu = None
-    if hasattr(TkGuiManager, '_after_id'):
-        TkGuiManager._after_id = None
+    TkGuiManager._after_id = None
 
 
 # ---------------------------------------------------------------------------
@@ -286,18 +285,28 @@ class TestTkGuiManagerEvents(unittest.TestCase):
         self.assertEqual(result, 42)
 
     def test_cancel_scheduled_event_calls_after_cancel(self):
-        """cancel_scheduled_event() delegates to root.after_cancel() with string id."""
-        TkGuiManager.cancel_scheduled_event(42)
-        self.mock_root.after_cancel.assert_called_with("42")
+        """cancel_scheduled_event() delegates to root.after_cancel() with the given id."""
+        TkGuiManager.cancel_scheduled_event('42')
+        self.mock_root.after_cancel.assert_called_with('42')
 
     # ---- window event subscriptions ----
 
     def test_subscribe_to_window_change_event_binds_configure(self):
-        """subscribe_to_window_change_event() binds the <Configure> event."""
+        """subscribe_to_window_change_event() binds the <Configure> event with add='+'."""
         callback = Mock()
         TkGuiManager.subscribe_to_window_change_event(callback)
         self.mock_root.bind.assert_called_once()
         self.assertEqual(self.mock_root.bind.call_args[0][0], '<Configure>')
+        self.assertEqual(self.mock_root.bind.call_args.kwargs.get('add'), '+')
+
+    def test_subscribe_to_window_change_event_does_not_replace_existing_binding(self):
+        """Multiple subscribers are stacked via add='+' rather than replacing each other."""
+        cb1, cb2 = Mock(), Mock()
+        TkGuiManager.subscribe_to_window_change_event(cb1)
+        TkGuiManager.subscribe_to_window_change_event(cb2)
+        # Both calls must use add='+'
+        for c in self.mock_root.bind.call_args_list:
+            self.assertEqual(c.kwargs.get('add'), '+')
 
     def test_subscribe_to_window_close_event_sets_protocol(self):
         """subscribe_to_window_close_event() sets WM_DELETE_WINDOW protocol."""
@@ -463,22 +472,22 @@ class TestTkGuiManagerWindowGeometry(unittest.TestCase):
     @patch('pyrox.services.gui.EnvManager')
     def test_save_window_geometry_schedules_delayed_event(self, _mock_env):
         """save_window_geometry() calls after() exactly once."""
-        self.mock_root.after.return_value = 99
+        self.mock_root.after.return_value = 'after#1'
 
         TkGuiManager.save_root_geometry()
 
         self.mock_root.after.assert_called_once()
-        self.assertEqual(TkGuiManager._after_id, 99)
+        self.assertEqual(TkGuiManager._after_id, 'after#1')
 
     @patch('pyrox.services.gui.EnvManager')
     def test_save_window_geometry_cancels_pending_event(self, _mock_env):
         """save_window_geometry() cancels the previous pending event."""
-        TkGuiManager._after_id = 50
-        self.mock_root.after.return_value = 99
+        TkGuiManager._after_id = 'after#old'
+        self.mock_root.after.return_value = 'after#new'
 
         TkGuiManager.save_root_geometry()
 
-        self.mock_root.after_cancel.assert_called_with("50")
+        self.mock_root.after_cancel.assert_called_with('after#old')
 
     @patch('pyrox.services.gui.EnvManager')
     def test_save_window_geometry_no_cancel_when_no_pending(self, _mock_env):
@@ -559,6 +568,139 @@ class TestTkGuiManagerWindowGeometry(unittest.TestCase):
         TkGuiManager.restore_root_geometry()
 
         self.mock_root.geometry.assert_called_with('800x600')
+
+
+# ---------------------------------------------------------------------------
+# Accelerator → Tkinter binding conversion
+# ---------------------------------------------------------------------------
+
+class TestAcceleratorToTkBinding(unittest.TestCase):
+    """Tests for the module-level _accelerator_to_tk_binding() helper."""
+
+    def test_ctrl_alpha_lowercases_key(self):
+        """Ctrl+Q becomes <Control-q>."""
+        self.assertEqual(_accelerator_to_tk_binding('Ctrl+Q'), '<Control-q>')
+
+    def test_ctrl_shift_alpha_preserves_case(self):
+        """Ctrl+Shift+S becomes <Control-Shift-S> (case preserved under Shift)."""
+        self.assertEqual(_accelerator_to_tk_binding('Ctrl+Shift+S'), '<Control-Shift-S>')
+
+    def test_function_key_only(self):
+        """F1 becomes <F1>."""
+        self.assertEqual(_accelerator_to_tk_binding('F1'), '<F1>')
+
+    def test_alt_function_key(self):
+        """Alt+F4 becomes <Alt-F4>."""
+        self.assertEqual(_accelerator_to_tk_binding('Alt+F4'), '<Alt-F4>')
+
+    def test_control_spelled_out(self):
+        """'Control+S' (spelled-out modifier) is accepted."""
+        self.assertEqual(_accelerator_to_tk_binding('Control+S'), '<Control-s>')
+
+    def test_empty_string_returns_none(self):
+        """Empty accelerator string returns None."""
+        self.assertIsNone(_accelerator_to_tk_binding(''))
+
+    def test_none_like_empty_returns_none(self):
+        """Accelerator with no key token returns None."""
+        self.assertIsNone(_accelerator_to_tk_binding('Ctrl+Shift+'))
+
+    def test_multiple_modifiers(self):
+        """Ctrl+Alt+Del becomes <Control-Alt-Delete>."""
+        self.assertEqual(_accelerator_to_tk_binding('Ctrl+Alt+Delete'), '<Control-Alt-Delete>')
+
+
+# ---------------------------------------------------------------------------
+# TkGuiManager.insert_menu_command_with_accelerator
+# ---------------------------------------------------------------------------
+
+class TestInsertMenuCommandWithAccelerator(unittest.TestCase):
+    """Tests for TkGuiManager.insert_menu_command_with_accelerator()."""
+
+    def setUp(self):
+        _reset_manager()
+        self.mock_root = MagicMock()
+        TkGuiManager._root_window = self.mock_root
+        self.mock_menu = MagicMock()
+
+    def tearDown(self):
+        _reset_manager()
+
+    def test_inserts_command_into_menu(self):
+        """The method calls insert_command on the provided menu widget."""
+        cmd = Mock()
+        TkGuiManager.insert_menu_command_with_accelerator(
+            menu=self.mock_menu,
+            index=0,
+            label='Exit',
+            command=cmd,
+            accelerator='Ctrl+Q',
+            underline=0,
+        )
+        self.mock_menu.insert_command.assert_called_once_with(
+            index=0,
+            label='Exit',
+            command=cmd,
+            accelerator='Ctrl+Q',
+            underline=0,
+        )
+
+    def test_binds_hotkey_on_root(self):
+        """The method also binds the accelerator key on the root window."""
+        cmd = Mock()
+        TkGuiManager.insert_menu_command_with_accelerator(
+            menu=self.mock_menu,
+            index=0,
+            label='Exit',
+            command=cmd,
+            accelerator='Ctrl+Q',
+            underline=0,
+        )
+        bound_keys = [c[0][0] for c in self.mock_root.bind.call_args_list]
+        self.assertIn('<Control-q>', bound_keys)
+
+    def test_no_binding_for_empty_accelerator(self):
+        """No hotkey binding occurs when accelerator is an empty string."""
+        TkGuiManager.insert_menu_command_with_accelerator(
+            menu=self.mock_menu,
+            index=0,
+            label='Exit',
+            command=Mock(),
+            accelerator='',
+            underline=0,
+        )
+        self.mock_root.bind.assert_not_called()
+
+    def test_no_op_command_used_when_command_is_none(self):
+        """A None command is replaced with a no-op rather than raising."""
+        TkGuiManager.insert_menu_command_with_accelerator(
+            menu=self.mock_menu,
+            index=0,
+            label='Exit',
+            command=None,
+            accelerator='Ctrl+Q',
+            underline=0,
+        )
+        # insert_command must still be called
+        self.mock_menu.insert_command.assert_called_once()
+        # and since command is None → no-op, no binding expected
+        self.mock_root.bind.assert_not_called()
+
+    def test_hotkey_wrapper_calls_command(self):
+        """The hotkey wrapper bound to the root actually invokes the command."""
+        cmd = Mock()
+        TkGuiManager.insert_menu_command_with_accelerator(
+            menu=self.mock_menu,
+            index=0,
+            label='Test',
+            command=cmd,
+            accelerator='F1',
+            underline=0,
+        )
+        # Retrieve the wrapper that was bound
+        wrapper = self.mock_root.bind.call_args[0][1]
+        wrapper(Mock())  # simulate Tkinter key event
+        cmd.assert_called_once()
 
 
 if __name__ == '__main__':

@@ -7,7 +7,7 @@ import tkinter as tk
 from typing import Callable
 from pyrox.interfaces import IApplication, IApplicationTask
 from pyrox.models import ServicesRunnableMixin
-from pyrox.services import log, MenuRegistry
+from pyrox.services import log, MenuRegistry, TkGuiManager
 from pyrox.models.factory import MetaFactory, FactoryTypeMeta
 
 
@@ -84,15 +84,15 @@ class ApplicationTask(
         """Register a command to the application's menu bar.
         Additionally, register the command with the MenuRegistry.
         """
-        command = command if command is not None else lambda: None  # No-op if no command provided
-
-        menu.insert_command(
+        TkGuiManager.insert_menu_command_with_accelerator(
+            menu=menu,
             index=index,
             label=label,
             command=command,
             accelerator=accelerator,
-            underline=underline
+            underline=underline,
         )
+
         if not enabled:
             menu.entryconfig(index, state=tk.DISABLED)  # Disable the menu item if not enabled
 

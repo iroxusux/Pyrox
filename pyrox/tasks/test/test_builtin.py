@@ -131,6 +131,12 @@ class TestFileTask(_TaskTestBase):
         )
         self.assertEqual(exit_call.kwargs.get('category'), 'system')
 
+    def test_exit_accelerator_is_bound_on_root(self):
+        """FileTask binds Ctrl+Q on the root window so the hotkey works."""
+        self._make_task()
+        bound_keys = [c[0][0] for c in self.mock_root.bind.call_args_list]
+        self.assertIn('<Control-q>', bound_keys)
+
 
 # ---------------------------------------------------------------------------
 # HelpTask
@@ -179,6 +185,12 @@ class TestHelpTask(_TaskTestBase):
             if c.kwargs.get('menu_id') == 'about'
         )
         self.assertEqual(about_call.kwargs.get('category'), 'help')
+
+    def test_about_accelerator_is_bound_on_root(self):
+        """HelpTask binds F1 on the root window so the hotkey works."""
+        self._make_task()
+        bound_keys = [c[0][0] for c in self.mock_root.bind.call_args_list]
+        self.assertIn('<F1>', bound_keys)
 
     def test_about_command_invokes_show_help_window(self):
         """Invoking the about command calls show_help_window with the root window."""
@@ -242,6 +254,12 @@ class TestToolsTask(_TaskTestBase):
             if c.kwargs.get('menu_id') == 'text_editor'
         )
         self.assertEqual(te_call.kwargs.get('category'), 'tools')
+
+    def test_text_editor_accelerator_is_bound_on_root(self):
+        """ToolsTask binds Ctrl+T on the root window so the hotkey works."""
+        self._make_task()
+        bound_keys = [c[0][0] for c in self.mock_root.bind.call_args_list]
+        self.assertIn('<Control-t>', bound_keys)
 
     def test_initial_frame_is_none(self):
         """_text_editor_frame starts as None."""
