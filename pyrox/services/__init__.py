@@ -22,6 +22,13 @@ from .id import IdGeneratorService
 # Theme imports
 from .theme import ThemeManager
 
+# Bus imports
+from .bus import (
+    EventType,
+    Event,
+    EventBus,
+)
+
 # Menu registry imports
 from .menu_registry import (
     MenuRegistry,
@@ -111,6 +118,10 @@ __all__ = (
     # Logging imports
     'log',
     'LoggingManager',
+    # Bus imports
+    'EventType',
+    'Event',
+    'EventBus',
     # Id imports
     'IdGeneratorService',
     # Theme imports
