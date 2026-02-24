@@ -1,8 +1,29 @@
 """Viewport panning service module.
 """
-from typing import Callable, Optional
+from dataclasses import dataclass, field
+from typing import Callable
 import tkinter as tk
 from pyrox.interfaces import IViewport
+from pyrox.services import MenuRegistry, MenuItemDescriptor, Event, EventBus, EventType
+
+
+class ViewportEventType(EventType):
+    """Event types for viewport-related events."""
+    STATUS = 'STATUS'
+    PAN = 'PAN'
+    ZOOM = 'ZOOM'
+    GRID = 'GRID'
+
+
+@dataclass
+class ViewportEvent(Event[ViewportEventType]):
+    """Event class for viewport-related events."""
+    data: dict = field(default_factory=dict)  # Optional data payload for the event
+
+
+class ViewportEventBus(EventBus[ViewportEventType, ViewportEvent]):
+    """Event bus for viewport-related events."""
+    pass
 
 
 class ViewportStatusService:
@@ -20,9 +41,9 @@ class ViewportStatusService:
 
     def __init__(
         self,
-        parent: Optional[tk.Widget] = None,
-        viewport: Optional[IViewport] = None,
-        canvas: Optional[tk.Canvas] = None
+        parent: tk.Widget | None = None,
+        viewport: IViewport | None = None,
+        canvas: tk.Canvas | None = None
     ):
         """Initialize the status service.
 
@@ -34,7 +55,7 @@ class ViewportStatusService:
         self._parent = parent
         self._viewport = viewport
         self._canvas = canvas
-        self._status_bar: Optional[tk.Frame] = None
+        self._status_bar: tk.Frame | None = None
         self._status_labels: dict[str, tk.Label] = {}
 
         # Status values
@@ -46,7 +67,7 @@ class ViewportStatusService:
         self._viewport_y: float = 0.0
         self._zoom_level: float = 1.0
         self._selection_count: int = 0
-        self._grid_enabled: bool = False
+        self._grid_enabled: bool = True
         self._snap_enabled: bool = False
         self._current_tool: str = "select"
         self._custom_message: str = ""
@@ -56,8 +77,17 @@ class ViewportStatusService:
         # 0.2 provides good balance between stability and responsiveness
         self._fps_alpha: float = 0.2
 
+        ViewportEventBus.subscribe(
+            ViewportEventType.GRID,
+            self._on_grid_event
+        )
+
         # Update callbacks
         self._on_update_callbacks: list[Callable] = []
+
+    # ----------------------------------------
+    # Build methods
+    # ----------------------------------------
 
     def build(self) -> tk.Frame:
         """Build and return the status bar widget.
@@ -91,8 +121,18 @@ class ViewportStatusService:
         self._create_status_section("selection", "Selected: 0", side=tk.LEFT, width=12)
         self._create_separator()
 
-        self._create_status_section("grid", "Grid: OFF", side=tk.LEFT, width=10)
-        self._create_status_section("snap", "Snap: OFF", side=tk.LEFT, width=10)
+        self._create_status_section(
+            "grid",
+            f"Grid: {"ON" if self._grid_enabled else "OFF"}",
+            side=tk.LEFT,
+            width=10
+        )
+        self._create_status_section(
+            "snap",
+            f"Snap: {"ON" if self._snap_enabled else "OFF"}",
+            side=tk.LEFT,
+            width=10
+        )
         self._create_separator()
 
         # Custom message (expandable)
@@ -144,6 +184,10 @@ class ViewportStatusService:
         )
         separator.pack(side=tk.LEFT, fill=tk.Y, padx=2)
 
+    # ----------------------------------------
+    # Binding methods
+    # ----------------------------------------
+
     def _bind_to_canvas(self) -> None:
         """Bind mouse motion event to canvas for position tracking."""
         if not self._canvas:
@@ -181,41 +225,9 @@ class ViewportStatusService:
                 text=f"Scene: ({self._mouse_scene_x:.1f}, {self._mouse_scene_y:.1f})"
             )
 
-    def set_canvas(self, canvas: tk.Canvas) -> None:
-        """Set the canvas and bind mouse tracking.
-
-        Args:
-            canvas: Canvas widget to track
-        """
-        self._canvas = canvas
-        self._bind_to_canvas()
-
-    def set_viewport(self, viewport: IViewport) -> None:
-        """Set the viewport instance.
-
-        Args:
-            viewport: Viewport to track
-        """
-        self._viewport = viewport
-        self.update_viewport_info()
-
-    def update_viewport_info(self) -> None:
-        """Update viewport position and zoom displays."""
-        if not self._viewport:
-            return
-
-        self._viewport_x = self._viewport.x
-        self._viewport_y = self._viewport.y
-        self._zoom_level = self._viewport.zoom
-
-        if "viewport" in self._status_labels:
-            self._status_labels["viewport"].config(
-                text=f"View: ({int(self._viewport_x)}, {int(self._viewport_y)})"
-            )
-
-        if "zoom" in self._status_labels:
-            zoom_percent = int(self._zoom_level * 100)
-            self._status_labels["zoom"].config(text=f"Zoom: {zoom_percent}%")
+    # ----------------------------------------
+    # Set Enabled State Methods
+    # ----------------------------------------
 
     def set_selection_count(self, count: int) -> None:
         """Update selection count display.
@@ -308,6 +320,72 @@ class ViewportStatusService:
         else:
             self.set_fps(0.0)
 
+    # ----------------------------------------
+    # Setters and Getters
+    # ----------------------------------------
+
+    def get_status_bar(self) -> tk.Frame | None:
+        """Get the status bar widget.
+
+        Returns:
+            Status bar frame or None if not built
+        """
+        return self._status_bar
+
+    def set_canvas(self, canvas: tk.Canvas) -> None:
+        """Set the canvas and bind mouse tracking.
+
+        Args:
+            canvas: Canvas widget to track
+        """
+        self._canvas = canvas
+        self._bind_to_canvas()
+
+    def set_viewport(self, viewport: IViewport) -> None:
+        """Set the viewport instance.
+
+        Args:
+            viewport: Viewport to track
+        """
+        self._viewport = viewport
+        self.update_viewport_info()
+
+    # ----------------------------------------
+    # EventBus callbacks
+    # ----------------------------------------
+
+    def _on_grid_event(self, event: ViewportEvent) -> None:
+        """Handle grid toggle events to update status display.
+
+        Args:
+            event: ViewportEvent with data containing 'enabled' boolean
+        """
+        enabled = event.data.get('enabled', None) if event.data else None
+        if enabled is not None:
+            self.set_grid_enabled(enabled)
+
+        snap_enabled = event.data.get('snap_enabled', None) if event.data else None
+        if snap_enabled is not None:
+            self.set_snap_enabled(snap_enabled)
+
+    def update_viewport_info(self) -> None:
+        """Update viewport position and zoom displays."""
+        if not self._viewport:
+            return
+
+        self._viewport_x = self._viewport.x
+        self._viewport_y = self._viewport.y
+        self._zoom_level = self._viewport.zoom
+
+        if "viewport" in self._status_labels:
+            self._status_labels["viewport"].config(
+                text=f"View: ({int(self._viewport_x)}, {int(self._viewport_y)})"
+            )
+
+        if "zoom" in self._status_labels:
+            zoom_percent = int(self._zoom_level * 100)
+            self._status_labels["zoom"].config(text=f"Zoom: {zoom_percent}%")
+
     def update_all(self) -> None:
         """Update all status displays from current values."""
         self.update_viewport_info()
@@ -316,14 +394,6 @@ class ViewportStatusService:
         # Trigger callbacks
         for callback in self._on_update_callbacks:
             callback()
-
-    def get_status_bar(self) -> Optional[tk.Frame]:
-        """Get the status bar widget.
-
-        Returns:
-            Status bar frame or None if not built
-        """
-        return self._status_bar
 
     @property
     def viewport(self) -> IViewport:
@@ -350,9 +420,9 @@ class ViewportPanningService:
 
     def __init__(
         self,
-        canvas: Optional[tk.Canvas] = None,
-        viewport: Optional[IViewport] = None,
-        status_service: Optional[ViewportStatusService] = None
+        canvas: tk.Canvas | None = None,
+        viewport: IViewport | None = None,
+        status_service: ViewportStatusService | None = None
     ):
         self._canvas = canvas
         self._viewport = viewport
@@ -447,9 +517,9 @@ class ViewportZoomingService:
 
     def __init__(
         self,
-        canvas: Optional[tk.Canvas] = None,
-        viewport: Optional[IViewport] = None,
-        status_service: Optional[ViewportStatusService] = None,
+        canvas: tk.Canvas | None = None,
+        viewport: IViewport | None = None,
+        status_service: ViewportStatusService | None = None,
         zoom_factor: float = 1.2,
         min_zoom: float = 0.1,
         max_zoom: float = 10.0
@@ -499,9 +569,9 @@ class ViewportZoomingService:
 
     def zoom_in(
         self,
-        center_x: Optional[float] = None,
-        center_y: Optional[float] = None,
-        factor: Optional[float] = None
+        center_x: float | None = None,
+        center_y: float | None = None,
+        factor: float = 0.0
     ) -> None:
         """Zoom in, optionally centered on a specific point.
 
@@ -510,7 +580,7 @@ class ViewportZoomingService:
             center_y: Y coordinate to zoom towards (canvas coordinates)
             factor: Custom zoom factor (default: use service zoom_factor)
         """
-        if factor is None:
+        if not factor:
             factor = self._zoom_factor
 
         old_zoom = self.viewport.zoom
@@ -523,9 +593,9 @@ class ViewportZoomingService:
 
     def zoom_out(
         self,
-        center_x: Optional[float] = None,
-        center_y: Optional[float] = None,
-        factor: Optional[float] = None
+        center_x: float | None = None,
+        center_y: float | None = None,
+        factor: float = 0.0
     ) -> None:
         """Zoom out, optionally centered on a specific point.
 
@@ -534,7 +604,7 @@ class ViewportZoomingService:
             center_y: Y coordinate to zoom from (canvas coordinates)
             factor: Custom zoom factor (default: use service zoom_factor)
         """
-        if factor is None:
+        if not factor:
             factor = self._zoom_factor
 
         old_zoom = self.viewport.zoom
@@ -549,8 +619,8 @@ class ViewportZoomingService:
         self,
         old_zoom: float,
         new_zoom: float,
-        center_x: Optional[float] = None,
-        center_y: Optional[float] = None
+        center_x: float | None = None,
+        center_y: float | None = None
     ) -> None:
         """Apply zoom transformation with optional center point.
 
@@ -710,9 +780,8 @@ class ViewportGriddingService:
 
     def __init__(
         self,
-        canvas: Optional[tk.Canvas] = None,
-        viewport: Optional[IViewport] = None,
-        status_service: Optional[ViewportStatusService] = None,
+        canvas: tk.Canvas | None = None,
+        viewport: IViewport | None = None,
         grid_size: int = 50,
         grid_color: str = "#505050",
         grid_line_width: int = 1,
@@ -734,23 +803,18 @@ class ViewportGriddingService:
         """
         self._canvas = canvas
         self._viewport = viewport
-        self._status_service = status_service
         self._grid_size = grid_size
         self._grid_color = grid_color
         self._grid_line_width = grid_line_width
         self._enabled = enabled
         self._snap_enabled = snap_enabled
         self._min_spacing_pixels = min_spacing_pixels
-        self._on_toggle_callbacks: list[Callable] = []
-        self._on_snap_toggle_callbacks: list[Callable] = []
+        self._bind_to_menu_registry()
 
-        if self._status_service:
-            self._on_toggle_callbacks.append(
-                lambda enabled: self._status_service.set_grid_enabled(enabled)  # type: ignore
-            )
-            self._on_snap_toggle_callbacks.append(
-                lambda enabled: self._status_service.set_snap_enabled(enabled)  # type: ignore
-            )
+    def _bind_to_menu_registry(self) -> None:
+        """Bind grid toggle actions to the menu registry."""
+        self.get_grid_toggle_menu_item().set_command(command=self.toggle)
+        self.get_snap_toggle_menu_item().set_command(command=self.toggle_snap)
 
     def render(self) -> None:
         """Render the grid if enabled."""
@@ -813,25 +877,15 @@ class ViewportGriddingService:
 
     def toggle(self) -> None:
         """Toggle grid visibility."""
-        self._enabled = not self._enabled
-
-        # Notify listeners
-        for callback in self._on_toggle_callbacks:
-            callback(self._enabled)
+        self.set_enabled(not self.is_enabled())
 
     def enable(self) -> None:
         """Enable grid rendering."""
-        if not self._enabled:
-            self._enabled = True
-            for callback in self._on_toggle_callbacks:
-                callback(True)
+        self.set_enabled(True)
 
     def disable(self) -> None:
         """Disable grid rendering."""
-        if self._enabled:
-            self._enabled = False
-            for callback in self._on_toggle_callbacks:
-                callback(False)
+        self.set_enabled(False)
 
     def snap_to_grid(self, x: float, y: float, force: bool = False) -> tuple[float, float]:
         """Snap scene coordinates to nearest grid point.
@@ -854,27 +908,19 @@ class ViewportGriddingService:
 
     def toggle_snap(self) -> None:
         """Toggle snap to grid on/off."""
-        self._snap_enabled = not self._snap_enabled
-
-        # Notify listeners
-        for callback in self._on_snap_toggle_callbacks:
-            callback(self._snap_enabled)
+        self.set_snap_enabled(not self.is_snap_enabled())
 
     def enable_snap(self) -> None:
         """Enable snap to grid."""
-        if not self._snap_enabled:
-            self._snap_enabled = True
-            for callback in self._on_snap_toggle_callbacks:
-                callback(True)
+        self.set_snap_enabled(True)
 
     def disable_snap(self) -> None:
         """Disable snap to grid."""
-        if self._snap_enabled:
-            self._snap_enabled = False
-            for callback in self._on_snap_toggle_callbacks:
-                callback(False)
+        self.set_snap_enabled(False)
 
+    # ----------------------------------------
     # Getters and Setters
+    # ----------------------------------------
 
     def get_canvas(self) -> tk.Canvas:
         """Get the canvas associated with this service."""
@@ -885,6 +931,8 @@ class ViewportGriddingService:
     def set_canvas(self, canvas: tk.Canvas) -> None:
         """Set the canvas associated with this service."""
         self._canvas = canvas
+        self.clear()  # Clear any existing grid lines on new canvas
+        self.render()  # Render grid on new canvas if enabled
 
     def get_viewport(self) -> IViewport:
         """Get the viewport associated with this service."""
@@ -954,8 +1002,13 @@ class ViewportGriddingService:
         """
         if self._enabled != enabled:
             self._enabled = enabled
-            for callback in self._on_toggle_callbacks:
-                callback(enabled)
+            ViewportEventBus.publish(
+                ViewportEvent(
+                    ViewportEventType.GRID,
+                    data={"enabled": enabled}
+                ))
+        self.clear()  # Clear grid lines immediately when toggling
+        self.render()  # Re-render grid if enabled
 
     def get_min_spacing_pixels(self) -> int:
         """Get the minimum pixel spacing before hiding grid."""
@@ -974,10 +1027,6 @@ class ViewportGriddingService:
             raise ValueError(f"Minimum spacing must be positive, got {pixels}")
         self._min_spacing_pixels = pixels
 
-    def get_on_toggle_callbacks(self) -> list[Callable]:
-        """Get the list of callbacks to be called on toggle events."""
-        return self._on_toggle_callbacks
-
     def is_snap_enabled(self) -> bool:
         """Check if snap to grid is enabled."""
         return self._snap_enabled
@@ -990,14 +1039,50 @@ class ViewportGriddingService:
         """
         if self._snap_enabled != enabled:
             self._snap_enabled = enabled
-            for callback in self._on_snap_toggle_callbacks:
-                callback(enabled)
+            ViewportEventBus.publish(
+                ViewportEvent(
+                    ViewportEventType.GRID,
+                    data={"snap_enabled": enabled}
+                ))
 
-    def get_on_snap_toggle_callbacks(self) -> list[Callable]:
-        """Get the list of callbacks to be called on snap toggle events."""
-        return self._on_snap_toggle_callbacks
+    def set_menu_registry_items_enabled(self, enabled: bool) -> None:
+        """Enable or disable related menu items based on grid state.
 
+        Args:
+            enabled: True to enable menu items, False to disable
+        """
+        self.get_grid_toggle_menu_item().set_enabled(enabled)
+        self.get_snap_toggle_menu_item().set_enabled(enabled)
+
+    def get_grid_toggle_menu_item(self) -> MenuItemDescriptor:
+        """Get the menu item for toggling grid visibility.
+
+        Returns:
+            MenuItem for "scene.view.show_grid"
+        Raises:
+            ValueError: If menu item is not found
+        """
+        item = MenuRegistry.get_item("scene.view.show_grid")
+        if not item:
+            raise ValueError("Menu item 'scene.view.show_grid' not found for grid toggle.")
+        return item
+
+    def get_snap_toggle_menu_item(self) -> MenuItemDescriptor:
+        """Get the menu item for toggling snap to grid.
+
+        Returns:
+            MenuItem for "scene.view.snap_to_grid"
+        Raises:
+            ValueError: If menu item is not found
+        """
+        item = MenuRegistry.get_item("scene.view.snap_to_grid")
+        if not item:
+            raise ValueError("Menu item 'scene.view.snap_to_grid' not found for snap toggle.")
+        return item
+
+    # ----------------------------------------
     # Properties
+    # ----------------------------------------
 
     @property
     def canvas(self) -> tk.Canvas:
@@ -1039,16 +1124,6 @@ class ViewportGriddingService:
         return self._min_spacing_pixels
 
     @property
-    def on_toggle_callbacks(self) -> list[Callable]:
-        """Get the list of callbacks to be called on toggle events."""
-        return self._on_toggle_callbacks
-
-    @property
     def snap_enabled(self) -> bool:
         """Check if snap to grid is enabled."""
         return self._snap_enabled
-
-    @property
-    def on_snap_toggle_callbacks(self) -> list[Callable]:
-        """Get the list of callbacks to be called on snap toggle events."""
-        return self._on_snap_toggle_callbacks

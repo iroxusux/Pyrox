@@ -168,7 +168,7 @@ class SceneviewerApplicationTask(ApplicationTask):
             registry_path="View/Scene Viewer/Show Grid",
             index=4,
             label="Show Grid",
-            command=None,  # To be assigned by SceneViewer
+            command=None,  # To be assigned by ViewportGriddingService
             accelerator="Ctrl+G",
             underline=0,
             category="scene",

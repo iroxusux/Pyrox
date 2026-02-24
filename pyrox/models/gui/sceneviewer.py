@@ -164,9 +164,7 @@ class SceneViewerFrame(TkinterTaskFrame):
         self._runner: Optional[ISceneRunnerService] = runner
 
         # Canvas services
-        self._canvas_object_management_service: CanvasObjectManagmenentService = CanvasObjectManagmenentService(
-            canvas=None  # Will be set after canvas is created
-        )
+        self._canvas_object_management_service = CanvasObjectManagmenentService()
 
         # Viewport state for panning and zooming
         self._viewport = SceneViewerViewPort()
@@ -178,35 +176,19 @@ class SceneViewerFrame(TkinterTaskFrame):
         # Viewport services
         self._viewport_status_service = ViewportStatusService(
             parent=self.content_frame,
-            canvas=None,
             viewport=self._viewport
         )
         self._viewport_panning_service = ViewportPanningService(
-            canvas=None,
             viewport=self._viewport,
             status_service=self._viewport_status_service
         )
         self._viewport_panning_service.on_pan_callbacks.append(self._update_viewport)
         self._viewport_zooming_service = ViewportZoomingService(
-            canvas=None,
             viewport=self._viewport,
             status_service=self._viewport_status_service
         )
         self._viewport_zooming_service.on_zoom_callbacks.append(self._update_viewport)
-        self._viewport_gridding_service = ViewportGriddingService(
-            canvas=None,
-            viewport=self._viewport,
-            status_service=self._viewport_status_service
-        )
-        # Grid toggle callback needs to clear first, then render if enabled
-
-        def grid_toggle_callback(enabled):
-            self._viewport_gridding_service.clear()
-            if enabled:
-                self._viewport_gridding_service.render()
-        self._grid_toggle_callback = grid_toggle_callback
-        self._viewport_gridding_service.on_toggle_callbacks.append(self._grid_toggle_callback)
-        # Snap toggle doesn't need visual update at all
+        self._viewport_gridding_service = ViewportGriddingService(viewport=self._viewport)
 
         # Selection state
         self._selection_color: str = "#ffaa00"  # Orange highlight for selection
@@ -275,12 +257,8 @@ class SceneViewerFrame(TkinterTaskFrame):
         self._bind_events()
         self._initialize_object_templates()
 
-        # Ensure canvas is fully initialized before first render
-        # This prevents timing issues with viewport transforms
-        self._canvas.update_idletasks()
-
-        # Initial render
-        self.render_scene()
+        # Start render loop (decoupled from scene update rate)
+        self._start_render_loop()
 
     # ==================== Properties ====================
 
@@ -878,6 +856,7 @@ class SceneViewerFrame(TkinterTaskFrame):
                 pass
             self._render_timer_id = None
 
+        self.gui.schedule_event(100, self._mark_dirty)  # Initial render after short delay
         self._render_loop()
 
     def _render_loop(self) -> None:
@@ -1412,6 +1391,7 @@ class SceneViewerFrame(TkinterTaskFrame):
         *_,
     ) -> None:
         """Bind mouse and keyboard events for interaction."""
+        self._canvas.update_idletasks()
         self._canvas_object_management_service.set_canvas(self._canvas)
         self._viewport_panning_service.set_canvas(self._canvas)
         self._viewport_zooming_service.set_canvas(self._canvas)
@@ -1453,15 +1433,12 @@ class SceneViewerFrame(TkinterTaskFrame):
         # Register the unbind for when the frame is closed to prevent memory leaks
         self.on_destroy().append(self._unbind_events)
 
+        self._canvas.update_idletasks()  # Final update to ensure canvas is ready before rendering
+
         # Use dirty flag pattern instead of direct render on every update
         # For physics updates, use lightweight position sync instead of full render
         if self._scene:
             self._scene.get_on_scene_updated().append(self._sync_object_positions)
-
-        # Start render loop (decoupled from scene update rate)
-        self._start_render_loop()
-
-        # TODO: Add keyboard shortcuts (Ctrl+Z undo, Ctrl+D duplicate, etc.)
 
     def _unbind_events(
             self,
@@ -1499,12 +1476,6 @@ class SceneViewerFrame(TkinterTaskFrame):
         try:
             if self._update_viewport in self._viewport_zooming_service.on_zoom_callbacks:
                 self._viewport_zooming_service.on_zoom_callbacks.remove(self._update_viewport)
-        except (ValueError, AttributeError):
-            pass
-
-        try:
-            if self._grid_toggle_callback in self._viewport_gridding_service.on_toggle_callbacks:
-                self._viewport_gridding_service.on_toggle_callbacks.remove(self._grid_toggle_callback)
         except (ValueError, AttributeError):
             pass
 
@@ -1572,16 +1543,7 @@ class SceneViewerFrame(TkinterTaskFrame):
         )
 
         # Grid commands
-        self._enable_entry(
-            menu_id="scene.view.show_grid",
-            command=self.toggle_grid,
-            enable=enable
-        )
-        self._enable_entry(
-            menu_id="scene.view.snap_to_grid",
-            command=self.toggle_snap_to_grid,
-            enable=enable
-        )
+        self._viewport_gridding_service.set_menu_registry_items_enabled(enable)
 
         # Design mode commands
         self._enable_entry(

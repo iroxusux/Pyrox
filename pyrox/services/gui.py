@@ -141,6 +141,11 @@ class TkGuiManager:
         """Subscribe to the window close event."""
         cls.get_root().protocol("WM_DELETE_WINDOW", callback)
 
+    @classmethod
+    def update_idletasks(cls) -> None:
+        """Process all pending GUI events."""
+        cls.get_root().update_idletasks()
+
     # --------------------------------------------------
     # Gui Configuration
     # --------------------------------------------------

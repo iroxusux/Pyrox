@@ -19,7 +19,7 @@ from pyrox.models import (
     ServicesRunnableMixin,
 )
 
-from pyrox.models.gui.tk import TkWorkspace
+from pyrox.models.gui import TkWorkspace
 
 __all__ = ('Application',)
 
