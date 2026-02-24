@@ -76,10 +76,7 @@ from .canvas import CanvasObjectManagmenentService
 
 # Viewport imports
 from .viewport import (
-    ViewportPanningService,
-    ViewportZoomingService,
-    ViewportGriddingService,
-    ViewportStatusService
+    ViewportHostingService
 )
 
 # Timer imports
@@ -155,10 +152,7 @@ __all__ = (
     # Canvas imports
     'CanvasObjectManagmenentService',
     # Viewport imports
-    'ViewportPanningService',
-    'ViewportZoomingService',
-    'ViewportGriddingService',
-    'ViewportStatusService',
+    'ViewportHostingService',
     # Timer imports
     'TimerService',
     # Other service imports

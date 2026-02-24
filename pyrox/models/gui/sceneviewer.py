@@ -23,94 +23,15 @@ from pyrox.models.gui.objectexplorer import TkObjectExplorer
 from pyrox.models.gui.scenebridge import SceneBridgeDialog
 from pyrox.services.scene import SceneBridgeService
 from pyrox.models.physics import PhysicsSceneFactory
-from pyrox.models.protocols import Area2D, Zoomable
 from pyrox.models.scene import Scene, SceneObject
 from pyrox.services import (
     log,
     CanvasObjectManagmenentService,
-    ViewportPanningService,
-    ViewportZoomingService,
-    ViewportGriddingService,
-    ViewportStatusService,
+    ViewportHostingService,
     MenuRegistry,
     SceneEventType,
     SceneEventBus
 )
-
-
-class SceneViewerViewPort(
-    IViewport,
-    Area2D,
-    Zoomable
-):
-    """Viewport state for the SceneViewerFrame.
-
-    Attributes:
-        x: X offset of the viewport
-        y: Y offset of the viewport
-        zoom: Zoom level of the viewport
-    """
-
-    def __init__(
-        self,
-        x: float = 0.0,
-        y: float = 0.0,
-        zoom: float = 1.0,
-        max_zoom: float = 10.0,
-        min_zoom: float = 0.1
-    ):
-        Area2D.__init__(self, x, y)
-        Zoomable.__init__(self, zoom)
-        self.max_zoom = max_zoom
-        self.min_zoom = min_zoom
-        self._on_reset_callbacks: list[Callable] = []
-
-    def __eq__(self, value: object) -> bool:
-        if not isinstance(value, SceneViewerViewPort):
-            return False
-        return (
-            self.x == value.x and
-            self.y == value.y and
-            self.zoom == value.zoom
-        )
-
-    def get_delta(
-        self,
-        other: IViewport,
-    ) -> Tuple[float, float, float]:
-        """Get the delta between this viewport and another.
-
-        Args:
-            viewport: Viewport to compare against
-        Returns:
-            Tuple of (delta_x, delta_y, delta_zoom)
-        """
-        delta_x = other.x - self.x
-        delta_y = other.y - self.y
-        delta_zoom = other.zoom - self.zoom
-        return (delta_x, delta_y, delta_zoom)
-
-    def reset(
-        self
-    ) -> None:
-        """Reset the viewport to default state."""
-        self.x = 0.0
-        self.y = 0.0
-        self.zoom = 1.0
-        [callback() for callback in self._on_reset_callbacks]
-
-    def update(
-        self,
-        other: IViewport
-    ) -> None:
-        self.x = other.x
-        self.y = other.y
-        self.zoom = other.zoom
-
-    @property
-    def on_reset_callbacks(self) -> list[Callable]:
-        """Get the list of callbacks to be called on reset events."""
-        return self._on_reset_callbacks
 
 
 class SceneViewerFrame(TkinterTaskFrame):
@@ -166,29 +87,13 @@ class SceneViewerFrame(TkinterTaskFrame):
         # Canvas services
         self._canvas_object_management_service = CanvasObjectManagmenentService()
 
+        # Viewport services
+        self._viewport_service = ViewportHostingService(canvas_parent=self.content_frame)
+
         # Viewport state for panning and zooming
-        self._viewport = SceneViewerViewPort()
-        self._last_viewport = SceneViewerViewPort()
         self._last_culling_viewport_x: float = 0.0
         self._last_culling_viewport_y: float = 0.0
         self._culling_threshold: int = 50  # Pixels movement before re-culling
-
-        # Viewport services
-        self._viewport_status_service = ViewportStatusService(
-            parent=self.content_frame,
-            viewport=self._viewport
-        )
-        self._viewport_panning_service = ViewportPanningService(
-            viewport=self._viewport,
-            status_service=self._viewport_status_service
-        )
-        self._viewport_panning_service.on_pan_callbacks.append(self._update_viewport)
-        self._viewport_zooming_service = ViewportZoomingService(
-            viewport=self._viewport,
-            status_service=self._viewport_status_service
-        )
-        self._viewport_zooming_service.on_zoom_callbacks.append(self._update_viewport)
-        self._viewport_gridding_service = ViewportGriddingService(viewport=self._viewport)
 
         # Selection state
         self._selection_color: str = "#ffaa00"  # Orange highlight for selection
@@ -249,7 +154,6 @@ class SceneViewerFrame(TkinterTaskFrame):
         # Build the UI
         self._build_toolbar()
         self._build_canvas()
-        self._build_status_bar()
         self._build_properties_panel()
         self._build_object_explorer()
         self._build_object_palette()
@@ -280,14 +184,9 @@ class SceneViewerFrame(TkinterTaskFrame):
         return self._scene
 
     @property
-    def viewport(self) -> SceneViewerViewPort:
+    def viewport(self) -> IViewport:
         """Get the current viewport state."""
-        return self._viewport
-
-    @property
-    def last_viewport(self) -> SceneViewerViewPort:
-        """Get the last viewport state."""
-        return self._last_viewport
+        return self._viewport_service.viewport
 
     # ==================== Scene Management ====================
 
@@ -302,18 +201,12 @@ class SceneViewerFrame(TkinterTaskFrame):
 
         # Unsubscribe from old scene updates
         if self._scene:
-            # Remove FPS tracking callback
-            if self._on_scene_fps_update in self._scene.on_scene_updated:
-                self._scene.on_scene_updated.remove(self._on_scene_fps_update)
             # Remove position sync callback
             if self._sync_object_positions in self._scene.get_on_scene_updated():
                 self._scene.get_on_scene_updated().remove(self._sync_object_positions)
 
         # Subscribe to new scene updates
         if scene:
-            # FPS tracking callback (check before adding to prevent duplicates)
-            if self._on_scene_fps_update not in scene.on_scene_updated:
-                scene.on_scene_updated.append(self._on_scene_fps_update)
             # Lightweight position sync for physics (check before adding)
             # Only add if physics is enabled - check if runner has physics engine
             should_sync_positions = False
@@ -331,7 +224,7 @@ class SceneViewerFrame(TkinterTaskFrame):
         self._scene = scene
         self._canvas_object_management_service.set_scene(scene)
         self._canvas_object_management_service.clear()
-        self.last_viewport.update(self.viewport)
+        self._viewport_service.reset_view()
 
         # Refresh bridge reference from SceneBridgeService.
         # The service manages scene changes automatically via SceneEventBus.
@@ -486,45 +379,6 @@ class SceneViewerFrame(TkinterTaskFrame):
             self._update_object_appearance(obj_id)
 
     # ==================== View Management ====================
-
-    def reset_view(self) -> None:
-        """Reset viewport to default position and zoom."""
-        # Store old viewport for delta calculation
-        old_viewport_x = self.viewport.x
-        old_viewport_y = self.viewport.y
-        old_zoom = self.viewport.zoom
-
-        # Reset viewport
-        self.viewport.reset()
-        self.last_viewport.x = old_viewport_x
-        self.last_viewport.y = old_viewport_y
-        self.last_viewport.zoom = old_zoom
-
-        # Use optimized transformation instead of full redraw
-        self._update_viewport()
-
-    def toggle_grid(self) -> None:
-        """Toggle grid visibility."""
-        self._viewport_gridding_service.toggle()
-
-    def set_grid_size(self, size: int) -> None:
-        """Set the grid spacing size.
-
-        Args:
-            size: Grid spacing in scene units
-        """
-        if size <= 0:
-            log(self).warning(f"Invalid grid size: {size}. Must be positive.")
-            return
-
-        self._viewport_gridding_service.set_grid_size(size)
-        self._viewport_gridding_service.clear()
-        self._viewport_gridding_service.render()
-
-    def toggle_snap_to_grid(self) -> None:
-        """Toggle snap to grid on/off."""
-        self._viewport_gridding_service.toggle_snap()
-        log(self).info(f"Snap to grid: {'ON' if self._viewport_gridding_service.snap_enabled else 'OFF'}")
 
     def toggle_design_mode(self) -> None:
         """Toggle design mode on/off."""
@@ -709,14 +563,13 @@ class SceneViewerFrame(TkinterTaskFrame):
             return
 
         self._canvas_object_management_service.clear()
-        self._viewport_gridding_service.render()
+        self._viewport_service.grid.render()
         self.render_scene_objects()
 
         # Sync viewport state immediately after render
-        self.last_viewport.update(self.viewport)
-
-        # Force canvas to process all pending operations (non-blocking)
-        self._canvas.update_idletasks()
+        self._viewport_service.sync_viewport()
+        # NOTE: Do not call update_idletasks() here — it forces a redundant layout pass
+        # every render cycle (~30 Hz) and can cause nested event re-entry on Windows.
         # TODO: Add scene background rendering
 
     def render_scene_objects(self) -> None:
@@ -861,7 +714,7 @@ class SceneViewerFrame(TkinterTaskFrame):
 
     def _render_loop(self) -> None:
         """Render loop that checks dirty flag and renders if needed."""
-        if self._needs_render:
+        if self._needs_render or self._viewport_service.needs_render():
             self.render_scene()
             self._needs_render = False
 
@@ -881,15 +734,6 @@ class SceneViewerFrame(TkinterTaskFrame):
         Actual render happens at controlled frame rate.
         """
         self._needs_render = True
-
-    def _on_scene_fps_update(self, scene: IScene, delta: float) -> None:
-        """Callback for scene FPS tracking.
-
-        Args:
-            scene: The scene being updated
-            delta: Time delta since last update
-        """
-        self._viewport_status_service.set_fps_from_delta(delta)
 
     def _sync_object_positions(self, *_) -> None:
         """Lightweight position sync for physics updates.
@@ -939,60 +783,6 @@ class SceneViewerFrame(TkinterTaskFrame):
                 # Note: find_withtag is still expensive, but only called when movement detected
                 for item in self._canvas.find_withtag(obj_id):
                     self._canvas.move(item, dx, dy)
-
-    def _update_viewport(self) -> None:
-        """Update all canvas objects to reflect viewport changes.
-
-        Transforms existing canvas items instead of redrawing.
-        """
-        if not self._canvas:
-            return
-
-        # Get all canvas items
-        all_items = self._canvas.find_all()
-
-        if not all_items:
-            self.last_viewport.update(self.viewport)
-            return
-
-        # Calculate viewport deltas
-        dx = self.viewport.x - self.last_viewport.x
-        dy = self.viewport.y - self.last_viewport.y
-        zoom_ratio = self.viewport.zoom / self.last_viewport.zoom if self.last_viewport.zoom != 0 else 1.0
-
-        # Apply zoom transformation
-        if zoom_ratio != 1.0:
-            for item in all_items:
-                self._canvas.scale(item, 0, 0, zoom_ratio, zoom_ratio)
-
-            # After scaling, adjust last viewport position
-            self.last_viewport.x *= zoom_ratio
-            self.last_viewport.y *= zoom_ratio
-
-            # Recalculate pan delta after zoom
-            dx = self.viewport.x - self.last_viewport.x
-            dy = self.viewport.y - self.last_viewport.y
-
-            # Always mark for re-render after zoom to update culling
-            # Zoom changes visible area significantly
-            self._mark_dirty()
-
-        # Apply pan transformation
-        if dx != 0 or dy != 0:
-            for item in all_items:
-                self._canvas.move(item, dx, dy)
-
-            # Mark for re-render to update culling after significant pan
-            # Only trigger re-cull if viewport has moved beyond threshold since last cull
-            # This avoids excessive re-renders during small mouse movements
-            pan_distance = abs(self.viewport.x - self._last_culling_viewport_x) + abs(self.viewport.y - self._last_culling_viewport_y)
-            if pan_distance > self._culling_threshold:
-                self._mark_dirty()
-
-        # Update viewport tracking
-        self.last_viewport.update(self.viewport)
-
-        # TODO: Add spatial partitioning (quadtree) for very large scenes
 
     # ==================== UI Building Methods ====================
 
@@ -1130,17 +920,10 @@ class SceneViewerFrame(TkinterTaskFrame):
         )
         self._canvas.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
 
+        self._viewport_service.set_canvas(self._canvas)
+
         # TODO: Add scrollbars for large scenes
         # TODO: Add ruler/coordinate display
-
-    def _build_status_bar(self) -> None:
-        """Build the status bar at the bottom of the viewer."""
-        self._viewport_status_service.set_canvas(self._canvas)
-        self._viewport.on_reset_callbacks.append(
-            self._viewport_status_service.update_viewport_info
-        )
-        self._status_bar = self._viewport_status_service.build()
-        self._status_bar.pack(side=tk.BOTTOM, fill=tk.X)
 
     def _build_properties_panel(self) -> None:
         """Build the properties panel for selected objects."""
@@ -1258,7 +1041,7 @@ class SceneViewerFrame(TkinterTaskFrame):
         self._canvas_context_menu.add_item(MenuItem(
             id="zoom_in",
             label="Zoom In",
-            command=lambda: self._viewport_zooming_service.zoom_in(factor=1.25),
+            command=lambda: self._viewport_service.zoom.zoom_in(factor=1.25),
             accelerator="Ctrl++",
             icon="🔍➕",
             separator_before=True
@@ -1266,27 +1049,27 @@ class SceneViewerFrame(TkinterTaskFrame):
         self._canvas_context_menu.add_item(MenuItem(
             id="zoom_out",
             label="Zoom Out",
-            command=lambda: self._viewport_zooming_service.zoom_out(factor=1.25),
+            command=lambda: self._viewport_service.zoom.zoom_out(factor=1.25),
             accelerator="Ctrl+-",
             icon="🔍➖"
         ))
         self._canvas_context_menu.add_item(MenuItem(
             id="reset_view",
             label="Reset View",
-            command=self._context_reset_view,
+            command=self._viewport_service.reset_view,
             icon="🔄",
             separator_before=True
         ))
         self._canvas_context_menu.add_item(MenuItem(
             id="toggle_grid",
             label="Toggle Grid",
-            command=self.toggle_grid,
+            command=self._viewport_service.grid.toggle,
             icon="⊞"
         ))
         self._canvas_context_menu.add_item(MenuItem(
             id="toggle_snap",
             label="Toggle Snap to Grid",
-            command=self.toggle_snap_to_grid,
+            command=self._viewport_service.grid.toggle_snap,
             icon="🧲"
         ))
         self._canvas_context_menu.add_item(MenuItem(
@@ -1393,9 +1176,7 @@ class SceneViewerFrame(TkinterTaskFrame):
         """Bind mouse and keyboard events for interaction."""
         self._canvas.update_idletasks()
         self._canvas_object_management_service.set_canvas(self._canvas)
-        self._viewport_panning_service.set_canvas(self._canvas)
-        self._viewport_zooming_service.set_canvas(self._canvas)
-        self._viewport_gridding_service.set_canvas(self._canvas)
+        self._viewport_service.set_canvas(self._canvas)
 
         # Left mouse button - context-dependent (select, draw, or drag)
         self._canvas.bind("<ButtonPress-1>", self._on_left_click)
@@ -1466,19 +1247,6 @@ class SceneViewerFrame(TkinterTaskFrame):
             except (ValueError, AttributeError):
                 pass  # Callback might already be removed or scene might be None
 
-        # Clean up viewport service callbacks
-        try:
-            if self._update_viewport in self._viewport_panning_service.on_pan_callbacks:
-                self._viewport_panning_service.on_pan_callbacks.remove(self._update_viewport)
-        except (ValueError, AttributeError):
-            pass
-
-        try:
-            if self._update_viewport in self._viewport_zooming_service.on_zoom_callbacks:
-                self._viewport_zooming_service.on_zoom_callbacks.remove(self._update_viewport)
-        except (ValueError, AttributeError):
-            pass
-
     def _enable_entry(
         self,
         menu_id: str,
@@ -1525,25 +1293,7 @@ class SceneViewerFrame(TkinterTaskFrame):
             enable=enable
         )
 
-        # Zoom commands
-        self._enable_entry(
-            menu_id="scene.view.zoom_in",
-            command=self._viewport_zooming_service.zoom_in,
-            enable=enable
-        )
-        self._enable_entry(
-            menu_id="scene.view.zoom_out",
-            command=self._viewport_zooming_service.zoom_out,
-            enable=enable
-        )
-        self._enable_entry(
-            menu_id="scene.view.reset_view",
-            command=self._viewport_zooming_service.reset_zoom,
-            enable=enable
-        )
-
-        # Grid commands
-        self._viewport_gridding_service.set_menu_registry_items_enabled(enable)
+        self._viewport_service.set_menu_registry_items_enabled(enable)
 
         # Design mode commands
         self._enable_entry(
@@ -1691,7 +1441,7 @@ class SceneViewerFrame(TkinterTaskFrame):
                     new_y = scene_obj.y + scene_dy
 
                     # Apply snap to grid if enabled
-                    new_x, new_y = self._viewport_gridding_service.snap_to_grid(new_x, new_y)
+                    new_x, new_y = self._viewport_service.grid.snap_to_grid(new_x, new_y)
 
                     # Update object position
                     scene_obj.physics_body.set_x(new_x)
@@ -1937,7 +1687,7 @@ class SceneViewerFrame(TkinterTaskFrame):
             return
 
         # Apply snap to grid if enabled
-        scene_x, scene_y = self._viewport_gridding_service.snap_to_grid(scene_x, scene_y)
+        scene_x, scene_y = self._viewport_service.grid.snap_to_grid(scene_x, scene_y)
 
         # Create kwargs for object creation (don't mutate template)
         creation_kwargs = template.default_kwargs.copy()
@@ -2085,11 +1835,6 @@ class SceneViewerFrame(TkinterTaskFrame):
         """Show properties panel for selected object."""
         if not self._properties_panel_visible:
             self.toggle_properties_panel()
-
-    def _context_reset_view(self) -> None:
-        """Reset viewport to default position and zoom."""
-        self.reset_view()
-        log(self).info("View reset to default")
 
     def _context_layer_up(self) -> None:
         """Move selected objects one layer up (toward foreground)."""

@@ -3,6 +3,7 @@
 from dataclasses import dataclass, field
 from typing import Callable
 import tkinter as tk
+from tkinter import ttk
 from pyrox.interfaces import IViewport
 from pyrox.services import MenuRegistry, MenuItemDescriptor, Event, EventBus, EventType
 
@@ -82,6 +83,11 @@ class ViewportStatusService:
             self._on_grid_event
         )
 
+        ViewportEventBus.subscribe(
+            ViewportEventType.PAN,
+            self.update_viewport_info
+        )
+
         # Update callbacks
         self._on_update_callbacks: list[Callable] = []
 
@@ -144,6 +150,8 @@ class ViewportStatusService:
         # Bind mouse motion if canvas provided
         if self._canvas:
             self._bind_to_canvas()
+
+        self._status_bar.pack(side=tk.BOTTOM, fill=tk.X)
 
         return self._status_bar
 
@@ -368,7 +376,10 @@ class ViewportStatusService:
         if snap_enabled is not None:
             self.set_snap_enabled(snap_enabled)
 
-    def update_viewport_info(self) -> None:
+    def update_viewport_info(
+        self,
+        event: ViewportEvent | None = None
+    ) -> None:
         """Update viewport position and zoom displays."""
         if not self._viewport:
             return
@@ -422,18 +433,13 @@ class ViewportPanningService:
         self,
         canvas: tk.Canvas | None = None,
         viewport: IViewport | None = None,
-        status_service: ViewportStatusService | None = None
     ):
         self._canvas = canvas
         self._viewport = viewport
-        self._status_service = status_service
         self._is_panning = False
         self._start_x = 0
         self._start_y = 0
-        self._on_pan_callbacks: list[Callable] = []
-
-        if self._status_service:
-            self._on_pan_callbacks.append(self._status_service.update_viewport_info)
+        self._pan_pending: bool = False  # Coalescing flag: True while a flush is scheduled
 
     def _bind_to_canvas(self):
         if not self.canvas:
@@ -454,14 +460,25 @@ class ViewportPanningService:
             dx = event.x - self._start_x
             dy = event.y - self._start_y
 
+            # Accumulate into viewport state immediately so any direct reads are current.
             self.viewport.x += dx
             self.viewport.y += dy
 
-            for callback in self._on_pan_callbacks:
-                callback()
-
             self._start_x = event.x
             self._start_y = event.y
+
+            # Coalesce rapid B2-Motion events: schedule a single PAN publish for the
+            # current event-loop tick instead of publishing on every mouse pixel.
+            # Without this, a fast drag fires 60+ publishes/second, each triggering
+            # update_viewport() and its full subscriber chain.
+            if not self._pan_pending:
+                self._pan_pending = True
+                self.canvas.after(0, self._flush_pan)
+
+    def _flush_pan(self) -> None:
+        """Publish the deferred PAN event after coalescing rapid mouse-move events."""
+        self._pan_pending = False
+        ViewportEventBus.publish(ViewportEvent(event_type=ViewportEventType.PAN))
 
     def _end_pan(self, event):
         self._is_panning = False
@@ -488,10 +505,6 @@ class ViewportPanningService:
         """Set the viewport associated with this service."""
         self._viewport = viewport
 
-    def get_on_pan_callbacks(self) -> list[Callable]:
-        """Get the list of callbacks to be called on panning events."""
-        return self._on_pan_callbacks
-
     @property
     def canvas(self) -> tk.Canvas:
         """Get the canvas associated with this service."""
@@ -505,11 +518,6 @@ class ViewportPanningService:
         if not self._viewport:
             raise ValueError("Viewport is not set for ViewportPanningService.")
         return self._viewport
-
-    @property
-    def on_pan_callbacks(self) -> list[Callable]:
-        """Get the list of callbacks to be called on panning events."""
-        return self._on_pan_callbacks
 
 
 class ViewportZoomingService:
@@ -539,10 +547,6 @@ class ViewportZoomingService:
         self._zoom_factor = zoom_factor
         self._min_zoom = min_zoom
         self._max_zoom = max_zoom
-        self._on_zoom_callbacks: list[Callable] = []
-
-        if self._status_service:
-            self._on_zoom_callbacks.append(self._status_service.update_viewport_info)
 
     def _bind_to_canvas(self):
         """Bind mouse wheel event to canvas for zooming."""
@@ -550,6 +554,12 @@ class ViewportZoomingService:
             return
 
         self.canvas.bind("<MouseWheel>", self._on_mouse_wheel)
+
+    def _bind_to_menu_registry(self) -> None:
+        """Bind grid toggle actions to the menu registry."""
+        self.get_reset_view_menu_item().set_command(command=self.reset_zoom)
+        self.get_zoom_in_menu_item().set_command(command=self.zoom_in)
+        self.get_zoom_out_menu_item().set_command(command=self.zoom_out)
 
     def _on_mouse_wheel(self, event):
         """Handle mouse wheel events for zooming.
@@ -649,17 +659,14 @@ class ViewportZoomingService:
             # Simple zoom without center point
             self.viewport.zoom = new_zoom
 
-        # Notify listeners
-        for callback in self._on_zoom_callbacks:
-            callback()
+        ViewportEventBus.publish(ViewportEvent(event_type=ViewportEventType.ZOOM))
 
     def reset_zoom(self) -> None:
         """Reset zoom to 1.0 (100%)."""
         old_zoom = self.viewport.zoom
         if old_zoom != 1.0:
             self.viewport.zoom = 1.0
-            for callback in self._on_zoom_callbacks:
-                callback()
+            ViewportEventBus.publish(ViewportEvent(event_type=ViewportEventType.ZOOM))
 
     def set_zoom(self, zoom: float) -> None:
         """Set zoom to specific value.
@@ -672,8 +679,7 @@ class ViewportZoomingService:
 
         if new_zoom != old_zoom:
             self.viewport.zoom = new_zoom
-            for callback in self._on_zoom_callbacks:
-                callback()
+            ViewportEventBus.publish(ViewportEvent(event_type=ViewportEventType.ZOOM))
 
     # Getters and Setters
 
@@ -734,9 +740,54 @@ class ViewportZoomingService:
         self._min_zoom = min_zoom
         self._max_zoom = max_zoom
 
-    def get_on_zoom_callbacks(self) -> list[Callable]:
-        """Get the list of callbacks to be called on zoom events."""
-        return self._on_zoom_callbacks
+    def set_menu_registry_items_enabled(self, enabled: bool) -> None:
+        """Enable or disable related menu items based on grid state.
+
+        Args:
+            enabled: True to enable menu items, False to disable
+        """
+        self.get_reset_view_menu_item().set_enabled(enabled)
+        self.get_zoom_in_menu_item().set_enabled(enabled)
+        self.get_zoom_out_menu_item().set_enabled(enabled)
+
+    def get_reset_view_menu_item(self) -> MenuItemDescriptor:
+        """Get the menu item for resetting the view.
+
+        Returns:
+            MenuItem for "scene.view.reset_view"
+        Raises:
+            ValueError: If menu item is not found
+        """
+        item = MenuRegistry.get_item("scene.view.reset_view")
+        if not item:
+            raise ValueError("Menu item 'scene.view.reset_view' not found for reset view.")
+        return item
+
+    def get_zoom_in_menu_item(self) -> MenuItemDescriptor:
+        """Get the menu item for zooming in.
+
+        Returns:
+            MenuItem for "scene.view.zoom_in"
+        Raises:
+            ValueError: If menu item is not found
+        """
+        item = MenuRegistry.get_item("scene.view.zoom_in")
+        if not item:
+            raise ValueError("Menu item 'scene.view.zoom_in' not found for zoom in.")
+        return item
+
+    def get_zoom_out_menu_item(self) -> MenuItemDescriptor:
+        """Get the menu item for zooming out.
+
+        Returns:
+            MenuItem for "scene.view.zoom_out"
+        Raises:
+            ValueError: If menu item is not found
+        """
+        item = MenuRegistry.get_item("scene.view.zoom_out")
+        if not item:
+            raise ValueError("Menu item 'scene.view.zoom_out' not found for zoom out.")
+        return item
 
     # Properties
 
@@ -768,11 +819,6 @@ class ViewportZoomingService:
     def max_zoom(self) -> float:
         """Get the maximum zoom limit."""
         return self._max_zoom
-
-    @property
-    def on_zoom_callbacks(self) -> list[Callable]:
-        """Get the list of callbacks to be called on zoom events."""
-        return self._on_zoom_callbacks
 
 
 class ViewportGriddingService:
@@ -825,6 +871,11 @@ class ViewportGriddingService:
         """Internal method to render grid overlay on the canvas."""
         if not self._canvas or not self._viewport:
             return
+
+        # Always clear existing grid items before redrawing.
+        # Grid lines span the full canvas, so moving them during pan leaves gaps;
+        # clearing first ensures we never stack duplicate lines.
+        self._canvas.delete("grid")
 
         canvas_width = self._canvas.winfo_width()
         canvas_height = self._canvas.winfo_height()
@@ -1127,3 +1178,185 @@ class ViewportGriddingService:
     def snap_enabled(self) -> bool:
         """Check if snap to grid is enabled."""
         return self._snap_enabled
+
+
+class ViewportHostingService:
+    """Service for hosting a viewport within a Tkinter canvas."""
+
+    def __init__(
+        self,
+        canvas: tk.Canvas | None = None,
+        canvas_parent: ttk.Frame | None = None
+    ):
+        self._canvas = canvas
+        self._canvas_parent = canvas_parent
+        self._needs_render: bool = True
+        from pyrox.models.gui.viewport import Viewport
+
+        self._viewport = Viewport()
+        self._last_viewport = Viewport()
+        self._last_culling_viewport_x: float = 0.0
+        self._last_culling_viewport_y: float = 0.0
+        self._culling_threshold: int = 50  # Pixels movement before re-culling
+
+        # Viewport services
+        self._viewport_status_service = ViewportStatusService(
+            parent=self._canvas_parent,
+            viewport=self._viewport
+        )
+        self._viewport_panning_service = ViewportPanningService(viewport=self._viewport)
+        self._viewport_zooming_service = ViewportZoomingService(viewport=self._viewport)
+        self._viewport_gridding_service = ViewportGriddingService(viewport=self._viewport)
+
+        self.status.build()
+
+        ViewportEventBus.subscribe(
+            [ViewportEventType.GRID, ViewportEventType.PAN, ViewportEventType.ZOOM],
+            self.update_viewport
+        )
+
+    def _mark_dirty(self) -> None:
+        """Mark the viewport as needing a re-render."""
+        self._needs_render = True
+
+    def update_viewport(self, event: ViewportEvent | None) -> None:
+        """Update all canvas objects to reflect viewport changes.
+
+        Transforms existing canvas items instead of redrawing.
+        """
+        if not self._canvas:
+            return
+
+        # Calculate viewport deltas
+        dx = self._viewport.x - self._last_viewport.x
+        dy = self._viewport.y - self._last_viewport.y
+        zoom_ratio = self._viewport.zoom / self._last_viewport.zoom if self._last_viewport.zoom != 0 else 1.0
+
+        # Apply zoom transformation
+        # Use "all" tag for a single Tcl call instead of a per-item Python loop:
+        # O(1) bridge crossings vs O(n) — critical for smooth framerate on large scenes.
+        if zoom_ratio != 1.0:
+            self._canvas.scale("all", 0, 0, zoom_ratio, zoom_ratio)
+
+            # After scaling, adjust last viewport position
+            self._last_viewport.x *= zoom_ratio
+            self._last_viewport.y *= zoom_ratio
+
+            # Recalculate pan delta after zoom
+            dx = self._viewport.x - self._last_viewport.x
+            dy = self._viewport.y - self._last_viewport.y
+
+            # Grid lines get distorted by canvas.scale — clear and redraw them at the
+            # new zoom level so they remain evenly spaced at correct canvas positions.
+            self._viewport_gridding_service.clear()
+            self._viewport_gridding_service.render()
+
+            # Always mark for re-render after zoom to update culling
+            # Zoom changes visible area significantly
+            self._mark_dirty()
+
+        # Apply pan transformation
+        if dx != 0 or dy != 0:
+            # Move all non-grid items first, then redraw grid at correct offsets.
+            # Grid lines can't be panned like scene objects — they span the full canvas
+            # and must be redrawn at the new viewport offset to remain correctly tiled.
+            self._canvas.move("all", dx, dy)
+            self._viewport_gridding_service.clear()
+            self._viewport_gridding_service.render()
+
+            # Mark for re-render to update culling after significant pan
+            # Only trigger re-cull if viewport has moved beyond threshold since last cull
+            # This avoids excessive re-renders during small mouse movements
+            pan_distance = abs(self._viewport.x - self._last_culling_viewport_x) + abs(self._viewport.y - self._last_culling_viewport_y)
+            if pan_distance > self._culling_threshold:
+                self._mark_dirty()
+
+        # Update viewport tracking
+        self._last_viewport.update(self._viewport)
+
+        # TODO: Add spatial partitioning (quadtree) for very large scenes
+
+    def needs_render(self) -> bool:
+        """Check if the viewport needs to be re-rendered."""
+        return self._needs_render
+
+    def reset_view(self) -> None:
+        """Reset viewport to default position and zoom."""
+        # Store old viewport for delta calculation
+        old_viewport_x = self._viewport.x
+        old_viewport_y = self._viewport.y
+        old_zoom = self._viewport.zoom
+
+        # Reset viewport
+        self._viewport.reset()
+        self._last_viewport.x = old_viewport_x
+        self._last_viewport.y = old_viewport_y
+        self._last_viewport.zoom = old_zoom
+
+        self.update_viewport(None)
+
+    def set_menu_registry_items_enabled(self, enabled: bool) -> None:
+        """Enable or disable related menu items based on viewport state.
+
+        Args:
+            enabled: True to enable menu items, False to disable
+        """
+        self.grid.set_menu_registry_items_enabled(enabled)
+        self.zoom.set_menu_registry_items_enabled(enabled)
+
+    def sync_viewport(self) -> None:
+        """Sync the last viewport state to the current viewport.
+
+        This is used after a full re-render to reset the delta tracking.
+        """
+        self._last_viewport.update(self._viewport)
+        self._last_culling_viewport_x = self._viewport.x
+        self._last_culling_viewport_y = self._viewport.y
+        self._needs_render = False
+
+    # ----------------------------------------
+    # Getters and Setters
+    # ----------------------------------------
+
+    def get_canvas(self) -> tk.Canvas:
+        """Get the canvas associated with this service."""
+        if not self._canvas:
+            raise ValueError("Canvas is not set for ViewportHostingService.")
+        return self._canvas
+
+    def set_canvas(self, canvas: tk.Canvas) -> None:
+        """Set the canvas associated with this service."""
+        self._canvas = canvas
+        self._viewport_status_service.set_canvas(canvas)
+        self._viewport_panning_service.set_canvas(canvas)
+        self._viewport_zooming_service.set_canvas(canvas)
+        self._viewport_gridding_service.set_canvas(canvas)
+
+    # ----------------------------------------
+    # Properties
+    # ----------------------------------------
+
+    @property
+    def grid(self) -> ViewportGriddingService:
+        """Get the viewport gridding service."""
+        return self._viewport_gridding_service
+
+    @property
+    def pan(self) -> ViewportPanningService:
+        """Get the viewport panning service."""
+        return self._viewport_panning_service
+
+    @property
+    def status(self) -> ViewportStatusService:
+        """Get the viewport status service."""
+        return self._viewport_status_service
+
+    @property
+    def viewport(self) -> IViewport:
+        """Get the viewport instance hosted by this service."""
+        return self._viewport
+
+    @property
+    def zoom(self) -> ViewportZoomingService:
+        """Get the viewport zooming service."""
+        return self._viewport_zooming_service
