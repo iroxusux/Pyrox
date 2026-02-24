@@ -360,7 +360,18 @@ class SceneBridgeDialog(TkinterTaskFrame):
 # ---------------------------------------------------------------------------
 
 class AddBindingDialog(tk.Toplevel):
-    """Dialog for adding a new scene bridge binding."""
+    """Dialog for adding a new scene bridge binding.
+
+    The form is split into two clearly labelled sections:
+
+    * **External Source** — select a ``SceneBoundLayer`` source (e.g. *keyboard*,
+      *plc*) and one of its public properties via :class:`ExternalSourceBrowserDialog`.
+    * **Scene Destination** — select a :class:`~pyrox.interfaces.scene.ISceneObject`
+      (or its ``physics_body``) and one of its properties via
+      :class:`SceneObjectPropertyBrowserDialog`.
+
+    Direction and an optional description round out the form.
+    """
 
     def __init__(self, parent, bridge: ISceneBridge, scene: Optional[IScene]):
         super().__init__(parent)
@@ -368,92 +379,97 @@ class AddBindingDialog(tk.Toplevel):
         self.scene = scene
 
         self.title("Add Scene Binding")
-        self.geometry("500x360")
+        self.geometry("540x400")
         self.resizable(False, False)
         self.transient(parent)
         self.grab_set()
 
-        form_frame = tk.Frame(self, padx=10, pady=10)
-        form_frame.pack(fill=tk.BOTH, expand=True)
+        outer = tk.Frame(self, padx=10, pady=8)
+        outer.pack(fill=tk.BOTH, expand=True)
 
-        row = 0
+        # ── External Source section ───────────────────────────────────────────
+        src_lf = tk.LabelFrame(outer, text=" External Source ", padx=8, pady=6)
+        src_lf.pack(fill=tk.X, pady=(0, 6))
+        src_lf.columnconfigure(1, weight=1)
 
-        # Binding Key
-        tk.Label(form_frame, text="Binding Key:").grid(row=row, column=0, sticky=tk.W, pady=5)
-        self.key_entry = tk.Entry(form_frame, width=40)
-        self.key_entry.grid(row=row, column=1, sticky=tk.EW, pady=5)
+        tk.Label(src_lf, text="Binding Key:").grid(row=0, column=0, sticky=tk.W, pady=4)
+        self.key_entry = tk.Entry(src_lf, width=38)
+        self.key_entry.grid(row=0, column=1, sticky=tk.EW, pady=4, padx=(4, 0))
         tk.Button(
-            form_frame, text="Browse...", command=self._browse_keys
-        ).grid(row=row, column=2, padx=5)
-        row += 1
+            src_lf, text="Browse\u2026", command=self._browse_external
+        ).grid(row=0, column=2, padx=(6, 0))
 
-        # Scene Object
-        tk.Label(form_frame, text="Scene Object ID:").grid(row=row, column=0, sticky=tk.W, pady=5)
-        self.object_entry = tk.Entry(form_frame, width=40)
-        self.object_entry.grid(row=row, column=1, sticky=tk.EW, pady=5)
+        # ── Scene Destination section ─────────────────────────────────────────
+        dst_lf = tk.LabelFrame(outer, text=" Scene Destination ", padx=8, pady=6)
+        dst_lf.pack(fill=tk.X, pady=(0, 6))
+        dst_lf.columnconfigure(1, weight=1)
+
+        tk.Label(dst_lf, text="Object ID:").grid(row=0, column=0, sticky=tk.W, pady=4)
+        self.object_entry = tk.Entry(dst_lf, width=38)
+        self.object_entry.grid(row=0, column=1, sticky=tk.EW, pady=4, padx=(4, 0))
         tk.Button(
-            form_frame, text="Browse...", command=self._browse_objects
-        ).grid(row=row, column=2, padx=5)
-        row += 1
+            dst_lf, text="Browse\u2026", command=self._browse_scene
+        ).grid(row=0, column=2, padx=(6, 0), rowspan=2, sticky=tk.NS)
 
-        # Property Path
-        tk.Label(form_frame, text="Property Path:").grid(row=row, column=0, sticky=tk.W, pady=5)
-        self.property_entry = tk.Entry(form_frame, width=40)
-        self.property_entry.grid(row=row, column=1, sticky=tk.EW, pady=5)
-        tk.Label(form_frame, text="e.g., speed, position.x").grid(row=row, column=2, padx=5)
-        row += 1
+        tk.Label(dst_lf, text="Property:").grid(row=1, column=0, sticky=tk.W, pady=4)
+        self.property_entry = tk.Entry(dst_lf, width=38, state="readonly")
+        self.property_entry.grid(row=1, column=1, sticky=tk.EW, pady=4, padx=(4, 0))
 
-        # Direction
-        tk.Label(form_frame, text="Direction:").grid(row=row, column=0, sticky=tk.W, pady=5)
+        # ── Direction row ─────────────────────────────────────────────────────
+        dir_frame = tk.Frame(outer)
+        dir_frame.pack(fill=tk.X, pady=(0, 4))
+
+        tk.Label(dir_frame, text="Direction:").pack(side=tk.LEFT)
         self.direction_var = tk.StringVar(value="read")
-        direction_frame = tk.Frame(form_frame)
-        direction_frame.grid(row=row, column=1, sticky=tk.W, pady=5)
-        tk.Radiobutton(
-            direction_frame, text="Source \u2192 Scene",
-            variable=self.direction_var, value="read",
-        ).pack(side=tk.LEFT)
-        tk.Radiobutton(
-            direction_frame, text="Scene \u2192 Source",
-            variable=self.direction_var, value="write",
-        ).pack(side=tk.LEFT)
-        tk.Radiobutton(
-            direction_frame, text="Both",
-            variable=self.direction_var, value="both",
-        ).pack(side=tk.LEFT)
-        row += 1
+        for label, value in (
+            ("External \u2192 Scene", "read"),
+            ("Scene \u2192 External", "write"),
+            ("Both", "both"),
+        ):
+            tk.Radiobutton(
+                dir_frame, text=label,
+                variable=self.direction_var, value=value,
+            ).pack(side=tk.LEFT, padx=(8, 0))
 
-        # Description
-        tk.Label(form_frame, text="Description:").grid(row=row, column=0, sticky=tk.W, pady=5)
-        self.description_entry = tk.Entry(form_frame, width=40)
-        self.description_entry.grid(row=row, column=1, sticky=tk.EW, pady=5)
-        row += 1
+        # ── Description row ───────────────────────────────────────────────────
+        desc_frame = tk.Frame(outer)
+        desc_frame.pack(fill=tk.X, pady=(0, 4))
+        desc_frame.columnconfigure(1, weight=1)
 
-        form_frame.columnconfigure(1, weight=1)
+        tk.Label(desc_frame, text="Description:").grid(row=0, column=0, sticky=tk.W)
+        self.description_entry = tk.Entry(desc_frame)
+        self.description_entry.grid(row=0, column=1, sticky=tk.EW, padx=(6, 0))
 
-        button_frame = tk.Frame(self)
-        button_frame.pack(side=tk.BOTTOM, fill=tk.X, padx=10, pady=10)
-        tk.Button(button_frame, text="Add Binding", command=self._add_binding).pack(side=tk.RIGHT, padx=5)
-        tk.Button(button_frame, text="Cancel", command=self.destroy).pack(side=tk.RIGHT)
+        # ── Buttons ───────────────────────────────────────────────────────────
+        btn_frame = tk.Frame(self)
+        btn_frame.pack(side=tk.BOTTOM, fill=tk.X, padx=10, pady=8)
+        tk.Button(btn_frame, text="Add Binding", command=self._add_binding).pack(side=tk.RIGHT, padx=5)
+        tk.Button(btn_frame, text="Cancel", command=self.destroy).pack(side=tk.RIGHT)
 
-    def _browse_keys(self):
-        """Browse available binding keys.
+    # ------------------------------------------------------------------
+    # Browse helpers
+    # ------------------------------------------------------------------
+
+    def _browse_external(self) -> None:
+        """Open the external-source browser and fill the *Binding Key* entry.
 
         When the bridge's bound object is a :class:`~pyrox.models.scene.sceneboundlayer.SceneBoundLayer`
-        the browser shows all registered sources and their introspected properties in a
-        two-pane picker.  Otherwise it falls back to the set of keys already used in
-        existing bindings.
+        the dialog shows all registered sources (keyboard, plc, …) with their
+        introspected properties in a two-pane treeview.  Otherwise falls back to
+        the list of keys currently registered in existing bindings.
         """
         bound_obj = self.bridge.get_bound_object()
         if isinstance(bound_obj, SceneBoundLayer):
-            dialog = BoundLayerKeyBrowserDialog(self, bound_obj)
+            dialog = ExternalSourceBrowserDialog(self, bound_obj)
         else:
-            # Fallback: keys that already appear in existing bindings
             existing_keys = sorted({b.binding_key for b in self.bridge.get_bindings()})
             if not existing_keys:
-                messagebox.showinfo("No Keys",
-                                    "No binding keys available.\n"
-                                    "Register a SceneBoundLayer as the bound object to "
-                                    "browse available source properties.")
+                messagebox.showinfo(
+                    "No Keys",
+                    "No binding keys available.\n"
+                    "Register a SceneBoundLayer as the bound object to "
+                    "browse available source properties.",
+                )
                 return
             dialog = ItemSelectionDialog(self, "Select Binding Key", existing_keys)
 
@@ -463,36 +479,42 @@ class AddBindingDialog(tk.Toplevel):
             self.key_entry.delete(0, tk.END)
             self.key_entry.insert(0, dialog.selected_item)
 
-    def _browse_objects(self):
-        """Browse scene objects."""
+    def _browse_scene(self) -> None:
+        """Open the scene-object property browser and fill *Object ID* + *Property*.
+
+        Opens :class:`SceneObjectPropertyBrowserDialog` which shows a grouped
+        treeview of scene objects (with optional ``physics_body`` children) on the
+        left and introspected properties on the right.  Confirming a selection
+        fills both the *Object ID* and *Property* fields simultaneously.
+        """
         if not self.scene:
-            messagebox.showwarning("No Scene", "No scene is loaded")
+            messagebox.showwarning("No Scene", "No scene is loaded.")
             return
 
-        objects = self.scene.get_scene_objects()
-        if not objects:
-            messagebox.showinfo("No Objects", "Scene has no objects")
-            return
-
-        ids = [
-            getattr(obj, 'get_id')() if hasattr(obj, 'get_id') else str(obj)
-            for obj in objects
-        ]
-        dialog = ItemSelectionDialog(self, "Select Scene Object", ids)
+        dialog = SceneObjectPropertyBrowserDialog(self, self.scene)
         self.wait_window(dialog)
 
-        if hasattr(dialog, 'selected_item'):
+        if hasattr(dialog, 'selected_object_id'):
             self.object_entry.delete(0, tk.END)
-            self.object_entry.insert(0, dialog.selected_item)
+            self.object_entry.insert(0, dialog.selected_object_id)
+        if hasattr(dialog, 'selected_property'):
+            self.property_entry.config(state="normal")
+            self.property_entry.delete(0, tk.END)
+            self.property_entry.insert(0, dialog.selected_property)
+            self.property_entry.config(state="readonly")
 
-    def _add_binding(self):
-        """Validate and add the binding."""
+    # ------------------------------------------------------------------
+    # Commit
+    # ------------------------------------------------------------------
+
+    def _add_binding(self) -> None:
+        """Validate entries and call :py:meth:`~pyrox.interfaces.scene.ISceneBridge.add_binding`."""
         binding_key = self.key_entry.get().strip()
         object_id = self.object_entry.get().strip()
         property_path = self.property_entry.get().strip()
 
         if not binding_key or not object_id or not property_path:
-            messagebox.showerror("Missing Fields", "Please fill in all required fields")
+            messagebox.showerror("Missing Fields", "Please fill in all required fields.")
             return
 
         direction = BindingDirection(self.direction_var.get())
@@ -506,7 +528,7 @@ class AddBindingDialog(tk.Toplevel):
                 direction=direction,
                 description=description,
             )
-            messagebox.showinfo("Success", "Binding added successfully")
+            messagebox.showinfo("Success", "Binding added successfully.")
             self.destroy()
         except Exception as e:
             messagebox.showerror("Error", f"Failed to add binding: {e}")
@@ -555,29 +577,33 @@ class EditBindingDialog(tk.Toplevel):
 
 
 # ---------------------------------------------------------------------------
-# Generic selection helper
+# External source browser (SceneBoundLayer → source → property)
 # ---------------------------------------------------------------------------
 
-class BoundLayerKeyBrowserDialog(tk.Toplevel):
-    """Two-pane browser for :class:`~pyrox.models.scene.sceneboundlayer.SceneBoundLayer` keys.
+class ExternalSourceBrowserDialog(tk.Toplevel):
+    """Two-pane browser for selecting a binding key from a
+    :class:`~pyrox.models.scene.sceneboundlayer.SceneBoundLayer`.
 
-    Left pane: registered source names.
-    Right pane: public properties of the selected source.
+    * **Left pane** \u2014 listbox of registered source names (e.g. ``"plc"``,
+      ``"keyboard"``, ``"sim"``).  Selecting a source populates the right
+      pane with that source\'s inspectable public properties.
+    * **Right pane** \u2014 treeview showing ``Property`` name and ``Type``
+      columns, introspected from the actual source object so the user can
+      see at a glance what kind of value each property holds.
 
-    Selecting a source and a property composes the full ``"source.property"``
-    binding key and stores it in ``self.selected_item``.
+    Closing via *Select* stores the composed ``"source.property"`` string in
+    ``self.selected_item``.
     """
 
-    def __init__(self, parent, layer: SceneBoundLayer):
+    def __init__(self, parent, layer: SceneBoundLayer) -> None:
         super().__init__(parent)
         self.layer = layer
-        self.title("Browse Bound Layer Sources")
-        self.geometry("560x340")
+        self.title("Browse External Sources")
+        self.geometry("580x380")
         self.resizable(True, True)
         self.transient(parent)
         self.grab_set()
 
-        # --- top hint label ---
         tk.Label(
             self,
             text="Select a source (left), then a property (right), then click Select.",
@@ -587,40 +613,50 @@ class BoundLayerKeyBrowserDialog(tk.Toplevel):
         panes = tk.Frame(self)
         panes.pack(fill=tk.BOTH, expand=True, padx=8, pady=4)
 
-        # Left pane — sources
+        # Left \u2014 source listbox
         left = tk.LabelFrame(panes, text="Sources")
-        left.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=(0, 4))
+        left.pack(side=tk.LEFT, fill=tk.BOTH, expand=False, padx=(0, 4))
 
-        left_scroll = tk.Scrollbar(left)
+        left_scroll = ttk.Scrollbar(left)
         left_scroll.pack(side=tk.RIGHT, fill=tk.Y)
-        self._source_listbox = tk.Listbox(left, yscrollcommand=left_scroll.set, exportselection=False)
-        self._source_listbox.pack(fill=tk.BOTH, expand=True)
-        left_scroll.config(command=self._source_listbox.yview)
+        self._source_lb = tk.Listbox(
+            left, yscrollcommand=left_scroll.set, exportselection=False, width=20,
+        )
+        self._source_lb.pack(fill=tk.BOTH, expand=True)
+        left_scroll.config(command=self._source_lb.yview)
 
         for name in layer.list_sources():
-            self._source_listbox.insert(tk.END, name)
+            self._source_lb.insert(tk.END, name)
 
-        self._source_listbox.bind('<<ListboxSelect>>', self._on_source_selected)
+        self._source_lb.bind('<<ListboxSelect>>', self._on_source_selected)
 
-        # Right pane — properties of selected source
+        # Right \u2014 property treeview
         right = tk.LabelFrame(panes, text="Properties")
         right.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=(4, 0))
 
-        right_scroll = tk.Scrollbar(right)
+        right_scroll = ttk.Scrollbar(right)
         right_scroll.pack(side=tk.RIGHT, fill=tk.Y)
-        self._prop_listbox = tk.Listbox(right, yscrollcommand=right_scroll.set, exportselection=False)
-        self._prop_listbox.pack(fill=tk.BOTH, expand=True)
-        right_scroll.config(command=self._prop_listbox.yview)
+        self._prop_tree = ttk.Treeview(
+            right,
+            columns=('type',),
+            show='tree headings',
+            selectmode='browse',
+            yscrollcommand=right_scroll.set,
+        )
+        self._prop_tree.heading('#0', text='Property')
+        self._prop_tree.heading('type', text='Type')
+        self._prop_tree.column('#0', stretch=True)
+        self._prop_tree.column('type', width=80, stretch=False)
+        self._prop_tree.pack(fill=tk.BOTH, expand=True)
+        right_scroll.config(command=self._prop_tree.yview)
 
-        self._prop_listbox.bind('<Double-Button-1>', lambda _e: self._select())
+        self._prop_tree.bind('<<TreeviewSelect>>', self._on_prop_selected)
+        self._prop_tree.bind('<Double-Button-1>', lambda _e: self._select())
 
-        # Preview label
+        # Preview
         self._preview_var = tk.StringVar(value="")
-        tk.Label(self, textvariable=self._preview_var, anchor=tk.W, padx=8,
-                 fg="#444").pack(fill=tk.X)
-
-        self._source_listbox.bind('<<ListboxSelect>>', self._on_source_selected)
-        self._prop_listbox.bind('<<ListboxSelect>>', self._on_prop_selected)
+        tk.Label(self, textvariable=self._preview_var, anchor=tk.W,
+                 padx=8, fg='#444').pack(fill=tk.X)
 
         # Buttons
         btn_frame = tk.Frame(self)
@@ -628,45 +664,325 @@ class BoundLayerKeyBrowserDialog(tk.Toplevel):
         tk.Button(btn_frame, text="Select", command=self._select).pack(side=tk.RIGHT, padx=4)
         tk.Button(btn_frame, text="Cancel", command=self.destroy).pack(side=tk.RIGHT)
 
-        # Pre-select first source
+        # Pre-select first source so the right pane is immediately populated
         if layer.list_sources():
-            self._source_listbox.selection_set(0)
+            self._source_lb.selection_set(0)
             self._on_source_selected(None)
 
-    def _on_source_selected(self, _event) -> None:
+    def _on_source_selected(self, _event: Any) -> None:
         """Populate the property pane for the currently selected source."""
-        sel = self._source_listbox.curselection()
+        sel = self._source_lb.curselection()
         if not sel:
             return
-        source_name = self._source_listbox.get(sel[0])
-        props = self.layer.enumerate_source_properties(source_name)
-        self._prop_listbox.delete(0, tk.END)
-        for p in props:
-            self._prop_listbox.insert(tk.END, p)
-        self._preview_var.set(f"key: {source_name}." if props else f"key: {source_name}.<property>")
+        source_name = self._source_lb.get(sel[0])
+        source_obj = self.layer.get_source(source_name)
 
-    def _on_prop_selected(self, _event) -> None:
+        self._prop_tree.delete(*self._prop_tree.get_children())
+        props = self.layer.enumerate_source_properties(source_name)
+        for prop in props:
+            try:
+                val = (
+                    source_obj[prop]
+                    if isinstance(source_obj, dict)
+                    else getattr(source_obj, prop)
+                )
+                type_name = type(val).__name__
+            except Exception:
+                type_name = '?'
+            self._prop_tree.insert('', tk.END, text=prop, values=(type_name,))
+
+        self._preview_var.set(
+            f"source: {source_name}  \u2014  select a property"
+            if props else f"source: {source_name}  \u2014  (no public properties)"
+        )
+
+    def _on_prop_selected(self, _event: Any) -> None:
         """Update the preview label."""
-        src_sel = self._source_listbox.curselection()
-        prop_sel = self._prop_listbox.curselection()
+        src_sel = self._source_lb.curselection()
+        prop_sel = self._prop_tree.selection()
         if src_sel and prop_sel:
-            src = self._source_listbox.get(src_sel[0])
-            prop = self._prop_listbox.get(prop_sel[0])
+            src = self._source_lb.get(src_sel[0])
+            prop = self._prop_tree.item(prop_sel[0], 'text')
             self._preview_var.set(f"key: {src}.{prop}")
 
     def _select(self) -> None:
         """Compose and store the selected binding key, then close."""
-        src_sel = self._source_listbox.curselection()
-        prop_sel = self._prop_listbox.curselection()
+        src_sel = self._source_lb.curselection()
+        prop_sel = self._prop_tree.selection()
         if not src_sel:
             messagebox.showwarning("No Source", "Please select a source first", parent=self)
             return
         if not prop_sel:
             messagebox.showwarning("No Property", "Please select a property first", parent=self)
             return
-        src = self._source_listbox.get(src_sel[0])
-        prop = self._prop_listbox.get(prop_sel[0])
+        src = self._source_lb.get(src_sel[0])
+        prop = self._prop_tree.item(prop_sel[0], 'text')
         self.selected_item = f"{src}.{prop}"
+        self.destroy()
+
+
+# ---------------------------------------------------------------------------
+# Scene object + property browser
+# ---------------------------------------------------------------------------
+
+class SceneObjectPropertyBrowserDialog(tk.Toplevel):
+    """Browser for selecting a scene object (or its physics body) and a property.
+
+    * **Left pane** — treeview of scene objects grouped by
+      ``scene_object_type``, with a live search bar.  Each object node
+      exposes a ``⚙ Physics Body`` child when a physics body is present,
+      allowing properties on either the scene object itself *or* its
+      associated physics body to be selected.
+    * **Right pane** — treeview showing ``Property`` and ``Type`` columns,
+      introspected from whichever node (scene object or physics body) is
+      currently selected on the left.
+
+    After *Select*:
+    * ``self.selected_object_id`` — the scene object's ID string.
+    * ``self.selected_property``  — the property path.  For physics body
+      properties this is automatically prefixed: ``"physics_body.{name}"``.
+    """
+
+    _TAG_GROUP = 'group'
+    _TAG_OBJECT = 'object'
+    _TAG_PHYSICS = 'physics'
+
+    def __init__(self, parent, scene: IScene) -> None:
+        super().__init__(parent)
+        self.scene = scene
+        self.title("Browse Scene Destination")
+        self.geometry("660x440")
+        self.resizable(True, True)
+        self.transient(parent)
+        self.grab_set()
+
+        tk.Label(
+            self,
+            text="Select an object or its \u2699 Physics Body (left), then a property (right), then click Select.",
+            anchor=tk.W, padx=8, pady=4,
+        ).pack(fill=tk.X)
+
+        # -- Search bar --------------------------------------------------------
+        search_frame = tk.Frame(self)
+        search_frame.pack(fill=tk.X, padx=8, pady=(0, 4))
+        tk.Label(search_frame, text="\U0001f50d").pack(side=tk.LEFT)
+        self._search_var = tk.StringVar()
+        self._search_var.trace_add("write", lambda *_: self._populate_objects())
+        tk.Entry(search_frame, textvariable=self._search_var).pack(
+            side=tk.LEFT, fill=tk.X, expand=True, padx=4
+        )
+
+        # -- Two panes ---------------------------------------------------------
+        panes = tk.Frame(self)
+        panes.pack(fill=tk.BOTH, expand=True, padx=8, pady=4)
+
+        # Left — scene object treeview (with optional physics body children)
+        left = tk.LabelFrame(panes, text="Scene Objects")
+        left.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=(0, 4))
+
+        left_scroll = ttk.Scrollbar(left)
+        left_scroll.pack(side=tk.RIGHT, fill=tk.Y)
+        self._obj_tree = ttk.Treeview(
+            left,
+            columns=('id', 'node_type'),
+            show='tree',
+            selectmode='browse',
+            yscrollcommand=left_scroll.set,
+        )
+        self._obj_tree.column('#0', stretch=True)
+        self._obj_tree.column('id', width=0, stretch=False)
+        self._obj_tree.column('node_type', width=0, stretch=False)
+        self._obj_tree.tag_configure(self._TAG_GROUP, font=('', 9, 'bold'))
+        self._obj_tree.tag_configure(self._TAG_OBJECT, font=('', 9))
+        self._obj_tree.tag_configure(
+            self._TAG_PHYSICS, font=('', 9, 'italic'), foreground='#445566'
+        )
+        self._obj_tree.pack(fill=tk.BOTH, expand=True)
+        left_scroll.config(command=self._obj_tree.yview)
+        self._obj_tree.bind('<<TreeviewSelect>>', self._on_node_selected)
+
+        # Right — property treeview
+        right = tk.LabelFrame(panes, text="Properties")
+        right.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=(4, 0))
+
+        right_scroll = ttk.Scrollbar(right)
+        right_scroll.pack(side=tk.RIGHT, fill=tk.Y)
+        self._prop_tree = ttk.Treeview(
+            right,
+            columns=('type',),
+            show='tree headings',
+            selectmode='browse',
+            yscrollcommand=right_scroll.set,
+        )
+        self._prop_tree.heading('#0', text='Property')
+        self._prop_tree.heading('type', text='Type')
+        self._prop_tree.column('#0', stretch=True)
+        self._prop_tree.column('type', width=80, stretch=False)
+        self._prop_tree.pack(fill=tk.BOTH, expand=True)
+        right_scroll.config(command=self._prop_tree.yview)
+        self._prop_tree.bind('<<TreeviewSelect>>', self._on_prop_selected)
+        self._prop_tree.bind('<Double-Button-1>', lambda _e: self._select())
+
+        # Preview
+        self._preview_var = tk.StringVar(value="")
+        tk.Label(self, textvariable=self._preview_var, anchor=tk.W,
+                 padx=8, fg='#444').pack(fill=tk.X)
+
+        # Buttons
+        btn_frame = tk.Frame(self)
+        btn_frame.pack(side=tk.BOTTOM, fill=tk.X, padx=8, pady=6)
+        tk.Button(btn_frame, text="Select", command=self._select).pack(side=tk.RIGHT, padx=4)
+        tk.Button(btn_frame, text="Cancel", command=self.destroy).pack(side=tk.RIGHT)
+
+        # iid → (object_id: str, target_obj: Any, is_physics_body: bool)
+        self._node_map: dict[str, tuple[str, Any, bool]] = {}
+
+        self._populate_objects()
+
+    # ------------------------------------------------------------------
+    # Helpers
+    # ------------------------------------------------------------------
+
+    def _get_objects(self) -> list:
+        """Return a flat list of scene objects from the scene."""
+        if hasattr(self.scene, 'get_scene_objects'):
+            result = self.scene.get_scene_objects()
+            if isinstance(result, dict):
+                return list(result.values())
+            return list(result) if result else []
+        return list(getattr(self.scene, 'scene_objects', {}).values())
+
+    @staticmethod
+    def _label(obj: Any) -> str:
+        if hasattr(obj, 'get_name'):
+            return obj.get_name()
+        return getattr(obj, 'id', str(obj))
+
+    # ------------------------------------------------------------------
+    # Left-pane population
+    # ------------------------------------------------------------------
+
+    def _populate_objects(self) -> None:
+        """Rebuild the object treeview from the current scene."""
+        self._obj_tree.delete(*self._obj_tree.get_children())
+        self._prop_tree.delete(*self._prop_tree.get_children())
+        self._node_map.clear()
+        self._preview_var.set("")
+
+        objects = self._get_objects()
+        if not objects:
+            return
+
+        filter_text = self._search_var.get().lower().strip()
+
+        groups: dict[str, list] = {}
+        for obj in objects:
+            obj_type = (
+                getattr(obj, 'scene_object_type', None)
+                or getattr(obj, '_scene_object_type', None)
+                or 'Unknown'
+            )
+            groups.setdefault(obj_type, []).append(obj)
+
+        for group_name, members in sorted(groups.items()):
+            matching = [
+                obj for obj in members
+                if not filter_text or filter_text in self._label(obj).lower()
+            ]
+            if not matching:
+                continue
+
+            group_node = self._obj_tree.insert(
+                '', tk.END,
+                text=f"{group_name}  ({len(matching)})",
+                values=('', self._TAG_GROUP),
+                open=True,
+                tags=(self._TAG_GROUP,),
+            )
+
+            for obj in sorted(matching, key=lambda o: self._label(o).lower()):
+                obj_id = getattr(obj, 'get_id', lambda: getattr(obj, 'id', str(obj)))()
+                obj_iid = self._obj_tree.insert(
+                    group_node, tk.END,
+                    text=self._label(obj),
+                    values=(obj_id, self._TAG_OBJECT),
+                    open=False,
+                    tags=(self._TAG_OBJECT,),
+                )
+                self._node_map[obj_iid] = (obj_id, obj, False)
+
+                # Expose physics body as a selectable child node
+                physics_body = getattr(obj, 'physics_body', None)
+                if physics_body is not None:
+                    pb_iid = self._obj_tree.insert(
+                        obj_iid, tk.END,
+                        text="\u2699 Physics Body",
+                        values=(obj_id, self._TAG_PHYSICS),
+                        tags=(self._TAG_PHYSICS,),
+                    )
+                    self._node_map[pb_iid] = (obj_id, physics_body, True)
+
+    # ------------------------------------------------------------------
+    # Event handlers
+    # ------------------------------------------------------------------
+
+    def _on_node_selected(self, _event: Any) -> None:
+        """Populate the property pane for the selected object or physics body."""
+        selected = self._obj_tree.selection()
+        if not selected:
+            return
+        iid = selected[0]
+        if iid not in self._node_map:
+            return  # group header
+
+        obj_id, target_obj, is_physics = self._node_map[iid]
+
+        self._prop_tree.delete(*self._prop_tree.get_children())
+        props = SceneBoundLayer._inspect_properties(target_obj)
+        for prop in props:
+            try:
+                val = getattr(target_obj, prop)
+                type_name = type(val).__name__
+            except Exception:
+                type_name = '?'
+            self._prop_tree.insert('', tk.END, text=prop, values=(type_name,))
+
+        target_label = "physics_body" if is_physics else "object"
+        self._preview_var.set(
+            f"object: {obj_id}  \u2014  target: {target_label}  \u2014  select a property"
+            if props
+            else f"object: {obj_id}  \u2014  target: {target_label}  \u2014  (no public properties)"
+        )
+
+    def _on_prop_selected(self, _event: Any) -> None:
+        """Update the preview label."""
+        obj_sel = self._obj_tree.selection()
+        prop_sel = self._prop_tree.selection()
+        if obj_sel and prop_sel and obj_sel[0] in self._node_map:
+            obj_id, _, is_physics = self._node_map[obj_sel[0]]
+            prop = self._prop_tree.item(prop_sel[0], 'text')
+            full_prop = f"physics_body.{prop}" if is_physics else prop
+            self._preview_var.set(f"object: {obj_id}  \u2014  property: {full_prop}")
+
+    def _select(self) -> None:
+        """Validate selection, compose results, and close."""
+        obj_sel = self._obj_tree.selection()
+        if not obj_sel or obj_sel[0] not in self._node_map:
+            messagebox.showwarning(
+                "No Object",
+                "Please select an object or its Physics Body node first.",
+                parent=self,
+            )
+            return
+        prop_sel = self._prop_tree.selection()
+        if not prop_sel:
+            messagebox.showwarning("No Property", "Please select a property first", parent=self)
+            return
+
+        obj_id, _, is_physics = self._node_map[obj_sel[0]]
+        prop = self._prop_tree.item(prop_sel[0], 'text')
+        self.selected_object_id: str = obj_id
+        self.selected_property: str = f"physics_body.{prop}" if is_physics else prop
         self.destroy()
 
 
@@ -721,9 +1037,17 @@ def create_demo_window() -> tk.Tk:
     so every panel feature (add / edit / remove / toggle / start / stop, periodic
     refresh) can be exercised without a live scene engine.
 
+    The demo also wires up a real :class:`~pyrox.models.scene.SceneBoundLayer`
+    with two registered sources (``plc`` and ``keyboard``) so the
+    :class:`ExternalSourceBrowserDialog` fully exercises its two-pane source/property
+    treeview.  Scene objects carry ``scene_object_type`` attributes and several
+    have a mock ``physics_body`` so the :class:`SceneObjectPropertyBrowserDialog`
+    physics-body child nodes are exercised as well.
+
     Returns:
         tk.Tk: The configured root window (caller must call ``mainloop()``).
     """
+    from types import SimpleNamespace
 
     # ------------------------------------------------------------------
     # Mock binding
@@ -751,14 +1075,68 @@ def create_demo_window() -> tk.Tk:
             self.last_scene_value = scene_val
 
     # ------------------------------------------------------------------
-    # Mock scene object (for the "Browse objects" picker)
+    # Mock physics body  (inspectable properties shown as children in the
+    # left treeview of SceneObjectPropertyBrowserDialog)
     # ------------------------------------------------------------------
 
-    class _MockSceneObject:
+    class _MockPhysicsBody:
+        def __init__(self) -> None:
+            self.mass_kg: float = 10.0
+            self.velocity_x: float = 0.0
+            self.velocity_y: float = 0.0
+            self.is_static: bool = False
+            self.collisions_enabled: bool = True
+
+    # ------------------------------------------------------------------
+    # Typed mock scene objects — each carries scene_object_type,
+    # physics_body (or None), and bindable public properties.
+    # ------------------------------------------------------------------
+
+    class _MockConveyor:
+        scene_object_type = "Conveyor"
+
         def __init__(self, obj_id: str) -> None:
             self._id = obj_id
+            self.speed_m_s: float = 0.0
+            self.enabled: bool = False
+            self.belt_tension_n: float = 4.2
+            self.physics_body = _MockPhysicsBody()
 
         def get_id(self) -> str:
+            return self._id
+
+        def get_name(self) -> str:
+            return self._id
+
+    class _MockSensor:
+        scene_object_type = "Sensor"
+
+        def __init__(self, obj_id: str) -> None:
+            self._id = obj_id
+            self.active: bool = False
+            self.signal_strength: float = 0.0
+            self.physics_body = None  # sensors have no physics body in this demo
+
+        def get_id(self) -> str:
+            return self._id
+
+        def get_name(self) -> str:
+            return self._id
+
+    class _MockRobot:
+        scene_object_type = "Robot"
+
+        def __init__(self, obj_id: str) -> None:
+            self._id = obj_id
+            self.max_speed_mm_s: float = 500.0
+            self.current_speed_mm_s: float = 0.0
+            self.tool_active: bool = False
+            self.physics_body = _MockPhysicsBody()
+
+        def get_id(self) -> str:
+            return self._id
+
+        def get_name(self) -> str:
             return self._id
 
     # ------------------------------------------------------------------
@@ -766,20 +1144,22 @@ def create_demo_window() -> tk.Tk:
     # ------------------------------------------------------------------
 
     class _MockScene:
-        def __init__(self, objects: list[_MockSceneObject]) -> None:
+        def __init__(self, objects: list) -> None:
             self._objects = objects
 
-        def get_scene_objects(self) -> list[_MockSceneObject]:
+        def get_scene_objects(self) -> list:
             return list(self._objects)
 
     # ------------------------------------------------------------------
-    # Mock bridge
+    # Mock bridge — returns a real SceneBoundLayer so ExternalSourceBrowserDialog
+    # can display the two-pane source/property treeview.
     # ------------------------------------------------------------------
 
     class _MockBridge:
-        def __init__(self, bindings: list[_MockBinding]) -> None:
+        def __init__(self, bindings: list[_MockBinding], bound_layer: SceneBoundLayer) -> None:
             self._bindings: list[_MockBinding] = list(bindings)
             self._active = False
+            self._bound_layer = bound_layer
 
         def get_bindings(self) -> list[_MockBinding]:
             return list(self._bindings)
@@ -793,8 +1173,8 @@ def create_demo_window() -> tk.Tk:
         def stop(self) -> None:
             self._active = False
 
-        def get_bound_object(self) -> None:
-            return None
+        def get_bound_object(self) -> SceneBoundLayer:
+            return self._bound_layer
 
         def add_binding(
             self,
@@ -825,59 +1205,96 @@ def create_demo_window() -> tk.Tk:
             self._bindings.clear()
 
     # ------------------------------------------------------------------
+    # Real SceneBoundLayer with two named sources
+    # ------------------------------------------------------------------
+
+    _plc_source = SimpleNamespace(
+        conveyor_speed=1.25,
+        conveyor_enabled=True,
+        sensor_active=False,
+        robot_speed=800.0,
+        estop_active=False,
+    )
+    _keyboard_source = SimpleNamespace(
+        key_w=False,
+        key_s=False,
+        key_a=False,
+        key_d=False,
+        key_space=False,
+        speed_multiplier=1.0,
+    )
+
+    _bound_layer = SceneBoundLayer()
+    _bound_layer.register_source("plc", _plc_source)
+    _bound_layer.register_source("keyboard", _keyboard_source)
+
+    # ------------------------------------------------------------------
     # Seed data
     # ------------------------------------------------------------------
 
     _mock_scene = _MockScene([
-        _MockSceneObject("conv_001"),
-        _MockSceneObject("conv_002"),
-        _MockSceneObject("sens_001"),
-        _MockSceneObject("rob_001"),
-        _MockSceneObject("rob_002"),
+        _MockConveyor("conv_001"),
+        _MockConveyor("conv_002"),
+        _MockSensor("sens_001"),
+        _MockRobot("rob_001"),
+        _MockRobot("rob_002"),
     ])
 
-    _mock_bridge = _MockBridge([
-        _MockBinding(
-            key="plc.conveyor_speed",
-            object_id="conv_001",
-            property_path="speed_m_s",
-            direction=BindingDirection.READ,
-            description="Conveyor A belt speed",
-            enabled=True,
-            source_val=1.25,
-            scene_val=1.25,
-        ),
-        _MockBinding(
-            key="plc.conveyor_enabled",
-            object_id="conv_001",
-            property_path="enabled",
-            direction=BindingDirection.BOTH,
-            description="Conveyor A run command",
-            enabled=True,
-            source_val=True,
-            scene_val=True,
-        ),
-        _MockBinding(
-            key="plc.sensor_active",
-            object_id="sens_001",
-            property_path="active",
-            direction=BindingDirection.READ,
-            description="Entry gate proximity sensor",
-            enabled=False,
-            source_val=False,
-            scene_val=None,
-        ),
-        _MockBinding(
-            key="plc.robot_speed",
-            object_id="rob_001",
-            property_path="max_speed_mm_s",
-            direction=BindingDirection.WRITE,
-            description="Robot A maximum speed setpoint",
-            enabled=True,
-            source_val=None,
-            scene_val=800,
-        ),
-    ])
+    _mock_bridge = _MockBridge(
+        bound_layer=_bound_layer,
+        bindings=[
+            _MockBinding(
+                key="plc.conveyor_speed",
+                object_id="conv_001",
+                property_path="speed_m_s",
+                direction=BindingDirection.READ,
+                description="Conveyor A belt speed",
+                enabled=True,
+                source_val=1.25,
+                scene_val=1.25,
+            ),
+            _MockBinding(
+                key="plc.conveyor_enabled",
+                object_id="conv_001",
+                property_path="enabled",
+                direction=BindingDirection.BOTH,
+                description="Conveyor A run command",
+                enabled=True,
+                source_val=True,
+                scene_val=True,
+            ),
+            _MockBinding(
+                key="plc.sensor_active",
+                object_id="sens_001",
+                property_path="active",
+                direction=BindingDirection.READ,
+                description="Entry gate proximity sensor",
+                enabled=False,
+                source_val=False,
+                scene_val=None,
+            ),
+            _MockBinding(
+                key="plc.robot_speed",
+                object_id="rob_001",
+                property_path="max_speed_mm_s",
+                direction=BindingDirection.WRITE,
+                description="Robot A maximum speed setpoint",
+                enabled=True,
+                source_val=None,
+                scene_val=800,
+            ),
+            _MockBinding(
+                key="keyboard.key_w",
+                object_id="rob_002",
+                property_path="physics_body.velocity_y",
+                direction=BindingDirection.READ,
+                description="Drive robot B forward with W key",
+                enabled=True,
+                source_val=False,
+                scene_val=0.0,
+            ),
+        ],
+    )
 
     # ------------------------------------------------------------------
     # Root window + dialog
