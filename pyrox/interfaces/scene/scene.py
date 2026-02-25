@@ -5,17 +5,20 @@ from abc import abstractmethod
 from pathlib import Path
 from typing import (
     Callable,
-    Dict,
-    Optional,
     Protocol,
-    Union
+    TypeVar,
 )
 from pyrox.interfaces import (
     IBasePhysicsBody,
     IPhysicsBody2D,
-    IConnectionRegistry
+    IConnectionRegistry,
 )
 from pyrox.interfaces.scene.sceneobject import ISceneObject, ISceneObjectFactory
+from pyrox.interfaces.scene.compositesceneobject import ICompositeSceneObject
+from pyrox.interfaces.scene.scenegroup import ISceneGroup
+
+
+T = TypeVar("T", bound=ISceneObject | ICompositeSceneObject | ISceneGroup)
 
 
 class IScene:
@@ -68,11 +71,11 @@ class IScene:
         self.set_description(description)
 
     @property
-    def scene_objects(self) -> Dict[str, ISceneObject]:
+    def scene_objects(self) -> dict[str, ISceneObject | ICompositeSceneObject | ISceneGroup]:
         """Get the scene objects in the scene.
 
         Returns:
-            Dict[str, ISceneObject]: A dictionary of scene objects by their IDs.
+            dict[str, ISceneObject]: A dictionary of scene objects by their IDs.
         """
         return self.get_scene_objects()
 
@@ -135,33 +138,33 @@ class IScene:
         ...
 
     @abstractmethod
-    def get_scene_object(self, scene_object_id: str) -> Optional[ISceneObject]:
+    def get_scene_object(self, scene_object_id: str) -> ISceneObject | ICompositeSceneObject | ISceneGroup | None:
         """Get a scene_object by ID."""
         ...
 
     @abstractmethod
-    def get_scene_objects(self) -> Dict[str, ISceneObject]:
+    def get_scene_objects(self) -> dict[str, ISceneObject | ICompositeSceneObject | ISceneGroup]:
         """Get all scene objects in the scene.
 
         Returns:
-            Dict[str, ISceneObject]: A dictionary of scene objects by their IDs.
+            dict[str, ISceneObject]: A dictionary of scene objects by their IDs.
         """
         ...
 
     @abstractmethod
     def set_scene_objects(
         self,
-        scene_objects: Dict[str, ISceneObject]
+        scene_objects: dict[str, T]
     ) -> None:
         """Set the scene objects for the scene.
 
         Args:
-            scene_objects (Dict[str, ISceneObject]): A dictionary of scene objects by their IDs.
+            scene_objects (dict[str, ISceneObject]): A dictionary of scene objects by their IDs.
         """
         ...
 
     @abstractmethod
-    def get_scene_object_factory(self) -> Optional[ISceneObjectFactory]:
+    def get_scene_object_factory(self) -> ISceneObjectFactory | None:
         """Get the object factory for loading scenes."""
         ...
 
@@ -175,7 +178,7 @@ class IScene:
         ...
 
     @abstractmethod
-    def add_scene_object(self, scene_object: ISceneObject) -> None:
+    def add_scene_object(self, scene_object: ISceneObject | ICompositeSceneObject | ISceneGroup) -> None:
         """
         Add a scene_object to the scene.
 
@@ -273,7 +276,7 @@ class IScene:
         Create scene from dictionary.
 
         Args:
-            data: Dictionary containing scene data
+            data: dictionary containing scene data
 
         Returns:
             Scene instance
@@ -281,7 +284,7 @@ class IScene:
         ...
 
     @abstractmethod
-    def save(self, filepath: Union[str, Path]) -> None:
+    def save(self, filepath: str | Path) -> None:
         """
         Save scene to JSON file.
 
@@ -294,7 +297,7 @@ class IScene:
     @abstractmethod
     def load(
         cls,
-        filepath: Union[str, Path]
+        filepath: str | Path
     ) -> "IScene":
         """
         Load scene from JSON file.
@@ -315,7 +318,7 @@ class ISceneRunnerService(
 
     @classmethod
     @abstractmethod
-    def get_scene(cls) -> Optional[IScene]:
+    def get_scene(cls) -> IScene | None:
         """Get the scene being managed.
 
         Returns:
@@ -325,7 +328,7 @@ class ISceneRunnerService(
 
     @classmethod
     @abstractmethod
-    def set_scene(cls, scene: Optional[IScene]) -> None:
+    def set_scene(cls, scene: IScene | None) -> None:
         """Set the scene to be managed.
 
         Args:
@@ -335,7 +338,7 @@ class ISceneRunnerService(
 
     @classmethod
     @abstractmethod
-    def load_scene(cls, filepath: Union[str, Path]) -> None:
+    def load_scene(cls, filepath: str | Path) -> None:
         """Load a scene from a file.
 
         Args:
@@ -345,7 +348,7 @@ class ISceneRunnerService(
 
     @classmethod
     @abstractmethod
-    def save_scene(cls, filepath: Union[str, Path]) -> None:
+    def save_scene(cls, filepath: str | Path) -> None:
         """Save the current scene to a file.
 
         Args:
@@ -355,7 +358,7 @@ class ISceneRunnerService(
 
     @classmethod
     @abstractmethod
-    def get_physics_engine(cls) -> Optional[object]:
+    def get_physics_engine(cls) -> object | None:
         """Get the physics engine being used.
 
         Returns:
@@ -375,7 +378,7 @@ class ISceneRunnerService(
 
     @classmethod
     @abstractmethod
-    def get_environment(cls) -> Optional[object]:
+    def get_environment(cls) -> object | None:
         """Get the environment service being used.
 
         Returns:
@@ -415,7 +418,7 @@ class ISceneRunnerService(
 
     @classmethod
     @abstractmethod
-    def add_physics_body(cls, body: Union[IBasePhysicsBody, IPhysicsBody2D]) -> None:
+    def add_physics_body(cls, body: IBasePhysicsBody | IPhysicsBody2D) -> None:
         """Add a physics body to the simulation.
 
         Args:
@@ -439,7 +442,7 @@ class ISceneRunnerService(
         """Get physics engine statistics.
 
         Returns:
-            Dictionary with physics stats, or empty dict if physics disabled
+            dictionary with physics stats, or empty dict if physics disabled
         """
         ...
 

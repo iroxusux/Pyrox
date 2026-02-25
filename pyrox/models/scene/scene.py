@@ -5,14 +5,13 @@ from pathlib import Path
 from typing import (
     Any,
     Callable,
-    Dict,
-    Optional,
-    Union
 )
 from pyrox.interfaces import (
     IConnectionRegistry,
     IScene,
     ISceneObject,
+    ICompositeSceneObject,
+    ISceneGroup,
 )
 from pyrox.models.connection import ConnectionRegistry
 from pyrox.models.scene.sceneobject import SceneObject
@@ -29,7 +28,7 @@ class Scene(IScene):
     ):
         self._name = name
         self._description = description
-        self._scene_objects: Dict[str, ISceneObject] = {}
+        self._scene_objects: dict[str, ISceneObject] = {}
         self._on_scene_object_added: list[Callable] = []
         self._on_scene_object_removed: list[Callable] = []
         self._on_scene_updated: list[Callable] = []
@@ -57,7 +56,7 @@ class Scene(IScene):
 
     def add_scene_object(
         self,
-        scene_object: ISceneObject
+        scene_object: ISceneObject | ICompositeSceneObject | ISceneGroup
     ) -> None:
         """Add a scene object to the scene.
 
@@ -97,23 +96,23 @@ class Scene(IScene):
     def get_scene_object(
         self,
         scene_object_id: str
-    ) -> Optional[ISceneObject]:
+    ) -> ISceneObject | ICompositeSceneObject | ISceneGroup | None:
         """Get a scene object by ID."""
         return self._scene_objects.get(scene_object_id)
 
-    def get_scene_objects(self) -> Dict[str, ISceneObject]:
+    def get_scene_objects(self) -> dict[str, ISceneObject | ICompositeSceneObject | ISceneGroup]:
         """Get all scene objects in the scene.
 
         Returns:
-            Dict[str, ISceneObject]: A dictionary of scene objects by their IDs.
+            dict[str, ISceneObject]: A dictionary of scene objects by their IDs.
         """
         return self._scene_objects
 
-    def set_scene_objects(self, scene_objects: Dict[str, ISceneObject]) -> None:
+    def set_scene_objects(self, scene_objects: dict[str, ISceneObject | ICompositeSceneObject | ISceneGroup]) -> None:
         """Set the scene objects for the scene.
 
         Args:
-            scene_objects (Dict[str, ISceneObject]): A dictionary of scene objects by their IDs.
+            scene_objects (dict[str, ISceneObject]): A dictionary of scene objects by their IDs.
         """
         if not isinstance(scene_objects, dict):
             raise ValueError("scene_objects must be a dictionary")
@@ -177,21 +176,53 @@ class Scene(IScene):
         cls,
         data: dict,
     ) -> IScene:
-        """Create scene from dictionary."""
+        """Create scene from dictionary.
+
+        Uses a 2-pass strategy:
+        * Pass 1 — create all plain SceneObjects, CompositeSceneObjects, and
+          SceneGroup *shells* (without member links).
+        * Pass 2 — link SceneGroup shells to their previously-created members.
+        """
+        # Import here to avoid circular imports at module level.
+        from pyrox.models.scene.scenegroup import SceneGroup, SCENE_OBJECT_TYPE_GROUP
+        from pyrox.models.scene.compositesceneobject import (
+            CompositeSceneObject,
+            SCENE_OBJECT_TYPE_COMPOSITE,
+        )
+
         scene = cls(
             name=data.get("name", "Untitled Scene"),
             description=data.get("description", ""),
         )
 
-        # Load scene objects
+        # ------ Pass 1: instantiate every scene object ------
+        groups: list[SceneGroup] = []
         for scene_object_data in data.get("scene_objects", []):
-            scene_object = SceneObject.from_dict(scene_object_data)
-            scene.add_scene_object(scene_object)
-            scene._connection_registry.register_object(
-                scene_object.id, scene_object
-            )
+            sot = scene_object_data.get("scene_object_type", "")
 
-        # Load connections
+            if sot == SCENE_OBJECT_TYPE_GROUP:
+                obj = SceneGroup.from_dict(scene_object_data)
+                groups.append(obj)
+            elif sot == SCENE_OBJECT_TYPE_COMPOSITE or scene_object_data.get("components"):
+                obj = CompositeSceneObject.from_dict(scene_object_data)
+            else:
+                obj = SceneObject.from_dict(scene_object_data)
+
+            scene.add_scene_object(obj)
+            scene._connection_registry.register_object(obj.id, obj)
+
+        # ------ Pass 2: link group members ------
+        for group in groups:
+            pending_ids: list[str] = getattr(group, "_pending_member_ids", [])
+            for member_id in pending_ids:
+                member = scene.get_scene_object(member_id)
+                if member is not None:
+                    group.add_member(member)
+            # Clear the temporary attribute
+            if hasattr(group, "_pending_member_ids"):
+                object.__setattr__(group, "_pending_member_ids", [])
+
+        # ------ Connections ------
         for conn_data in data.get("connections", []):
             scene._connection_registry.connect(
                 source_id=conn_data["source"],
@@ -202,7 +233,105 @@ class Scene(IScene):
 
         return scene
 
-    def save(self, filepath: Union[str, Path]) -> None:
+    # ------------------------------------------------------------------
+    # Group convenience helpers
+    # ------------------------------------------------------------------
+
+    def group_objects(
+        self,
+        object_ids: list[str],
+        name: str = "Group",
+        layer: int = 0,
+    ) -> "ISceneGroup":
+        """Wrap existing scene objects into a new SceneGroup.
+
+        All objects identified by *object_ids* must already be registered in
+        this scene.  A new SceneGroup anchor is added to the scene and its
+        bounding box is computed from the members.
+
+        Args:
+            object_ids: IDs of the scene objects to group.
+            name:       Name for the new SceneGroup.
+            layer:      Rendering layer for the group anchor.
+
+        Returns:
+            The newly created SceneGroup.
+
+        Raises:
+            ValueError: If any ID is not found in this scene.
+        """
+        from pyrox.models.scene.scenegroup import SceneGroup
+
+        members: list[ISceneObject] = []
+        for oid in object_ids:
+            obj = self.get_scene_object(oid)
+            if obj is None:
+                raise ValueError(
+                    f"Scene object '{oid}' not found in scene '{self.name}'."
+                )
+            members.append(obj)
+
+        if not members:
+            raise ValueError("Cannot create a group with no members.")
+
+        # Build an anchor physics body from the first member's body type,
+        # but strip the ID so a fresh one is auto-generated.
+        from pyrox.models.physics.factory import PhysicsSceneFactory
+
+        body_dict = members[0].physics_body.to_dict()
+        body_dict.pop("id", None)   # falsy id → auto-generates a new ID
+        body_dict["name"] = name
+
+        template_name = body_dict.get("template_name", "")
+        body_template = PhysicsSceneFactory.get_template(template_name)
+        if not body_template:
+            raise RuntimeError(
+                f"Physics body template '{template_name}' not registered; "
+                "cannot create SceneGroup anchor."
+            )
+        anchor_body = body_template.body_class.from_dict(body_dict)
+
+        group = SceneGroup(
+            name=name,
+            physics_body=anchor_body,
+            layer=layer,
+        )
+        for obj in members:
+            group.add_member(obj)
+
+        self.add_scene_object(group)
+        return group
+
+    def ungroup(self, group_id: str) -> list[ISceneObject]:
+        """Disband a SceneGroup, returning members to standalone status.
+
+        The group anchor is removed from the scene; members remain.
+
+        Args:
+            group_id: Scene object ID of the SceneGroup to disband.
+
+        Returns:
+            list of former member objects.
+
+        Raises:
+            ValueError: If the ID does not correspond to a SceneGroup.
+        """
+        from pyrox.models.scene.scenegroup import SceneGroup
+
+        obj = self.get_scene_object(group_id)
+        if obj is None:
+            raise ValueError(
+                f"Scene object '{group_id}' not found in scene '{self.name}'."
+            )
+        if not isinstance(obj, SceneGroup):
+            raise ValueError(
+                f"Scene object '{group_id}' is not a SceneGroup."
+            )
+        members = obj.disband()
+        self.remove_scene_object(group_id)
+        return members
+
+    def save(self, filepath: str | Path) -> None:
         """
         Save scene to JSON file.
 
@@ -218,7 +347,7 @@ class Scene(IScene):
     @classmethod
     def load(
         cls,
-        filepath: Union[str, Path],
+        filepath: str | Path,
     ) -> IScene:
         """
         Load scene from JSON file.

@@ -23,7 +23,7 @@ from pyrox.models.gui.objectexplorer import TkObjectExplorer
 from pyrox.models.gui.scenebridge import SceneBridgeDialog
 from pyrox.services.scene import SceneBridgeService
 from pyrox.models.physics import PhysicsSceneFactory
-from pyrox.models.scene import Scene, SceneObject
+from pyrox.models.scene import Scene, SceneGroup, SceneObject
 from pyrox.services import (
     log,
     CanvasObjectManagmenentService,
@@ -310,8 +310,12 @@ class SceneViewerFrame(TkinterTaskFrame):
         # Get list before clearing
         to_delete = list(self._canvas_object_management_service.selected_objects)
 
-        # Remove from scene
+        # Remove from scene — for groups, also remove all their members
         for obj_id in to_delete:
+            scene_obj = self._scene.scene_objects.get(obj_id)
+            if isinstance(scene_obj, SceneGroup):
+                for member_id in scene_obj.get_member_ids():
+                    self._scene.remove_scene_object(member_id)
             self._scene.remove_scene_object(obj_id)
 
         # Clear selection
@@ -617,6 +621,54 @@ class SceneViewerFrame(TkinterTaskFrame):
             if culled > 0:
                 log(self).debug(f"Viewport culling: rendered {rendered_count}/{total_objects} objects ({culled} culled)")
 
+    def _render_scene_group(
+        self,
+        obj_id: str,
+        group: "SceneGroup"
+    ) -> None:
+        """Render a SceneGroup as a dashed bounding-box overlay.
+
+        Groups have no fill — they show a labelled dashed border that encloses
+        all their member objects.  When selected the border switches to the
+        standard selection colour.
+
+        Args:
+            obj_id: Scene-registered ID of the group anchor
+            group:  The SceneGroup instance to render
+        """
+        canvas_x = group.x * self.viewport.zoom + self.viewport.x
+        canvas_y = group.y * self.viewport.zoom + self.viewport.y
+        canvas_w = group.width * self.viewport.zoom
+        canvas_h = group.height * self.viewport.zoom
+
+        is_selected = obj_id in self._canvas_object_management_service.selected_objects
+        outline_color = self._selection_color if is_selected else "#ffaa00"
+        outline_width = self._selection_width if is_selected else 1
+
+        canvas_id = self._canvas.create_rectangle(
+            canvas_x,
+            canvas_y,
+            canvas_x + canvas_w,
+            canvas_y + canvas_h,
+            fill="",
+            outline=outline_color,
+            width=outline_width,
+            dash=(6, 4),
+            tags=("scene_object", obj_id)
+        )
+        self._canvas_object_management_service.set_object(obj_id, canvas_id)
+
+        if self._entity_names_visible:
+            font_size = max(8, int(10 * self.viewport.zoom))
+            self._canvas.create_text(
+                canvas_x + canvas_w / 2,
+                canvas_y - 10 * self.viewport.zoom,
+                text=group.name,
+                fill=outline_color,
+                font=("Arial", font_size),
+                tags=("scene_object_label", obj_id)
+            )
+
     def _render_scene_object(
         self,
         obj_id: str,
@@ -628,6 +680,11 @@ class SceneViewerFrame(TkinterTaskFrame):
             obj_id: Unique identifier for the scene object
             scene_obj: The scene object to render
         """
+        # Groups get a dedicated dashed-outline renderer — not a filled shape.
+        if isinstance(scene_obj, SceneGroup):
+            self._render_scene_group(obj_id, scene_obj)
+            return
+
         # Get properties with defaults
         props = scene_obj.properties
         color = props.get("color", "#4a9eff")
@@ -1129,6 +1186,21 @@ class SceneViewerFrame(TkinterTaskFrame):
             icon="🗑️"
         ))
         self._object_context_menu.add_item(MenuItem(
+            id="group_selected",
+            label="Group Selected",
+            command=self._context_group_selected,
+            accelerator="Ctrl+Alt+G",
+            icon="🗂️",
+            separator_before=True
+        ))
+        self._object_context_menu.add_item(MenuItem(
+            id="ungroup_selected",
+            label="Ungroup",
+            command=self._context_ungroup_selected,
+            accelerator="Ctrl+Alt+U",
+            icon="📂"
+        ))
+        self._object_context_menu.add_item(MenuItem(
             id="properties",
             label="Properties",
             command=self._context_show_properties,
@@ -1200,6 +1272,10 @@ class SceneViewerFrame(TkinterTaskFrame):
         self._canvas.bind("<Control-bracketleft>", lambda e: self._context_layer_down())  # Ctrl+[
         self._canvas.bind("<Control-Shift-bracketright>", lambda e: self._context_bring_to_front())  # Ctrl+Shift+]
         self._canvas.bind("<Control-Shift-bracketleft>", lambda e: self._context_send_to_back())  # Ctrl+Shift+[
+
+        # Grouping shortcuts
+        self._canvas.bind("<Control-Alt-g>", lambda e: self._context_group_selected())   # Ctrl+Alt+G
+        self._canvas.bind("<Control-Alt-u>", lambda e: self._context_ungroup_selected())  # Ctrl+Alt+U
 
         # Subscribe to scene events using stored callback references
         SceneEventBus.subscribe(
@@ -1290,6 +1366,16 @@ class SceneViewerFrame(TkinterTaskFrame):
         self._enable_entry(
             menu_id="scene.edit.delete_selected",
             command=self.delete_selected_objects,
+            enable=enable
+        )
+        self._enable_entry(
+            menu_id="scene.edit.group",
+            command=self._context_group_selected,
+            enable=enable
+        )
+        self._enable_entry(
+            menu_id="scene.edit.ungroup",
+            command=self._context_ungroup_selected,
             enable=enable
         )
 
@@ -1389,6 +1475,14 @@ class SceneViewerFrame(TkinterTaskFrame):
         clicked_obj_id = self._canvas_object_management_service.get_from_canvas_id(canvas_items[-1])  # Get topmost item
 
         if clicked_obj_id:
+            # If the clicked object is a member of a group, redirect to the group anchor
+            if self._scene:
+                clicked_scene_obj = self._scene.scene_objects.get(clicked_obj_id)
+                if clicked_scene_obj and hasattr(clicked_scene_obj, 'get_group_id'):
+                    group_id = clicked_scene_obj.get_group_id()
+                    if group_id and group_id in self._scene.scene_objects:
+                        clicked_obj_id = group_id
+
             # Check if Ctrl key is pressed for multi-select
             if event.state & 0x0004:  # Ctrl key  # type: ignore
                 self.toggle_selection(clicked_obj_id)
@@ -1436,25 +1530,37 @@ class SceneViewerFrame(TkinterTaskFrame):
             if self._scene:
                 scene_obj = self._scene.scene_objects.get(obj_id)
                 if scene_obj:
-                    # Calculate new position
-                    new_x = scene_obj.x + scene_dx
-                    new_y = scene_obj.y + scene_dy
+                    if isinstance(scene_obj, SceneGroup):
+                        # Also move all member canvas items so they follow the anchor
+                        for member_id in scene_obj.get_member_ids():
+                            for item in self._canvas.find_withtag(member_id):
+                                self._canvas.move(item, dx, dy)
 
-                    # Apply snap to grid if enabled
-                    new_x, new_y = self._viewport_service.grid.snap_to_grid(new_x, new_y)
+                        # Update ALL positions (anchor + members) via move_delta
+                        snapped_x, snapped_y = self._viewport_service.grid.snap_to_grid(
+                            scene_obj.x + scene_dx, scene_obj.y + scene_dy
+                        )
+                        scene_obj.move_delta(snapped_x - scene_obj.x, snapped_y - scene_obj.y)
+                    else:
+                        # Calculate new position
+                        new_x = scene_obj.x + scene_dx
+                        new_y = scene_obj.y + scene_dy
 
-                    # Update object position
-                    scene_obj.physics_body.set_x(new_x)
-                    scene_obj.physics_body.set_y(new_y)
+                        # Apply snap to grid if enabled
+                        new_x, new_y = self._viewport_service.grid.snap_to_grid(new_x, new_y)
 
-                    props = scene_obj.properties
-                    # For line objects, also update x2, y2
-                    if props.get("shape") == "line":
-                        # Calculate line endpoint delta based on snapped position
-                        actual_dx = new_x - scene_obj.x
-                        actual_dy = new_y - scene_obj.y
-                        props["x2"] = props.get("x2", 0) + actual_dx
-                        props["y2"] = props.get("y2", 0) + actual_dy
+                        # Update object position
+                        scene_obj.physics_body.set_x(new_x)
+                        scene_obj.physics_body.set_y(new_y)
+
+                        props = scene_obj.properties
+                        # For line objects, also update x2, y2
+                        if props.get("shape") == "line":
+                            # Calculate line endpoint delta based on snapped position
+                            actual_dx = new_x - scene_obj.x
+                            actual_dy = new_y - scene_obj.y
+                            props["x2"] = props.get("x2", 0) + actual_dx
+                            props["y2"] = props.get("y2", 0) + actual_dy
 
         # Update drag start position
         self._drag_start_x = event.x
@@ -1744,6 +1850,14 @@ class SceneViewerFrame(TkinterTaskFrame):
         clicked_obj_id = self._canvas_object_management_service.get_from_canvas_id(canvas_items[-1]) if canvas_items else None
 
         if clicked_obj_id:
+            # If the clicked object is a member of a group, redirect to the group anchor
+            if self._scene:
+                clicked_scene_obj = self._scene.scene_objects.get(clicked_obj_id)
+                if clicked_scene_obj and hasattr(clicked_scene_obj, 'get_group_id'):
+                    group_id = clicked_scene_obj.get_group_id()
+                    if group_id and group_id in self._scene.scene_objects:
+                        clicked_obj_id = group_id
+
             # Clicked on an object - ensure it's selected
             if clicked_obj_id not in self._canvas_object_management_service.selected_objects:
                 self.select_object(clicked_obj_id, clear_previous=True)
@@ -1764,12 +1878,20 @@ class SceneViewerFrame(TkinterTaskFrame):
             log(self).warning("No objects selected to copy")
             return
 
-        # Store selected object data for paste
+        # Store selected object data for paste.
+        # For SceneGroups the clipboard entry is augmented with the serialised
+        # member objects so the paste path can reconstruct the group from scratch
+        # without relying on the original member IDs still being in the scene.
         self._clipboard_data = []
         for obj_id in self._canvas_object_management_service.selected_objects:
             obj = self._scene.get_scene_object(obj_id)
             if obj:
-                self._clipboard_data.append(obj.to_dict())
+                obj_dict = obj.to_dict()
+                if isinstance(obj, SceneGroup):
+                    obj_dict['_member_dicts'] = [
+                        m.to_dict() for m in obj.get_members().values()
+                    ]
+                self._clipboard_data.append(obj_dict)
 
         log(self).info(f"Copied {len(self._clipboard_data)} object(s)")
 
@@ -1825,11 +1947,71 @@ class SceneViewerFrame(TkinterTaskFrame):
                 # Offset the duplicate slightly
                 obj_data['body']['x'] += 20
                 obj_data['body']['y'] += 20
+                if isinstance(obj, SceneGroup):
+                    # Also embed member dicts (with matching offset) so
+                    # _paste_object_data can rebuild the group correctly.
+                    member_dicts = []
+                    for m in obj.get_members().values():
+                        md = m.to_dict()
+                        md['body']['x'] += 20
+                        md['body']['y'] += 20
+                        member_dicts.append(md)
+                    obj_data['_member_dicts'] = member_dicts
                 new_obj = self._paste_object_data(obj_data)
                 if new_obj:
                     self.select_object(new_obj.id, clear_previous=False)
 
         log(self).info(f"Duplicated {len(objects_to_duplicate)} object(s)")
+
+    def _context_group_selected(self) -> None:
+        """Group all currently selected objects into a SceneGroup."""
+        if not self._scene:
+            log(self).warning("No scene loaded to group from")
+            return
+
+        selected = list(self._canvas_object_management_service.selected_objects)
+        if len(selected) < 2:
+            log(self).warning("Need at least 2 objects selected to form a group")
+            return
+
+        group = self._scene.group_objects(selected)
+        self.render_scene()
+        self.select_object(group.id, clear_previous=True)
+        log(self).info(f"Grouped {len(selected)} object(s) into group '{group.id}'")
+
+    def _context_ungroup_selected(self) -> None:
+        """Ungroup any selected SceneGroup objects, returning their members to the scene."""
+        if not self._scene:
+            log(self).warning("No scene loaded to ungroup from")
+            return
+
+        if not self._canvas_object_management_service.selected_objects:
+            log(self).warning("No objects selected to ungroup")
+            return
+
+        ungrouped_count = 0
+        released_member_ids: list[str] = []
+
+        for obj_id in list(self._canvas_object_management_service.selected_objects):
+            obj = self._scene.get_scene_object(obj_id)
+            if obj and isinstance(obj, SceneGroup):
+                member_ids = obj.get_member_ids()
+                self._scene.ungroup(obj_id)
+                released_member_ids.extend(member_ids)
+                ungrouped_count += 1
+
+        if ungrouped_count == 0:
+            log(self).warning("No groups found in selection to ungroup")
+            return
+
+        self.render_scene()
+
+        # Re-select the formerly-grouped members
+        self.clear_selection()
+        for mid in released_member_ids:
+            self.select_object(mid, clear_previous=False)
+
+        log(self).info(f"Ungrouped {ungrouped_count} group(s), released {len(released_member_ids)} object(s)")
 
     def _context_show_properties(self) -> None:
         """Show properties panel for selected object."""
@@ -1902,6 +2084,10 @@ class SceneViewerFrame(TkinterTaskFrame):
             return None
 
         try:
+            # --- SceneGroup: reconstruct with fresh IDs for anchor + all members ---
+            if obj_data.get('scene_object_type') == 'group':
+                return self._paste_group_data(obj_data)
+
             # Clear the body's id so BasePhysicsBody.__init__ generates a fresh one.
             # (The SceneObject's own .id is proxied to physics_body.id via __getattribute__,
             # so replacing only the top-level obj_data['id'] has no effect — the body id
@@ -1916,6 +2102,64 @@ class SceneViewerFrame(TkinterTaskFrame):
             return new_obj
         except Exception as e:
             log(self).error(f"Failed to paste object: {e}")
+            return None
+
+    def _paste_group_data(self, group_data: dict) -> Optional["SceneGroup"]:
+        """Reconstruct a SceneGroup from a clipboard/duplicate payload.
+
+        The payload must contain a ``_member_dicts`` key with the serialised
+        member objects (added by ``_context_copy`` / ``_context_duplicate``).
+        Every object — anchor and all members — is given a fresh ID so the
+        new group is fully independent of the original.
+
+        Args:
+            group_data: The group\'s ``to_dict()`` output augmented with
+                        a ``_member_dicts`` list.
+
+        Returns:
+            The newly created SceneGroup, or None on failure.
+        """
+        if not self._scene:
+            return None
+
+        try:
+            from pyrox.models.scene.scenegroup import SceneGroup
+
+            member_dicts: list[dict] = group_data.get('_member_dicts', [])
+            if not member_dicts:
+                log(self).warning(
+                    "Group clipboard entry has no '_member_dicts'; "
+                    "cannot reconstruct members."
+                )
+                return None
+
+            # Create each member with a fresh physics-body ID.
+            new_members: list[SceneObject] = []
+            for md in member_dicts:
+                import copy
+                md = copy.deepcopy(md)
+                md['body'].pop('id', None)     # force fresh UUID
+                md.pop('group_id', None)        # clear old group affiliation
+                member = SceneObject.from_dict(md)
+                self._scene.add_scene_object(member)
+                new_members.append(member)  # type: ignore[arg-type]
+
+            # Create the group anchor with a fresh ID.
+            anchor_data = {k: v for k, v in group_data.items()
+                           if k not in ('member_ids', '_member_dicts')}
+            anchor_data['body'] = {k: v for k, v in group_data['body'].items()}
+            anchor_data['body'].pop('id', None)  # force fresh UUID
+
+            new_group = SceneGroup.from_dict(anchor_data)
+            for m in new_members:
+                new_group.add_member(m)
+
+            self._scene.add_scene_object(new_group)
+            self.render_scene()
+            return new_group
+
+        except Exception as e:
+            log(self).error(f"Failed to paste group: {e}")
             return None
 
     # ==================== Helper & Update Methods ====================

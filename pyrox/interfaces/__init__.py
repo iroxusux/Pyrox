@@ -127,6 +127,8 @@ from .scene import (
     ISceneBinding,
     ISceneBridge,
     ISceneBoundLayer,
+    ICompositeSceneObject,
+    ISceneGroup,
 )
 
 
@@ -220,4 +222,6 @@ __all__ = (
     'ISceneBinding',
     'ISceneBridge',
     'ISceneBoundLayer',
+    'ICompositeSceneObject',
+    'ISceneGroup',
 )

@@ -90,6 +90,33 @@ class SceneviewerApplicationTask(ApplicationTask):
             enabled=False
         )
 
+        scene_edit_dropdown.insert_separator(1)
+
+        self.register_menu_command(
+            menu=scene_edit_dropdown,
+            registry_id="scene.edit.group",
+            registry_path="Edit/Scene Viewer/Group Selected",
+            index=2,
+            label="Group Selected",
+            command=None,  # To be assigned by SceneViewer
+            accelerator="Ctrl+Alt+G",
+            underline=0,
+            category="scene",
+            enabled=False
+        )
+        self.register_menu_command(
+            menu=scene_edit_dropdown,
+            registry_id="scene.edit.ungroup",
+            registry_path="Edit/Scene Viewer/Ungroup",
+            index=3,
+            label="Ungroup",
+            command=None,  # To be assigned by SceneViewer
+            accelerator="Ctrl+Alt+U",
+            underline=0,
+            category="scene",
+            enabled=False
+        )
+
         self.register_submenu(
             menu=self.edit_menu,
             submenu=scene_edit_dropdown,
