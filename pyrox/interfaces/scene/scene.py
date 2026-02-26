@@ -309,6 +309,53 @@ class IScene:
         """
         ...
 
+    # ------------------------------------------------------------------
+    # Group convenience helpers
+    # ------------------------------------------------------------------
+
+    @abstractmethod
+    def group_objects(
+        self,
+        object_ids: list[str],
+        name: str = "Group",
+        layer: int = 0,
+    ) -> "ISceneGroup":
+        """Wrap existing scene objects into a new SceneGroup.
+
+        All objects identified by *object_ids* must already be registered in
+        this scene.  A new SceneGroup anchor is added to the scene and its
+        bounding box is computed from the members.
+
+        Args:
+            object_ids: IDs of the scene objects to group.
+            name:       Name for the new SceneGroup.
+            layer:      Rendering layer for the group anchor.
+
+        Returns:
+            The newly created SceneGroup.
+
+        Raises:
+            ValueError: If any ID is not found in this scene.
+        """
+        ...
+
+    @abstractmethod
+    def ungroup(self, group_id: str) -> list[ISceneObject]:
+        """Disband a SceneGroup, returning members to standalone status.
+
+        The group anchor is removed from the scene; members remain.
+
+        Args:
+            group_id: Scene object ID of the SceneGroup to disband.
+
+        Returns:
+            list of former member objects.
+
+        Raises:
+            ValueError: If the ID does not correspond to a SceneGroup.
+        """
+        ...
+
 
 class ISceneRunnerService(
     Protocol

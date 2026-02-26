@@ -209,6 +209,26 @@ class ISceneObject(
         """
         ...
 
+    # ---------- Group Methods ----------
+
+    @abstractmethod
+    def get_group_id(self) -> str | None:
+        """Get the group this scene object belongs to, if any.
+
+        Returns:
+            str | None: The ID of the group, or None if not in a group.
+        """
+        ...
+
+    @abstractmethod
+    def set_group_id(self, group_id: str | None) -> None:
+        """Set the group this scene object belongs to.
+
+        Args:
+            group_id (str | None): The ID of the group to set, or None to ungroup.
+        """
+        ...
+
     # ---------- Physics body convenience methods ----------
 
     @property

@@ -40,6 +40,10 @@ class CanvasObjectManagmenentService(
         self._objects = objects if objects is not None else {}
         self._selected_objects: set[str] = set()
 
+        # Selection state
+        self._selection_color: str = "#ffaa00"  # Orange highlight for selection
+        self._selection_width: int = 3
+
     def clear(self):
         """Clear all tracked canvas objects without deleting grid or other items."""
         if not self._canvas:

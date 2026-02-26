@@ -7,7 +7,7 @@ and integrates with the Scene workflow.
 from pathlib import Path
 import tkinter as tk
 from tkinter import ttk
-from typing import Callable, Optional, Tuple
+from typing import Callable
 from pyrox.interfaces import (
     IScene,
     ISceneBridge,
@@ -32,6 +32,8 @@ from pyrox.services import (
     SceneEventType,
     SceneEventBus
 )
+from ._toolbar import _SceneViewerToolbar
+from ._user_mode import _SceneViewerUserMode, UserMode
 
 
 class SceneViewerFrame(TkinterTaskFrame):
@@ -64,8 +66,8 @@ class SceneViewerFrame(TkinterTaskFrame):
         self,
         parent,
         name: str = "scene viewer",
-        runner: Optional[type[ISceneRunnerService]] = None,
-        scene: Optional[IScene] = None
+        runner: type[ISceneRunnerService] | None = None,
+        scene: IScene | None = None
     ):
         """Initialize the SceneViewerFrame.
 
@@ -79,86 +81,63 @@ class SceneViewerFrame(TkinterTaskFrame):
             name=name,
             parent=parent
         )
-
-        # Scene and rendering state
-        self._scene: Optional[IScene] = scene
-        self._runner: Optional[ISceneRunnerService] = runner
-
-        # Canvas services
+        self._scene = scene
+        self._runner = runner
         self._canvas_object_management_service = CanvasObjectManagmenentService()
-
-        # Viewport services
         self._viewport_service = ViewportHostingService(canvas_parent=self.content_frame)
-
-        # Viewport state for panning and zooming
-        self._last_culling_viewport_x: float = 0.0
-        self._last_culling_viewport_y: float = 0.0
-        self._culling_threshold: int = 50  # Pixels movement before re-culling
-
-        # Selection state
-        self._selection_color: str = "#ffaa00"  # Orange highlight for selection
-        self._selection_width: int = 3
 
         # Properties panel state
         self._properties_panel_visible: bool = False
-        self._properties_panel: Optional[TkPropertyPanel] = None  # type: ignore[assignment]
-        self._properties_panel_current_object_id: Optional[str] = None  # Track displayed object
+        self._properties_panel: TkPropertyPanel | None = None
+        self._properties_panel_current_object_id: str | None = None  # Track displayed object
         self._previous_selection: set[str] = set()  # Track previous selection to detect changes
 
         # Bridge panel state
         self._bridge_panel_visible: bool = False
-        self._bridge_panel: Optional[SceneBridgeDialog] = None
-        self._bridge: Optional[ISceneBridge] = None
+        self._bridge_panel: SceneBridgeDialog | None = None
+        self._bridge: ISceneBridge | None = None
 
         # Object explorer state
         self._object_explorer_visible: bool = False
-        self._object_explorer: Optional[TkObjectExplorer] = None
+        self._object_explorer: TkObjectExplorer | None = None
         self._object_explorer_var: tk.BooleanVar = tk.BooleanVar()
 
         # Drawing and manipulation state
-        self._current_tool: str = "select"  # Current tool: select, rectangle, circle, line
-        self._draw_start_x: Optional[float] = None
-        self._draw_start_y: Optional[float] = None
-        self._temp_draw_id: Optional[int] = None  # Temporary canvas ID for drawing preview
-        self._drag_start_x: Optional[float] = None
-        self._drag_start_y: Optional[float] = None
+        self._draw_start_x: float | None = None
+        self._draw_start_y: float | None = None
+        self._temp_draw_id: int | None = None  # Temporary canvas ID for drawing preview
+        self._drag_start_x: float | None = None
+        self._drag_start_y: float | None = None
         self._is_dragging: bool = False
         self._object_counter: int = 0  # Counter for generating unique object IDs
-
-        # Design mode state
-        self._design_mode: bool = False
 
         # Store callback references for proper cleanup
         self._scene_loaded_callback = lambda event: self.set_scene(event.scene)
         self._scene_unloaded_callback = lambda event: self.set_scene(event.scene)
         self._object_palette_visible: bool = False
-        self._object_palette_frame: Optional[ttk.Frame] = None
-        self._current_object_template: Optional[str] = None  # Selected object template
+        self._object_palette_frame: ttk.Frame | None = None
+        self._current_object_template: str | None = None  # Selected object template
 
         # Clipboard for copy/paste
         self._clipboard_data: list[dict] = []
 
         # Rendering optimization: dirty flag pattern
         self._needs_render: bool = False
-        self._render_timer_id: Optional[str] = None
+        self._render_timer_id: str | None = None
         self._render_interval_ms: int = 33  # ~30 FPS for rendering (decoupled from 60 Hz updates)
 
         # TODO: remove these following properties and abstract with services
-        self._design_mode_var: tk.BooleanVar = tk.BooleanVar()
-        self._object_palette_var: tk.BooleanVar = tk.BooleanVar()
-        self._properties_var: tk.BooleanVar = tk.BooleanVar()
-        self._bridge_var: tk.BooleanVar = tk.BooleanVar()
-        self._entity_names_var: tk.BooleanVar = tk.BooleanVar(value=True)
         self._entity_names_visible: bool = True
 
         # Build the UI
-        self._build_toolbar()
+        self._toolbar = _SceneViewerToolbar(self.content_frame).build_toolbar()
         self._build_canvas()
+        self._mode = _SceneViewerUserMode(self, self._canvas)
         self._build_properties_panel()
         self._build_object_explorer()
         self._build_object_palette()
         self._build_context_menus()
-        self._bind_events()
+        self._bind()
         self._initialize_object_templates()
 
         # Start render loop (decoupled from scene update rate)
@@ -179,7 +158,7 @@ class SceneViewerFrame(TkinterTaskFrame):
         return self._properties_panel  # type: ignore[return-value]
 
     @property
-    def scene(self) -> Optional[IScene]:
+    def scene(self) -> IScene | None:
         """Get the current scene."""
         return self._scene
 
@@ -238,7 +217,7 @@ class SceneViewerFrame(TkinterTaskFrame):
         self._enable_menu_entries(enable=scene is not None)
         self.render_scene()
 
-    def get_scene(self) -> Optional[IScene]:
+    def get_scene(self) -> IScene | None:
         """Get the currently displayed scene.
 
         Returns:
@@ -384,32 +363,9 @@ class SceneViewerFrame(TkinterTaskFrame):
 
     # ==================== View Management ====================
 
-    def toggle_design_mode(self) -> None:
-        """Toggle design mode on/off."""
-        self._design_mode = not self._design_mode
-        self._design_mode_var.set(self._design_mode)
-
-        if self._design_mode:
-            # Enable design features
-            self._design_mode_btn.config(text="🎨✓")  # Show checkmark when active
-            log(self).info("Design mode enabled")
-        else:
-            # Disable design features
-            self._design_mode_btn.config(text="🎨")
-            self._object_palette_visible = False
-            self._object_palette_var.set(False)
-            if self._object_palette_frame:
-                self._object_palette_frame.pack_forget()
-            self._current_object_template = None
-            if self._current_tool == "place_object":
-                self._current_tool = "select"
-                self._canvas.config(cursor="")
-            log(self).info("Design mode disabled")
-
     def toggle_object_palette(self) -> None:
         """Toggle the object palette visibility."""
         self._object_palette_visible = not self._object_palette_visible
-        self._object_palette_var.set(self._object_palette_visible)
 
         if self._object_palette_visible and self._object_palette_frame:
             self._object_palette_frame.pack(side=tk.LEFT, fill=tk.Y, padx=5, pady=5, before=self._canvas)
@@ -419,7 +375,6 @@ class SceneViewerFrame(TkinterTaskFrame):
     def toggle_properties_panel(self) -> None:
         """Toggle the visibility of the properties panel."""
         self._properties_panel_visible = not self._properties_panel_visible
-        self._properties_var.set(self._properties_panel_visible)
         panes = list(self._paned_window.panes())
 
         if self._properties_panel_visible:
@@ -457,7 +412,6 @@ class SceneViewerFrame(TkinterTaskFrame):
     def toggle_bridge_panel(self) -> None:
         """Toggle the visibility of the scene bridge panel."""
         self._bridge_panel_visible = not self._bridge_panel_visible
-        self._bridge_var.set(self._bridge_panel_visible)
         panes = list(self._paned_window.panes())
 
         if self._bridge_panel_visible:
@@ -467,7 +421,6 @@ class SceneViewerFrame(TkinterTaskFrame):
             # If the build failed (no scene loaded yet), roll back visible state
             if self._bridge_panel is None:
                 self._bridge_panel_visible = False
-                self._bridge_var.set(False)
                 return
             if str(self._bridge_panel.root) not in panes:
                 self._bridge_panel.root.master = self._paned_window
@@ -480,7 +433,6 @@ class SceneViewerFrame(TkinterTaskFrame):
     def toggle_entity_names(self) -> None:
         """Toggle entity name labels visibility on the canvas."""
         self._entity_names_visible = not self._entity_names_visible
-        self._entity_names_var.set(self._entity_names_visible)
 
         # Re-render the scene to show/hide labels
         self.render_scene()
@@ -528,7 +480,7 @@ class SceneViewerFrame(TkinterTaskFrame):
 
     # ==================== Coordinate Conversion ====================
 
-    def world_to_canvas(self, world_x: float, world_y: float) -> Tuple[float, float]:
+    def world_to_canvas(self, world_x: float, world_y: float) -> tuple[float, float]:
         """Convert world coordinates to canvas coordinates.
 
         Args:
@@ -542,7 +494,7 @@ class SceneViewerFrame(TkinterTaskFrame):
         canvas_y = world_y * self.viewport.zoom + self.viewport.y
         return (canvas_x, canvas_y)
 
-    def canvas_to_world(self, canvas_x: float, canvas_y: float) -> Tuple[float, float]:
+    def canvas_to_world(self, canvas_x: float, canvas_y: float) -> tuple[float, float]:
         """Convert canvas coordinates to world coordinates.
 
         Args:
@@ -580,10 +532,6 @@ class SceneViewerFrame(TkinterTaskFrame):
         """Render all scene objects to the canvas with viewport culling and layer ordering."""
         if not self._scene:
             return
-
-        # Track viewport position for culling optimization
-        self._last_culling_viewport_x = self.viewport.x
-        self._last_culling_viewport_y = self.viewport.y
 
         # Get visible canvas bounds for culling
         canvas_width = self._canvas.winfo_width()
@@ -642,8 +590,8 @@ class SceneViewerFrame(TkinterTaskFrame):
         canvas_h = group.height * self.viewport.zoom
 
         is_selected = obj_id in self._canvas_object_management_service.selected_objects
-        outline_color = self._selection_color if is_selected else "#ffaa00"
-        outline_width = self._selection_width if is_selected else 1
+        outline_color = self._canvas_object_management_service._selection_color if is_selected else "#ffaa00"
+        outline_width = self._canvas_object_management_service._selection_width if is_selected else 1
 
         canvas_id = self._canvas.create_rectangle(
             canvas_x,
@@ -699,8 +647,8 @@ class SceneViewerFrame(TkinterTaskFrame):
         # Render based on shape type
         canvas_id = None
         is_selected = obj_id in self._canvas_object_management_service.selected_objects
-        outline_color = self._selection_color if is_selected else "white"
-        outline_width = self._selection_width if is_selected else 2
+        outline_color = self._canvas_object_management_service._selection_color if is_selected else "white"
+        outline_width = self._canvas_object_management_service._selection_width if is_selected else 2
 
         if shape == "rectangle":
             canvas_id = self._canvas.create_rectangle(
@@ -843,87 +791,6 @@ class SceneViewerFrame(TkinterTaskFrame):
 
     # ==================== UI Building Methods ====================
 
-    def _build_toolbar(self) -> None:
-        """Build the toolbar with viewer controls."""
-        self._toolbar = ttk.Frame(self.content_frame)
-        self._toolbar.pack(side=tk.TOP, fill=tk.X, padx=5, pady=5)
-
-        # Design Mode Toggle Button (with icon)
-        self._design_mode_btn = ttk.Button(
-            self._toolbar,
-            text="🎨",  # Design/paint palette emoji
-            width=3,
-            command=self.toggle_design_mode
-        )
-        self._design_mode_btn.pack(side=tk.LEFT, padx=2)
-        self._create_tooltip(self._design_mode_btn, "Toggle Design Mode")
-
-        # Object Palette Toggle Button
-        self._object_palette_btn = ttk.Button(
-            self._toolbar,
-            text="🧰",  # Toolbox emoji
-            width=3,
-            command=self.toggle_object_palette
-        )
-        self._object_palette_btn.pack(side=tk.LEFT, padx=2)
-        self._create_tooltip(self._object_palette_btn, "Toggle Object Palette")
-
-        # Properties Panel Toggle Button
-        self._properties_panel_btn = ttk.Button(
-            self._toolbar,
-            text="📋",  # Clipboard emoji
-            width=3,
-            command=self.toggle_properties_panel
-        )
-        self._properties_panel_btn.pack(side=tk.LEFT, padx=2)
-        self._create_tooltip(self._properties_panel_btn, "Toggle Properties Panel")
-
-        # Scene Bridge Panel Toggle Button
-        self._bridge_panel_btn = ttk.Button(
-            self._toolbar,
-            text="🔗",  # Link emoji
-            width=3,
-            command=self.toggle_bridge_panel
-        )
-        self._bridge_panel_btn.pack(side=tk.LEFT, padx=2)
-        self._create_tooltip(self._bridge_panel_btn, "Toggle Scene Bridge Panel")
-
-        # Object Explorer Toggle Button
-        self._object_explorer_btn = ttk.Button(
-            self._toolbar,
-            text="🗂️",  # File cabinet emoji
-            width=3,
-            command=self.toggle_object_explorer
-        )
-        self._object_explorer_btn.pack(side=tk.LEFT, padx=2)
-        self._create_tooltip(self._object_explorer_btn, "Toggle Object Explorer")
-
-        # Separator
-        ttk.Separator(self._toolbar, orient=tk.VERTICAL).pack(side=tk.LEFT, fill=tk.Y, padx=5)
-
-        # Entity Names Toggle Button
-        self._entity_names_btn = ttk.Button(
-            self._toolbar,
-            text="🏷️",  # Label emoji
-            width=3,
-            command=self.toggle_entity_names
-        )
-        self._entity_names_btn.pack(side=tk.LEFT, padx=2)
-        self._create_tooltip(self._entity_names_btn, "Toggle Entity Names")
-
-        # Separator
-        ttk.Separator(self._toolbar, orient=tk.VERTICAL).pack(side=tk.LEFT, fill=tk.Y, padx=5)
-
-        # Selection info
-        self._selection_label = ttk.Label(
-            self._toolbar,
-            text="No selection"
-        )
-        self._selection_label.pack(side=tk.LEFT, padx=5)
-
-        # Separator
-        ttk.Separator(self._toolbar, orient=tk.VERTICAL).pack(side=tk.LEFT, fill=tk.Y, padx=10)
-
     def _create_tooltip(self, widget, text: str) -> None:
         """Create a simple tooltip for a widget.
 
@@ -995,7 +862,6 @@ class SceneViewerFrame(TkinterTaskFrame):
             """Reset state when the properties panel's X button destroys the frame."""
             self._properties_panel = None
             self._properties_panel_visible = False
-            self._properties_var.set(False)
             self._properties_panel_current_object_id = None
 
         self._properties_panel.on_destroy().append(_on_properties_panel_closed)
@@ -1037,7 +903,6 @@ class SceneViewerFrame(TkinterTaskFrame):
             """Reset state when the bridge panel's X button destroys the frame."""
             self._bridge_panel = None
             self._bridge_panel_visible = False
-            self._bridge_var.set(False)
 
         self._bridge_panel.on_destroy().append(_on_bridge_panel_closed)
         # Panel is initially hidden, will be added to paned window when toggled
@@ -1241,15 +1106,8 @@ class SceneViewerFrame(TkinterTaskFrame):
 
     # ==================== Event Binding ====================
 
-    def _bind_events(
-        self,
-        *_,
-    ) -> None:
-        """Bind mouse and keyboard events for interaction."""
-        self._canvas.update_idletasks()
-        self._canvas_object_management_service.set_canvas(self._canvas)
-        self._viewport_service.set_canvas(self._canvas)
-
+    def _bind_canvas(self) -> None:
+        """Bind canvas events for interaction."""
         # Left mouse button - context-dependent (select, draw, or drag)
         self._canvas.bind("<ButtonPress-1>", self._on_left_click)
         self._canvas.bind("<B1-Motion>", self._on_left_drag)
@@ -1276,6 +1134,26 @@ class SceneViewerFrame(TkinterTaskFrame):
         # Grouping shortcuts
         self._canvas.bind("<Control-Alt-g>", lambda e: self._context_group_selected())   # Ctrl+Alt+G
         self._canvas.bind("<Control-Alt-u>", lambda e: self._context_ungroup_selected())  # Ctrl+Alt+U
+
+    def _bind_toolbar(self) -> None:
+        """Bind toolbar buttons to their respective commands."""
+        self._toolbar.on_toggle_bridge_panel = self.toggle_bridge_panel
+        self._toolbar.on_toggle_object_explorer = self.toggle_object_explorer
+        self._toolbar.on_toggle_properties_panel = self.toggle_properties_panel
+        self._toolbar.on_toggle_object_palette = self.toggle_object_palette
+        self._toolbar.on_toggle_entity_names = self.toggle_entity_names
+
+    def _bind(
+        self,
+        *_,
+    ) -> None:
+        """Bind mouse and keyboard events for interaction."""
+        self._canvas.update_idletasks()
+        self._canvas_object_management_service.set_canvas(self._canvas)
+        self._viewport_service.set_canvas(self._canvas)
+
+        self._bind_canvas()
+        self._bind_toolbar()
 
         # Subscribe to scene events using stored callback references
         SceneEventBus.subscribe(
@@ -1326,7 +1204,7 @@ class SceneViewerFrame(TkinterTaskFrame):
     def _enable_entry(
         self,
         menu_id: str,
-        command: Optional[Callable] = None,
+        command: Callable | None = None,
         enable: bool = True
     ) -> None:
         """Enable or disable a menu entry by ID.
@@ -1383,11 +1261,6 @@ class SceneViewerFrame(TkinterTaskFrame):
 
         # Design mode commands
         self._enable_entry(
-            menu_id="scene.view.design_mode",
-            command=self.toggle_design_mode,
-            enable=enable
-        )
-        self._enable_entry(
             menu_id="scene.view.object_palette",
             command=self.toggle_object_palette,
             enable=enable
@@ -1425,12 +1298,12 @@ class SceneViewerFrame(TkinterTaskFrame):
         Args:
             event: Mouse click event
         """
-        if self._current_tool == "place_object":
+        if self._mode == UserMode.INSERT:
             # Design mode - place object from template
             scene_x = (event.x - self.viewport.x) / self.viewport.zoom
             scene_y = (event.y - self.viewport.y) / self.viewport.zoom
             self._place_object_from_template(scene_x, scene_y)
-        elif self._current_tool == "select":
+        elif self._mode == UserMode.SELECT:
             self._on_select_click(event)
 
     def _on_left_drag(self, event: tk.Event) -> None:
@@ -1439,11 +1312,8 @@ class SceneViewerFrame(TkinterTaskFrame):
         Args:
             event: Mouse drag event
         """
-        if self._current_tool == "select":
+        if self._mode == UserMode.SELECT:
             self._on_drag_object(event)
-        else:
-            # Drawing mode - show preview
-            self._on_draw_preview(event)
 
     def _on_left_release(self, event: tk.Event) -> None:
         """Handle left mouse button release.
@@ -1451,11 +1321,8 @@ class SceneViewerFrame(TkinterTaskFrame):
         Args:
             event: Mouse release event
         """
-        if self._current_tool == "select":
+        if self._mode == UserMode.SELECT:
             self._on_drag_end(event)
-        else:
-            # Drawing mode - finalize
-            self._on_draw_complete(event)
 
     def _on_select_click(self, event: tk.Event) -> None:
         """Handle selection click events.
@@ -1478,7 +1345,7 @@ class SceneViewerFrame(TkinterTaskFrame):
             # If the clicked object is a member of a group, redirect to the group anchor
             if self._scene:
                 clicked_scene_obj = self._scene.scene_objects.get(clicked_obj_id)
-                if clicked_scene_obj and hasattr(clicked_scene_obj, 'get_group_id'):
+                if clicked_scene_obj:
                     group_id = clicked_scene_obj.get_group_id()
                     if group_id and group_id in self._scene.scene_objects:
                         clicked_obj_id = group_id
@@ -1580,101 +1447,6 @@ class SceneViewerFrame(TkinterTaskFrame):
 
     # ==================== Drawing & Placement Event Handlers ====================
 
-    def _on_draw_start(self, event: tk.Event) -> None:
-        """Handle start of drawing operation.
-
-        Args:
-            event: Mouse press event
-        """
-        # Convert canvas coordinates to scene coordinates
-        self._draw_start_x = (event.x - self.viewport.x) / self.viewport.zoom
-        self._draw_start_y = (event.y - self.viewport.y) / self.viewport.zoom
-
-    def _on_draw_preview(self, event: tk.Event) -> None:
-        """Show preview of shape being drawn.
-
-        Args:
-            event: Mouse drag event
-        """
-        if self._draw_start_x is None or self._draw_start_y is None:
-            return
-
-        # Remove previous preview
-        if self._temp_draw_id:
-            self._canvas.delete(self._temp_draw_id)
-
-        # Convert current position to scene coordinates
-        end_x = (event.x - self.viewport.x) / self.viewport.zoom
-        end_y = (event.y - self.viewport.y) / self.viewport.zoom
-
-        # Draw preview in canvas coordinates
-        canvas_x1 = self._draw_start_x * self.viewport.zoom + self.viewport.x
-        canvas_y1 = self._draw_start_y * self.viewport.zoom + self.viewport.y
-        canvas_x2 = end_x * self.viewport.zoom + self.viewport.x
-        canvas_y2 = end_y * self.viewport.zoom + self.viewport.y
-
-        # Draw preview based on tool
-        if self._current_tool == "rectangle":
-            self._temp_draw_id = self._canvas.create_rectangle(
-                canvas_x1, canvas_y1, canvas_x2, canvas_y2,
-                outline="yellow", width=2, dash=(4, 4), tags="preview"
-            )
-        elif self._current_tool == "circle":
-            self._temp_draw_id = self._canvas.create_oval(
-                canvas_x1, canvas_y1, canvas_x2, canvas_y2,
-                outline="yellow", width=2, dash=(4, 4), tags="preview"
-            )
-        elif self._current_tool == "line":
-            self._temp_draw_id = self._canvas.create_line(
-                canvas_x1, canvas_y1, canvas_x2, canvas_y2,
-                fill="yellow", width=2, dash=(4, 4), tags="preview"
-            )
-
-    def _on_draw_complete(self, event: tk.Event) -> None:
-        """Complete drawing operation and create scene object.
-
-        Args:
-            event: Mouse release event
-        """
-        if self._draw_start_x is None or self._draw_start_y is None:
-            return
-
-        # Remove preview
-        if self._temp_draw_id:
-            self._canvas.delete(self._temp_draw_id)
-            self._temp_draw_id = None
-
-        # Convert end position to scene coordinates
-        end_x = (event.x - self.viewport.x) / self.viewport.zoom
-        end_y = (event.y - self.viewport.y) / self.viewport.zoom
-
-        # Calculate dimensions
-        x = min(self._draw_start_x, end_x)
-        y = min(self._draw_start_y, end_y)
-        width = abs(end_x - self._draw_start_x)
-        height = abs(end_y - self._draw_start_y)
-
-        # Ignore very small shapes (likely accidental clicks)
-        if width < 5 and height < 5:
-            self._draw_start_x = None
-            self._draw_start_y = None
-            return
-
-        # Create new scene object
-        # NOTE: This creates a basic dict - you may need to extend ISceneObject
-        # to properly handle object creation from the UI
-        self._create_scene_object(
-            shape=self._current_tool,
-            x=x, y=y,
-            width=width, height=height,
-            x2=end_x if self._current_tool == "line" else None,
-            y2=end_y if self._current_tool == "line" else None
-        )
-
-        # Reset drawing state
-        self._draw_start_x = None
-        self._draw_start_y = None
-
     def _create_scene_object(
         self,
         shape: str,
@@ -1682,8 +1454,8 @@ class SceneViewerFrame(TkinterTaskFrame):
         y: float,
         width: float,
         height: float,
-        x2: Optional[float] = None,
-        y2: Optional[float] = None
+        x2: float | None = None,
+        y2: float | None = None
     ) -> None:
         """Create a new scene object and add it to the scene.
 
@@ -1774,8 +1546,7 @@ class SceneViewerFrame(TkinterTaskFrame):
         """
         self._current_object_template = template_name
         # Switch to placement mode
-        self._current_tool = "place_object"
-        self._canvas.config(cursor="crosshair")
+        self._mode.set_mode(UserMode.INSERT)
         log(self).info(f"Selected template: {template_name}. Click on canvas to place.")
 
     def _place_object_from_template(self, scene_x: float, scene_y: float) -> None:
@@ -1785,55 +1556,60 @@ class SceneViewerFrame(TkinterTaskFrame):
             scene_x: X coordinate in scene space
             scene_y: Y coordinate in scene space
         """
-        if not self._current_object_template or not self._scene:
-            return
+        try:
+            if not self._current_object_template or not self._scene:
+                return
 
-        template = self._templates.get(self._current_object_template)
-        if not template:
-            return
+            template = self._templates.get(self._current_object_template)
+            if not template:
+                return
 
-        # Apply snap to grid if enabled
-        scene_x, scene_y = self._viewport_service.grid.snap_to_grid(scene_x, scene_y)
+            # Apply snap to grid if enabled
+            scene_x, scene_y = self._viewport_service.grid.snap_to_grid(scene_x, scene_y)
 
-        # Create kwargs for object creation (don't mutate template)
-        creation_kwargs = template.default_kwargs.copy()
-        creation_kwargs['x'] = scene_x
-        creation_kwargs['y'] = scene_y
+            # Create kwargs for object creation (don't mutate template)
+            creation_kwargs = template.default_kwargs.copy()
+            creation_kwargs['x'] = scene_x
+            creation_kwargs['y'] = scene_y
 
-        # Generate unique ID
-        self._object_counter += 1
-        obj_id = f"{template.name.lower().replace(' ', '_')}_{self._object_counter:03d}"
+            # Generate unique ID
+            self._object_counter += 1
+            obj_id = f"{template.name.lower().replace(' ', '_')}_{self._object_counter:03d}"
 
-        # Create physics object from template
-        # Use self._current_object_template (the registry key) instead of template.name
-        # to ensure we get the correct template
-        physics_obj = PhysicsSceneFactory.create_from_template(
-            self._current_object_template,
-            **creation_kwargs
-        )
-        if not physics_obj:
-            raise RuntimeError(f"Failed to create object from template: {self._current_object_template}")
+            # Create physics object from template
+            # Use self._current_object_template (the registry key) instead of template.name
+            # to ensure we get the correct template
+            physics_obj = PhysicsSceneFactory.create_from_template(
+                self._current_object_template,
+                **creation_kwargs
+            )
+            if not physics_obj:
+                raise RuntimeError(f"Failed to create object from template: {self._current_object_template}")
 
-        scene_obj = SceneObject(
-            name=template.name,
-            scene_object_type=template.body_class.__name__,
-            description='',
-            physics_body=physics_obj,
-        )
+            scene_obj = SceneObject(
+                name=template.name,
+                scene_object_type=template.body_class.__name__,
+                description='',
+                physics_body=physics_obj,
+            )
 
-        # Add to scene
-        self._scene.add_scene_object(scene_obj)
+            # Add to scene
+            self._scene.add_scene_object(scene_obj)
 
-        # Redraw
-        self.render_scene()
+            # Redraw
+            self.render_scene()
 
-        # Select the new object
-        self._canvas_object_management_service.clear_selection()
-        self._canvas_object_management_service.select_object(obj_id)
-        self._update_selection_display()
-        self._update_properties_panel()
+            # Select the new object
+            self._canvas_object_management_service.clear_selection()
+            self._canvas_object_management_service.select_object(obj_id)
+            self._update_selection_display()
+            self._update_properties_panel()
 
-        log(self).info(f"Placed {template.name} at ({scene_x:.1f}, {scene_y:.1f})")
+            log(self).info(f"Placed {template.name} at ({scene_x:.1f}, {scene_y:.1f})")
+        finally:
+            # Reset to selection mode after placement
+            self._mode.set_mode(UserMode.SELECT)
+            self._current_object_template = None
 
     # ==================== Context Menu Handlers ====================
 
@@ -1853,7 +1629,7 @@ class SceneViewerFrame(TkinterTaskFrame):
             # If the clicked object is a member of a group, redirect to the group anchor
             if self._scene:
                 clicked_scene_obj = self._scene.scene_objects.get(clicked_obj_id)
-                if clicked_scene_obj and hasattr(clicked_scene_obj, 'get_group_id'):
+                if clicked_scene_obj:
                     group_id = clicked_scene_obj.get_group_id()
                     if group_id and group_id in self._scene.scene_objects:
                         clicked_obj_id = group_id
@@ -2070,7 +1846,7 @@ class SceneViewerFrame(TkinterTaskFrame):
         self.render_scene()
         log(self).info(f"Sent {len(self._canvas_object_management_service.selected_objects)} object(s) to back")
 
-    def _paste_object_data(self, obj_data: dict) -> Optional[ISceneObject]:
+    def _paste_object_data(self, obj_data: dict) -> ISceneObject | None:
         """Helper to paste object data into scene.
 
         Args:
@@ -2104,7 +1880,7 @@ class SceneViewerFrame(TkinterTaskFrame):
             log(self).error(f"Failed to paste object: {e}")
             return None
 
-    def _paste_group_data(self, group_data: dict) -> Optional["SceneGroup"]:
+    def _paste_group_data(self, group_data: dict) -> SceneGroup | None:
         """Reconstruct a SceneGroup from a clipboard/duplicate payload.
 
         The payload must contain a ``_member_dicts`` key with the serialised
@@ -2166,7 +1942,7 @@ class SceneViewerFrame(TkinterTaskFrame):
 
     def _update_selection_display(self) -> None:
         """Update the selection info display in toolbar."""
-        self._selection_label.config(text=self._canvas_object_management_service.selected_objects_display)
+        self._toolbar._selection_label.config(text=self._canvas_object_management_service.selected_objects_display)
 
         # Only force refresh properties panel if selection actually changed
         if self._properties_panel_visible:
@@ -2188,8 +1964,8 @@ class SceneViewerFrame(TkinterTaskFrame):
         is_selected = obj_id in self._canvas_object_management_service.selected_objects
 
         # Update outline color and width
-        outline_color = self._selection_color if is_selected else "white"
-        outline_width = self._selection_width if is_selected else 2
+        outline_color = self._canvas_object_management_service._selection_color if is_selected else "white"
+        outline_width = self._canvas_object_management_service._selection_width if is_selected else 2
 
         try:
             self._canvas.itemconfig(canvas_id, outline=outline_color, width=outline_width)

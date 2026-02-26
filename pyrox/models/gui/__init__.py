@@ -9,7 +9,7 @@ from .logframe import LogFrame
 from .meta import ObjectEditField
 from .objectexplorer import TkObjectExplorer
 from .propertypanel import TkPropertyPanel
-from .sceneviewer import SceneViewerFrame
+from .sceneviewer.sceneviewer import SceneViewerFrame
 from .theme import DefaultTheme
 from .yamleditor import PyroxYamlEditor
 from .workspace import TkWorkspace
