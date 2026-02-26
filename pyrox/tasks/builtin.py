@@ -3,10 +3,13 @@
 This module provides essential built-in tasks that are commonly needed
 in Pyrox applications, including File and Help menu items.
 """
+import os
+import tkinter as tk
 from pyrox.interfaces import IApplication
 from pyrox.models import ApplicationTask
 from pyrox.models.gui.tk.help import show_help_window
 from pyrox.models.gui.editor import TextEditorFrame
+from pyrox.services import PlatformDirectoryService
 
 
 __all__ = (
@@ -80,3 +83,44 @@ class ToolsTask(ApplicationTask):
             self.application.workspace.register_frame(self._text_editor_frame)
         else:
             self.application.workspace.raise_frame(self._text_editor_frame)
+
+
+class ViewTask(ApplicationTask):
+    """View menu task for managing application views and directories."""
+
+    def __init__(self, application: IApplication) -> None:
+        super().__init__(application)
+
+        menu = self.register_submenu(
+            menu=self.view_menu,
+            submenu=tk.Menu(self.view_menu, tearoff=0),
+            registry_id="application_directories",
+            registry_path="View/Application Directories",
+            index=0,
+            label="Application Directories",
+            underline=0,
+            category="view",
+        )
+        for dir_name in PlatformDirectoryService.all_directories():
+            self.register_menu_command(
+                menu=menu,
+                registry_id=f"open_{dir_name.lower()}_directory",
+                registry_path=f"View/Application Directories/Open {dir_name} Directory",
+                index=0,
+                label=f"Open {dir_name} Directory",
+                command=lambda d=dir_name: os.startfile(PlatformDirectoryService.all_directories()[d]),
+                underline=0,
+                category="view",
+            )
+
+        self.register_menu_command(
+            menu=self.view_menu,
+            registry_id="toggle_organizer",
+            registry_path="View/Toggle Organizer",
+            index=1,
+            label="Toggle Organizer",
+            command=self.application.workspace.toggle_sidebar,
+            accelerator='Ctrl+B',
+            underline=0,
+            category="view",
+        )

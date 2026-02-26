@@ -5,7 +5,7 @@ between services, tasks, and GUI components through a registry pattern.
 """
 from typing import Callable, Dict, Optional, Any
 from dataclasses import dataclass, field
-from pyrox.services.logging import log
+from pyrox.services import log
 
 
 @dataclass
@@ -20,6 +20,25 @@ class MenuItemDescriptor:
     command: Optional[Callable] = None  # The command callback
     enabled: bool = True  # Current enabled state
     metadata: Dict[str, Any] = field(default_factory=dict)  # Additional metadata
+
+    def set_command(self, command: Callable | None) -> None:
+        """Set or update the command callback for this menu item."""
+        try:
+            self.menu_widget.entryconfig(self.menu_index, command=command)
+            self.command = command
+            log(self.menu_id).debug(f"Updated command for menu item: {self.menu_id}")
+        except Exception as e:
+            log(self.menu_id).warning(f"Failed to set command for menu item {self.menu_id}: {e}")
+
+    def set_enabled(self, enabled: bool) -> None:
+        """Enable or disable this menu item."""
+        try:
+            state = 'normal' if enabled else 'disabled'
+            self.menu_widget.entryconfig(self.menu_index, state=state)
+            self.enabled = enabled
+            log(self.menu_id).debug(f"{'Enabled' if enabled else 'Disabled'} menu item: {self.menu_id}")
+        except Exception as e:
+            log(self.menu_id).warning(f"Failed to {'enable' if enabled else 'disable'} menu item {self.menu_id}: {e}")
 
 
 class MenuRegistry:

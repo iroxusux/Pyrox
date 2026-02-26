@@ -66,6 +66,9 @@ class SceneObject(
         self._on_hover_handlers: list[Callable] = []
         self._clickable: bool = False  # Whether this object responds to clicks
 
+        # Group membership — ID of the SceneGroup this object belongs to, or None
+        self._group_id: Optional[str] = None
+
     # INamable methods
     def get_name(self) -> str:
         return self._physics_body.name
@@ -156,6 +159,7 @@ class SceneObject(
             "description": self._description,
             "properties": self.properties,
             "layer": self._layer,
+            "group_id": self._group_id,
             "body": body,
             "material": body.get("material", {}) if isinstance(body, dict) else {},
         }
@@ -182,7 +186,7 @@ class SceneObject(
             properties=data.get("properties", {}),
             layer=data.get("layer", 0)
         )
-
+        obj._group_id = data.get("group_id", None)
         return obj
 
     def update(self, dt: float) -> None:
@@ -363,6 +367,22 @@ class SceneObject(
         # Use a very low value for back
         self._layer = -1000
 
+    # ------------------------------------------------------------------
+    # IGroupable — group membership
+    # ------------------------------------------------------------------
+
+    def get_group_id(self) -> Optional[str]:
+        """Get the ID of the SceneGroup this object belongs to, or None."""
+        return self._group_id
+
+    def set_group_id(self, group_id: Optional[str]) -> None:
+        """Set the group ID for this object.
+
+        Args:
+            group_id: The owning SceneGroup's scene object ID, or None.
+        """
+        self._group_id = group_id
+
     def _compile_properties(self) -> None:
         """Compile properties for physics simulation."""
 
@@ -373,6 +393,7 @@ class SceneObject(
             "description": self.description,
             "scene_object_type": self._scene_object_type,
             "layer": self._layer,
+            "group_id": self._group_id,
         })
 
         # Physics body properties

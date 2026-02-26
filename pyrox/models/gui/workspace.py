@@ -75,6 +75,7 @@ class TkWorkspace(
         self._workspace_area = None
         self._status_bar = None
         self._status_label = None
+        self._sidebar_visible = True
 
         self._panes: list[tk.Widget] = []
 
@@ -217,7 +218,8 @@ class TkWorkspace(
         if not sidebar_width or not log_height:
             return
 
-        self.env.set(EnvironmentKeys.ui.UI_SIDEBAR_WIDTH, str(sidebar_width))
+        if self._sidebar_visible:
+            self.env.set(EnvironmentKeys.ui.UI_SIDEBAR_WIDTH, str(sidebar_width))
         self.env.set(EnvironmentKeys.ui.UI_LOG_WINDOW_HEIGHT, str(log_height))
 
     def save_workspace_geometry(self) -> None:
@@ -678,10 +680,15 @@ Status: {info['status']['current_message']}
 
     def show_sidebar(self) -> None:
         """Show the sidebar organizer."""
-        if not self.sidebar_visible and self.main_paned_window and self.sidebar_organizer:
+        if not self._sidebar_visible and self.main_paned_window and self.sidebar_organizer:
+            original_width = self.env.get(
+                EnvironmentKeys.ui.UI_SIDEBAR_WIDTH,
+                0.33,
+                float
+            )
             self.main_paned_window.insert(0, self.sidebar_organizer)
-
-            self.sidebar_visible = True
+            self._sidebar_visible = True
+            self.set_sidebar_width(original_width)
             self.set_status("Sidebar shown")
 
             if self.on_sidebar_toggle:
@@ -692,9 +699,15 @@ Status: {info['status']['current_message']}
 
     def hide_sidebar(self) -> None:
         """Hide the sidebar organizer."""
-        if self.sidebar_visible and self.main_paned_window:
+        if self._sidebar_visible and self.main_paned_window:
+            # Persist the current width NOW before hiding, so it can be restored
+            # accurately. The debounced _store_workspace_geometry will skip saving
+            # once _sidebar_visible is False, which would lose the last good value.
+            sidebar_width = self.get_sidebar_width()
+            if sidebar_width:
+                self.env.set(EnvironmentKeys.ui.UI_SIDEBAR_WIDTH, str(sidebar_width))
             self.main_paned_window.forget(self.sidebar_organizer)
-            self.sidebar_visible = False
+            self._sidebar_visible = False
             self.set_status("Sidebar hidden")
 
             if self.on_sidebar_toggle:
@@ -710,11 +723,11 @@ Status: {info['status']['current_message']}
         Returns:
             New visibility state
         """
-        if self.sidebar_visible:
+        if self._sidebar_visible:
             self.hide_sidebar()
         else:
             self.show_sidebar()
-        return self.sidebar_visible
+        return self._sidebar_visible
 
     # -------- Sidebar panel management --------
 

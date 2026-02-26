@@ -35,9 +35,13 @@ class EventBus(Generic[T, E]):
     @classmethod
     def subscribe(
         cls,
-        event_type: T,
+        event_type: T | list[T],
         callback: Callable[[E], None]
     ) -> None:
+        if isinstance(event_type, list):
+            for et in event_type:
+                cls.subscribe(et, callback)
+            return
         if event_type not in cls._subscribers:
             cls._subscribers[event_type] = []
         if callback not in cls._subscribers[event_type]:
@@ -59,8 +63,10 @@ class EventBus(Generic[T, E]):
         cls,
         event: E
     ) -> None:
+        # NOTE: No debug logging here — publish() is called at high frequency (e.g. every
+        # mouse-move event during panning). Logging on each call adds measurable overhead
+        # via string formatting and logger lookup even when the debug level is inactive.
         subscribers = cls._subscribers.get(event.event_type, [])
-        log(cls).debug(f"Publishing {event.event_type.name} to {len(subscribers)} subscribers")
         dead = []
         for cb in subscribers.copy():
             try:
