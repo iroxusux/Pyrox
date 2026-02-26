@@ -1149,8 +1149,10 @@ class SceneViewerFrame(TkinterTaskFrame):
     ) -> None:
         """Bind mouse and keyboard events for interaction."""
         self._canvas.update_idletasks()
+
         self._canvas_object_management_service.set_canvas(self._canvas)
         self._viewport_service.set_canvas(self._canvas)
+        self._mode.on_mode_change = self._viewport_service._viewport_status_service.set_current_tool
 
         self._bind_canvas()
         self._bind_toolbar()

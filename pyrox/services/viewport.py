@@ -1,6 +1,7 @@
 """Viewport panning service module.
 """
 from dataclasses import dataclass, field
+from enum import Enum
 from typing import Callable
 import tkinter as tk
 from tkinter import ttk
@@ -85,6 +86,11 @@ class ViewportStatusService:
 
         ViewportEventBus.subscribe(
             ViewportEventType.PAN,
+            self.update_viewport_info
+        )
+
+        ViewportEventBus.subscribe(
+            ViewportEventType.ZOOM,
             self.update_viewport_info
         )
 
@@ -269,12 +275,14 @@ class ViewportStatusService:
             status = "ON" if enabled else "OFF"
             self._status_labels["snap"].config(text=f"Snap: {status}")
 
-    def set_current_tool(self, tool: str) -> None:
+    def set_current_tool(self, tool: str | Enum) -> None:
         """Update current tool display.
 
         Args:
             tool: Name of the current tool (e.g., "select", "draw", "place")
         """
+        if isinstance(tool, Enum):
+            tool = tool.name.lower()
         self._current_tool = tool
         if "tool" in self._status_labels:
             tool_display = tool.replace("_", " ").title()

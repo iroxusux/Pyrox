@@ -36,7 +36,7 @@ class _SceneViewerUserMode:
         self._current_mode = UserMode.default()
 
         # Public callbacks to be set by the SceneViewerFrame
-        self.on_mode_change = lambda new_mode: None
+        self.on_mode_change = lambda tool: None
 
     def _on_mode_change(self) -> None:
         """Internal method to handle mode changes and trigger callbacks."""
