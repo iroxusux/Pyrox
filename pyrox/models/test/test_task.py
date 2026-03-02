@@ -309,6 +309,112 @@ class TestApplicationTask(unittest.TestCase):
             category='help',
         )
 
+    # ------------------------------------------------------------------
+    # Frame lifecycle: _task_frame, create_or_raise_frame, _on_frame_destroyed
+    # ------------------------------------------------------------------
+
+    def test_task_frame_initially_none(self):
+        """_task_frame is None immediately after construction."""
+        mock_app = self._make_application()
+        task = ApplicationTask(application=mock_app)
+        self.assertIsNone(task._task_frame)
+
+    def test_frame_destroy_callback_is_set(self):
+        """_frame_destroy_callback is a callable set during __init__."""
+        mock_app = self._make_application()
+        task = ApplicationTask(application=mock_app)
+        self.assertTrue(callable(task._frame_destroy_callback))
+
+    def test_create_or_raise_frame_creates_when_none(self):
+        """create_or_raise_frame calls create_task_frame when _task_frame is None."""
+        mock_app = self._make_application()
+        task = ApplicationTask(application=mock_app)
+
+        mock_frame = MagicMock()
+        mock_frame.root.winfo_exists.return_value = True
+
+        with patch.object(task, 'create_task_frame', return_value=mock_frame):
+            task.create_or_raise_frame()
+
+        self.assertIs(task._task_frame, mock_frame)
+
+    def test_create_or_raise_frame_registers_with_workspace(self):
+        """create_or_raise_frame registers the new frame with the workspace."""
+        mock_app = self._make_application()
+        task = ApplicationTask(application=mock_app)
+
+        mock_frame = MagicMock()
+        mock_frame.root.winfo_exists.return_value = True
+
+        with patch.object(task, 'create_task_frame', return_value=mock_frame):
+            task.create_or_raise_frame()
+
+        mock_app.workspace.register_frame.assert_called_once_with(mock_frame)
+
+    def test_create_or_raise_frame_attaches_destroy_callback(self):
+        """create_or_raise_frame appends _frame_destroy_callback to the frame's on_destroy list."""
+        mock_app = self._make_application()
+        task = ApplicationTask(application=mock_app)
+
+        mock_frame = MagicMock()
+        mock_frame.root.winfo_exists.return_value = True
+
+        with patch.object(task, 'create_task_frame', return_value=mock_frame):
+            task.create_or_raise_frame()
+
+        mock_frame.on_destroy().append.assert_called_once_with(task._frame_destroy_callback)
+
+    def test_create_or_raise_frame_raises_alive_frame(self):
+        """create_or_raise_frame raises an existing alive frame instead of creating a new one."""
+        mock_app = self._make_application()
+        task = ApplicationTask(application=mock_app)
+
+        alive_frame = MagicMock()
+        alive_frame.root.winfo_exists.return_value = True
+        task._task_frame = alive_frame
+
+        with patch.object(task, 'create_task_frame') as mock_create:
+            task.create_or_raise_frame()
+            mock_create.assert_not_called()
+
+        mock_app.workspace.raise_frame.assert_called_once_with(alive_frame)
+
+    def test_create_or_raise_frame_recreates_destroyed_frame(self):
+        """create_or_raise_frame creates a new frame when the existing window is destroyed."""
+        mock_app = self._make_application()
+        task = ApplicationTask(application=mock_app)
+
+        dead_frame = MagicMock()
+        dead_frame.root.winfo_exists.return_value = False
+        task._task_frame = dead_frame
+
+        new_frame = MagicMock()
+        new_frame.root.winfo_exists.return_value = True
+
+        with patch.object(task, 'create_task_frame', return_value=new_frame):
+            task.create_or_raise_frame()
+
+        self.assertIs(task._task_frame, new_frame)
+
+    def test_on_frame_destroyed_clears_task_frame(self):
+        """_on_frame_destroyed resets _task_frame to None."""
+        mock_app = self._make_application()
+        task = ApplicationTask(application=mock_app)
+        task._task_frame = MagicMock()
+
+        task._on_frame_destroyed()
+
+        self.assertIsNone(task._task_frame)
+
+    def test_frame_destroy_callback_triggers_on_frame_destroyed(self):
+        """Invoking _frame_destroy_callback calls _on_frame_destroyed."""
+        mock_app = self._make_application()
+        task = ApplicationTask(application=mock_app)
+
+        with patch.object(task, '_on_frame_destroyed') as mock_handler:
+            task._frame_destroy_callback()
+            mock_handler.assert_called_once()
+
 
 if __name__ == '__main__':
     unittest.main()

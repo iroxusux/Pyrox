@@ -264,7 +264,7 @@ class TestToolsTask(_TaskTestBase):
     def test_initial_frame_is_none(self):
         """_text_editor_frame starts as None."""
         task = self._make_task()
-        self.assertIsNone(task._text_editor_frame)
+        self.assertIsNone(task._task_frame)
 
     def test_create_frame_creates_new_frame_when_none(self):
         """_create_frame builds a TextEditorFrame when none exists."""
@@ -274,11 +274,11 @@ class TestToolsTask(_TaskTestBase):
 
         with patch('pyrox.tasks.builtin.TextEditorFrame', return_value=mock_frame) as MockTEF:
             task = ToolsTask(application=self.app)
-            task._create_frame()
+            task.create_or_raise_frame()
 
             MockTEF.assert_called_once_with(self.app.workspace.workspace_area)
             self.app.workspace.register_frame.assert_called_once_with(mock_frame)
-            self.assertIs(task._text_editor_frame, mock_frame)
+            self.assertIs(task._task_frame, mock_frame)
 
     def test_create_frame_raises_existing_frame_when_alive(self):
         """_create_frame raises an existing alive frame instead of creating a new one."""
@@ -289,9 +289,9 @@ class TestToolsTask(_TaskTestBase):
 
         with patch('pyrox.tasks.builtin.TextEditorFrame', return_value=mock_frame):
             task = ToolsTask(application=self.app)
-            task._text_editor_frame = mock_frame  # pre-set as existing
+            task._task_frame = mock_frame  # pre-set as existing
 
-            task._create_frame()
+            task.create_or_raise_frame()
 
             self.app.workspace.raise_frame.assert_called_once_with(mock_frame)
             self.app.workspace.register_frame.assert_not_called()
@@ -306,12 +306,12 @@ class TestToolsTask(_TaskTestBase):
         new_frame = MagicMock()
         with patch('pyrox.tasks.builtin.TextEditorFrame', return_value=new_frame) as MockTEF:
             task = ToolsTask(application=self.app)
-            task._text_editor_frame = dead_frame
+            task._task_frame = dead_frame
 
-            task._create_frame()
+            task.create_or_raise_frame()
 
             MockTEF.assert_called_once()
-            self.assertIs(task._text_editor_frame, new_frame)
+            self.assertIs(task._task_frame, new_frame)
 
 
 # ---------------------------------------------------------------------------

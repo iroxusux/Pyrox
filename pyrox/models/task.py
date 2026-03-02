@@ -8,6 +8,7 @@ from typing import Callable
 from pyrox.interfaces import IApplication, IApplicationTask
 from pyrox.models import ServicesRunnableMixin
 from pyrox.services import log, MenuRegistry, TkGuiManager
+from pyrox.models.gui.tk.frame import TkinterTaskFrame
 from pyrox.models.factory import MetaFactory, FactoryTypeMeta
 
 
@@ -47,25 +48,30 @@ class ApplicationTask(
         super().__init__()
         self._application = application
         self._application.register_task(self)
+        self._task_frame: TkinterTaskFrame | None = None
+        self._frame_destroy_callback = lambda *_, **__: self._on_frame_destroyed()
 
-    def get_application(self) -> IApplication:
-        """Get the parent application of this task.
+    # --------------------------------------------------------------
+    # Public Methods
+    # --------------------------------------------------------------
+
+    def create_task_frame(self) -> TkinterTaskFrame:
+        """Create the task's frame.
 
         Returns:
-            TApplication: The parent application instance.
+            TkinterTaskFrame: The created task frame instance.
         """
-        return self._application
+        raise NotImplementedError("create_task_frame method must be implemented by subclass.")
 
-    def set_application(
-        self,
-        application: IApplication
-    ) -> None:
-        """Set the parent application for this task.
-
-        Args:
-            application: The application instance to set.
+    def create_or_raise_frame(self):
+        """Create the task's frame if it doesn't exist, or raise it if it does.
         """
-        self._application = application
+        if not self._task_frame or not self._task_frame.root.winfo_exists():
+            self._task_frame = self.create_task_frame()
+            self.application.workspace.register_frame(self._task_frame)
+            self._task_frame.on_destroy().append(self._frame_destroy_callback)
+        else:
+            self.application.workspace.raise_frame(self._task_frame)
 
     def register_menu_command(
         self,
@@ -141,6 +147,37 @@ class ApplicationTask(
         )
 
         return submenu
+
+    # --------------------------------------------------------------
+    # Getters and Setters
+    # --------------------------------------------------------------
+
+    def get_application(self) -> IApplication:
+        """Get the parent application of this task.
+
+        Returns:
+            TApplication: The parent application instance.
+        """
+        return self._application
+
+    def set_application(
+        self,
+        application: IApplication
+    ) -> None:
+        """Set the parent application for this task.
+
+        Args:
+            application: The application instance to set.
+        """
+        self._application = application
+
+    # --------------------------------------------------------------
+    # Private Methods
+    # --------------------------------------------------------------
+
+    def _on_frame_destroyed(self) -> None:
+        """Callback for when the task frame is destroyed. Resets the task frame reference."""
+        self._task_frame = None
 
     __all__ = (
         'ApplicationTask',
