@@ -94,10 +94,10 @@ class TestSceneviewerInit(_SceneviewerTestBase):
         task = self._make_task()
         self.app.register_task.assert_called_once_with(task)
 
-    def test_scene_viewer_frame_initially_none(self):
-        """_scene_viewer_frame is None before any viewer is opened."""
+    def test_task_frame_initially_none(self):
+        """_task_frame is None before any viewer is opened."""
         task = self._make_task()
-        self.assertIsNone(task._scene_viewer_frame)
+        self.assertIsNone(task._task_frame)
 
     def test_subscribes_to_scene_loaded(self):
         """__init__ subscribes _scene_loaded_callback to SCENE_LOADED."""
@@ -214,15 +214,15 @@ class TestEnableMenuEntries(_SceneviewerTestBase):
 
 
 # ---------------------------------------------------------------------------
-# _create_scene_viewer_frame
+# create_or_raise_frame
 # ---------------------------------------------------------------------------
 
-class TestCreateSceneViewerFrame(_SceneviewerTestBase):
+class TestCreateOrRaiseFrame(_SceneviewerTestBase):
 
     def test_creates_frame_when_none(self):
-        """A new SceneViewerFrame is created when _scene_viewer_frame is None."""
+        """A new SceneViewerFrame is created when _task_frame is None."""
         task = self._make_task()
-        task._create_scene_viewer_frame()
+        task.create_or_raise_frame()
 
         self.MockSceneViewerFrame.assert_called_once_with(
             parent=self.app.workspace.workspace_area,
@@ -232,14 +232,14 @@ class TestCreateSceneViewerFrame(_SceneviewerTestBase):
     def test_registers_frame_with_workspace(self):
         """The new frame is registered in the application workspace."""
         task = self._make_task()
-        task._create_scene_viewer_frame()
+        task.create_or_raise_frame()
         self.app.workspace.register_frame.assert_called_once()
 
     def test_attaches_destroy_callback(self):
         """The _frame_destroy_callback is appended to the frame's on_destroy list."""
         task = self._make_task()
-        task._create_scene_viewer_frame()
-        frame = task._scene_viewer_frame
+        task.create_or_raise_frame()
+        frame = task._task_frame
         frame.on_destroy().append.assert_called_once_with(task._frame_destroy_callback)  # type: ignore
 
     def test_raises_existing_alive_frame(self):
@@ -248,10 +248,10 @@ class TestCreateSceneViewerFrame(_SceneviewerTestBase):
 
         alive_frame = MagicMock()
         alive_frame.root.winfo_exists.return_value = True
-        task._scene_viewer_frame = alive_frame
+        task._task_frame = alive_frame
 
         self.MockSceneViewerFrame.reset_mock()
-        task._create_scene_viewer_frame()
+        task.create_or_raise_frame()
 
         self.MockSceneViewerFrame.assert_not_called()
         self.app.workspace.raise_frame.assert_called_once_with(alive_frame)
@@ -262,10 +262,10 @@ class TestCreateSceneViewerFrame(_SceneviewerTestBase):
 
         dead_frame = MagicMock()
         dead_frame.root.winfo_exists.return_value = False
-        task._scene_viewer_frame = dead_frame
+        task._task_frame = dead_frame
 
         self.MockSceneViewerFrame.reset_mock()
-        task._create_scene_viewer_frame()
+        task.create_or_raise_frame()
 
         self.MockSceneViewerFrame.assert_called_once()
 
@@ -279,7 +279,7 @@ class TestOnNewScene(_SceneviewerTestBase):
     def test_initializes_and_runs_scene_runner(self):
         """_on_new_scene creates the viewer, initialises the runner, and runs."""
         task = self._make_task()
-        with patch.object(task, '_create_scene_viewer_frame') as mock_create:
+        with patch.object(task, 'create_or_raise_frame') as mock_create:
             task._on_new_scene()
 
             mock_create.assert_called_once()
@@ -289,7 +289,7 @@ class TestOnNewScene(_SceneviewerTestBase):
 
     def test_initializes_with_application(self):
         task = self._make_task()
-        with patch.object(task, '_create_scene_viewer_frame'):
+        with patch.object(task, 'create_or_raise_frame'):
             task._on_new_scene()
             init_call = self.MockSceneRunnerService.initialize.call_args
             self.assertIs(init_call.kwargs.get('app') or init_call.args[0], self.app)
@@ -304,7 +304,7 @@ class TestOnLoadScene(_SceneviewerTestBase):
     def test_load_scene_no_scene_arg(self):
         """Without a scene argument, load_scene is called on the runner."""
         task = self._make_task()
-        with patch.object(task, '_create_scene_viewer_frame'):
+        with patch.object(task, 'create_or_raise_frame'):
             task._on_load_scene()
             self.MockSceneRunnerService.initialize.assert_called_once()
             self.MockSceneRunnerService.load_scene.assert_called_once()
@@ -314,7 +314,7 @@ class TestOnLoadScene(_SceneviewerTestBase):
         """With a scene argument, it is passed through initialize; load_scene not called."""
         task = self._make_task()
         mock_scene = MagicMock()
-        with patch.object(task, '_create_scene_viewer_frame'):
+        with patch.object(task, 'create_or_raise_frame'):
             task._on_load_scene(scene=mock_scene)
             init_call = self.MockSceneRunnerService.initialize.call_args
             self.assertIs(init_call.kwargs.get('scene'), mock_scene)
@@ -331,7 +331,7 @@ class TestOpenSceneViewer(_SceneviewerTestBase):
     def test_open_scene_viewer_calls_runner_lifecycle(self):
         """_open_scene_viewer initialises, creates the frame, runs new_scene, and runs."""
         task = self._make_task()
-        with patch.object(task, '_create_scene_viewer_frame') as mock_create:
+        with patch.object(task, 'create_or_raise_frame') as mock_create:
             task._open_scene_viewer()
             self.MockSceneRunnerService.initialize.assert_called_once()
             mock_create.assert_called_once()
@@ -342,7 +342,7 @@ class TestOpenSceneViewer(_SceneviewerTestBase):
         """When a scene is provided it is forwarded to SceneRunnerService.initialize."""
         task = self._make_task()
         mock_scene = MagicMock()
-        with patch.object(task, '_create_scene_viewer_frame'):
+        with patch.object(task, 'create_or_raise_frame'):
             task._open_scene_viewer(scene=mock_scene)
             init_kwargs = self.MockSceneRunnerService.initialize.call_args.kwargs
             self.assertIs(init_kwargs.get('scene'), mock_scene)
@@ -367,75 +367,11 @@ class TestOnFrameDestroyed(_SceneviewerTestBase):
         self.MockSceneRunnerService.set_scene.assert_called_once_with(None)
 
     def test_clears_frame_reference(self):
-        """_on_frame_destroyed sets _scene_viewer_frame to None."""
+        """_on_frame_destroyed sets _task_frame to None."""
         task = self._make_task()
-        task._scene_viewer_frame = MagicMock()
+        task._task_frame = MagicMock()
         task._on_frame_destroyed()
-        self.assertIsNone(task._scene_viewer_frame)
-
-
-# ---------------------------------------------------------------------------
-# cleanup
-# ---------------------------------------------------------------------------
-
-class TestCleanup(_SceneviewerTestBase):
-
-    def test_unsubscribes_scene_loaded(self):
-        """cleanup unsubscribes from SCENE_LOADED."""
-        task = self._make_task()
-        self.mock_unsubscribe.reset_mock()
-
-        task.cleanup()
-
-        unsubscribed_types = [c.args[0] for c in self.mock_unsubscribe.call_args_list]
-        self.assertIn(SceneEventType.SCENE_LOADED, unsubscribed_types)
-
-    def test_unsubscribes_scene_unloaded(self):
-        """cleanup unsubscribes from SCENE_UNLOADED."""
-        task = self._make_task()
-        self.mock_unsubscribe.reset_mock()
-
-        task.cleanup()
-
-        unsubscribed_types = [c.args[0] for c in self.mock_unsubscribe.call_args_list]
-        self.assertIn(SceneEventType.SCENE_UNLOADED, unsubscribed_types)
-
-    def test_unsubscribes_correct_callbacks(self):
-        """cleanup unsubscribes the exact stored callback references."""
-        task = self._make_task()
-        self.mock_unsubscribe.reset_mock()
-        task.cleanup()
-
-        unsubscribed_callbacks = [c.args[1] for c in self.mock_unsubscribe.call_args_list]
-        self.assertIn(task._scene_loaded_callback,   unsubscribed_callbacks)
-        self.assertIn(task._scene_unloaded_callback, unsubscribed_callbacks)
-
-    def test_stops_runner_on_cleanup(self):
-        """cleanup stops the SceneRunnerService."""
-        task = self._make_task()
-        self.MockSceneRunnerService.reset_mock()
-        task.cleanup()
-        self.MockSceneRunnerService.stop.assert_called_once()
-
-    def test_clears_frame_reference_on_cleanup(self):
-        """cleanup sets _scene_viewer_frame to None."""
-        task = self._make_task()
-        task._scene_viewer_frame = MagicMock()
-        task.cleanup()
-        self.assertIsNone(task._scene_viewer_frame)
-
-    def test_cleanup_removes_destroy_callback_from_live_frame(self):
-        """cleanup removes the destroy callback from a still-live frame."""
-        task = self._make_task()
-
-        mock_frame = MagicMock()
-        on_destroy_list = [task._frame_destroy_callback]
-        mock_frame.on_destroy.return_value = on_destroy_list
-        task._scene_viewer_frame = mock_frame
-
-        task.cleanup()
-
-        self.assertNotIn(task._frame_destroy_callback, on_destroy_list)
+        self.assertIsNone(task._task_frame)
 
 
 # ---------------------------------------------------------------------------

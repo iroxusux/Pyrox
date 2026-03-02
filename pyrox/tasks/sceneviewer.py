@@ -6,6 +6,7 @@ import tkinter as tk
 from pyrox.interfaces.application import IApplication
 from pyrox.models import ApplicationTask, Scene
 from pyrox.models.gui import SceneViewerFrame
+from pyrox.models.gui.tk.frame import TkinterTaskFrame
 from pyrox.services import (
     EnvironmentService,
     SceneRunnerService,
@@ -22,8 +23,6 @@ class SceneviewerApplicationTask(ApplicationTask):
         application: IApplication
     ) -> None:
         super().__init__(application)
-        self._scene_viewer_frame: SceneViewerFrame | None = None
-
         # Store callback references for proper cleanup
         self._scene_loaded_callback = lambda event: self._enable_menu_entries(event, True)
         self._scene_unloaded_callback = lambda event: self._enable_menu_entries(event, False)
@@ -335,20 +334,8 @@ class SceneviewerApplicationTask(ApplicationTask):
             # Ensure persistent entries remain enabled/disabled regardless of scene state
             MenuRegistry.enable_items_by_owner(self.__class__.__name__, subcategory="persistent")
 
-    def _create_scene_viewer_frame(self) -> None:
-        """Create and register the SceneViewerFrame."""
-        if self._scene_viewer_frame is None or not self._scene_viewer_frame.root.winfo_exists():
-            self._scene_viewer_frame = SceneViewerFrame(
-                parent=self.application.workspace.workspace_area,
-                runner=SceneRunnerService
-            )
-            self.application.workspace.register_frame(self._scene_viewer_frame)
-            self._scene_viewer_frame.on_destroy().append(self._frame_destroy_callback)
-        else:
-            self.application.workspace.raise_frame(self._scene_viewer_frame)
-
     def _on_new_scene(self) -> None:
-        self._create_scene_viewer_frame()
+        self.create_or_raise_frame()
         # Initialize SceneRunnerService
         SceneRunnerService.initialize(
             app=self.application,
@@ -362,7 +349,7 @@ class SceneviewerApplicationTask(ApplicationTask):
             self,
             scene: Scene | None = None
     ) -> None:
-        self._create_scene_viewer_frame()
+        self.create_or_raise_frame()
         if not scene:
             SceneRunnerService.initialize(
                 app=self.application,
@@ -393,7 +380,7 @@ class SceneviewerApplicationTask(ApplicationTask):
             enable_physics=True
         )
 
-        self._create_scene_viewer_frame()
+        self.create_or_raise_frame()
         SceneRunnerService.new_scene()
         SceneRunnerService.run()
 
@@ -401,36 +388,10 @@ class SceneviewerApplicationTask(ApplicationTask):
         """Handle cleanup when the SceneViewerFrame is destroyed."""
         SceneRunnerService.stop()
         SceneRunnerService.set_scene(None)
-        self._scene_viewer_frame = None
+        super()._on_frame_destroyed()
 
-    def cleanup(self) -> None:
-        """Clean up all subscriptions and callbacks to prevent lingering references.
-
-        This method should be called when the task is being removed or the application
-        is shutting down to prevent memory leaks and runtime errors from stale callbacks.
-        """
-        # Unsubscribe from SceneEventBus using the exact callback references
-        SceneEventBus.unsubscribe(
-            SceneEventType.SCENE_LOADED,
-            self._scene_loaded_callback
+    def create_task_frame(self) -> TkinterTaskFrame:
+        return SceneViewerFrame(
+            parent=self.application.workspace.workspace_area,
+            runner=SceneRunnerService
         )
-        SceneEventBus.unsubscribe(
-            SceneEventType.SCENE_UNLOADED,
-            self._scene_unloaded_callback
-        )
-
-        # Remove frame destroy callback if frame still exists
-        if self._scene_viewer_frame is not None:
-            try:
-                if self._frame_destroy_callback in self._scene_viewer_frame.on_destroy():
-                    self._scene_viewer_frame.on_destroy().remove(self._frame_destroy_callback)
-            except (AttributeError, ValueError):
-                pass  # Frame might already be destroyed
-
-        # Stop the scene runner if it's running
-        try:
-            SceneRunnerService.stop()
-        except Exception:
-            pass  # Runner might not be initialized
-
-        self._scene_viewer_frame = None
