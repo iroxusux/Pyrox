@@ -34,11 +34,7 @@ from .protocols import (
 )
 
 # Base classes
-from .meta import (
-    PyroxObject,
-    SupportsFileLocation,
-    SupportsMetaData,
-)
+from .meta import PyroxObject
 
 # List components
 from .list import (
@@ -123,8 +119,6 @@ __all__ = [
 
     # Base classes
     'PyroxObject',
-    'SupportsFileLocation',
-    'SupportsMetaData',
 
     # Factory components
     'FactoryTypeMeta',

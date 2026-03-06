@@ -332,39 +332,8 @@ class ICoreRunnableMixin(
 class IHasFileLocation(Protocol):
     """Protocol for objects that support file location."""
 
-    @property
-    def file_location(self) -> str:
-        """Get the file location of this object.
-
-        Returns:
-            str: The file location of this object.
-        """
-        return self.get_file_location()
-
-    @file_location.setter
-    def file_location(self, location: str) -> None:
-        """Set the file location of this object.
-
-        Args:
-            location (str): The file location to set.
-        """
-        self.set_file_location(location)
-
-    def get_file_location(self) -> str:
-        """Get the file location of this object.
-
-        Returns:
-            str: The file location of this object.
-        """
-        ...
-
-    def set_file_location(self, location: str) -> None:
-        """Set the file location of this object.
-
-        Args:
-            location (str): The file location to set.
-        """
-        ...
+    def get_file_location(self) -> str: ...
+    def set_file_location(self, location: str) -> None: ...
 
 
 @runtime_checkable

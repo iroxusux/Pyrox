@@ -20,6 +20,9 @@ Interface Categories:
     - Configuration: Settings, environment, and state management interfaces
     - Events: Observer patterns, subscriptions, and notification interfaces
 """
+
+# TODO: refactor inerfaces to properly be structural contracts without any implementation details, and move any shared implementation details to mixin classes in pyrox.models.protocols.meta
+
 # Environment constants
 from .constants import EnvironmentKeys
 
