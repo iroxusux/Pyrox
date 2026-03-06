@@ -6,7 +6,7 @@ in other classes, supporting both generic file operations and JSON-specific oper
 import json
 from pathlib import Path
 from typing import Any, Optional, Union
-from pyrox.models.meta import SupportsFileLocation
+from pyrox.models.protocols import HasFileLocation
 
 __all__ = (
     'SupportsLoading',
@@ -16,7 +16,7 @@ __all__ = (
 )
 
 
-class SupportsLoading(SupportsFileLocation):
+class SupportsLoading(HasFileLocation):
     """A meta class for all classes to derive from to obtain loading capabilities.
 
     This class provides the foundation for objects that can load their state
@@ -52,7 +52,7 @@ class SupportsLoading(SupportsFileLocation):
         ...
 
 
-class SupportsSaving(SupportsFileLocation):
+class SupportsSaving(HasFileLocation):
     """A meta class for all classes to derive from to obtain saving capabilities.
 
     This class provides the foundation for objects that can save their state
@@ -121,7 +121,7 @@ class SupportsJsonLoading(SupportsLoading):
 
     def load_from_json(
         self,
-        path: Optional[Union[Path, str]] = None
+        path: Path | str | None = None
     ) -> Any:
         """Load the object from a JSON file.
 
@@ -131,13 +131,13 @@ class SupportsJsonLoading(SupportsLoading):
         Returns:
             Any: Loaded data from the JSON file, or None if file doesn't exist.
         """
-        if self.file_location is None and path is None:
+        if not self.file_location and path is None:
             return None
 
         if isinstance(path, str):
             path = Path(path)
 
-        if path is None and self.file_location is not None:
+        if path is None and self.file_location:
             path = Path(self.file_location)
 
         if not isinstance(path, Path):

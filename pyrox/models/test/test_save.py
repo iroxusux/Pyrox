@@ -24,7 +24,7 @@ class TestSupportsLoading(unittest.TestCase):
         obj = SupportsLoading()
 
         # Should have file_location attribute from parent
-        self.assertIsNone(obj.file_location)
+        self.assertEqual(obj.file_location, '')
 
         # Test setting file_location
         obj.file_location = '/test/path'
@@ -93,7 +93,7 @@ class TestSupportsSaving(unittest.TestCase):
         obj = SupportsSaving()
 
         # Should have file_location attribute from parent
-        self.assertIsNone(obj.file_location)
+        self.assertEqual(obj.file_location, '')
 
         # Test setting file_location
         obj.file_location = '/test/path'
@@ -188,7 +188,7 @@ class TestSupportsJsonSaving(unittest.TestCase):
         obj = SupportsJsonSaving()
 
         self.assertIsInstance(obj, SupportsSaving)
-        self.assertIsNone(obj.file_location)
+        self.assertEqual(obj.file_location, '')
 
     def test_save_to_json_with_explicit_path_and_data(self):
         """Test saving JSON with explicit path and data."""
@@ -401,7 +401,7 @@ class TestSupportsJsonLoading(unittest.TestCase):
         obj = SupportsJsonLoading()
 
         self.assertIsInstance(obj, SupportsLoading)
-        self.assertIsNone(obj.file_location)
+        self.assertEqual(obj.file_location, '')
 
     def test_load_from_json_with_explicit_path(self):
         """Test loading JSON with explicit path."""
@@ -746,7 +746,7 @@ class TestIntegration(unittest.TestCase):
     def test_real_world_usage_pattern(self):
         """Test realistic usage patterns."""
         class ConfigManager(SupportsJsonSaving, SupportsJsonLoading):
-            def __init__(self, config_path=None):
+            def __init__(self, config_path: str = ''):
                 super().__init__()
                 self.file_location = config_path
                 self.settings = {
