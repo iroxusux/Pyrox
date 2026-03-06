@@ -698,6 +698,13 @@ class TestSupportsItemAccess(unittest.TestCase):
         self.assertTrue(hasattr(obj, 'get_metadata'))
         self.assertTrue(hasattr(obj, 'set_metadata'))
 
+    def test_delitem(self):
+        """Test deleting an item by key."""
+        obj = SupportsItemAccess(meta_data={"key1": "value1", "key2": "value2"})
+        del obj["key1"]
+        self.assertNotIn("key1", obj.metadata)
+        self.assertIn("key2", obj.metadata)
+
 
 if __name__ == '__main__':
     unittest.main()

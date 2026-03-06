@@ -424,6 +424,14 @@ class SupportsItemAccess(
     access through indexing, implementing the ISupportsItemAccess protocol.
     """
 
+    def __delitem__(self, key):
+        """Delete an item by key.
+
+        Args:
+            key (Any): The key of the item to delete.
+        """
+        del self.metadata[key]
+
     def __getitem__(self, key: Any) -> Any:
         """Get an item by key.
 
