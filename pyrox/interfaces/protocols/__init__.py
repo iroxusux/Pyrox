@@ -17,7 +17,6 @@ from .meta import (
     ICoreRunnableMixin,
     IHasFileLocation,
     IHasDictMetaData,
-    ISupportsItemAccess,
 )
 
 # Coordinate imports for protocols that support points in a space.
@@ -91,7 +90,6 @@ __all__ = [
     "ICoreRunnableMixin",
     "IHasFileLocation",
     "IHasDictMetaData",
-    "ISupportsItemAccess",
 
     # Coordinate protocols
     "ICoord2D",

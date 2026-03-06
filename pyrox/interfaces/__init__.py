@@ -21,7 +21,8 @@ Interface Categories:
     - Events: Observer patterns, subscriptions, and notification interfaces
 """
 
-# TODO: refactor inerfaces to properly be structural contracts without any implementation details, and move any shared implementation details to mixin classes in pyrox.models.protocols.meta
+# TODO: refactor inerfaces to properly be structural contracts without any implementation details,
+# and move any shared implementation details to mixin classes in pyrox.models.protocols.meta
 
 # Environment constants
 from .constants import EnvironmentKeys
@@ -43,7 +44,6 @@ from .protocols import (
     ICoreRunnableMixin,
     IHasFileLocation,
     IHasDictMetaData,
-    ISupportsItemAccess,
 
     # Coordinate imports for protocols that support points in a space.
     ICoord2D,
@@ -155,7 +155,6 @@ __all__ = (
     'ICoreRunnableMixin',
     'IHasFileLocation',
     'IHasDictMetaData',
-    'ISupportsItemAccess',
     # Coordinate protocols
     'ICoord2D',
     'IArea2D',
