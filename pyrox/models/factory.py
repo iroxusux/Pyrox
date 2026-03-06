@@ -199,7 +199,7 @@ class MetaFactory:
 class FactoryTypeMeta(IFactoryMixinProtocolMeta):
     """Meta class for types that are used in factory patterns.
     """
-    _bound_factory: Type[MetaFactory] | None = None
+    _bound_factory = None  # unannotated: prevents leaking into Protocol __annotations__ via metaclass MRO
 
     def __new__(
         mcs,
