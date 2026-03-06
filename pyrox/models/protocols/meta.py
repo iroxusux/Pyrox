@@ -15,7 +15,6 @@ from pyrox.interfaces import (
     ICoreMixin,
     ICoreRunnableMixin,
     IHasDictMetaData,
-    ISupportsItemAccess,
 )
 
 
@@ -431,40 +430,46 @@ class HasMetaDictData(IHasDictMetaData):
         self._meta_data = metadata
 
 
-class SupportsItemAccess(
-    ISupportsItemAccess,
-    HasMetaDictData
-):
+class SupportsItemAccess(HasMetaDictData):
     """Denotes object supports item access via indexing.
 
     This class provides a foundation for objects that support item
     access through indexing, implementing the ISupportsItemAccess protocol.
     """
 
-    def __delitem__(self, key):
+    def __delitem__(self, key: str) -> None:
         """Delete an item by key.
 
         Args:
-            key (Any): The key of the item to delete.
+            key (str): The key of the item to delete.
         """
-        del self.metadata[key]
+        if key in self.metadata:
+            del self.metadata[key]
 
-    def __getitem__(self, key: Any) -> Any:
+    def __getitem__(
+        self,
+        key: str,
+        default=None
+    ) -> Any:
         """Get an item by key.
 
         Args:
-            key (Any): The key of the item to retrieve.
+            key (str): The key of the item to retrieve.
 
         Returns:
             Any: The item associated with the key.
         """
-        return self.metadata[key]
+        return self.metadata.get(key, default)
 
-    def __setitem__(self, key: Any, value: Any) -> None:
+    def __setitem__(
+        self,
+        key: str,
+        value: Any
+    ) -> None:
         """Set an item by key.
 
         Args:
-            key (Any): The key of the item to set.
+            key (str): The key of the item to set.
             value (Any): The value to associate with the key.
         """
         self.metadata[key] = value

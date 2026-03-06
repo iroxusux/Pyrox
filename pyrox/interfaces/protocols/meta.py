@@ -375,31 +375,6 @@ class IHasDictMetaData(Protocol):
         ...
 
 
-@runtime_checkable
-class ISupportsItemAccess(Protocol):
-    """Protocol for objects that support item access."""
-
-    def __getitem__(self, key: str) -> object:
-        """Get an item by key.
-
-        Args:
-            key (str): The key of the item to get.
-
-        Returns:
-            object: The item associated with the key.
-        """
-        ...
-
-    def __setitem__(self, key: str, value: object) -> None:
-        """Set an item by key.
-
-        Args:
-            key (str): The key of the item to set.
-            value (object): The value to set for the key.
-        """
-        ...
-
-
 __all__ = [
     "IConfigurable",
     "IAuthored",
@@ -414,5 +389,4 @@ __all__ = [
     "ICoreRunnableMixin",
     "IHasFileLocation",
     "IHasDictMetaData",
-    "ISupportsItemAccess",
 ]

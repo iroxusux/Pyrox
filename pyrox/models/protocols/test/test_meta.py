@@ -685,11 +685,10 @@ class TestSupportsItemAccess(unittest.TestCase):
         self.assertEqual(obj["key2"], "text")
         self.assertEqual(obj["key3"], [1, 2, 3])
 
-    def test_getitem_nonexistent_key_raises(self):
-        """Test getting nonexistent key raises KeyError."""
+    def test_getitem_nonexistent_returns_none(self):
+        """Test getting nonexistent returns None."""
         obj = SupportsItemAccess()
-        with self.assertRaises(KeyError):
-            _ = obj["nonexistent"]
+        self.assertIsNone(obj["nonexistent"])
 
     def test_inheritance_from_has_meta_dict_data(self):
         """Test that SupportsItemAccess inherits from HasMetaDictData."""
