@@ -8,7 +8,6 @@ from typing import (
 )
 from pyrox.interfaces import (
     IConnectionRegistry,
-    IScene,
     ISceneObject,
     ICompositeSceneObject,
     ISceneGroup,
@@ -180,7 +179,7 @@ class Scene(CoreMixin):
     def from_dict(
         cls,
         data: dict,
-    ) -> IScene:
+    ) -> 'Scene':
         """Create scene from dictionary.
 
         Uses a 2-pass strategy:
