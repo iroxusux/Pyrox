@@ -125,12 +125,14 @@ class Scene(CoreMixin):
     def get_on_scene_object_removed(self) -> list[Callable]:
         return self._on_scene_object_removed
 
-    def get_connection_registry(self) -> IConnectionRegistry:
+    def get_connection_registry(self) -> ConnectionRegistry:
         """Get the connection registry for the scene.
 
         Returns:
             IConnectionRegistry: The connection registry instance.
         """
+        if not isinstance(self._connection_registry, ConnectionRegistry):
+            raise RuntimeError("Scene's connection registry is not a ConnectionRegistry instance.")
         return self._connection_registry
 
     def set_connection_registry(self, registry: IConnectionRegistry) -> None:
@@ -139,6 +141,8 @@ class Scene(CoreMixin):
         Args:
             registry (IConnectionRegistry): The connection registry instance.
         """
+        if not isinstance(registry, ConnectionRegistry):
+            raise ValueError("registry must be an instance of ConnectionRegistry.")
         self._connection_registry = registry
 
     def get_on_scene_updated(self) -> list[Callable[..., Any]]:
@@ -225,12 +229,30 @@ class Scene(CoreMixin):
 
         # ------ Connections ------
         for conn_data in data.get("connections", []):
-            scene._connection_registry.connect(
-                source_id=conn_data["source"],
-                output_name=conn_data["output"],
-                target_id=conn_data["target"],
-                input_name=conn_data["input"],
-            )
+            try:
+                scene._connection_registry.connect(
+                    source_id=conn_data["source"],
+                    output_name=conn_data["output"],
+                    target_id=conn_data["target"],
+                    input_name=conn_data["input"],
+                    enabled=conn_data.get("enabled", True),
+                )
+            except AttributeError:
+                # The loaded object type doesn't expose the expected callback
+                # interface (e.g. a base SceneObject loaded in place of a
+                # specialised subclass).  Store the Connection record so it
+                # round-trips faithfully even though the callback can't be wired
+                # right now.
+                from pyrox.interfaces import Connection as _Connection
+                scene._connection_registry._connections.append(
+                    _Connection(
+                        conn_data["source"],
+                        conn_data["output"],
+                        conn_data["target"],
+                        conn_data["input"],
+                        enabled=conn_data.get("enabled", True),
+                    )
+                )
 
         return scene
 
@@ -251,7 +273,7 @@ class Scene(CoreMixin):
     def load(
         cls,
         filepath: str | Path,
-    ) -> IScene:
+    ) -> 'Scene':
         """
         Load scene from JSON file.
 

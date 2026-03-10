@@ -75,6 +75,11 @@ class TestSceneRunnerService(unittest.TestCase):
 
         self.assertIn("static class", str(context.exception))
 
+    def test_initialization_returns_true_on_first_call(self):
+        """Test that initialize() returns True on first call."""
+        result = SceneRunnerService.initialize()
+        self.assertTrue(result)
+
     def test_initialization_without_physics(self):
         """Test initialization without physics enabled."""
         SceneRunnerService.initialize(
