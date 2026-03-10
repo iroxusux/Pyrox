@@ -338,7 +338,6 @@ class SceneviewerApplicationTask(ApplicationTask):
         self.create_or_raise_frame()
         # Initialize SceneRunnerService
         SceneRunnerService.initialize(
-            app=self.application,
             environment=EnvironmentService(preset='top_down'),
             enable_physics=True
         )
@@ -352,14 +351,12 @@ class SceneviewerApplicationTask(ApplicationTask):
         self.create_or_raise_frame()
         if not scene:
             SceneRunnerService.initialize(
-                app=self.application,
                 environment=EnvironmentService(preset='top_down'),
                 enable_physics=True
             )
             SceneRunnerService.load_scene()
         else:
             SceneRunnerService.initialize(
-                app=self.application,
                 scene=scene,
                 environment=EnvironmentService(preset='top_down'),
                 enable_physics=True
@@ -374,7 +371,6 @@ class SceneviewerApplicationTask(ApplicationTask):
 
         # Initialize SceneRunnerService
         SceneRunnerService.initialize(
-            app=self.application,
             scene=scene,
             environment=EnvironmentService(preset='top_down'),
             enable_physics=True

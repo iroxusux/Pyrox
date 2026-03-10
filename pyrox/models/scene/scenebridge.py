@@ -53,10 +53,11 @@ class SceneBridge(ISceneBridge):
         scene: Optional[IScene] = None,
         bound_object: Optional[ISceneBoundLayer] = None,
     ):
+        if not bound_object:
+            bound_object = self.create_default_bound_object()
+
         self._scene = scene
-        self._bound_object = (
-            bound_object if bound_object is not None else self.create_default_bound_object()
-        )
+        self._bound_object = bound_object
         self._bindings: dict[str, SceneBinding] = {}
         self._active = False
         self._write_enabled = True

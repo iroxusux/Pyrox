@@ -1,12 +1,10 @@
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import auto
-import importlib
 from typing import Any, Callable
 import json
 from pathlib import Path
 from pyrox.interfaces import (
-    IApplication,
     IPhysicsBody2D,
     IScene,
     ISceneBridge,
@@ -132,15 +130,22 @@ class SceneBridgeService:
     # ------------------------------------------------------------------
 
     @classmethod
-    def initialize(cls) -> None:
+    def initialize(cls) -> bool:
         """Subscribe to SceneEventBus.  Safe to call multiple times."""
         if cls._initialized:
-            return
-        SceneEventBus.subscribe(SceneEventType.SCENE_LOADED,   cls._on_scene_loaded)
-        SceneEventBus.subscribe(SceneEventType.SCENE_UNLOADED, cls._on_scene_unloaded)
-        SceneEventBus.subscribe(SceneEventType.SCENE_SAVED,    cls._on_scene_saved)
+            return True
+
+        if not SceneEventBus.subscribe(SceneEventType.SCENE_LOADED,   cls._on_scene_loaded):
+            return False
+
+        if not SceneEventBus.subscribe(SceneEventType.SCENE_UNLOADED, cls._on_scene_unloaded):
+            return False
+
+        if not SceneEventBus.subscribe(SceneEventType.SCENE_SAVED,    cls._on_scene_saved):
+            return False
+
         cls._initialized = True
-        log(cls).debug("SceneBridgeService initialized")
+        return True
 
     @classmethod
     def reset(cls) -> None:
@@ -148,12 +153,13 @@ class SceneBridgeService:
         SceneEventBus.unsubscribe(SceneEventType.SCENE_LOADED,   cls._on_scene_loaded)
         SceneEventBus.unsubscribe(SceneEventType.SCENE_UNLOADED, cls._on_scene_unloaded)
         SceneEventBus.unsubscribe(SceneEventType.SCENE_SAVED,    cls._on_scene_saved)
+
         if cls._bridge and cls._bridge.is_active():
             cls._bridge.stop()
+
         cls._bridge = None
         cls._source_factories.clear()
         cls._initialized = False
-        log(cls).info("SceneBridgeService reset")
 
     # ------------------------------------------------------------------
     # Public accessor
@@ -236,16 +242,21 @@ class SceneBridgeService:
         # Lazy import to avoid circular dependencies at module level
         from pyrox.models.scene.scenebridge import SceneBridge
         from pyrox.models.scene.sceneboundlayer import SceneBoundLayer
+
         if cls._bridge and cls._bridge.is_active():
             cls._bridge.stop()
+
         cls._bridge = SceneBridge(
             scene=scene,
             bound_object=SceneBoundLayer()
         )
+
         if not isinstance(cls._bridge.get_bound_object(), SceneBoundLayer):
             raise TypeError("SceneBridge must be created with a SceneBoundLayer as its bound object")
+
         for source_name, factory in cls._source_factories.items():
             cls._bridge.get_bound_object().register_source(source_name, factory())
+
         log(cls).info("created new SceneBridge for loaded scene")
 
     # ------------------------------------------------------------------
@@ -352,13 +363,12 @@ class SceneRunnerService(
     @classmethod
     def initialize(
         cls,
-        app: IApplication,
         scene: IScene | None = None,
         physics_engine: physics.PhysicsEngineService | None = None,
         environment: env.EnvironmentService | None = None,
         enable_physics: bool = False,
         update_interval: int = 16  # ~60 FPS (16ms)
-    ):
+    ) -> bool:
         """Initialize the service.
 
         Args:
@@ -369,16 +379,14 @@ class SceneRunnerService(
             enable_physics: Whether to enable physics simulation
         """
         # Boot up the SceneBridgeService to ensure it subscribes to events before we set the initial scene
-        SceneBridgeService.initialize()
+        if not SceneBridgeService.initialize():
+            return False
 
         # Set application context
-        cls._app = app
         cls._enable_physics = enable_physics
 
         # Physics integration
         if enable_physics:
-            importlib.reload(physics)
-            importlib.reload(env)
             cls.set_environment(environment or env.EnvironmentService())
             cls.set_physics_engine(physics_engine or physics.PhysicsEngineService(
                 environment=cls._environment
@@ -398,6 +406,8 @@ class SceneRunnerService(
 
         # Initialize events and callbacks
         cls._event_id = None
+
+        return True
 
     @classmethod
     def get_scene(cls) -> IScene | None:

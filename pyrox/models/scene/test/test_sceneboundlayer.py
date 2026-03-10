@@ -135,10 +135,11 @@ class TestBridgePropertyTraversal(unittest.TestCase):
 
     def setUp(self):
         from pyrox.models.scene.scenebridge import SceneBridge
+        from pyrox.models.scene.sceneboundlayer import SceneBoundLayer
 
         class _BridgeUnderTest(SceneBridge):
             def create_default_bound_object(self):
-                return {}
+                return SceneBoundLayer()
 
         self._bridge_class = _BridgeUnderTest
 
@@ -260,10 +261,11 @@ class TestEndToEnd(unittest.TestCase):
         from types import SimpleNamespace
         from unittest.mock import MagicMock
         from pyrox.models.scene.scenebridge import SceneBridge, BindingDirection
+        from pyrox.models.scene.sceneboundlayer import SceneBoundLayer
 
         class _Bridge(SceneBridge):
             def create_default_bound_object(self):
-                return {}
+                return SceneBoundLayer()
 
         # Scene stub
         self.scene_obj = SimpleNamespace(speed=0.0)

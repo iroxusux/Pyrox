@@ -75,10 +75,14 @@ class TestSceneRunnerService(unittest.TestCase):
 
         self.assertIn("static class", str(context.exception))
 
+    def test_initialization_returns_true_on_first_call(self):
+        """Test that initialize() returns True on first call."""
+        result = SceneRunnerService.initialize()
+        self.assertTrue(result)
+
     def test_initialization_without_physics(self):
         """Test initialization without physics enabled."""
         SceneRunnerService.initialize(
-            app=self.mock_app,
             scene=self.mock_scene,
             enable_physics=False
         )
@@ -93,7 +97,6 @@ class TestSceneRunnerService(unittest.TestCase):
     def test_initialization_with_physics_default(self):
         """Test initialization with physics enabled (default services)."""
         SceneRunnerService.initialize(
-            app=self.mock_app,
             scene=self.mock_scene,
             enable_physics=True
         )
@@ -110,7 +113,6 @@ class TestSceneRunnerService(unittest.TestCase):
         custom_physics = PhysicsEngineService(environment=custom_env)
 
         SceneRunnerService.initialize(
-            app=self.mock_app,
             scene=self.mock_scene,
             physics_engine=custom_physics,
             environment=custom_env,
@@ -137,7 +139,6 @@ class TestSceneRunnerService(unittest.TestCase):
         })
 
         SceneRunnerService.initialize(
-            app=self.mock_app,
             scene=self.mock_scene,
             enable_physics=True
         )
@@ -149,7 +150,6 @@ class TestSceneRunnerService(unittest.TestCase):
     def test_register_physics_bodies_no_physics_engine(self):
         """Test _register_physics_bodies when physics engine is None."""
         SceneRunnerService.initialize(
-            app=self.mock_app,
             scene=self.mock_scene,
             enable_physics=False
         )
@@ -160,7 +160,6 @@ class TestSceneRunnerService(unittest.TestCase):
     def test_run_starts_scene(self):
         """Test that run() starts the scene runner."""
         SceneRunnerService.initialize(
-            app=self.mock_app,
             scene=self.mock_scene,
             enable_physics=False
         )
@@ -173,7 +172,6 @@ class TestSceneRunnerService(unittest.TestCase):
     def test_run_when_already_running(self):
         """Test that run() does nothing if already running."""
         SceneRunnerService.initialize(
-            app=self.mock_app,
             scene=self.mock_scene,
             enable_physics=False
         )
@@ -190,7 +188,6 @@ class TestSceneRunnerService(unittest.TestCase):
     def test_stop_stops_scene(self):
         """Test that stop() stops the scene runner."""
         SceneRunnerService.initialize(
-            app=self.mock_app,
             scene=self.mock_scene,
             enable_physics=False
         )
@@ -205,7 +202,6 @@ class TestSceneRunnerService(unittest.TestCase):
     def test_stop_when_not_running(self):
         """Test that stop() is safe to call when not running."""
         SceneRunnerService.initialize(
-            app=self.mock_app,
             scene=self.mock_scene,
             enable_physics=False
         )
@@ -218,7 +214,6 @@ class TestSceneRunnerService(unittest.TestCase):
     def test_run_scene_calculates_time_delta(self, mock_datetime):
         """Test that _run_scene calculates correct time delta."""
         SceneRunnerService.initialize(
-            app=self.mock_app,
             scene=self.mock_scene,
             enable_physics=False
         )
@@ -248,7 +243,6 @@ class TestSceneRunnerService(unittest.TestCase):
         ]
 
         SceneRunnerService.initialize(
-            app=self.mock_app,
             scene=self.mock_scene,
             enable_physics=False
         )
@@ -269,7 +263,6 @@ class TestSceneRunnerService(unittest.TestCase):
         ]
 
         SceneRunnerService.initialize(
-            app=self.mock_app,
             scene=self.mock_scene,
             enable_physics=True
         )
@@ -287,7 +280,6 @@ class TestSceneRunnerService(unittest.TestCase):
     def test_run_scene_skips_physics_when_disabled(self, mock_datetime):
         """Test that _run_scene skips physics when disabled."""
         SceneRunnerService.initialize(
-            app=self.mock_app,
             scene=self.mock_scene,
             enable_physics=False
         )
@@ -303,7 +295,6 @@ class TestSceneRunnerService(unittest.TestCase):
     def test_run_scene_stops_when_not_running(self):
         """Test that _run_scene exits early when _running is False."""
         SceneRunnerService.initialize(
-            app=self.mock_app,
             scene=self.mock_scene,
             enable_physics=True
         )
@@ -319,7 +310,6 @@ class TestSceneRunnerService(unittest.TestCase):
     def test_run_scene_reschedules_event(self):
         """Test that _run_scene reschedules itself."""
         SceneRunnerService.initialize(
-            app=self.mock_app,
             scene=self.mock_scene,
             enable_physics=False
         )
@@ -338,7 +328,6 @@ class TestSceneRunnerService(unittest.TestCase):
     def test_set_update_rate_valid(self):
         """Test setting valid update rates."""
         SceneRunnerService.initialize(
-            app=self.mock_app,
             scene=self.mock_scene,
             enable_physics=False
         )
@@ -358,7 +347,6 @@ class TestSceneRunnerService(unittest.TestCase):
     def test_set_update_rate_boundary_values(self):
         """Test setting update rate at boundary values."""
         SceneRunnerService.initialize(
-            app=self.mock_app,
             scene=self.mock_scene,
             enable_physics=False
         )
@@ -374,7 +362,6 @@ class TestSceneRunnerService(unittest.TestCase):
     def test_set_update_rate_invalid_low(self):
         """Test that invalid low FPS raises ValueError."""
         SceneRunnerService.initialize(
-            app=self.mock_app,
             scene=self.mock_scene,
             enable_physics=False
         )
@@ -387,7 +374,6 @@ class TestSceneRunnerService(unittest.TestCase):
     def test_set_update_rate_invalid_high(self):
         """Test that invalid high FPS raises ValueError."""
         SceneRunnerService.initialize(
-            app=self.mock_app,
             scene=self.mock_scene,
             enable_physics=False
         )
@@ -400,7 +386,6 @@ class TestSceneRunnerService(unittest.TestCase):
     def test_add_physics_body(self):
         """Test adding a physics body dynamically."""
         SceneRunnerService.initialize(
-            app=self.mock_app,
             scene=self.mock_scene,
             enable_physics=True
         )
@@ -415,7 +400,6 @@ class TestSceneRunnerService(unittest.TestCase):
     def test_remove_physics_body(self):
         """Test removing a physics body dynamically."""
         SceneRunnerService.initialize(
-            app=self.mock_app,
             scene=self.mock_scene,
             enable_physics=True
         )
@@ -434,7 +418,6 @@ class TestSceneRunnerService(unittest.TestCase):
     def test_get_physics_stats_with_physics(self):
         """Test getting physics stats when physics is enabled."""
         SceneRunnerService.initialize(
-            app=self.mock_app,
             scene=self.mock_scene,
             enable_physics=True
         )
@@ -449,7 +432,6 @@ class TestSceneRunnerService(unittest.TestCase):
     def test_get_physics_stats_without_physics(self):
         """Test getting physics stats when physics is disabled."""
         SceneRunnerService.initialize(
-            app=self.mock_app,
             scene=self.mock_scene,
             enable_physics=False
         )
@@ -462,7 +444,6 @@ class TestSceneRunnerService(unittest.TestCase):
     def test_current_time_initialization(self):
         """Test that current_time is initialized."""
         SceneRunnerService.initialize(
-            app=self.mock_app,
             scene=self.mock_scene,
             enable_physics=False
         )
@@ -473,7 +454,6 @@ class TestSceneRunnerService(unittest.TestCase):
     def test_update_interval_default(self):
         """Test default update interval is 16ms (~60 FPS)."""
         SceneRunnerService.initialize(
-            app=self.mock_app,
             scene=self.mock_scene,
             enable_physics=False
         )
@@ -502,7 +482,6 @@ class TestSceneRunnerService(unittest.TestCase):
         })
 
         SceneRunnerService.initialize(
-            app=self.mock_app,
             scene=self.mock_scene,
             enable_physics=True
         )
@@ -515,7 +494,6 @@ class TestSceneRunnerService(unittest.TestCase):
     def test_run_sets_current_time(self):
         """Test that run() sets current_time."""
         SceneRunnerService.initialize(
-            app=self.mock_app,
             scene=self.mock_scene,
             enable_physics=False
         )
@@ -529,7 +507,6 @@ class TestSceneRunnerService(unittest.TestCase):
     def test_set_scene_publishes_loaded_event(self):
         """Test that set_scene publishes SCENE_LOADED event."""
         SceneRunnerService.initialize(
-            app=self.mock_app,
             scene=None,
             enable_physics=False
         )
@@ -553,7 +530,6 @@ class TestSceneRunnerService(unittest.TestCase):
     def test_set_scene_none_publishes_unloaded_event(self):
         """Test that set_scene(None) publishes SCENE_UNLOADED event."""
         SceneRunnerService.initialize(
-            app=self.mock_app,
             scene=self.mock_scene,
             enable_physics=False
         )
@@ -577,7 +553,6 @@ class TestSceneRunnerService(unittest.TestCase):
     def test_new_scene_creates_and_sets_scene(self):
         """Test that new_scene creates and sets a new Scene."""
         SceneRunnerService.initialize(
-            app=self.mock_app,
             scene=None,
             enable_physics=False
         )

@@ -8,16 +8,16 @@ from typing import (
 )
 from pyrox.interfaces import (
     IConnectionRegistry,
-    IScene,
     ISceneObject,
     ICompositeSceneObject,
     ISceneGroup,
 )
+from pyrox.models.protocols import CoreMixin
 from pyrox.models.connection import ConnectionRegistry
 from pyrox.models.scene.sceneobject import SceneObject
 
 
-class Scene(IScene):
+class Scene(CoreMixin):
     """Class representing a scene containing scene_objects and tags.
     """
 
@@ -26,8 +26,7 @@ class Scene(IScene):
         name: str = "Untitled Scene",
         description: str = "",
     ):
-        self._name = name
-        self._description = description
+        super().__init__(name=name, description=description)
         self._scene_objects: dict[str, ISceneObject] = {}
         self._on_scene_object_added: list[Callable] = []
         self._on_scene_object_removed: list[Callable] = []
@@ -36,23 +35,24 @@ class Scene(IScene):
         # Connection registry
         self._connection_registry = ConnectionRegistry()
 
-    def get_name(self) -> str:
-        """Get the name of the scene."""
-        return self._name
+    def __repr__(self) -> str:
+        return (
+            f"Scene(name='{self.name}', "
+            f"description='{self.description}', "
+            f"scene_objects={len(self.scene_objects)}, "
+        )
+    # ------------------------------------------------------------------
+    # CoreMixin Overrides
+    # ------------------------------------------------------------------
 
     def set_name(self, name: str) -> None:
-        """Set the name of the scene."""
-        if not name:
-            raise ValueError("Scene name cannot be empty")
-        self._name = name
+        if not isinstance(name, str) or not name.strip():
+            raise ValueError("Scene name must be a non-empty string.")
+        super().set_name(name)
 
-    def get_description(self) -> str:
-        """Get the description of the scene."""
-        return self._description
-
-    def set_description(self, description: str) -> None:
-        """Set the description of the scene."""
-        self._description = description
+    # ------------------------------------------------------------------
+    # IScene interface implementation
+    # ------------------------------------------------------------------
 
     def add_scene_object(
         self,
@@ -124,12 +124,14 @@ class Scene(IScene):
     def get_on_scene_object_removed(self) -> list[Callable]:
         return self._on_scene_object_removed
 
-    def get_connection_registry(self) -> IConnectionRegistry:
+    def get_connection_registry(self) -> ConnectionRegistry:
         """Get the connection registry for the scene.
 
         Returns:
             IConnectionRegistry: The connection registry instance.
         """
+        if not isinstance(self._connection_registry, ConnectionRegistry):
+            raise RuntimeError("Scene's connection registry is not a ConnectionRegistry instance.")
         return self._connection_registry
 
     def set_connection_registry(self, registry: IConnectionRegistry) -> None:
@@ -138,6 +140,8 @@ class Scene(IScene):
         Args:
             registry (IConnectionRegistry): The connection registry instance.
         """
+        if not isinstance(registry, ConnectionRegistry):
+            raise ValueError("registry must be an instance of ConnectionRegistry.")
         self._connection_registry = registry
 
     def get_on_scene_updated(self) -> list[Callable[..., Any]]:
@@ -175,7 +179,7 @@ class Scene(IScene):
     def from_dict(
         cls,
         data: dict,
-    ) -> IScene:
+    ) -> 'Scene':
         """Create scene from dictionary.
 
         Uses a 2-pass strategy:
@@ -224,14 +228,70 @@ class Scene(IScene):
 
         # ------ Connections ------
         for conn_data in data.get("connections", []):
-            scene._connection_registry.connect(
-                source_id=conn_data["source"],
-                output_name=conn_data["output"],
-                target_id=conn_data["target"],
-                input_name=conn_data["input"],
-            )
+            try:
+                scene._connection_registry.connect(
+                    source_id=conn_data["source"],
+                    output_name=conn_data["output"],
+                    target_id=conn_data["target"],
+                    input_name=conn_data["input"],
+                    enabled=conn_data.get("enabled", True),
+                )
+            except AttributeError:
+                # The loaded object type doesn't expose the expected callback
+                # interface (e.g. a base SceneObject loaded in place of a
+                # specialised subclass).  Store the Connection record so it
+                # round-trips faithfully even though the callback can't be wired
+                # right now.
+                from pyrox.interfaces import Connection as _Connection
+                scene._connection_registry._connections.append(
+                    _Connection(
+                        conn_data["source"],
+                        conn_data["output"],
+                        conn_data["target"],
+                        conn_data["input"],
+                        enabled=conn_data.get("enabled", True),
+                    )
+                )
 
         return scene
+
+    def save(self, filepath: str | Path) -> None:
+        """
+        Save scene to JSON file.
+
+        Args:
+            filepath: Path to save the scene
+        """
+        filepath = Path(filepath)
+        filepath.parent.mkdir(parents=True, exist_ok=True)
+
+        with open(filepath, 'w') as f:
+            json.dump(self.to_dict(), f, indent=2)
+
+    @classmethod
+    def load(
+        cls,
+        filepath: str | Path,
+    ) -> 'Scene':
+        """
+        Load scene from JSON file.
+
+        Args:
+            filepath: Path to load the scene from
+            factory: Factory for creating scene objects
+
+        Returns:
+            Scene: Loaded scene instance
+
+        Raises:
+            ValueError: If scene_object_factory is not provided
+        """
+        filepath = Path(filepath)
+
+        with open(filepath, 'r') as f:
+            data = json.load(f)
+
+        return cls.from_dict(data)
 
     # ------------------------------------------------------------------
     # Group convenience helpers
@@ -331,40 +391,11 @@ class Scene(IScene):
         self.remove_scene_object(group_id)
         return members
 
-    def save(self, filepath: str | Path) -> None:
-        """
-        Save scene to JSON file.
-
-        Args:
-            filepath: Path to save the scene
-        """
-        filepath = Path(filepath)
-        filepath.parent.mkdir(parents=True, exist_ok=True)
-
-        with open(filepath, 'w') as f:
-            json.dump(self.to_dict(), f, indent=2)
-
-    @classmethod
-    def load(
-        cls,
-        filepath: str | Path,
-    ) -> IScene:
-        """
-        Load scene from JSON file.
-
-        Args:
-            filepath: Path to load the scene from
-            factory: Factory for creating scene objects
-
-        Returns:
-            Scene: Loaded scene instance
-
-        Raises:
-            ValueError: If scene_object_factory is not provided
-        """
-        filepath = Path(filepath)
-
-        with open(filepath, 'r') as f:
-            data = json.load(f)
-
-        return cls.from_dict(data)
+    # ------------------------------------------------------------------
+    # Property accessors
+    # ------------------------------------------------------------------
+    scene_objects = property(get_scene_objects, set_scene_objects)
+    on_scene_object_added = property(get_on_scene_object_added)
+    on_scene_object_removed = property(get_on_scene_object_removed)
+    on_scene_updated = property(get_on_scene_updated)
+    connection_registry = property(get_connection_registry, set_connection_registry)
