@@ -7,13 +7,15 @@ from typing import (
     Callable,
     Protocol,
     TypeVar,
+    runtime_checkable
 )
 from pyrox.interfaces import (
+    ICoreMixin,
     IBasePhysicsBody,
     IPhysicsBody2D,
     IConnectionRegistry,
 )
-from pyrox.interfaces.scene.sceneobject import ISceneObject, ISceneObjectFactory
+from pyrox.interfaces.scene.sceneobject import ISceneObject
 from pyrox.interfaces.scene.compositesceneobject import ICompositeSceneObject
 from pyrox.interfaces.scene.scenegroup import ISceneGroup
 
@@ -21,340 +23,52 @@ from pyrox.interfaces.scene.scenegroup import ISceneGroup
 T = TypeVar("T", bound=ISceneObject | ICompositeSceneObject | ISceneGroup)
 
 
-class IScene:
+@runtime_checkable
+class IScene(
+    ICoreMixin,
+    Protocol
+):
     """
     Scene Interface for managing scene objects within a scene.
     """
 
-    def __repr__(self) -> str:
-        return (
-            f"Scene(name='{self.name}', "
-            f"description='{self.description}', "
-            f"scene_objects={len(self.scene_objects)}, "
-            f"object_factory={self.get_scene_object_factory()})"
-        )
-
-    @property
-    def name(self) -> str:
-        """Get the name of the scene.
-
-        Returns:
-            str: The name of the scene.
-        """
-        return self.get_name()
-
-    @name.setter
-    def name(self, name: str) -> None:
-        """Set the name of the scene.
-
-        Args:
-            name (str): The name of the scene.
-        """
-        self.set_name(name)
-
-    @property
-    def description(self) -> str:
-        """Get the description of the scene.
-
-        Returns:
-            str: The description of the scene.
-        """
-        return self.get_description()
-
-    @description.setter
-    def description(self, description: str) -> None:
-        """Set the description of the scene.
-
-        Args:
-            description (str): The description of the scene.
-        """
-        self.set_description(description)
-
-    @property
-    def scene_objects(self) -> dict[str, ISceneObject | ICompositeSceneObject | ISceneGroup]:
-        """Get the scene objects in the scene.
-
-        Returns:
-            dict[str, ISceneObject]: A dictionary of scene objects by their IDs.
-        """
-        return self.get_scene_objects()
-
-    @property
-    def on_scene_object_added(self) -> list[Callable]:
-        """
-        Get the callback for when a scene_object is added.
-
-        Returns:
-            Callable or None: The callback function or None if not set.
-        """
-        return self.get_on_scene_object_added()
-
-    @property
-    def on_scene_object_removed(self) -> list[Callable]:
-        """
-        Get the callback for when a scene_object is removed.
-
-        Returns:
-            Callable or None: The callback function or None if not set.
-        """
-        return self.get_on_scene_object_removed()
-
-    @property
-    def on_scene_updated(self) -> list[Callable]:
-        """
-        Get the callback for when the scene is updated.
-
-        Returns:
-            Callable or None: The callback function or None if not set.
-        """
-        return self.get_on_scene_updated()
-
-    @abstractmethod
-    def get_name(self) -> str:
-        """Get the name of the scene."""
-        ...
-
-    @abstractmethod
-    def set_name(self, name: str) -> None:
-        """Set the name of the scene.
-
-        Args:
-            name (str): The name of the scene.
-        """
-        ...
-
-    @abstractmethod
-    def get_description(self) -> str:
-        """Get the description of the scene."""
-        ...
-
-    @abstractmethod
-    def set_description(self, description: str) -> None:
-        """Set the description of the scene.
-
-        Args:
-            description (str): The description of the scene.
-        """
-        ...
-
-    @abstractmethod
-    def get_scene_object(self, scene_object_id: str) -> ISceneObject | ICompositeSceneObject | ISceneGroup | None:
-        """Get a scene_object by ID."""
-        ...
-
-    @abstractmethod
-    def get_scene_objects(self) -> dict[str, ISceneObject | ICompositeSceneObject | ISceneGroup]:
-        """Get all scene objects in the scene.
-
-        Returns:
-            dict[str, ISceneObject]: A dictionary of scene objects by their IDs.
-        """
-        ...
-
-    @abstractmethod
-    def set_scene_objects(
-        self,
-        scene_objects: dict[str, T]
-    ) -> None:
-        """Set the scene objects for the scene.
-
-        Args:
-            scene_objects (dict[str, ISceneObject]): A dictionary of scene objects by their IDs.
-        """
-        ...
-
-    @abstractmethod
-    def get_scene_object_factory(self) -> ISceneObjectFactory | None:
-        """Get the object factory for loading scenes."""
-        ...
-
-    @abstractmethod
-    def set_scene_object_factory(self, factory: ISceneObjectFactory) -> None:
-        """Set the object factory for loading scenes.
-
-        Args:
-            factory: The scene object factory to set.
-        """
-        ...
-
-    @abstractmethod
-    def add_scene_object(self, scene_object: ISceneObject | ICompositeSceneObject | ISceneGroup) -> None:
-        """
-        Add a scene_object to the scene.
-
-        Args:
-            scene_object: scene_object instance to add
-
-        Raises:
-            ValueError: If scene_object ID already exists
-        """
-        ...
-
-    @abstractmethod
-    def get_on_scene_object_added(self) -> list[Callable]:
-        """
-        Get the list of callbacks for when a scene_object is added.
-
-        Returns:
-            list[Callable]: The list of callback functions.
-        """
-        ...
-
-    @abstractmethod
-    def remove_scene_object(self, scene_object_id: str) -> None:
-        """
-        Remove a scene_object from the scene.
-
-        Args:
-            scene_object_id: ID of scene_object to remove
-        """
-        ...
-
-    @abstractmethod
-    def get_on_scene_object_removed(self) -> list[Callable]:
-        """
-        Get the list of callbacks for when a scene_object is removed.
-
-        Returns:
-            list[Callable]: The list of callback functions.
-        """
-        ...
-
-    @abstractmethod
-    def get_connection_registry(self) -> "IConnectionRegistry":
-        """Get the connection registry for the scene.
-
-        Returns:
-            IConnectionRegistry: The connection registry instance.
-        """
-        ...
-
-    @abstractmethod
-    def set_connection_registry(
-        self,
-        registry: "IConnectionRegistry"
-    ) -> None:
-        """Set the connection registry for the scene.
-
-        Args:
-            registry (IConnectionRegistry): The connection registry instance.
-        """
-        ...
-
-    @abstractmethod
-    def get_on_scene_updated(self) -> list[Callable]:
-        """
-        Get the list of callbacks for when the scene is updated.
-
-        Returns:
-            list[Callable]: The list of callback functions.
-        """
-        ...
-
-    @abstractmethod
-    def update(self, delta_time: float) -> None:
-        """
-        Update all scene_objects in the scene.
-
-        Args:
-            delta_time: Time elapsed since last update in seconds
-        """
-        ...
-
-    @abstractmethod
-    def to_dict(self) -> dict:
-        """Convert scene to dictionary for JSON serialization."""
-        ...
-
+    def get_name(self) -> str: ...
+    def set_name(self, name: str) -> None: ...
+    def get_description(self) -> str: ...
+    def set_description(self, description: str) -> None: ...
+    def get_scene_object(self, scene_object_id: str) -> ISceneObject | ICompositeSceneObject | ISceneGroup | None: ...
+    def get_scene_objects(self) -> dict[str, ISceneObject | ICompositeSceneObject | ISceneGroup]: ...
+    def set_scene_objects(self, scene_objects: dict[str, T]) -> None: ...
+    def add_scene_object(self, scene_object: ISceneObject | ICompositeSceneObject | ISceneGroup) -> None: ...
+    def get_on_scene_object_added(self) -> list[Callable]: ...
+    def remove_scene_object(self, scene_object_id: str) -> None: ...
+    def get_on_scene_object_removed(self) -> list[Callable]: ...
+    def get_connection_registry(self) -> "IConnectionRegistry": ...
+    def set_connection_registry(self, registry: "IConnectionRegistry") -> None: ...
+    def get_on_scene_updated(self) -> list[Callable]: ...
+    def update(self, delta_time: float) -> None: ...
+    def to_dict(self) -> dict: ...
     @classmethod
-    @abstractmethod
-    def from_dict(
-        cls,
-        data: dict,
-    ) -> "IScene":
-        """
-        Create scene from dictionary.
-
-        Args:
-            data: dictionary containing scene data
-
-        Returns:
-            Scene instance
-        """
-        ...
-
-    @abstractmethod
-    def save(self, filepath: str | Path) -> None:
-        """
-        Save scene to JSON file.
-
-        Args:
-            filepath: Path to save the scene JSON file
-        """
-        ...
-
+    def from_dict(cls, data: dict) -> "IScene": ...
+    def save(self, filepath: str | Path) -> None: ...
     @classmethod
-    @abstractmethod
-    def load(
-        cls,
-        filepath: str | Path
-    ) -> "IScene":
-        """
-        Load scene from JSON file.
-
-        Args:
-            filepath: Path to the scene JSON file
-        Returns:
-            Scene instance
-        """
-        ...
+    def load(cls, filepath: str | Path) -> "IScene": ...
 
     # ------------------------------------------------------------------
     # Group convenience helpers
     # ------------------------------------------------------------------
 
-    @abstractmethod
-    def group_objects(
-        self,
-        object_ids: list[str],
-        name: str = "Group",
-        layer: int = 0,
-    ) -> "ISceneGroup":
-        """Wrap existing scene objects into a new SceneGroup.
+    def group_objects(self, object_ids: list[str], name: str = "Group", layer: int = 0) -> "ISceneGroup": ...
+    def ungroup(self, group_id: str) -> list[ISceneObject]: ...
 
-        All objects identified by *object_ids* must already be registered in
-        this scene.  A new SceneGroup anchor is added to the scene and its
-        bounding box is computed from the members.
-
-        Args:
-            object_ids: IDs of the scene objects to group.
-            name:       Name for the new SceneGroup.
-            layer:      Rendering layer for the group anchor.
-
-        Returns:
-            The newly created SceneGroup.
-
-        Raises:
-            ValueError: If any ID is not found in this scene.
-        """
-        ...
-
-    @abstractmethod
-    def ungroup(self, group_id: str) -> list[ISceneObject]:
-        """Disband a SceneGroup, returning members to standalone status.
-
-        The group anchor is removed from the scene; members remain.
-
-        Args:
-            group_id: Scene object ID of the SceneGroup to disband.
-
-        Returns:
-            list of former member objects.
-
-        Raises:
-            ValueError: If the ID does not correspond to a SceneGroup.
-        """
-        ...
+    # ------------------------------------------------------------------
+    # Property accessors
+    # ------------------------------------------------------------------
+    scene_objects = property()
+    on_scene_object_added = property()
+    on_scene_object_removed = property()
+    on_scene_updated = property()
+    connection_registry = property()
 
 
 class ISceneRunnerService(

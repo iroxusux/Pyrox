@@ -6,6 +6,8 @@ import unittest
 from pathlib import Path
 from typing import Any, Dict
 from pyrox.interfaces import (
+    ICoreMixin,
+    IScene,
     ISceneObject,
     BodyType,
     ColliderType,
@@ -17,6 +19,18 @@ from pyrox.models import (
     BasePhysicsBody,
     Material,
 )
+
+
+class TestSceneInterface(unittest.TestCase):
+    """Test cases for Scene interface."""
+
+    def test_scene_is_iscene(self):
+        """Test that Scene implements IScene interface."""
+        self.assertIsInstance(Scene(), IScene)
+
+    def test_scene_is_icoremixin(self):
+        """Test that Scene implements ICoreMixin interface."""
+        self.assertIsInstance(Scene(), ICoreMixin)
 
 
 class TestScene(unittest.TestCase):
@@ -434,7 +448,7 @@ class TestScene(unittest.TestCase):
         with self.assertRaises(ValueError) as context:
             scene.set_name("")
 
-        self.assertIn("cannot be empty", str(context.exception))
+        self.assertIn("Scene name must be a non-empty string", str(context.exception))
 
     def test_get_name(self):
         """Test Scene.get_name() method."""

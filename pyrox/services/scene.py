@@ -1,12 +1,10 @@
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import auto
-import importlib
 from typing import Any, Callable
 import json
 from pathlib import Path
 from pyrox.interfaces import (
-    IApplication,
     IPhysicsBody2D,
     IScene,
     ISceneBridge,
@@ -236,16 +234,21 @@ class SceneBridgeService:
         # Lazy import to avoid circular dependencies at module level
         from pyrox.models.scene.scenebridge import SceneBridge
         from pyrox.models.scene.sceneboundlayer import SceneBoundLayer
+
         if cls._bridge and cls._bridge.is_active():
             cls._bridge.stop()
+
         cls._bridge = SceneBridge(
             scene=scene,
             bound_object=SceneBoundLayer()
         )
+
         if not isinstance(cls._bridge.get_bound_object(), SceneBoundLayer):
             raise TypeError("SceneBridge must be created with a SceneBoundLayer as its bound object")
+
         for source_name, factory in cls._source_factories.items():
             cls._bridge.get_bound_object().register_source(source_name, factory())
+
         log(cls).info("created new SceneBridge for loaded scene")
 
     # ------------------------------------------------------------------
@@ -352,7 +355,6 @@ class SceneRunnerService(
     @classmethod
     def initialize(
         cls,
-        app: IApplication,
         scene: IScene | None = None,
         physics_engine: physics.PhysicsEngineService | None = None,
         environment: env.EnvironmentService | None = None,
@@ -372,13 +374,10 @@ class SceneRunnerService(
         SceneBridgeService.initialize()
 
         # Set application context
-        cls._app = app
         cls._enable_physics = enable_physics
 
         # Physics integration
         if enable_physics:
-            importlib.reload(physics)
-            importlib.reload(env)
             cls.set_environment(environment or env.EnvironmentService())
             cls.set_physics_engine(physics_engine or physics.PhysicsEngineService(
                 environment=cls._environment

@@ -287,13 +287,6 @@ class TestOnNewScene(_SceneviewerTestBase):
             self.MockSceneRunnerService.new_scene.assert_called_once()
             self.MockSceneRunnerService.run.assert_called_once()
 
-    def test_initializes_with_application(self):
-        task = self._make_task()
-        with patch.object(task, 'create_or_raise_frame'):
-            task._on_new_scene()
-            init_call = self.MockSceneRunnerService.initialize.call_args
-            self.assertIs(init_call.kwargs.get('app') or init_call.args[0], self.app)
-
 
 # ---------------------------------------------------------------------------
 # _on_load_scene

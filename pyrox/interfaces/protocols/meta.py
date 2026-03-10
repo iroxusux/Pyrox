@@ -313,6 +313,7 @@ class ICoreMixin(
     IHasId,
     INameable,
     IDescribable,
+    Protocol,
 ):
     """Mixin class that acts as a core with name and description.
     """
