@@ -6,6 +6,7 @@ from typing import (
     Any,
     Callable,
 )
+from pyrox.services.logging import log
 from pyrox.interfaces import (
     IConnectionRegistry,
     ISceneObject,
@@ -161,8 +162,7 @@ class Scene(CoreMixin):
             try:
                 callback(self, delta_time)
             except Exception as e:
-                print(f"Error in on_scene_updated callback: {e}")
-                self._on_scene_updated.remove(callback)
+                log(self).error(f"Error in on_scene_updated callback {callback!r}: {e}")
 
     def to_dict(self) -> dict:
         """Convert scene to dictionary for JSON serialization."""
