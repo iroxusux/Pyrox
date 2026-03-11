@@ -3,6 +3,7 @@
 from dataclasses import dataclass
 from enum import Enum
 from typing import Callable, Generic, TypeVar
+from pyrox.services.logging import log
 
 
 class EventType(Enum):
@@ -96,7 +97,11 @@ class EventBus(Generic[T, E]):
         for cb in subscribers.copy():
             try:
                 cb(event)
-            except Exception:
+            except Exception as exc:
+                log(cls.__name__).error(
+                    "EventBus: unhandled exception in subscriber %r for %s: %s",
+                    cb, event.event_type, exc, exc_info=True
+                )
                 dead.append(cb)
         for cb in dead:
             cls.unsubscribe(event.event_type, cb)
