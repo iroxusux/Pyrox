@@ -280,6 +280,12 @@ class SceneBridge(ISceneBridge):
 
             try:
                 self._write_source_value(binding, source_value)
+            except AttributeError as exc:
+                # Transient: intermediate path node not yet available (e.g. UDT
+                # tag not yet read from PLC on first tick).  Log at DEBUG and
+                # let the binding retry on the next tick rather than disabling it.
+                log(self).debug(f"Write deferred for {binding.binding_key}: {exc}")
+                continue
             except Exception as exc:
                 log(self).error(f"Write error for {binding.binding_key}: {exc}")
                 binding.enabled = False
