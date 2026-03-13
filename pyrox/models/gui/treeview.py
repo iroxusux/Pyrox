@@ -324,7 +324,55 @@ class AttributeTreeView(TaskFrame):
 
         filter_text = self._search_edit.text().strip().lower()
 
-        # Collect public, non-callable attributes
+        # -- Container shortcut: render dict / list / tuple directly ----------
+        if isinstance(self._target, dict):
+            attr_count = 0
+            for key, value in self._target.items():
+                if filter_text and filter_text not in str(key).lower():
+                    continue
+                root_item = QTreeWidgetItem(self._tree)
+                root_item.setText(0, str(key))
+                root_item.setText(1, _type_label(value))
+                root_item.setText(2, _preview(value))
+                if not isinstance(value, _PRIMITIVE_TYPES):
+                    _populate_item(root_item, value, depth=1)
+                    if root_item.childCount():
+                        root_item.setChildIndicatorPolicy(
+                            QTreeWidgetItem.ChildIndicatorPolicy.ShowIndicator
+                        )
+                attr_count += 1
+            noun = 'entry' if attr_count == 1 else 'entries'
+            self._status_label.setText(f'dict — {attr_count} {noun}')
+            return
+
+        if isinstance(self._target, (list, tuple)):
+            items = list(self._target)
+            render = items[:_MAX_SEQUENCE_ITEMS]
+            attr_count = 0
+            for idx, value in enumerate(render):
+                key_text = f'[{idx}]'
+                if filter_text and filter_text not in key_text:
+                    continue
+                root_item = QTreeWidgetItem(self._tree)
+                root_item.setText(0, key_text)
+                root_item.setText(1, _type_label(value))
+                root_item.setText(2, _preview(value))
+                if not isinstance(value, _PRIMITIVE_TYPES):
+                    _populate_item(root_item, value, depth=1)
+                    if root_item.childCount():
+                        root_item.setChildIndicatorPolicy(
+                            QTreeWidgetItem.ChildIndicatorPolicy.ShowIndicator
+                        )
+                attr_count += 1
+            if len(items) > _MAX_SEQUENCE_ITEMS:
+                overflow = QTreeWidgetItem(self._tree)
+                overflow.setText(0, f'… {len(items) - _MAX_SEQUENCE_ITEMS} more items')
+            type_name = type(self._target).__name__
+            noun = 'item' if attr_count == 1 else 'items'
+            self._status_label.setText(f'{type_name} — {attr_count} {noun}')
+            return
+
+        # -- Generic object: introspect public attributes ---------------------
         try:
             all_names = [n for n in dir(self._target) if not n.startswith('_')]
         except Exception as exc:

@@ -479,10 +479,8 @@ class CommandBar(QWidget):
             raise TypeError(f"'{item_id}' is not a button.")
         slot.selected = selected
         slot.button.setProperty('selected', 'true' if selected else 'false')
-        # Force Qt to re-evaluate the stylesheet for this widget
+        # Force Qt to re-evaluate the stylesheet for this widget (visual-only)
         _refresh_style(slot.button)
-        if selected and slot.config.selectable:
-            slot.config.command()
 
     def set_dropdown_value(self, item_id: str, value: str) -> None:
         """Programmatically change the selected value of a dropdown.
