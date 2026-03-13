@@ -167,7 +167,7 @@ def _populate_item(parent_item: QTreeWidgetItem, value: Any, depth: int = 0) -> 
         return
 
     if isinstance(value, dict):
-        for k, v in value.items():
+        for k, v in list(value.items()):
             child = QTreeWidgetItem(parent_item)
             child.setText(0, str(k))
             child.setText(1, _type_label(v))

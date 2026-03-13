@@ -739,5 +739,135 @@ class TestInsertMenuCommandWithAccelerator(unittest.TestCase):
         self.mock_menu.insertAction.assert_called_once_with(existing_action, mock_action)
 
 
+class TestGuiManagerPromptForFile(unittest.TestCase):
+    """Tests for GuiManager.get_open_file() and get_save_file()."""
+
+    def setUp(self):
+        _reset_manager()
+        self.mock_root = MagicMock()
+        GuiManager._root_window = self.mock_root
+
+    def tearDown(self):
+        _reset_manager()
+
+    @patch('pyrox.services.gui.QFileDialog')
+    def test_get_open_file_calls_getOpenFileName(self, mock_qfile_dialog_class):
+        """get_open_file() calls QFileDialog.getOpenFileName() with the parent window."""
+        mock_qfile_dialog_class.getOpenFileName.return_value = ('/path/to/file.txt', 'Text Files (*.txt)')
+        result = GuiManager.prompt_user_open_file()
+        mock_qfile_dialog_class.getOpenFileName.assert_called_once_with(
+            self.mock_root,
+            "Open file",
+            "",
+            "All files (*.*)"
+        )
+        self.assertEqual(result, '/path/to/file.txt')
+
+    @patch('pyrox.services.gui.QFileDialog')
+    def test_get_save_file_calls_getSaveFileName(self, mock_qfile_dialog_class):
+        """get_save_file() calls QFileDialog.getSaveFileName() with the parent window."""
+        mock_qfile_dialog_class.getSaveFileName.return_value = ('/path/to/save.txt', 'Text Files (*.txt)')
+        result = GuiManager.prompt_user_save_file()
+        mock_qfile_dialog_class.getSaveFileName.assert_called_once_with(
+            self.mock_root,
+            "Save file as",
+            "",
+            "All files (*.*)"
+        )
+        self.assertEqual(result, '/path/to/save.txt')
+
+    # ---- filetype filtering ------------------------------------------------
+
+    @patch('pyrox.services.gui.QFileDialog')
+    def test_open_file_with_single_filetype(self, mock_qfile_dialog_class):
+        """A single filetype tuple is converted to a Qt filter string."""
+        mock_qfile_dialog_class.getOpenFileName.return_value = ('/doc.pdf', '')
+        GuiManager.prompt_user_open_file(filetypes=[('PDF Files', '*.pdf')])
+        _, _, _, filter_arg = mock_qfile_dialog_class.getOpenFileName.call_args[0]
+        self.assertEqual(filter_arg, 'PDF Files (*.pdf)')
+
+    @patch('pyrox.services.gui.QFileDialog')
+    def test_open_file_with_l5x_filetype(self, mock_qfile_dialog_class):
+        """An L5X filetype tuple produces the correct Qt filter string."""
+        mock_qfile_dialog_class.getOpenFileName.return_value = ('/prog.L5X', '')
+        GuiManager.prompt_user_open_file(filetypes=[('L5X Files', '*.L5X')])
+        _, _, _, filter_arg = mock_qfile_dialog_class.getOpenFileName.call_args[0]
+        self.assertEqual(filter_arg, 'L5X Files (*.L5X)')
+
+    @patch('pyrox.services.gui.QFileDialog')
+    def test_open_file_with_xml_filetype(self, mock_qfile_dialog_class):
+        """An XML filetype tuple produces the correct Qt filter string."""
+        mock_qfile_dialog_class.getOpenFileName.return_value = ('/data.xml', '')
+        GuiManager.prompt_user_open_file(filetypes=[('XML Files', '*.xml')])
+        _, _, _, filter_arg = mock_qfile_dialog_class.getOpenFileName.call_args[0]
+        self.assertEqual(filter_arg, 'XML Files (*.xml)')
+
+    @patch('pyrox.services.gui.QFileDialog')
+    def test_open_file_with_multiple_filetypes(self, mock_qfile_dialog_class):
+        """Multiple filetype tuples are joined with ';;' as a Qt filter string."""
+        mock_qfile_dialog_class.getOpenFileName.return_value = ('/prog.L5X', '')
+        GuiManager.prompt_user_open_file(filetypes=[
+            ('L5X Files', '*.L5X'),
+            ('XML Files', '*.xml'),
+            ('PDF Files', '*.pdf'),
+        ])
+        _, _, _, filter_arg = mock_qfile_dialog_class.getOpenFileName.call_args[0]
+        self.assertEqual(filter_arg, 'L5X Files (*.L5X);;XML Files (*.xml);;PDF Files (*.pdf)')
+
+    @patch('pyrox.services.gui.QFileDialog')
+    def test_save_file_with_single_filetype(self, mock_qfile_dialog_class):
+        """A single filetype tuple is forwarded correctly to getSaveFileName."""
+        mock_qfile_dialog_class.getSaveFileName.return_value = ('/out.pdf', '')
+        GuiManager.prompt_user_save_file(filetypes=[('PDF Files', '*.pdf')])
+        _, _, _, filter_arg = mock_qfile_dialog_class.getSaveFileName.call_args[0]
+        self.assertEqual(filter_arg, 'PDF Files (*.pdf)')
+
+    @patch('pyrox.services.gui.QFileDialog')
+    def test_save_file_with_l5x_filetype(self, mock_qfile_dialog_class):
+        """An L5X filetype tuple is forwarded correctly to getSaveFileName."""
+        mock_qfile_dialog_class.getSaveFileName.return_value = ('/out.L5X', '')
+        GuiManager.prompt_user_save_file(filetypes=[('L5X Files', '*.L5X')])
+        _, _, _, filter_arg = mock_qfile_dialog_class.getSaveFileName.call_args[0]
+        self.assertEqual(filter_arg, 'L5X Files (*.L5X)')
+
+    @patch('pyrox.services.gui.QFileDialog')
+    def test_open_file_with_no_filetypes_uses_all_files_fallback(self, mock_qfile_dialog_class):
+        """Passing filetypes=None falls back to the 'All files' filter."""
+        mock_qfile_dialog_class.getOpenFileName.return_value = ('', '')
+        GuiManager.prompt_user_open_file(filetypes=None)
+        _, _, _, filter_arg = mock_qfile_dialog_class.getOpenFileName.call_args[0]
+        self.assertEqual(filter_arg, 'All files (*.*)')
+
+    @patch('pyrox.services.gui.QFileDialog')
+    def test_open_file_returns_none_when_dialog_cancelled(self, mock_qfile_dialog_class):
+        """prompt_user_open_file() returns None when the user cancels the dialog."""
+        mock_qfile_dialog_class.getOpenFileName.return_value = ('', '')
+        result = GuiManager.prompt_user_open_file(filetypes=[('L5X Files', '*.L5X')])
+        self.assertIsNone(result)
+
+    @patch('pyrox.services.gui.QFileDialog')
+    def test_save_file_returns_none_when_dialog_cancelled(self, mock_qfile_dialog_class):
+        """prompt_user_save_file() returns None when the user cancels the dialog."""
+        mock_qfile_dialog_class.getSaveFileName.return_value = ('', '')
+        result = GuiManager.prompt_user_save_file(filetypes=[('PDF Files', '*.pdf')])
+        self.assertIsNone(result)
+
+    @patch('pyrox.services.gui.QFileDialog')
+    def test_open_file_custom_title_is_passed_through(self, mock_qfile_dialog_class):
+        """A custom title is forwarded as the second argument to getOpenFileName."""
+        mock_qfile_dialog_class.getOpenFileName.return_value = ('/f.xml', '')
+        GuiManager.prompt_user_open_file(title='Select XML', filetypes=[('XML Files', '*.xml')])
+        _, title_arg, _, _ = mock_qfile_dialog_class.getOpenFileName.call_args[0]
+        self.assertEqual(title_arg, 'Select XML')
+
+    @patch('pyrox.services.gui.QFileDialog')
+    def test_save_file_custom_title_is_passed_through(self, mock_qfile_dialog_class):
+        """A custom title is forwarded as the second argument to getSaveFileName."""
+        mock_qfile_dialog_class.getSaveFileName.return_value = ('/f.pdf', '')
+        GuiManager.prompt_user_save_file(title='Save PDF As', filetypes=[('PDF Files', '*.pdf')])
+        _, title_arg, _, _ = mock_qfile_dialog_class.getSaveFileName.call_args[0]
+        self.assertEqual(title_arg, 'Save PDF As')
+
+
 if __name__ == '__main__':
     unittest.main()
