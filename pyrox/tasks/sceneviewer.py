@@ -211,18 +211,6 @@ class SceneviewerApplicationTask(ApplicationTask):
         # Design Mode controls
         self.register_menu_command(
             menu=scene_view_dropdown,
-            registry_id="scene.view.design_mode",
-            registry_path="View/Scene Viewer/Design Mode",
-            index=7,
-            label="Design Mode",
-            command=None,  # To be assigned by SceneViewer
-            accelerator="Ctrl+D",
-            underline=0,
-            category="scene",
-            enabled=False
-        )
-        self.register_menu_command(
-            menu=scene_view_dropdown,
             registry_id="scene.view.object_palette",
             registry_path="View/Scene Viewer/Object Palette",
             index=8,

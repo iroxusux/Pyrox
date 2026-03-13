@@ -102,7 +102,7 @@ class ViewTask(ApplicationTask):
                 registry_path=f"View/Application Directories/Open {dir_name} Directory",
                 index=0,
                 label=f"Open {dir_name} Directory",
-                command=lambda d=dir_name: os.startfile(PlatformDirectoryService.all_directories()[d]),
+                command=lambda *_, d=dir_name: os.startfile(PlatformDirectoryService.all_directories()[d]),
                 underline=0,
                 category="view",
             )

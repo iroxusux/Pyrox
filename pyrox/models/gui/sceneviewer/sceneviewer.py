@@ -576,23 +576,24 @@ class SceneViewerFrame(TaskFrame):
             log().warning("No scene loaded. Cannot open connection editor.")
             return
 
-        editor_window = QWidget()
-        editor_window.setWindowTitle("Connection Editor")
-        editor_window.resize(1200, 800)
-        editor_window.setWindowFlag(Qt.WindowType.Window)
+        self._connection_editor_window = QMainWindow()
+        self._connection_editor_window.setWindowTitle("Connection Editor")
+        self._connection_editor_window.resize(1200, 800)
+        self._connection_editor_window.setWindowFlag(Qt.WindowType.Window)
 
-        layout = QVBoxLayout(editor_window)
+        layout = QVBoxLayout(self._connection_editor_window)
         layout.setContentsMargins(0, 0, 0, 0)
 
         connection_registry = self._scene.get_connection_registry()
         editor = ConnectionEditor(
-            parent=editor_window,
+            parent=self._connection_editor_window,
             scene=self._scene,
             connection_registry=connection_registry  # type: ignore[arg-type]
         )
         layout.addWidget(editor)
-        editor_window.show()
-        editor_window.raise_()
+        self._connection_editor_window.setCentralWidget(editor)
+        self._connection_editor_window.show()
+        self._connection_editor_window.raise_()
 
     def clear_canvas(self) -> None:
         """Clear all items from the canvas without affecting the scene."""
@@ -1229,11 +1230,35 @@ class SceneViewerFrame(TaskFrame):
         self._toolbar.on_toggle_object_palette = self.toggle_object_palette
         self._toolbar.on_toggle_entity_names = self.toggle_entity_names
 
+    def _bind_menu_registry(self) -> None:
+        """Bind menu registry items to their respective commands."""
+        # Edit commands
+        MenuRegistry.set_command("scene.edit.delete_selected", self.delete_selected_objects)
+        MenuRegistry.set_command("scene.edit.group", self._context_group_selected)
+        MenuRegistry.set_command("scene.edit.ungroup", self._context_ungroup_selected)
+
+        # Zoom commands
+        MenuRegistry.set_command("scene.view.zoom_in", self._zoom_in)
+        MenuRegistry.set_command("scene.view.zoom_out", self._zoom_out)
+        MenuRegistry.set_command("scene.view.reset_view", self._reset_view)
+
+        # Grid commands
+        MenuRegistry.set_command("scene.view.show_grid", self._viewport_service.grid.toggle)
+        MenuRegistry.set_command("scene.view.snap_to_grid", self._viewport_service.grid.toggle_snap)
+
+        # Design mode commands
+        MenuRegistry.set_command("scene.view.object_palette", self.toggle_object_palette)
+        MenuRegistry.set_command("scene.view.properties_panel", self.toggle_properties_panel)
+        MenuRegistry.set_command("scene.view.bridge_panel", self.toggle_bridge_panel)
+        MenuRegistry.set_command("scene.view.connection_editor", self.open_connection_editor)
+        MenuRegistry.set_command("scene.view.entity_names", self.toggle_entity_names)
+
     def _bind(self, *_) -> None:
         """Wire up events and service integrations."""
         self._mode.on_mode_change = self._viewport_service._viewport_status_service.set_current_tool
 
         self._bind_toolbar()
+        self._bind_menu_registry()
 
         SceneEventBus.subscribe(SceneEventType.SCENE_LOADED, self._scene_loaded_callback)
         SceneEventBus.subscribe(SceneEventType.SCENE_UNLOADED, self._scene_unloaded_callback)

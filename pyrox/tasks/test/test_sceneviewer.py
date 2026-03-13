@@ -154,10 +154,6 @@ class TestSceneviewerInit(_SceneviewerTestBase):
         self._make_task()
         self.assertIn('scene.view.zoom_out', self._registered_ids())
 
-    def test_registers_design_mode(self):
-        self._make_task()
-        self.assertIn('scene.view.design_mode', self._registered_ids())
-
     def test_registers_properties_panel(self):
         self._make_task()
         self.assertIn('scene.view.properties_panel', self._registered_ids())

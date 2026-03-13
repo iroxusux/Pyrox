@@ -127,7 +127,7 @@ class _EditorWidget(QPlainTextEdit):
     """QPlainTextEdit that hosts the optional line-number gutter and handles Tab."""
 
     def __init__(self, frame: 'TextEditorFrame') -> None:
-        super().__init__(frame.root)
+        super().__init__(frame.content_frame)
         self._frame = frame
         self._line_number_area: Optional[_LineNumberArea] = None
 
@@ -299,7 +299,8 @@ class TextEditorFrame(TaskFrame):
 
     def _build_ui(self) -> None:
         t = DefaultTheme()
-        root = QVBoxLayout(self.root)
+        root = self.content_frame.layout()
+        assert root is not None, "Content frame must have a layout"
         root.setContentsMargins(4, 4, 4, 4)
         root.setSpacing(4)
 
