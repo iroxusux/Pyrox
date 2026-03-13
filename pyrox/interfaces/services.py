@@ -7,7 +7,7 @@ dependencies, enabling clean separation of concerns.
 
 from __future__ import annotations
 from abc import ABC, abstractmethod
-from typing import Any, Optional, TextIO
+from typing import Any, Optional, Protocol, runtime_checkable, TextIO
 
 
 class IEnvironmentManager(ABC):
@@ -244,8 +244,44 @@ class ILoggingManager(ABC):
         pass
 
 
+@runtime_checkable
+class ISupportsServiceStatus(Protocol):
+    """Protocol for objects that can report their service status."""
+
+    def is_service_active(self) -> bool:
+        """Check if the service is currently active.
+
+        Returns:
+            bool: True if the service is active, False otherwise.
+        """
+        ...
+
+    def is_service_initialized(self) -> bool:
+        """Check if the service has been initialized.
+
+        Returns:
+            bool: True if the service is initialized, False otherwise.
+        """
+        ...
+
+
+@runtime_checkable
+class IHasViewableServiceAttributes(Protocol):
+    """Protocol for services that have viewable attributes."""
+
+    def get_viewable_attributes(self) -> dict[str, Any]:
+        """Get a dictionary of viewable attributes for the service.
+
+        Returns:
+            dict[str, Any]: A dictionary of attribute names and their values.
+        """
+        ...
+
+
 __all__ = (
     'IEnvironmentManager',
     'ILogger',
     'ILoggingManager',
+    'ISupportsServiceStatus',
+    'IHasViewableServiceAttributes',
 )

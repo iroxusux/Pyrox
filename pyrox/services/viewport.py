@@ -1,10 +1,12 @@
 """Viewport panning service module.
 """
+from __future__ import annotations
 from dataclasses import dataclass, field
 from enum import Enum
 from typing import Callable
-import tkinter as tk
-from tkinter import ttk
+from PyQt6.QtCore import Qt, QObject, QEvent, QTimer
+from PyQt6.QtGui import QColor, QFont, QPen
+from PyQt6.QtWidgets import QFrame, QGraphicsView, QHBoxLayout, QLabel, QWidget
 from pyrox.interfaces import IViewport
 from pyrox.services import MenuRegistry, MenuItemDescriptor, Event, EventBus, EventType
 
@@ -28,6 +30,47 @@ class ViewportEventBus(EventBus[ViewportEventType, ViewportEvent]):
     pass
 
 
+class _CanvasEventFilter(QObject):
+    """QObject event filter for routing canvas mouse events to viewport services."""
+
+    def __init__(
+        self,
+        motion_callback: Callable[[float, float], None] | None = None,
+        press_callback: Callable | None = None,
+        move_callback: Callable[[float, float], None] | None = None,
+        release_callback: Callable | None = None,
+        wheel_callback: Callable | None = None,
+        parent: QObject | None = None
+    ):
+        super().__init__(parent)
+        self._motion_callback = motion_callback
+        self._press_callback = press_callback
+        self._move_callback = move_callback
+        self._release_callback = release_callback
+        self._wheel_callback = wheel_callback
+
+    def eventFilter(self, a0: QObject | None, a1: QEvent | None) -> bool:
+        if a1 is None:
+            return False
+        t = a1.type()
+        if t == QEvent.Type.MouseMove:
+            pos = a1.position()  # type: ignore[attr-defined]
+            if self._motion_callback:
+                self._motion_callback(pos.x(), pos.y())
+            if self._move_callback:
+                self._move_callback(pos.x(), pos.y())
+        elif t == QEvent.Type.MouseButtonPress:
+            if self._press_callback:
+                self._press_callback(a1)  # type: ignore[arg-type]
+        elif t == QEvent.Type.MouseButtonRelease:
+            if self._release_callback:
+                self._release_callback(a1)  # type: ignore[arg-type]
+        elif t == QEvent.Type.Wheel:
+            if self._wheel_callback:
+                self._wheel_callback(a1)  # type: ignore[arg-type]
+        return False
+
+
 class ViewportStatusService:
     """Service for managing a status bar at the bottom of the viewport.
 
@@ -43,9 +86,9 @@ class ViewportStatusService:
 
     def __init__(
         self,
-        parent: tk.Widget | None = None,
+        parent: QWidget | None = None,
         viewport: IViewport | None = None,
-        canvas: tk.Canvas | None = None
+        canvas: QGraphicsView | None = None
     ):
         """Initialize the status service.
 
@@ -57,8 +100,9 @@ class ViewportStatusService:
         self._parent = parent
         self._viewport = viewport
         self._canvas = canvas
-        self._status_bar: tk.Frame | None = None
-        self._status_labels: dict[str, tk.Label] = {}
+        self._status_bar: QFrame | None = None
+        self._status_labels: dict[str, QLabel] = {}
+        self._motion_filter: _CanvasEventFilter | None = None
 
         # Status values
         self._mouse_canvas_x: float = 0.0
@@ -101,7 +145,7 @@ class ViewportStatusService:
     # Build methods
     # ----------------------------------------
 
-    def build(self) -> tk.Frame:
+    def build(self) -> QFrame:
         """Build and return the status bar widget.
 
         Returns:
@@ -111,53 +155,51 @@ class ViewportStatusService:
             raise ValueError("Parent widget is not set for ViewportStatusService.")
 
         # Create main status bar frame
-        self._status_bar = tk.Frame(
-            self._parent,
-            bg="#2b2b2b",
-            height=24,
-            relief=tk.FLAT
-        )
+        self._status_bar = QFrame(self._parent)
+        self._status_bar.setFixedHeight(24)
+        self._status_bar.setStyleSheet("background-color: #2b2b2b;")
+        self._status_bar.setFrameShape(QFrame.Shape.NoFrame)
+        self._status_layout = QHBoxLayout(self._status_bar)
+        self._status_layout.setContentsMargins(0, 0, 0, 0)
+        self._status_layout.setSpacing(0)
 
         # Create status sections (left to right)
-        self._create_status_section("tool", "Tool: Select", side=tk.LEFT, width=12)
+        self._create_status_section("tool", "Tool: Select", width=12)
         self._create_separator()
 
-        self._create_status_section("mouse_canvas", "Canvas: (0, 0)", side=tk.LEFT, width=18)
-        self._create_status_section("mouse_scene", "Scene: (0.0, 0.0)", side=tk.LEFT, width=20)
+        self._create_status_section("mouse_canvas", "Canvas: (0, 0)", width=18)
+        self._create_status_section("mouse_scene", "Scene: (0.0, 0.0)", width=20)
         self._create_separator()
 
-        self._create_status_section("viewport", "View: (0, 0)", side=tk.LEFT, width=18)
-        self._create_status_section("zoom", "Zoom: 100%", side=tk.LEFT, width=12)
+        self._create_status_section("viewport", "View: (0, 0)", width=18)
+        self._create_status_section("zoom", "Zoom: 100%", width=12)
         self._create_separator()
 
-        self._create_status_section("selection", "Selected: 0", side=tk.LEFT, width=12)
+        self._create_status_section("selection", "Selected: 0", width=12)
         self._create_separator()
 
         self._create_status_section(
             "grid",
-            f"Grid: {"ON" if self._grid_enabled else "OFF"}",
-            side=tk.LEFT,
+            f"Grid: {'ON' if self._grid_enabled else 'OFF'}",
             width=10
         )
         self._create_status_section(
             "snap",
-            f"Snap: {"ON" if self._snap_enabled else "OFF"}",
-            side=tk.LEFT,
+            f"Snap: {'ON' if self._snap_enabled else 'OFF'}",
             width=10
         )
         self._create_separator()
 
         # Custom message (expandable)
-        self._create_status_section("message", "Ready", side=tk.LEFT, width=30)
+        self._create_status_section("message", "Ready", width=30)
+        self._status_layout.addStretch()
 
         # FPS counter (right aligned)
-        self._create_status_section("fps", "FPS: --", side=tk.RIGHT, width=10)
+        self._create_status_section("fps", "FPS: --", width=10)
 
         # Bind mouse motion if canvas provided
         if self._canvas:
             self._bind_to_canvas()
-
-        self._status_bar.pack(side=tk.BOTTOM, fill=tk.X)
 
         return self._status_bar
 
@@ -165,7 +207,7 @@ class ViewportStatusService:
         self,
         key: str,
         initial_text: str,
-        side: str = tk.LEFT,
+        side: str = "left",
         width: int = 15
     ) -> None:
         """Create a status label section.
@@ -173,70 +215,63 @@ class ViewportStatusService:
         Args:
             key: Unique identifier for this section
             initial_text: Initial display text
-            side: Pack side (tk.LEFT or tk.RIGHT)
-            width: Character width of the label
+            side: Alignment hint (unused; layout order determines position)
+            width: Approximate character width of the label
         """
-        label = tk.Label(
-            self._status_bar,
-            text=initial_text,
-            bg="#2b2b2b",
-            fg="#cccccc",
-            font=("Segoe UI", 8),
-            anchor=tk.W,
-            width=width,
-            padx=4
-        )
-        label.pack(side=side, fill=tk.Y)  # type: ignore
+        label = QLabel(initial_text, self._status_bar)
+        label.setMinimumWidth(width * 7)
+        label.setStyleSheet("color: #cccccc; background-color: #2b2b2b; padding: 0px 4px;")
+        label.setFont(QFont("Segoe UI", 8))
+        label.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
+        self._status_layout.addWidget(label)
         self._status_labels[key] = label
 
     def _create_separator(self) -> None:
         """Create a visual separator between sections."""
-        separator = tk.Frame(
-            self._status_bar,
-            bg="#555555",
-            width=1
-        )
-        separator.pack(side=tk.LEFT, fill=tk.Y, padx=2)
+        separator = QFrame(self._status_bar)
+        separator.setFrameShape(QFrame.Shape.VLine)
+        separator.setFixedWidth(5)
+        separator.setStyleSheet("color: #555555;")
+        self._status_layout.addWidget(separator)
 
     # ----------------------------------------
     # Binding methods
     # ----------------------------------------
 
     def _bind_to_canvas(self) -> None:
-        """Bind mouse motion event to canvas for position tracking."""
+        """Install mouse motion tracking event filter on canvas."""
         if not self._canvas:
             return
+        self._canvas.setMouseTracking(True)
+        self._motion_filter = _CanvasEventFilter(motion_callback=self._on_mouse_motion)
+        self._canvas.installEventFilter(self._motion_filter)
 
-        self._canvas.bind("<Motion>", self._on_mouse_motion, add="+")
-
-    def _on_mouse_motion(self, event) -> None:
+    def _on_mouse_motion(self, x: float, y: float) -> None:
         """Handle mouse motion event to update position displays.
 
         Args:
-            event: Mouse motion event
+            x: Canvas X coordinate from mouse event
+            y: Canvas Y coordinate from mouse event
         """
-        # Update canvas coordinates
-        self._mouse_canvas_x = event.x
-        self._mouse_canvas_y = event.y
+        self._mouse_canvas_x = x
+        self._mouse_canvas_y = y
 
-        # Calculate scene coordinates
         if self._viewport:
-            self._mouse_scene_x = (event.x - self._viewport.x) / self._viewport.zoom
-            self._mouse_scene_y = (event.y - self._viewport.y) / self._viewport.zoom
+            self._mouse_scene_x = (x - self._viewport.x) / self._viewport.zoom
+            self._mouse_scene_y = (y - self._viewport.y) / self._viewport.zoom
 
-        # Update displays
         self._update_mouse_position()
 
     def _update_mouse_position(self) -> None:
         """Update mouse position labels."""
         if "mouse_canvas" in self._status_labels:
-            self._status_labels["mouse_canvas"].config(
-                text=f"Canvas: ({int(self._mouse_canvas_x)}, {int(self._mouse_canvas_y)})"
+            self._status_labels["mouse_canvas"].setText(
+                f"Canvas: ({int(self._mouse_canvas_x)}, {int(self._mouse_canvas_y)})"
             )
 
         if "mouse_scene" in self._status_labels:
-            self._status_labels["mouse_scene"].config(
-                text=f"Scene: ({self._mouse_scene_x:.1f}, {self._mouse_scene_y:.1f})"
+            self._status_labels["mouse_scene"].setText(
+                f"Scene: ({self._mouse_scene_x:.1f}, {self._mouse_scene_y:.1f})"
             )
 
     # ----------------------------------------
@@ -251,7 +286,7 @@ class ViewportStatusService:
         """
         self._selection_count = count
         if "selection" in self._status_labels:
-            self._status_labels["selection"].config(text=f"Selected: {count}")
+            self._status_labels["selection"].setText(f"Selected: {count}")
 
     def set_grid_enabled(self, enabled: bool) -> None:
         """Update grid status display.
@@ -262,7 +297,7 @@ class ViewportStatusService:
         self._grid_enabled = enabled
         if "grid" in self._status_labels:
             status = "ON" if enabled else "OFF"
-            self._status_labels["grid"].config(text=f"Grid: {status}")
+            self._status_labels["grid"].setText(f"Grid: {status}")
 
     def set_snap_enabled(self, enabled: bool) -> None:
         """Update snap-to-grid status display.
@@ -273,7 +308,7 @@ class ViewportStatusService:
         self._snap_enabled = enabled
         if "snap" in self._status_labels:
             status = "ON" if enabled else "OFF"
-            self._status_labels["snap"].config(text=f"Snap: {status}")
+            self._status_labels["snap"].setText(f"Snap: {status}")
 
     def set_current_tool(self, tool: str | Enum) -> None:
         """Update current tool display.
@@ -286,7 +321,7 @@ class ViewportStatusService:
         self._current_tool = tool
         if "tool" in self._status_labels:
             tool_display = tool.replace("_", " ").title()
-            self._status_labels["tool"].config(text=f"Tool: {tool_display}")
+            self._status_labels["tool"].setText(f"Tool: {tool_display}")
 
     def set_message(self, message: str) -> None:
         """Set custom status message.
@@ -296,7 +331,7 @@ class ViewportStatusService:
         """
         self._custom_message = message
         if "message" in self._status_labels:
-            self._status_labels["message"].config(text=message)
+            self._status_labels["message"].setText(message)
 
     def set_fps(self, fps: float) -> None:
         """Update FPS counter display with exponential smoothing.
@@ -322,7 +357,7 @@ class ViewportStatusService:
 
         if "fps" in self._status_labels:
             # Display rounded smoothed FPS
-            self._status_labels["fps"].config(text=f"FPS: {int(round(self._fps_smoothed))}")
+            self._status_labels["fps"].setText(f"FPS: {int(round(self._fps_smoothed))}")
 
     def set_fps_from_delta(self, delta_seconds: float) -> None:
         """Calculate and set FPS from frame time delta.
@@ -340,7 +375,7 @@ class ViewportStatusService:
     # Setters and Getters
     # ----------------------------------------
 
-    def get_status_bar(self) -> tk.Frame | None:
+    def get_status_bar(self) -> QFrame | None:
         """Get the status bar widget.
 
         Returns:
@@ -348,7 +383,7 @@ class ViewportStatusService:
         """
         return self._status_bar
 
-    def set_canvas(self, canvas: tk.Canvas) -> None:
+    def set_canvas(self, canvas: QGraphicsView) -> None:
         """Set the canvas and bind mouse tracking.
 
         Args:
@@ -397,13 +432,13 @@ class ViewportStatusService:
         self._zoom_level = self._viewport.zoom
 
         if "viewport" in self._status_labels:
-            self._status_labels["viewport"].config(
-                text=f"View: ({int(self._viewport_x)}, {int(self._viewport_y)})"
+            self._status_labels["viewport"].setText(
+                f"View: ({int(self._viewport_x)}, {int(self._viewport_y)})"
             )
 
         if "zoom" in self._status_labels:
             zoom_percent = int(self._zoom_level * 100)
-            self._status_labels["zoom"].config(text=f"Zoom: {zoom_percent}%")
+            self._status_labels["zoom"].setText(f"Zoom: {zoom_percent}%")
 
     def update_all(self) -> None:
         """Update all status displays from current values."""
@@ -422,7 +457,7 @@ class ViewportStatusService:
         return self._viewport
 
     @property
-    def canvas(self) -> tk.Canvas:
+    def canvas(self) -> QGraphicsView:
         """Get the canvas associated with this service."""
         if not self._canvas:
             raise ValueError("Canvas is not set for ViewportStatusService.")
@@ -439,66 +474,75 @@ class ViewportPanningService:
 
     def __init__(
         self,
-        canvas: tk.Canvas | None = None,
+        canvas: QGraphicsView | None = None,
         viewport: IViewport | None = None,
     ):
         self._canvas = canvas
         self._viewport = viewport
         self._is_panning = False
-        self._start_x = 0
-        self._start_y = 0
+        self._start_x: float = 0.0
+        self._start_y: float = 0.0
         self._pan_pending: bool = False  # Coalescing flag: True while a flush is scheduled
+        self._pan_filter: _CanvasEventFilter | None = None
 
     def _bind_to_canvas(self):
         if not self.canvas:
             return
+        self._pan_filter = _CanvasEventFilter(
+            press_callback=self._start_pan,
+            move_callback=self._do_pan,
+            release_callback=self._end_pan
+        )
+        self.canvas.installEventFilter(self._pan_filter)
 
-        self.canvas.bind("<ButtonPress-2>", self._start_pan)
-        self.canvas.bind("<B2-Motion>", self._do_pan)
-        self.canvas.bind("<ButtonRelease-2>", self._end_pan)
-
-    def _start_pan(self, event):
+    def _start_pan(self, event) -> None:
+        if event.button() != Qt.MouseButton.MiddleButton:
+            return
         self._is_panning = True
-        self._start_x = event.x
-        self._start_y = event.y
-        self.canvas.config(cursor="fleur")
+        pos = event.position()
+        self._start_x = pos.x()
+        self._start_y = pos.y()
+        self.canvas.setCursor(Qt.CursorShape.SizeAllCursor)
 
-    def _do_pan(self, event):
-        if self._is_panning:
-            dx = event.x - self._start_x
-            dy = event.y - self._start_y
+    def _do_pan(self, x: float, y: float) -> None:
+        if not self._is_panning:
+            return
+        dx = x - self._start_x
+        dy = y - self._start_y
 
-            # Accumulate into viewport state immediately so any direct reads are current.
-            self.viewport.x += dx
-            self.viewport.y += dy
+        # Accumulate into viewport state immediately so any direct reads are current.
+        self.viewport.x += dx
+        self.viewport.y += dy
 
-            self._start_x = event.x
-            self._start_y = event.y
+        self._start_x = x
+        self._start_y = y
 
-            # Coalesce rapid B2-Motion events: schedule a single PAN publish for the
-            # current event-loop tick instead of publishing on every mouse pixel.
-            # Without this, a fast drag fires 60+ publishes/second, each triggering
-            # update_viewport() and its full subscriber chain.
-            if not self._pan_pending:
-                self._pan_pending = True
-                self.canvas.after(0, self._flush_pan)
+        # Coalesce rapid mouse-move events: schedule a single PAN publish for the
+        # current event-loop tick instead of publishing on every mouse pixel.
+        # Without this, a fast drag fires 60+ publishes/second, each triggering
+        # update_viewport() and its full subscriber chain.
+        if not self._pan_pending:
+            self._pan_pending = True
+            QTimer.singleShot(0, self._flush_pan)
 
     def _flush_pan(self) -> None:
         """Publish the deferred PAN event after coalescing rapid mouse-move events."""
         self._pan_pending = False
         ViewportEventBus.publish(ViewportEvent(event_type=ViewportEventType.PAN))
 
-    def _end_pan(self, event):
+    def _end_pan(self, event) -> None:
+        if event.button() != Qt.MouseButton.MiddleButton:
+            return
         self._is_panning = False
-        self.canvas.config(cursor="")
+        self.canvas.setCursor(Qt.CursorShape.ArrowCursor)
 
-    def get_canvas(self) -> tk.Canvas:
+    def get_canvas(self) -> QGraphicsView:
         """Get the canvas associated with this service."""
         if not self._canvas:
             raise ValueError("Canvas is not set for ViewportPanningService.")
         return self._canvas
 
-    def set_canvas(self, canvas: tk.Canvas) -> None:
+    def set_canvas(self, canvas: QGraphicsView) -> None:
         """Set the canvas associated with this service."""
         self._canvas = canvas
         self._bind_to_canvas()
@@ -514,7 +558,7 @@ class ViewportPanningService:
         self._viewport = viewport
 
     @property
-    def canvas(self) -> tk.Canvas:
+    def canvas(self) -> QGraphicsView:
         """Get the canvas associated with this service."""
         if not self._canvas:
             raise ValueError("Canvas is not set for ViewportPanningService.")
@@ -533,7 +577,7 @@ class ViewportZoomingService:
 
     def __init__(
         self,
-        canvas: tk.Canvas | None = None,
+        canvas: QGraphicsView | None = None,
         viewport: IViewport | None = None,
         status_service: ViewportStatusService | None = None,
         zoom_factor: float = 1.2,
@@ -555,13 +599,14 @@ class ViewportZoomingService:
         self._zoom_factor = zoom_factor
         self._min_zoom = min_zoom
         self._max_zoom = max_zoom
+        self._wheel_filter: _CanvasEventFilter | None = None
 
     def _bind_to_canvas(self):
-        """Bind mouse wheel event to canvas for zooming."""
+        """Install mouse wheel event filter on canvas for zooming."""
         if not self.canvas:
             return
-
-        self.canvas.bind("<MouseWheel>", self._on_mouse_wheel)
+        self._wheel_filter = _CanvasEventFilter(wheel_callback=self._on_mouse_wheel)
+        self.canvas.installEventFilter(self._wheel_filter)
 
     def _bind_to_menu_registry(self) -> None:
         """Bind grid toggle actions to the menu registry."""
@@ -569,18 +614,18 @@ class ViewportZoomingService:
         self.get_zoom_in_menu_item().set_command(command=self.zoom_in)
         self.get_zoom_out_menu_item().set_command(command=self.zoom_out)
 
-    def _on_mouse_wheel(self, event):
+    def _on_mouse_wheel(self, event) -> None:
         """Handle mouse wheel events for zooming.
 
         Args:
-            event: Mouse wheel event with delta property
+            event: QWheelEvent from Qt
         """
-        # Get mouse position for zoom center
-        mouse_x = event.x
-        mouse_y = event.y
+        pos = event.position()
+        mouse_x = pos.x()
+        mouse_y = pos.y()
 
         # Determine zoom direction
-        if event.delta > 0:
+        if event.angleDelta().y() > 0:
             self.zoom_in(center_x=mouse_x, center_y=mouse_y)
         else:
             self.zoom_out(center_x=mouse_x, center_y=mouse_y)
@@ -691,13 +736,13 @@ class ViewportZoomingService:
 
     # Getters and Setters
 
-    def get_canvas(self) -> tk.Canvas:
+    def get_canvas(self) -> QGraphicsView:
         """Get the canvas associated with this service."""
         if not self._canvas:
             raise ValueError("Canvas is not set for CanvasZoomingService.")
         return self._canvas
 
-    def set_canvas(self, canvas: tk.Canvas) -> None:
+    def set_canvas(self, canvas: QGraphicsView) -> None:
         """Set the canvas associated with this service."""
         self._canvas = canvas
         self._bind_to_canvas()
@@ -800,7 +845,7 @@ class ViewportZoomingService:
     # Properties
 
     @property
-    def canvas(self) -> tk.Canvas:
+    def canvas(self) -> QGraphicsView:
         """Get the canvas associated with this service."""
         if not self._canvas:
             raise ValueError("Canvas is not set for CanvasZoomingService.")
@@ -834,7 +879,7 @@ class ViewportGriddingService:
 
     def __init__(
         self,
-        canvas: tk.Canvas | None = None,
+        canvas: QGraphicsView | None = None,
         viewport: IViewport | None = None,
         grid_size: int = 50,
         grid_color: str = "#505050",
@@ -846,7 +891,7 @@ class ViewportGriddingService:
         """Initialize the gridding service.
 
         Args:
-            canvas: Canvas to render grid on
+            canvas: QGraphicsView to render grid on
             viewport: Viewport for coordinate transformation
             grid_size: Grid spacing in scene units (default: 50)
             grid_color: Color of grid lines (default: "#505050")
@@ -863,12 +908,17 @@ class ViewportGriddingService:
         self._enabled = enabled
         self._snap_enabled = snap_enabled
         self._min_spacing_pixels = min_spacing_pixels
+        self._grid_items: list = []
         self._bind_to_menu_registry()
 
     def _bind_to_menu_registry(self) -> None:
         """Bind grid toggle actions to the menu registry."""
-        self.get_grid_toggle_menu_item().set_command(command=self.toggle)
-        self.get_snap_toggle_menu_item().set_command(command=self.toggle_snap)
+        item = MenuRegistry.get_item("scene.view.show_grid")
+        if item:
+            item.set_command(command=self.toggle)
+        item = MenuRegistry.get_item("scene.view.snap_to_grid")
+        if item:
+            item.set_command(command=self.toggle_snap)
 
     def render(self) -> None:
         """Render the grid if enabled."""
@@ -880,13 +930,12 @@ class ViewportGriddingService:
         if not self._canvas or not self._viewport:
             return
 
-        # Always clear existing grid items before redrawing.
-        # Grid lines span the full canvas, so moving them during pan leaves gaps;
-        # clearing first ensures we never stack duplicate lines.
-        self._canvas.delete("grid")
+        scene = self._canvas.scene()
+        if not scene:
+            return
 
-        canvas_width = self._canvas.winfo_width()
-        canvas_height = self._canvas.winfo_height()
+        canvas_width = self._canvas.width()
+        canvas_height = self._canvas.height()
 
         if canvas_width <= 1 or canvas_height <= 1:
             # Canvas not yet rendered or minimized
@@ -904,35 +953,34 @@ class ViewportGriddingService:
         start_x = self._viewport.x % grid_spacing
         start_y = self._viewport.y % grid_spacing
 
+        pen = QPen(QColor(self._grid_color), self._grid_line_width)
+
         # Draw vertical lines
         x = start_x
         while x < canvas_width:
-            self._canvas.create_line(
-                x, 0, x, canvas_height,
-                fill=self._grid_color,
-                width=self._grid_line_width,
-                tags="grid"
-            )
+            item = scene.addLine(x, 0, x, canvas_height, pen)
+            if item is not None:
+                item.setZValue(-1000)
+                self._grid_items.append(item)
             x += grid_spacing
 
         # Draw horizontal lines
         y = start_y
         while y < canvas_height:
-            self._canvas.create_line(
-                0, y, canvas_width, y,
-                fill=self._grid_color,
-                width=self._grid_line_width,
-                tags="grid"
-            )
+            item = scene.addLine(0, y, canvas_width, y, pen)
+            if item is not None:
+                item.setZValue(-1000)
+                self._grid_items.append(item)
             y += grid_spacing
-
-        # Lower grid to background
-        self._canvas.tag_lower("grid")
 
     def clear(self) -> None:
         """Clear all grid lines from the canvas."""
-        if self._canvas:
-            self._canvas.delete("grid")
+        if self._canvas and self._grid_items:
+            scene = self._canvas.scene()
+            if scene:
+                for item in self._grid_items:
+                    scene.removeItem(item)
+        self._grid_items.clear()
 
     def toggle(self) -> None:
         """Toggle grid visibility."""
@@ -981,13 +1029,13 @@ class ViewportGriddingService:
     # Getters and Setters
     # ----------------------------------------
 
-    def get_canvas(self) -> tk.Canvas:
+    def get_canvas(self) -> QGraphicsView:
         """Get the canvas associated with this service."""
         if not self._canvas:
             raise ValueError("Canvas is not set for ViewportGriddingService.")
         return self._canvas
 
-    def set_canvas(self, canvas: tk.Canvas) -> None:
+    def set_canvas(self, canvas: QGraphicsView) -> None:
         """Set the canvas associated with this service."""
         self._canvas = canvas
         self.clear()  # Clear any existing grid lines on new canvas
@@ -1144,7 +1192,7 @@ class ViewportGriddingService:
     # ----------------------------------------
 
     @property
-    def canvas(self) -> tk.Canvas:
+    def canvas(self) -> QGraphicsView:
         """Get the canvas associated with this service."""
         if not self._canvas:
             raise ValueError("Canvas is not set for ViewportGriddingService.")
@@ -1189,12 +1237,12 @@ class ViewportGriddingService:
 
 
 class ViewportHostingService:
-    """Service for hosting a viewport within a Tkinter canvas."""
+    """Service for hosting a viewport within a QGraphicsView canvas."""
 
     def __init__(
         self,
-        canvas: tk.Canvas | None = None,
-        canvas_parent: ttk.Frame | None = None
+        canvas: QGraphicsView | None = None,
+        canvas_parent: QWidget | None = None
     ):
         self._canvas = canvas
         self._canvas_parent = canvas_parent
@@ -1228,10 +1276,7 @@ class ViewportHostingService:
         self._needs_render = True
 
     def update_viewport(self, event: ViewportEvent | None) -> None:
-        """Update all canvas objects to reflect viewport changes.
-
-        Transforms existing canvas items instead of redrawing.
-        """
+        """Update all canvas objects to reflect viewport changes."""
         if not self._canvas:
             return
 
@@ -1240,22 +1285,14 @@ class ViewportHostingService:
         dy = self._viewport.y - self._last_viewport.y
         zoom_ratio = self._viewport.zoom / self._last_viewport.zoom if self._last_viewport.zoom != 0 else 1.0
 
-        # Apply zoom transformation
-        # Use "all" tag for a single Tcl call instead of a per-item Python loop:
-        # O(1) bridge crossings vs O(n) — critical for smooth framerate on large scenes.
         if zoom_ratio != 1.0:
-            self._canvas.scale("all", 0, 0, zoom_ratio, zoom_ratio)
-
-            # After scaling, adjust last viewport position
+            # After zoom, adjust last viewport position to recalculate pan delta
             self._last_viewport.x *= zoom_ratio
             self._last_viewport.y *= zoom_ratio
-
-            # Recalculate pan delta after zoom
             dx = self._viewport.x - self._last_viewport.x
             dy = self._viewport.y - self._last_viewport.y
 
-            # Grid lines get distorted by canvas.scale — clear and redraw them at the
-            # new zoom level so they remain evenly spaced at correct canvas positions.
+            # Redraw grid at new zoom level
             self._viewport_gridding_service.clear()
             self._viewport_gridding_service.render()
 
@@ -1263,12 +1300,8 @@ class ViewportHostingService:
             # Zoom changes visible area significantly
             self._mark_dirty()
 
-        # Apply pan transformation
         if dx != 0 or dy != 0:
-            # Move all non-grid items first, then redraw grid at correct offsets.
-            # Grid lines can't be panned like scene objects — they span the full canvas
-            # and must be redrawn at the new viewport offset to remain correctly tiled.
-            self._canvas.move("all", dx, dy)
+            # Redraw grid at new pan position
             self._viewport_gridding_service.clear()
             self._viewport_gridding_service.render()
 
@@ -1326,13 +1359,13 @@ class ViewportHostingService:
     # Getters and Setters
     # ----------------------------------------
 
-    def get_canvas(self) -> tk.Canvas:
+    def get_canvas(self) -> QGraphicsView:
         """Get the canvas associated with this service."""
         if not self._canvas:
             raise ValueError("Canvas is not set for ViewportHostingService.")
         return self._canvas
 
-    def set_canvas(self, canvas: tk.Canvas) -> None:
+    def set_canvas(self, canvas: QGraphicsView) -> None:
         """Set the canvas associated with this service."""
         self._canvas = canvas
         self._viewport_status_service.set_canvas(canvas)

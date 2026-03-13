@@ -12,14 +12,12 @@ from pyrox.interfaces import (
     IWorkspace,
 )
 
-from pyrox.services import TkGuiManager
-
 from pyrox.models import (
     ApplicationTaskFactory,
     ServicesRunnableMixin,
 )
 
-from pyrox.models.gui import TkWorkspace
+from pyrox.models.gui import Workspace
 
 __all__ = ('Application',)
 
@@ -64,12 +62,12 @@ class Application(
             str))
 
         # Initialize GUI backend
-        TkGuiManager.create_root()
-        TkGuiManager.create_root_menu()
-        TkGuiManager.config_from_env()
-        TkGuiManager.subscribe_to_window_change_event(TkGuiManager.save_root_geometry)
-        TkGuiManager.reroute_excepthook(self.except_hook)
-        TkGuiManager.subscribe_to_window_close_event(self.on_close)
+        self._root = self.gui.create_root()
+        self.gui.create_root_menu()
+        self.gui.config_from_env()
+        self.gui.subscribe_to_window_change_event(self.gui.save_root_geometry)
+        self.gui.reroute_excepthook(self.except_hook)
+        self.gui.subscribe_to_window_close_event(self.on_close)
 
         # Set up logging
         self.logging.register_callback_to_captured_streams(self.log_stream.write)
@@ -78,7 +76,8 @@ class Application(
         self._tasks: list[IApplicationTask] = []
 
         # Initialize workspace
-        self._workspace = TkWorkspace(master=TkGuiManager.get_root())
+        self._workspace = Workspace(parent=self._root)
+        self._root.setCentralWidget(self._workspace)
 
         # Build default tasks
         ApplicationTaskFactory.build_tasks(self)
@@ -120,7 +119,7 @@ class Application(
         Returns:
             Any: The application workspace.
         """
-        return self._workspace
+        return self._workspace  # type: ignore
 
     def set_workspace(self, workspace: IWorkspace) -> None:
         """Set the application workspace object.
@@ -224,14 +223,18 @@ class Application(
 
         This method changes the cursor to a busy state, indicating that the application is processing.
         """
-        self.gui.get_root().config(cursor='wait')
+        # self.gui.get_root().setCursor()
+        pass
+        # TODO: Implement this method to change the cursor to a busy state. The implementation will depend on the GUI framework being used.
 
     def set_app_state_normal(self) -> None:
         """Set the application state to normal.
 
         This method changes the cursor back to normal, indicating that the application is ready for user interaction.
         """
-        self.gui.get_root().config(cursor='')
+        # self.gui.get_root().config(cursor='')
+        pass
+        # TODO: Implement this method to change the cursor back to normal. The implementation will depend on the GUI framework being used.
 
     def run(self) -> int:
         """Start the application."""

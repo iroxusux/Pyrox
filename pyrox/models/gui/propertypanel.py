@@ -1,18 +1,18 @@
-"""Reusable Property Panel for Tkinter GUI.
+"""Reusable Property Panel for PyQt6 GUI.
 
-This module provides a reusable Tkinter-based property panel for displaying
+This module provides a reusable PyQt6-based property panel for displaying
 and editing object properties using the IHasProperties protocol.
 
-``TkPropertyPanel`` extends ``TkinterTaskFrame`` and therefore ships with a
-title bar and a built-in close button.  The underlying Tkinter widget is
-exposed via ``panel.root``; use that reference wherever a bare widget is
-expected (e.g. when adding to a ``PanedWindow``).
+``PropertyPanel`` extends ``TaskFrame`` and therefore ships with a title bar
+and a built-in close button.  The underlying QWidget is exposed via
+``panel.root``; use that reference wherever a bare widget is expected
+(e.g. when adding to a ``QSplitter``).
 
 Example Usage:
     ```python
     # Create a property panel
-    panel = TkPropertyPanel(
-        parent=parent_frame,
+    panel = PropertyPanel(
+        parent=parent_widget,
         title="Object Properties",
         on_property_changed=handle_property_change
     )
@@ -21,22 +21,38 @@ Example Usage:
     scene_obj = scene.get_scene_object("obj_001")
     panel.set_object(scene_obj, readonly_properties={"id", "type"})
 
-    # Add the underlying frame widget to a PanedWindow
-    paned_window.add(panel.root, weight=0)
+    # Add the underlying widget to a QSplitter
+    splitter.addWidget(panel.root)
 
     # Update when selection changes
     panel.refresh()
     ```
 """
-import tkinter as tk
-from tkinter import ttk
+import sys
 from typing import Optional, Dict, Any, Callable
+
+from PyQt6.QtCore import Qt
+from PyQt6.QtWidgets import (
+    QApplication,
+    QCheckBox,
+    QFrame,
+    QHBoxLayout,
+    QLabel,
+    QLineEdit,
+    QListWidget,
+    QPushButton,
+    QScrollArea,
+    QSizePolicy,
+    QVBoxLayout,
+    QWidget,
+)
+
 from pyrox.interfaces.protocols import IHasProperties
-from pyrox.models.gui.tk.frame import TkinterTaskFrame
+from pyrox.models.gui.frame import TaskFrame
 
 
-class TkPropertyPanel(TkinterTaskFrame):
-    """A reusable Tkinter property panel widget.
+class PropertyPanel(TaskFrame):
+    """A reusable PyQt6 property panel widget.
 
     This panel displays properties from objects implementing IHasProperties.
     It supports both display-only and editable property fields, with automatic
@@ -45,10 +61,9 @@ class TkPropertyPanel(TkinterTaskFrame):
     Features:
         - Displays properties from IHasProperties objects
         - Support for read-only and editable fields
-        - Automatic type-based rendering (string, int, float, bool, color)
+        - Automatic type-based rendering (string, int, float, bool, list)
         - Scrollable content area for many properties
         - Property change callbacks
-        - Multi-selection support
 
     Attributes:
         target_object: The current object being displayed
@@ -58,12 +73,12 @@ class TkPropertyPanel(TkinterTaskFrame):
 
     def __init__(
         self,
-        parent: tk.Widget | tk.Misc,
-        title: str = "properties",
+        parent: QWidget,
+        title: str = "Properties",
         width: int = 250,
         on_property_changed: Optional[Callable[[str, Any], None]] = None,
     ):
-        """Initialize the TkPropertyPanel.
+        """Initialize the PropertyPanel.
 
         Args:
             parent: Parent widget
@@ -72,56 +87,38 @@ class TkPropertyPanel(TkinterTaskFrame):
             on_property_changed: Optional callback function(property_name, new_value)
                                  called when a property is modified
         """
-        TkinterTaskFrame.__init__(self, name=title, parent=parent)  # type: ignore[arg-type]
-        self.root.configure(width=width)
+        super().__init__(name=title, parent=parent)
+        self.root.setMinimumWidth(width)
 
         self._title = title
         self._target_object: Optional[IHasProperties] = None
-        self._property_widgets: Dict[str, tk.Widget] = {}
+        self._property_widgets: Dict[str, QWidget] = {}
+        self._list_widgets: Dict[str, QListWidget] = {}
         self._on_property_changed = on_property_changed
         self._readonly_properties: set[str] = set()
 
-        # Build the UI structure
         self._build_ui()
 
     def _build_ui(self) -> None:
         """Build the property panel UI structure."""
-        # Title bar and close button are provided by TkinterTaskFrame.
-        # All content goes into self.content_frame.
+        content_layout = self.content_frame.layout()
+        content_layout.setContentsMargins(0, 0, 0, 0)  # type: ignore[union-attr]
 
-        # Scrollable content area with canvas and scrollbar
-        container_frame = ttk.Frame(self.content_frame)
-        container_frame.pack(side=tk.TOP, fill=tk.BOTH, expand=True, padx=10, pady=10)
-
-        # Create canvas for scrolling
-        self._canvas = tk.Canvas(container_frame, highlightthickness=0)
-        self._canvas.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
-
-        # Create vertical scrollbar
-        self._scrollbar = ttk.Scrollbar(
-            container_frame,
-            orient=tk.VERTICAL,
-            command=self._canvas.yview
-        )
-        self._scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
-
-        # Configure canvas to use scrollbar
-        self._canvas.configure(yscrollcommand=self._scrollbar.set)
-
-        # Create frame inside canvas to hold properties
-        # Named _properties_frame to avoid collision with TkinterTaskFrame._content_frame
-        self._properties_frame = ttk.Frame(self._canvas)
-        self._canvas_window = self._canvas.create_window(
-            (0, 0),
-            window=self._properties_frame,
-            anchor=tk.NW
+        self._scroll_area = QScrollArea(self.content_frame)
+        self._scroll_area.setWidgetResizable(True)
+        self._scroll_area.setFrameShape(QFrame.Shape.NoFrame)
+        self._scroll_area.setSizePolicy(
+            QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding
         )
 
-        # Bind events for scrolling and resizing
-        self._properties_frame.bind("<Configure>", self._on_frame_configure)
-        self._canvas.bind("<Configure>", self._on_canvas_configure)
-        self._canvas.bind("<Enter>", self._bind_mousewheel)
-        self._canvas.bind("<Leave>", self._unbind_mousewheel)
+        self._properties_widget = QWidget()
+        self._properties_layout = QVBoxLayout(self._properties_widget)
+        self._properties_layout.setAlignment(Qt.AlignmentFlag.AlignTop)
+        self._properties_layout.setContentsMargins(8, 8, 8, 8)
+        self._properties_layout.setSpacing(4)
+
+        self._scroll_area.setWidget(self._properties_widget)
+        content_layout.addWidget(self._scroll_area)  # type: ignore[union-attr]
 
     def set_title(self, title: str) -> None:
         """Set the panel title.
@@ -130,7 +127,7 @@ class TkPropertyPanel(TkinterTaskFrame):
             title: New title text
         """
         self._title = title
-        self._title_label.config(text=title)
+        self._title_label.setText(title)
 
     def set_object(
         self,
@@ -183,89 +180,56 @@ class TkPropertyPanel(TkinterTaskFrame):
         if not self._target_object:
             return
 
-        # Get current properties
         try:
             properties = self._target_object.get_properties()
         except Exception:
             return
 
-        # Update each existing widget with new values
         for prop_name, widget in self._property_widgets.items():
             if prop_name not in properties:
                 continue
 
             new_value = properties[prop_name]
 
-            # Skip updating if the widget currently has focus (user is editing)
-            if widget.focus_get() == widget:
-                continue
-
-            # Update based on widget type
-            if isinstance(widget, ttk.Label):
-                # Read-only label
-                current_text = widget.cget("text")
+            if isinstance(widget, QLabel):
                 new_text = self._format_value(new_value)
-                if current_text != new_text:
-                    widget.config(text=new_text)
-            elif isinstance(widget, ttk.Entry):
-                # Entry widget - only update if value actually changed
-                current_value = widget.get()
-                new_text = self._format_value(new_value)
-                if current_value != new_text:
-                    # Save cursor position
-                    try:
-                        cursor_pos = widget.index(tk.INSERT)
-                    except tk.TclError:
-                        cursor_pos = 0
-
-                    widget.delete(0, tk.END)
-                    widget.insert(0, new_text)
-
-                    # Restore cursor position if possible
-                    try:
-                        widget.icursor(min(cursor_pos, len(new_text)))
-                    except tk.TclError:
-                        pass
-            elif isinstance(widget, ttk.Checkbutton):
-                # Checkbutton - update the variable
-                if hasattr(self, '_bool_vars') and prop_name in self._bool_vars:
-                    var = self._bool_vars[prop_name]
-                    if isinstance(new_value, bool) and var.get() != new_value:
-                        var.set(new_value)
-            elif hasattr(self, '_list_widgets') and prop_name in self._list_widgets:
-                # Listbox widget - update the items
+                if widget.text() != new_text:
+                    widget.setText(new_text)
+            elif isinstance(widget, QLineEdit):
+                if not widget.hasFocus():
+                    new_text = self._format_value(new_value)
+                    if widget.text() != new_text:
+                        cursor = widget.cursorPosition()
+                        widget.setText(new_text)
+                        widget.setCursorPosition(min(cursor, len(new_text)))
+            elif isinstance(widget, QCheckBox):
+                if isinstance(new_value, bool) and widget.isChecked() != new_value:
+                    widget.setChecked(new_value)
+            elif prop_name in self._list_widgets:
                 listbox = self._list_widgets[prop_name]
                 if isinstance(new_value, (list, tuple)):
-                    # Get current listbox items
-                    current_items = list(listbox.get(0, tk.END))
+                    current_items = [
+                        it.text() for i in range(listbox.count())
+                        if (it := listbox.item(i)) is not None
+                    ]
                     new_items = [str(item) for item in new_value]
-
-                    # Only update if items have changed
                     if current_items != new_items:
-                        # Save selection
-                        try:
-                            selection = listbox.curselection()
-                        except tk.TclError:
-                            selection = ()
-
-                        # Update listbox
-                        listbox.delete(0, tk.END)
-                        for item in new_items:
-                            listbox.insert(tk.END, item)
-
-                        # Restore selection if possible
-                        if selection and selection[0] < len(new_items):
-                            listbox.selection_set(selection[0])
+                        selected_row = listbox.currentRow()
+                        listbox.clear()
+                        listbox.addItems(new_items)
+                        if 0 <= selected_row < len(new_items):
+                            listbox.setCurrentRow(selected_row)
 
     def _clear_properties(self) -> None:
         """Clear all property widgets from the panel."""
-        for widget in self._properties_frame.winfo_children():
-            widget.destroy()
+        while self._properties_layout.count():
+            item = self._properties_layout.takeAt(0)
+            if item is not None:
+                w = item.widget()
+                if w is not None:
+                    w.deleteLater()
         self._property_widgets.clear()
-        if hasattr(self, '_bool_vars'):
-            self._bool_vars.clear()
-        if hasattr(self, '_list_widgets'):
-            self._list_widgets.clear()
+        self._list_widgets.clear()
 
     def _show_empty_state(self, message: str) -> None:
         """Show an empty state message.
@@ -273,12 +237,10 @@ class TkPropertyPanel(TkinterTaskFrame):
         Args:
             message: Message to display
         """
-        label = ttk.Label(
-            self._properties_frame,
-            text=message,
-            foreground="gray"
-        )
-        label.pack(pady=20)
+        label = QLabel(message)
+        label.setStyleSheet("color: gray;")
+        label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self._properties_layout.addWidget(label)
 
     def _display_properties(self, properties: Dict[str, Any]) -> None:
         """Display properties in the panel.
@@ -307,43 +269,45 @@ class TkPropertyPanel(TkinterTaskFrame):
             name: Property name
             value: Property value
             readonly: Whether the field is read-only
-            field_length: Length of the label field
+            field_length: Length of the label field in characters (approx)
         """
-        row_frame = ttk.Frame(self._properties_frame)
-        row_frame.pack(side=tk.TOP, fill=tk.X, pady=2)
-
-        # Label
-        label_widget = ttk.Label(
-            row_frame,
-            text=f"{name}:",
-            width=field_length,
-            anchor=tk.W
-        )
-        label_widget.pack(side=tk.LEFT, padx=(0, 5))
-
-        # Value widget - type-based rendering
-        value_widget = self._create_value_widget(
-            row_frame,
-            name,
-            value,
-            readonly
-        )
-
-        # For lists, the widget is a container frame, not a simple widget
         if isinstance(value, (list, tuple)):
-            value_widget.pack(side=tk.TOP, fill=tk.BOTH, expand=True, pady=5)
+            # Lists get a vertical block with label above
+            block = QWidget(self._properties_widget)
+            block_layout = QVBoxLayout(block)
+            block_layout.setContentsMargins(0, 2, 0, 2)
+            block_layout.setSpacing(2)
+
+            label_widget = QLabel(f"{name}:", block)
+            block_layout.addWidget(label_widget)
+
+            value_widget = self._create_value_widget(block, name, value, readonly)
+            block_layout.addWidget(value_widget)
+            self._properties_layout.addWidget(block)
         else:
-            value_widget.pack(side=tk.LEFT, fill=tk.X, expand=True)
+            row = QWidget(self._properties_widget)
+            row_layout = QHBoxLayout(row)
+            row_layout.setContentsMargins(0, 2, 0, 2)
+            row_layout.setSpacing(6)
+
+            label_widget = QLabel(f"{name}:", row)
+            label_widget.setFixedWidth(field_length * 7)
+            label_widget.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
+            row_layout.addWidget(label_widget)
+
+            value_widget = self._create_value_widget(row, name, value, readonly)
+            row_layout.addWidget(value_widget, 1)
+            self._properties_layout.addWidget(row)
 
         self._property_widgets[name] = value_widget
 
     def _create_value_widget(
         self,
-        parent: tk.Widget,
+        parent: QWidget,
         prop_name: str,
         value: Any,
         readonly: bool
-    ) -> tk.Widget:
+    ) -> QWidget:
         """Create an appropriate widget for the property value.
 
         Args:
@@ -355,200 +319,132 @@ class TkPropertyPanel(TkinterTaskFrame):
         Returns:
             The created widget
         """
-        # Convert value to string for display
         value_str = self._format_value(value)
 
         if readonly:
-            # Read-only label
-            widget = ttk.Label(
-                parent,
-                text=value_str,
-                anchor=tk.W,
-                foreground="#666666"
+            widget: QWidget = QLabel(value_str, parent)
+            widget.setStyleSheet("color: #666666;")
+        elif isinstance(value, (list, tuple)):
+            widget = self._create_list_widget(parent, prop_name, value)
+        elif isinstance(value, bool):
+            widget = QCheckBox(parent)
+            cast_widget: QCheckBox = widget  # type: ignore[assignment]
+            cast_widget.setChecked(bool(value))
+            cast_widget.toggled.connect(
+                lambda checked, pn=prop_name: self._on_value_changed(pn, checked)
             )
         else:
-            # Determine widget type based on value type
-            if isinstance(value, (list, tuple)):
-                # List/Tuple -> Listbox with add/remove buttons
-                widget = self._create_list_widget(parent, prop_name, value, readonly)
-            elif isinstance(value, bool):
-                # Boolean -> Checkbutton
-                var = tk.BooleanVar(value=value)
-                widget = ttk.Checkbutton(
-                    parent,
-                    variable=var,
-                    command=lambda: self._on_value_changed(prop_name, var.get())
-                )
-                # Store the variable separately to prevent garbage collection
-                # Use a mapping to track boolean variables
-                if not hasattr(self, '_bool_vars'):
-                    self._bool_vars: Dict[str, tk.BooleanVar] = {}
-                self._bool_vars[prop_name] = var
-            elif isinstance(value, (int, float)):
-                # Numeric -> Entry with validation
-                widget = ttk.Entry(parent)
-                widget.insert(0, value_str)
-                widget.bind(
-                    "<FocusOut>",
-                    lambda e: self._on_entry_changed(prop_name, widget, type(value))
-                )
-                widget.bind(
-                    "<Return>",
-                    lambda e: self._on_entry_changed(prop_name, widget, type(value))
-                )
-            elif isinstance(value, str) and value.startswith("#") and len(value) in (7, 9):
-                # Color hex value -> Entry with color preview
-                widget = ttk.Entry(parent)
-                widget.insert(0, value_str)
-                widget.bind(
-                    "<FocusOut>",
-                    lambda e: self._on_entry_changed(prop_name, widget, str)
-                )
-                widget.bind(
-                    "<Return>",
-                    lambda e: self._on_entry_changed(prop_name, widget, str)
-                )
-                # TODO: Add color picker button
-            else:
-                # Default -> Entry
-                widget = ttk.Entry(parent)
-                widget.insert(0, value_str)
-                widget.bind(
-                    "<FocusOut>",
-                    lambda e: self._on_entry_changed(prop_name, widget, str)
-                )
-                widget.bind(
-                    "<Return>",
-                    lambda e: self._on_entry_changed(prop_name, widget, str)
-                )
+            # str, int, float, color hex — all use QLineEdit
+            value_type = type(value)
+            widget = QLineEdit(value_str, parent)
+            cast_line: QLineEdit = widget  # type: ignore[assignment]
+            cast_line.editingFinished.connect(
+                lambda pn=prop_name, w=cast_line, vt=value_type:
+                    self._on_entry_changed(pn, w, vt)
+            )
+            # TODO: Add colour-picker button for hex colour strings
 
         return widget
 
     def _create_list_widget(
         self,
-        parent: tk.Widget,
+        parent: QWidget,
         prop_name: str,
         value: list | tuple,
-        readonly: bool
-    ) -> tk.Widget:
-        """Create a listbox widget for list/tuple properties.
+    ) -> QWidget:
+        """Create a list widget for list/tuple properties.
 
         Args:
             parent: Parent widget
             prop_name: Property name
             value: List/tuple value
-            readonly: Whether the widget should be read-only
 
         Returns:
-            Container frame with listbox and controls
+            Container widget with list and add/remove controls
         """
-        # Create container frame
-        container = ttk.Frame(parent)
+        container = QWidget(parent)
+        container_layout = QVBoxLayout(container)
+        container_layout.setContentsMargins(0, 0, 0, 0)
+        container_layout.setSpacing(4)
 
-        # Create listbox with scrollbar
-        list_frame = ttk.Frame(container)
-        list_frame.pack(side=tk.TOP, fill=tk.BOTH, expand=True)
-
-        scrollbar = ttk.Scrollbar(list_frame, orient=tk.VERTICAL)
-        scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
-
-        listbox = tk.Listbox(
-            list_frame,
-            height=min(6, max(3, len(value))),  # Dynamic height based on items
-            yscrollcommand=scrollbar.set,
-            selectmode=tk.SINGLE if not readonly else tk.BROWSE
-        )
-        listbox.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
-        scrollbar.config(command=listbox.yview)
-
-        # Populate listbox
-        for item in value:
-            listbox.insert(tk.END, str(item))
-
-        # Store listbox reference for updates
-        if not hasattr(self, '_list_widgets'):
-            self._list_widgets: Dict[str, tk.Listbox] = {}
+        listbox = QListWidget(container)
+        listbox.setFixedHeight(min(6, max(3, len(value))) * 20 + 4)
+        listbox.addItems([str(item) for item in value])
+        container_layout.addWidget(listbox)
         self._list_widgets[prop_name] = listbox
 
-        if not readonly:
-            # Button frame for add/remove controls
-            button_frame = ttk.Frame(container)
-            button_frame.pack(side=tk.TOP, fill=tk.X, pady=(5, 0))
+        # Add / remove controls
+        btn_row = QWidget(container)
+        btn_layout = QHBoxLayout(btn_row)
+        btn_layout.setContentsMargins(0, 0, 0, 0)
+        btn_layout.setSpacing(4)
 
-            # Entry for new items
-            entry = ttk.Entry(button_frame, width=15)
-            entry.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(0, 5))
+        entry = QLineEdit(btn_row)
+        btn_layout.addWidget(entry, 1)
 
-            # Add button
-            add_btn = ttk.Button(
-                button_frame,
-                text="+",
-                width=3,
-                command=lambda: self._on_list_add(prop_name, listbox, entry)
-            )
-            add_btn.pack(side=tk.LEFT, padx=2)
+        add_btn = QPushButton("+", btn_row)
+        add_btn.setFixedWidth(28)
+        add_btn.clicked.connect(
+            lambda checked=False, pn=prop_name, lb=listbox, e=entry:
+                self._on_list_add(pn, lb, e)
+        )
+        btn_layout.addWidget(add_btn)
 
-            # Remove button
-            remove_btn = ttk.Button(
-                button_frame,
-                text="-",
-                width=3,
-                command=lambda: self._on_list_remove(prop_name, listbox)
-            )
-            remove_btn.pack(side=tk.LEFT, padx=2)
+        remove_btn = QPushButton("-", btn_row)
+        remove_btn.setFixedWidth(28)
+        remove_btn.clicked.connect(
+            lambda checked=False, pn=prop_name, lb=listbox:
+                self._on_list_remove(pn, lb)
+        )
+        btn_layout.addWidget(remove_btn)
 
-            # Bind Enter key to add
-            entry.bind("<Return>", lambda e: self._on_list_add(prop_name, listbox, entry))
+        entry.returnPressed.connect(
+            lambda pn=prop_name, lb=listbox, e=entry:
+                self._on_list_add(pn, lb, e)
+        )
 
+        container_layout.addWidget(btn_row)
         return container
 
-    def _on_list_add(self, prop_name: str, listbox: tk.Listbox, entry: ttk.Entry) -> None:
+    def _on_list_add(self, prop_name: str, listbox: QListWidget, entry: QLineEdit) -> None:
         """Handle adding an item to a list property.
 
         Args:
             prop_name: Property name
-            listbox: The listbox widget
+            listbox: The list widget
             entry: The entry widget for new items
         """
-        new_item = entry.get().strip()
+        new_item = entry.text().strip()
         if not new_item:
             return
-
-        # Add to listbox
-        listbox.insert(tk.END, new_item)
-        entry.delete(0, tk.END)
-
-        # Update the property
+        listbox.addItem(new_item)
+        entry.clear()
         self._update_list_property(prop_name, listbox)
 
-    def _on_list_remove(self, prop_name: str, listbox: tk.Listbox) -> None:
+    def _on_list_remove(self, prop_name: str, listbox: QListWidget) -> None:
         """Handle removing an item from a list property.
 
         Args:
             prop_name: Property name
-            listbox: The listbox widget
+            listbox: The list widget
         """
-        selection = listbox.curselection()
-        if not selection:
+        row = listbox.currentRow()
+        if row < 0:
             return
-
-        # Remove from listbox
-        listbox.delete(selection[0])
-
-        # Update the property
+        listbox.takeItem(row)
         self._update_list_property(prop_name, listbox)
 
-    def _update_list_property(self, prop_name: str, listbox: tk.Listbox) -> None:
-        """Update the list property with current listbox values.
+    def _update_list_property(self, prop_name: str, listbox: QListWidget) -> None:
+        """Update the list property with current list widget values.
 
         Args:
             prop_name: Property name
-            listbox: The listbox widget
+            listbox: The list widget
         """
-        # Get all items from listbox
-        items = [listbox.get(i) for i in range(listbox.size())]
-
-        # Trigger value change
+        items = [
+            it.text() for i in range(listbox.count())
+            if (it := listbox.item(i)) is not None
+        ]
         self._on_value_changed(prop_name, items)
 
     def _format_value(self, value: Any) -> str:
@@ -577,70 +473,33 @@ class TkPropertyPanel(TkinterTaskFrame):
         else:
             return str(value)
 
-    def _on_frame_configure(self, event=None) -> None:
-        """Update scroll region when frame size changes."""
-        if self.root.winfo_exists():
-            self._canvas.configure(scrollregion=self._canvas.bbox("all"))
-
-    def _on_canvas_configure(self, event) -> None:
-        """Update canvas window width when canvas is resized."""
-        canvas_width = event.width
-        self._canvas.itemconfig(self._canvas_window, width=canvas_width)
-
-    def _bind_mousewheel(self, event=None) -> None:
-        """Bind mouse wheel events for scrolling."""
-        self._canvas.bind_all("<MouseWheel>", self._on_mousewheel)
-        # For Linux
-        self._canvas.bind_all("<Button-4>", self._on_mousewheel)
-        self._canvas.bind_all("<Button-5>", self._on_mousewheel)
-
-    def _unbind_mousewheel(self, event=None) -> None:
-        """Unbind mouse wheel events when leaving the canvas."""
-        self._canvas.unbind_all("<MouseWheel>")
-        # For Linux
-        self._canvas.unbind_all("<Button-4>")
-        self._canvas.unbind_all("<Button-5>")
-
-    def _on_mousewheel(self, event) -> None:
-        """Handle mouse wheel scrolling."""
-        if event.num == 5 or event.delta < 0:
-            # Scroll down
-            self._canvas.yview_scroll(1, "units")
-        elif event.num == 4 or event.delta > 0:
-            # Scroll up
-            self._canvas.yview_scroll(-1, "units")
-
     def _on_entry_changed(
         self,
         prop_name: str,
-        widget: ttk.Entry,
+        widget: QLineEdit,
         value_type: type
     ) -> None:
         """Handle entry widget value changes.
 
         Args:
             prop_name: Property name
-            widget: The entry widget
+            widget: The line-edit widget
             value_type: Expected type for the value
         """
-        new_value_str = widget.get()
+        new_value_str = widget.text()
 
         try:
-            # Convert string to appropriate type
             if value_type == int:
-                new_value = int(new_value_str)
+                new_value: Any = int(new_value_str)
             elif value_type == float:
                 new_value = float(new_value_str)
             else:
                 new_value = new_value_str
-
             self._on_value_changed(prop_name, new_value)
         except ValueError:
-            # Invalid value - revert to original
             if self._target_object:
                 original_value = self._target_object.get_property(prop_name)
-                widget.delete(0, tk.END)
-                widget.insert(0, self._format_value(original_value))
+                widget.setText(self._format_value(original_value))
 
     def _on_value_changed(self, prop_name: str, new_value: Any) -> None:
         """Handle property value changes.
@@ -673,19 +532,18 @@ class TkPropertyPanel(TkinterTaskFrame):
         if not widget:
             return None
 
-        if isinstance(widget, ttk.Entry):
-            return widget.get()
-        elif isinstance(widget, ttk.Checkbutton):
-            # Get the value from the stored BooleanVar
-            if hasattr(self, '_bool_vars') and prop_name in self._bool_vars:
-                return self._bool_vars[prop_name].get()
-            return None
-        elif isinstance(widget, ttk.Label):
-            return widget.cget("text")
-        elif hasattr(self, '_list_widgets') and prop_name in self._list_widgets:
-            # Get list values from listbox
-            listbox = self._list_widgets[prop_name]
-            return [listbox.get(i) for i in range(listbox.size())]
+        if isinstance(widget, QLineEdit):
+            return widget.text()
+        elif isinstance(widget, QCheckBox):
+            return widget.isChecked()
+        elif isinstance(widget, QLabel):
+            return widget.text()
+        elif prop_name in self._list_widgets:
+            lb = self._list_widgets[prop_name]
+            return [
+                it.text() for i in range(lb.count())
+                if (it := lb.item(i)) is not None
+            ]
 
         return None
 
@@ -710,28 +568,28 @@ class TkPropertyPanel(TkinterTaskFrame):
         return self._target_object
 
     @property
-    def property_widgets(self) -> Dict[str, tk.Widget]:
+    def property_widgets(self) -> Dict[str, QWidget]:
         """Get the dictionary of property widgets."""
         return self._property_widgets
 
 
-__all__ = ['TkPropertyPanel']
+__all__ = ['PropertyPanel']
 
 
 # ---------------------------------------------------------------------------
 # Demo
 # ---------------------------------------------------------------------------
 
-def create_demo_window() -> tk.Tk:
-    """Create a standalone demo window for :class:`TkPropertyPanel`.
+def create_demo_window() -> QWidget:
+    """Create a standalone demo window for :class:`PropertyPanel`.
 
     Builds several mock objects that implement :class:`~pyrox.interfaces.protocols.IHasProperties`
-    so every widget type (Entry, Checkbutton, Listbox, read-only Label,
-    colour Entry) and the property-change callback can be exercised without
+    so every widget type (QLineEdit, QCheckBox, QListWidget, read-only QLabel,
+    colour QLineEdit) and the property-change callback can be exercised without
     a live scene.
 
     Returns:
-        tk.Tk: The configured root window (caller must call ``mainloop()``).
+        QWidget: The configured root window.
     """
 
     # ------------------------------------------------------------------
@@ -800,26 +658,31 @@ def create_demo_window() -> tk.Tk:
     # Root window
     # ------------------------------------------------------------------
 
-    root = tk.Tk()
-    root.title("TkPropertyPanel — Demo")
-    root.geometry("420x580")
+    window = QWidget()
+    window.setWindowTitle("PropertyPanel — Demo")
+    window.resize(420, 580)
+
+    main_layout = QVBoxLayout(window)
+    main_layout.setContentsMargins(8, 8, 8, 0)
+    main_layout.setSpacing(4)
 
     # ------------------------------------------------------------------
-    # Toolbar: object switcher + status
+    # Toolbar: object switcher
     # ------------------------------------------------------------------
 
-    toolbar = ttk.Frame(root)
-    toolbar.pack(side=tk.TOP, fill=tk.X, padx=8, pady=(8, 0))
+    toolbar = QWidget(window)
+    toolbar_layout = QHBoxLayout(toolbar)
+    toolbar_layout.setContentsMargins(0, 0, 0, 0)
+    toolbar_layout.setSpacing(4)
+    toolbar_layout.addWidget(QLabel("Inspect:"))
 
-    ttk.Label(toolbar, text="Inspect:").pack(side=tk.LEFT, padx=(0, 4))
-
-    status_var = tk.StringVar(value="No change yet.")
+    status_label = QLabel("No change yet.")
 
     def _on_change(prop_name: str, new_value: Any) -> None:
-        status_var.set(f"Changed  '{prop_name}'  →  {new_value!r}")
+        status_label.setText(f"Changed  '{prop_name}'  →  {new_value!r}")
 
-    panel = TkPropertyPanel(
-        parent=root,
+    panel = PropertyPanel(
+        parent=window,
         title="Properties",
         on_property_changed=_on_change,
     )
@@ -827,46 +690,41 @@ def create_demo_window() -> tk.Tk:
     def _load(obj: _MockObject) -> None:
         panel.set_title(str(obj))
         panel.set_object(obj, readonly_properties={"id"})  # type: ignore[arg-type]
-        status_var.set(f"Loaded: {obj}")
+        status_label.setText(f"Loaded: {obj}")
 
     for obj in _OBJECTS:
-        ttk.Button(
-            toolbar,
-            text=str(obj),
-            command=lambda o=obj: _load(o),
-        ).pack(side=tk.LEFT, padx=2)
+        btn = QPushButton(str(obj), toolbar)
+        btn.clicked.connect(lambda checked=False, o=obj: _load(o))
+        toolbar_layout.addWidget(btn)
 
-    ttk.Button(
-        toolbar,
-        text="Clear",
-        command=lambda: (panel.set_object(None), status_var.set("Panel cleared.")),
-    ).pack(side=tk.LEFT, padx=(6, 2))
+    clear_btn = QPushButton("Clear", toolbar)
+    clear_btn.clicked.connect(lambda: (panel.set_object(None), status_label.setText("Panel cleared.")))
+    toolbar_layout.addWidget(clear_btn)
+    toolbar_layout.addStretch()
+
+    main_layout.addWidget(toolbar)
 
     # ------------------------------------------------------------------
-    # Property panel (fills remaining space)
+    # Property panel
     # ------------------------------------------------------------------
 
-    panel.root.pack(fill=tk.BOTH, expand=True, padx=8, pady=8)
-
-    # Load the first object immediately
+    main_layout.addWidget(panel.root, 1)
     _load(_CONVEYOR)
 
     # ------------------------------------------------------------------
     # Status bar
     # ------------------------------------------------------------------
 
-    ttk.Separator(root, orient=tk.HORIZONTAL).pack(fill=tk.X)
-    ttk.Label(
-        root,
-        textvariable=status_var,
-        relief=tk.SUNKEN,
-        anchor=tk.W,
-        padding=(6, 2),
-    ).pack(fill=tk.X, side=tk.BOTTOM)
+    sep = QFrame(window)
+    sep.setFrameShape(QFrame.Shape.HLine)
+    main_layout.addWidget(sep)
+    main_layout.addWidget(status_label)
 
-    return root
+    return window
 
 
 if __name__ == "__main__":
+    app = QApplication(sys.argv)
     demo_window = create_demo_window()
-    demo_window.mainloop()
+    demo_window.show()
+    sys.exit(app.exec())

@@ -1,87 +1,144 @@
-"""GUI framework management services for Pyrox.
+"""GUI management service for Pyrox.
 
-This module provides functionality to manage GUI frameworks and backends
-based on environment configuration.
-It supports multiple GUI frameworks
-and provides a unified interface for GUI operations.
+This module provides a PyQt6-based equivalent of TkGuiManager, wrapping a
+QApplication + QMainWindow pair with the same static-class interface.
 """
-import tkinter as tk
-from tkinter import filedialog, messagebox
+from __future__ import annotations
+import sys
 from typing import Callable
-from pyrox.services import EnvManager, ThemeManager, MenuRegistry
-from pyrox.interfaces import (
-    EnvironmentKeys,
+
+from PyQt6.QtCore import QTimer
+from PyQt6.QtGui import QAction, QCloseEvent, QIcon, QKeySequence, QShortcut
+from PyQt6.QtWidgets import (
+    QApplication,
+    QFileDialog,
+    QMainWindow,
+    QMenu,
+    QMenuBar,
+    QMessageBox,
 )
 
+from pyrox.services.env import EnvManager
+from pyrox.services.menu_registry import MenuRegistry
+from pyrox.interfaces import EnvironmentKeys
 
-_MODIFIER_MAP: dict[str, str] = {
-    'ctrl': 'Control',
-    'control': 'Control',
-    'alt': 'Alt',
-    'shift': 'Shift',
-    'meta': 'Meta',
-    'cmd': 'Command',
-    'win': 'Win',
+
+# ---------------------------------------------------------------------------
+# Key-binding helpers
+# ---------------------------------------------------------------------------
+
+_TK_MODIFIER_TO_QT: dict[str, str] = {
+    'Control': 'Ctrl',
+    'Alt': 'Alt',
+    'Shift': 'Shift',
+    'Meta': 'Meta',
+    'Win': 'Meta',
+    'Command': 'Meta',
 }
 
 
-def _accelerator_to_tk_binding(accelerator: str) -> str | None:
-    """Convert a human-readable accelerator string to a Tkinter key binding.
+def _tk_binding_to_qt_sequence(binding: str) -> str | None:
+    """Convert a Tkinter key binding to a Qt key-sequence string.
 
     Examples::
 
-        'Ctrl+Q'       -> '<Control-q>'
-        'Ctrl+Shift+S' -> '<Control-Shift-S>'
-        'F1'           -> '<F1>'
-        'Alt+F4'       -> '<Alt-F4>'
+        '<Control-s>'       -> 'Ctrl+S'
+        '<Control-Shift-S>' -> 'Ctrl+Shift+S'
+        '<F1>'              -> 'F1'
+        '<Alt-F4>'          -> 'Alt+F4'
 
-    Returns None if the string cannot be parsed.
+    Returns None if the binding cannot be parsed.
     """
-    if not accelerator:
+    if not binding or not binding.startswith('<') or not binding.endswith('>'):
         return None
 
-    parts = [p.strip() for p in accelerator.split('+')]
+    inner = binding[1:-1]
+    parts = inner.split('-')
     modifiers: list[str] = []
     key: str | None = None
 
     for part in parts:
-        mapped = _MODIFIER_MAP.get(part.lower())
-        if mapped:
-            modifiers.append(mapped)
+        qt_mod = _TK_MODIFIER_TO_QT.get(part)
+        if qt_mod:
+            modifiers.append(qt_mod)
         else:
             key = part
 
-    if key is None or not key.strip():
+    if key is None:
         return None
 
-    # Lowercase single alpha characters unless Shift is a modifier
-    if len(key) == 1 and key.isalpha() and 'Shift' not in modifiers:
-        key = key.lower()
+    # Uppercase single alpha key for Qt convention
+    if len(key) == 1 and key.isalpha():
+        key = key.upper()
 
-    return '<' + '-'.join(modifiers + [key]) + '>'
+    return '+'.join(modifiers + [key])
 
 
-class TkGuiManager:
-    """Static manager for Tk GUI operations."""
+def _filetypes_to_qt_filter(filetypes: list[tuple[str, str]] | None) -> str:
+    """Convert Tk-style ``[(label, pattern), ...]`` to a Qt filter string."""
+    if not filetypes:
+        return 'All files (*.*)'
+    return ';;'.join(f'{label} ({pattern})' for label, pattern in filetypes)
+
+
+# ---------------------------------------------------------------------------
+# Internal QMainWindow subclass
+# ---------------------------------------------------------------------------
+
+class _PyQt6MainWindow(QMainWindow):
+    """QMainWindow with callback-based hooks for close and configure events."""
+
+    def __init__(self) -> None:
+        super().__init__()
+        self._close_callback: Callable | None = None
+        self._configure_callbacks: list[Callable] = []
+
+    def closeEvent(self, event: QCloseEvent) -> None:  # type: ignore[override]
+        if self._close_callback:
+            self._close_callback()
+            event.ignore()  # Callback is responsible for calling quit_application()
+        else:
+            event.accept()
+
+    def resizeEvent(self, a0) -> None:  # type: ignore[override]
+        super().resizeEvent(a0)
+        for cb in self._configure_callbacks:
+            cb()
+
+    def moveEvent(self, a0) -> None:  # type: ignore[override]
+        super().moveEvent(a0)
+        for cb in self._configure_callbacks:
+            cb()
+
+
+# ---------------------------------------------------------------------------
+# PyQt6GuiManager
+# ---------------------------------------------------------------------------
+
+class GuiManager:
+    """Static manager for PyQt6 GUI operations.
+
+    Mirrors the interface of ``TkGuiManager`` using PyQt6 primitives.
+    The manager owns one ``QApplication`` and one ``_PyQt6MainWindow``
+    instance for the lifetime of the process.
+    """
 
     # Class-level storage
     _initialized: bool = False
-    _root_window: tk.Tk | None = None
-    _root_menu: tk.Menu | None = None
+    _app: QApplication | None = None
+    _root_window: _PyQt6MainWindow | None = None
+    _menu_bar: QMenuBar | None = None
 
-    # Store additional menus for the root menu so we can access them globally
-    _file_menu: tk.Menu | None = None
-    _edit_menu: tk.Menu | None = None
-    _view_menu: tk.Menu | None = None
-    _tools_menu: tk.Menu | None = None
-    _help_menu: tk.Menu | None = None
+    # Scheduled timer tracking (for debouncing / cancellation)
+    _scheduled_timers: dict[str, QTimer] = {}
+    _timer_counter: int = 0
 
     # Debounce handle for save_root_geometry
     _after_id: str | None = None
 
-    def __init__(self):
+    def __init__(self) -> None:
         """Prevent instantiation of static class."""
-        raise TypeError("GuiManager is a static class and cannot be instantiated")
+        raise TypeError("PyQt6GuiManager is a static class and cannot be instantiated")
 
     # --------------------------------------------------
     # GUI Binding Methods
@@ -92,25 +149,24 @@ class TkGuiManager:
         cls,
         hotkey: str,
         callback: Callable,
-        **kwargs
+        **kwargs,
     ) -> None:
         """Bind a global hotkey to a callback function.
 
         Args:
-            hotkey: The hotkey string to bind (e.g., '<Control-s>').
-            callback: The function to call when the hotkey is pressed.
-            **kwargs: Additional keyword arguments (unused in Tkinter implementation).
+            hotkey: Tk-style (e.g. ``'<Control-s>'``) or Qt-style (``'Ctrl+S'``).
+            callback: Function to invoke when the hotkey fires.
 
         Raises:
             RuntimeError: If the root window is not initialized.
         """
-        def on_key_event(event):
-            callback()
-
-        cls.get_root().bind(hotkey, on_key_event)
+        qt_seq = _tk_binding_to_qt_sequence(hotkey) if hotkey.startswith('<') else hotkey
+        if qt_seq:
+            shortcut = QShortcut(QKeySequence(qt_seq), cls.get_root())
+            shortcut.activated.connect(callback)
 
     # --------------------------------------------------
-    # Gui Event Handling
+    # GUI Event Handling
     # --------------------------------------------------
 
     @classmethod
@@ -118,421 +174,374 @@ class TkGuiManager:
         cls,
         delay_ms: int,
         callback: Callable[..., None],
-        **kwargs
+        **kwargs,
     ) -> str:
-        """Schedule a callback to be called after a delay in milliseconds."""
-        return cls.get_root().after(delay_ms, callback, **kwargs)
+        """Schedule *callback* to be called after *delay_ms* milliseconds.
+
+        Returns an opaque ID that can be passed to :meth:`cancel_scheduled_event`.
+        """
+        timer = QTimer()
+        timer.setSingleShot(True)
+        timer_id = str(cls._timer_counter)
+        cls._timer_counter += 1
+        cls._scheduled_timers[timer_id] = timer
+
+        def _on_timeout() -> None:
+            cls._scheduled_timers.pop(timer_id, None)
+            callback(**kwargs)
+
+        timer.timeout.connect(_on_timeout)
+        timer.start(delay_ms)
+        return timer_id
 
     @classmethod
     def cancel_scheduled_event(cls, event_id: str) -> None:
-        cls.get_root().after_cancel(event_id)
+        """Cancel a previously scheduled event by its ID."""
+        timer = cls._scheduled_timers.pop(event_id, None)
+        if timer:
+            timer.stop()
+            timer.deleteLater()
 
     @classmethod
     def subscribe_to_window_change_event(cls, callback: Callable[..., None]) -> None:
-        """Subscribe to the window change event.
+        """Subscribe to window resize / move events.
 
-        Uses add='+' so that multiple subscribers can coexist without
-        overwriting each other's bindings.
+        Multiple subscribers are supported and will all be called.
         """
-        cls.get_root().bind("<Configure>", lambda event: callback(), add='+')
+        cls.get_root()._configure_callbacks.append(callback)
 
     @classmethod
     def subscribe_to_window_close_event(cls, callback: Callable[..., None]) -> None:
-        """Subscribe to the window close event."""
-        cls.get_root().protocol("WM_DELETE_WINDOW", callback)
+        """Subscribe to the window close event (replaces any previous subscriber)."""
+        cls.get_root()._close_callback = callback
 
     @classmethod
     def update_idletasks(cls) -> None:
         """Process all pending GUI events."""
-        cls.get_root().update_idletasks()
+        QApplication.processEvents()
 
     # --------------------------------------------------
-    # Gui Configuration
+    # GUI Configuration
     # --------------------------------------------------
 
     @classmethod
     def config_from_env(cls, **kwargs) -> None:
-        """Configure the root window from environment variables.
-
-        This method can be expanded to read specific environment variables
-        and apply configurations to the root window as needed.
-        """
-        # Restore window title
+        """Configure the root window from environment variables."""
         cls.set_title(
             EnvManager.get(
                 EnvironmentKeys.core.APP_WINDOW_TITLE,
-                default=kwargs.get('title', 'Pyrox Application')
+                default=kwargs.get('title', 'Pyrox Application'),
             )
         )
-
-        # Restore window geometry and position
         cls.restore_root_geometry()
-
-        # Restore window icon
-        cls.set_icon(cls.get_default_icon_path())
-
-        # Apply any additional configurations passed in kwargs
-        cls.get_root().config(**kwargs)
+        icon_path = cls.get_default_icon_path()
+        if icon_path:
+            cls.set_icon(icon_path)
 
     @classmethod
     def get_default_icon_path(cls) -> str | None:
-        """Get the default icon path for the application."""
-        return EnvManager.get(
-            EnvironmentKeys.core.APP_ICON,
-            None,
-            str
-        )
+        """Return the default icon path from the environment."""
+        return EnvManager.get(EnvironmentKeys.core.APP_ICON, None, str)
 
     @classmethod
     def set_icon(
         cls,
         icon_path: str | None,
-        window: tk.Tk | tk.Toplevel | None = None
+        window: QMainWindow | None = None,
     ) -> None:
-        """Set the application icon for the Tkinter root window."""
+        """Set the window icon from *icon_path*."""
         if not isinstance(icon_path, str):
             raise TypeError('Icon path must be a string representing the file path to the icon.')
 
-        window = window or cls.get_root()
-        window.iconbitmap(icon_path)
+        target = window or cls.get_root()
+        target.setWindowIcon(QIcon(icon_path))
 
     @classmethod
     def get_title(
         cls,
-        window: tk.Tk | tk.Toplevel | None
+        window: QMainWindow | None = None,
     ) -> str:
-        """Get the application window title.
-
-        Returns:
-            The current window title.
-        """
-        window = window or cls.get_root()
-        return window.title()
+        """Return the current window title."""
+        return (window or cls.get_root()).windowTitle()
 
     @classmethod
     def set_title(
         cls,
         title: str,
-        window: tk.Tk | tk.Toplevel | None = None
+        window: QMainWindow | None = None,
     ) -> None:
-        """Set the application window title.
-
-        Args:
-            title: The new window title.
-        """
+        """Set the window title to *title*."""
         if not isinstance(title, str):
             raise TypeError('Title must be a string.')
 
-        window = window or cls.get_root()
-        window.title(title)
+        (window or cls.get_root()).setWindowTitle(title)
 
     # --------------------------------------------------
     # Root Management
     # --------------------------------------------------
 
     @classmethod
-    def create_root(cls, **kwargs) -> tk.Tk:
+    def create_root(cls, **kwargs) -> _PyQt6MainWindow:
+        """Create (or return existing) QApplication + root QMainWindow."""
         if cls._root_window is not None:
             return cls._root_window
 
-        cls._root_window = tk.Tk()
+        if not QApplication.instance():
+            cls._app = QApplication(sys.argv)
+        else:
+            cls._app = QApplication.instance()  # type: ignore[assignment]
+
+        cls._root_window = _PyQt6MainWindow()
         cls.config_from_env(**kwargs)
-        ThemeManager.ensure_theme_created()
+        cls._root_window.show()
         return cls._root_window
 
     @classmethod
-    def get_root(cls) -> tk.Tk:
+    def get_root(cls) -> _PyQt6MainWindow:
+        """Return the root window, raising if not yet initialized."""
         if not cls._root_window:
             raise RuntimeError("Root window not initialized")
-
         return cls._root_window
+
+    @classmethod
+    def get_app(cls) -> QApplication:
+        """Return the QApplication instance."""
+        if not cls._app:
+            raise RuntimeError("QApplication not initialized")
+        return cls._app
 
     @classmethod
     def focus_root(cls) -> None:
-        cls.get_root().focus()
+        """Bring the root window to the front and give it focus."""
+        cls.get_root().activateWindow()
+        cls.get_root().raise_()
 
     @classmethod
     def _store_root_state(cls) -> None:
-        """Store the current window state in environment variables.
-        """
-        cls._after_id = None  # Reset after_id since the event has fired
+        """Persist current window geometry and state to the environment."""
+        cls._after_id = None
 
-        w = cls.get_root().winfo_width()
-        h = cls.get_root().winfo_height()
-        EnvManager.set(
-            EnvironmentKeys.ui.UI_WINDOW_SIZE,
-            f'{w}x{h}'
-        )
+        w = cls.get_root().width()
+        h = cls.get_root().height()
+        EnvManager.set(EnvironmentKeys.ui.UI_WINDOW_SIZE, f'{w}x{h}')
 
-        position = cls.get_root().winfo_rootx(), cls.get_root().winfo_rooty()
-        EnvManager.set(
-            EnvironmentKeys.ui.UI_WINDOW_POSITION,
-            str(position)
-        )
+        pos = cls.get_root().x(), cls.get_root().y()
+        EnvManager.set(EnvironmentKeys.ui.UI_WINDOW_POSITION, str(pos))
 
-        state = cls.get_root().state()
-        EnvManager.set(
-            EnvironmentKeys.ui.UI_WINDOW_STATE,
-            state
-        )
+        if cls.get_root().isMaximized():
+            state = 'zoomed'
+        elif cls.get_root().isMinimized():
+            state = 'iconic'
+        else:
+            state = 'normal'
+        EnvManager.set(EnvironmentKeys.ui.UI_WINDOW_STATE, state)
 
-        fullscreen = cls.get_root().attributes('-fullscreen')
         EnvManager.set(
             EnvironmentKeys.ui.UI_WINDOW_FULLSCREEN,
-            str(fullscreen)
+            str(cls.get_root().isFullScreen()),
         )
 
     @classmethod
     def save_root_geometry(cls) -> None:
-        """Handle window resize events.
-        """
-        if cls._after_id:  # If we've scheduled an event, cancel it
+        """Debounced geometry save — resets the 500 ms timer on each call."""
+        if cls._after_id:
             cls.cancel_scheduled_event(cls._after_id)
-
         cls._after_id = cls.schedule_event(500, cls._store_root_state)
 
     @classmethod
     def restore_root_geometry(cls) -> None:
+        """Restore window geometry and state from environment variables."""
         full_screen = EnvManager.get(
             key=EnvironmentKeys.ui.UI_WINDOW_FULLSCREEN,
             default=False,
-            cast_type=bool
+            cast_type=bool,
         )
         if full_screen:
-            cls.get_root().attributes('-fullscreen', True)
+            cls.get_root().showFullScreen()
+            return
+
+        window_size = EnvManager.get(
+            key=EnvironmentKeys.ui.UI_WINDOW_SIZE,
+            default=None,
+            cast_type=str,
+        )
+        if window_size:
+            parts = window_size.split('x')
+            if len(parts) == 2:
+                try:
+                    cls.get_root().resize(int(parts[0]), int(parts[1]))
+                except ValueError:
+                    pass
 
         window_position = EnvManager.get(
             key=EnvironmentKeys.ui.UI_WINDOW_POSITION,
             default=None,
-            cast_type=tuple
+            cast_type=tuple,
         )
-
-        # Restore window size and position if available
-        geometry_str = ''
         if window_position and len(window_position) == 2:
-            geometry_str = f'+{window_position[0]}+{window_position[1]}'
-        window_size = EnvManager.get(
-            key=EnvironmentKeys.ui.UI_WINDOW_SIZE,
-            default=None,
-            cast_type=str
-        )
-        if window_size:
-            window_size_arr = window_size.split('x')
-            if len(window_size_arr) == 2:
-                geometry_str = f'{window_size_arr[0]}x{window_size_arr[1]}{geometry_str}'
-        if geometry_str:
-            cls.get_root().geometry(geometry_str)
+            try:
+                cls.get_root().move(int(window_position[0]), int(window_position[1]))
+            except (ValueError, TypeError):
+                pass
 
         window_state = EnvManager.get(
             key=EnvironmentKeys.ui.UI_WINDOW_STATE,
             default='normal',
-            cast_type=str
+            cast_type=str,
         )
-        if window_state:
-            cls.get_root().state(window_state)
+        if window_state == 'zoomed':
+            cls.get_root().showMaximized()
+        elif window_state in ('iconic', 'minimized'):
+            cls.get_root().showMinimized()
 
     # --------------------------------------------------
     # Root Menu Management
     # --------------------------------------------------
 
     @classmethod
-    def create_root_menu(cls) -> tk.Menu:
-        if cls._root_menu is not None:
-            return cls._root_menu
+    def create_root_menu(cls) -> QMenuBar:
+        """Create the main menu bar with standard top-level menus."""
+        if cls._menu_bar is not None:
+            return cls._menu_bar
 
-        cls._root_menu = tk.Menu(cls.get_root())
-        cls.get_root().config(menu=cls._root_menu)
+        menu_bar = cls.get_root().menuBar()
+        if menu_bar is None:
+            raise RuntimeError("Failed to retrieve menu bar from root window")
+        cls._menu_bar = menu_bar
 
-        # create additional menus here
-        MenuRegistry.register_item(
-            menu_id='file_menu',
-            menu_path='root/file',
-            menu_widget=tk.Menu(cls._root_menu, tearoff=0),
-            menu_index=0,
-            owner='TkGuiManager',
-            metadata={'category': 'root'},
-        )
-        MenuRegistry.register_item(
-            menu_id='edit_menu',
-            menu_path='root/edit',
-            menu_widget=tk.Menu(cls._root_menu, tearoff=0),
-            menu_index=1,
-            owner='TkGuiManager',
-            metadata={'category': 'root'},
-        )
-        MenuRegistry.register_item(
-            menu_id='tools_menu',
-            menu_path='root/tools',
-            menu_widget=tk.Menu(cls._root_menu, tearoff=0),
-            menu_index=2,
-            owner='TkGuiManager',
-            metadata={'category': 'root'},
-        )
-        MenuRegistry.register_item(
-            menu_id='view_menu',
-            menu_path='root/view',
-            menu_widget=tk.Menu(cls._root_menu, tearoff=0),
-            menu_index=3,
-            owner='TkGuiManager',
-            metadata={'category': 'root'},
-        )
-        MenuRegistry.register_item(
-            menu_id='help_menu',
-            menu_path='root/help',
-            menu_widget=tk.Menu(cls._root_menu, tearoff=0),
-            menu_index=4,
-            owner='TkGuiManager',
-            metadata={'category': 'root'},
-        )
+        menus = [
+            ('file_menu',  'root/file',  'File',  0),
+            ('edit_menu',  'root/edit',  'Edit',  1),
+            ('tools_menu', 'root/tools', 'Tools', 2),
+            ('view_menu',  'root/view',  'View',  3),
+            ('help_menu',  'root/help',  'Help',  4),
+        ]
+        for menu_id, path, label, idx in menus:
+            menu_widget = cls._menu_bar.addMenu(label)
+            MenuRegistry.register_item(
+                menu_id=menu_id,
+                menu_path=path,
+                menu_widget=menu_widget,
+                menu_index=idx,
+                owner='PyQt6GuiManager',
+                metadata={'category': 'root'},
+            )
 
-        # add the additional menus to the root menu
-        cls._root_menu.add_cascade(label="File", menu=cls.get_file_menu())
-        cls._root_menu.add_cascade(label="Edit", menu=cls.get_edit_menu())
-        cls._root_menu.add_cascade(label="Tools", menu=cls.get_tools_menu())
-        cls._root_menu.add_cascade(label="View", menu=cls.get_view_menu())
-        cls._root_menu.add_cascade(label="Help", menu=cls.get_help_menu())
-
-        return cls._root_menu
+        return cls._menu_bar  # type: ignore[return-value]  # guarded above
 
     @classmethod
-    def get_file_menu(cls) -> tk.Menu:
+    def get_file_menu(cls) -> QMenu:
         descriptor = MenuRegistry.get_item('file_menu')
         if not descriptor:
             raise RuntimeError("File menu not found in MenuRegistry")
         return descriptor.menu_widget
 
     @classmethod
-    def get_edit_menu(cls) -> tk.Menu:
+    def get_edit_menu(cls) -> QMenu:
         descriptor = MenuRegistry.get_item('edit_menu')
         if not descriptor:
             raise RuntimeError("Edit menu not found in MenuRegistry")
         return descriptor.menu_widget
 
     @classmethod
-    def get_view_menu(cls) -> tk.Menu:
+    def get_view_menu(cls) -> QMenu:
         descriptor = MenuRegistry.get_item('view_menu')
         if not descriptor:
             raise RuntimeError("View menu not found in MenuRegistry")
         return descriptor.menu_widget
 
     @classmethod
-    def get_tools_menu(cls) -> tk.Menu:
+    def get_tools_menu(cls) -> QMenu:
         descriptor = MenuRegistry.get_item('tools_menu')
         if not descriptor:
             raise RuntimeError("Tools menu not found in MenuRegistry")
         return descriptor.menu_widget
 
     @classmethod
-    def get_help_menu(cls) -> tk.Menu:
+    def get_help_menu(cls) -> QMenu:
         descriptor = MenuRegistry.get_item('help_menu')
         if not descriptor:
             raise RuntimeError("Help menu not found in MenuRegistry")
         return descriptor.menu_widget
 
     @classmethod
-    def get_root_menu(cls) -> tk.Menu:
-        if not cls._root_menu:
-            raise RuntimeError("Root menu not initialized")
-
-        return cls._root_menu
+    def get_root_menu(cls) -> QMenuBar:
+        if not cls._menu_bar:
+            raise RuntimeError("Root menu bar not initialized")
+        return cls._menu_bar
 
     # --------------------------------------------------
-    # Gui user input handling
+    # GUI User Input Handling
     # --------------------------------------------------
 
     @classmethod
     def prompt_user_open_file(
         cls,
         title: str = "Open file",
-        filetypes: list[tuple[str, str]] | None = None
+        filetypes: list[tuple[str, str]] | None = None,
     ) -> str | None:
-        """Show a file open dialog to the user.
-
-        Args:
-            title: The title of the dialog.
-            filetypes: Optional list of (label, pattern) tuples for file types.
-        Returns:
-            The selected file path, or None if cancelled.
-        """
-        file_path = filedialog.askopenfilename(
-            parent=cls.get_root(),
-            title=title,
-            filetypes=filetypes or [("All files", "*.*")]
+        """Show a file-open dialog. Returns the chosen path or ``None``."""
+        path, _ = QFileDialog.getOpenFileName(
+            cls.get_root(),
+            title,
+            '',
+            _filetypes_to_qt_filter(filetypes),
         )
-        return file_path if file_path else None
+        return path if path else None
 
     @classmethod
     def prompt_user_save_file(
         cls,
         title: str = "Save file as",
-        filetypes: list[tuple[str, str]] | None = None
+        filetypes: list[tuple[str, str]] | None = None,
     ) -> str | None:
-        """Show a file save dialog to the user.
-
-        Args:
-            title: The title of the dialog.
-            filetypes: Optional list of (label, pattern) tuples for file types.
-        Returns:
-            The selected file path, or None if cancelled.
-        """
-        file_path = filedialog.asksaveasfilename(
-            parent=cls.get_root(),
-            title=title,
-            filetypes=filetypes or [("All files", "*.*")]
+        """Show a file-save dialog. Returns the chosen path or ``None``."""
+        path, _ = QFileDialog.getSaveFileName(
+            cls.get_root(),
+            title,
+            '',
+            _filetypes_to_qt_filter(filetypes),
         )
-        return file_path if file_path else None
+        return path if path else None
 
     @classmethod
     def prompt_user_select_directory(
         cls,
-        title: str = "Select directory"
+        title: str = "Select directory",
     ) -> str | None:
-        """Show a directory selection dialog to the user.
-
-        Args:
-            title: The title of the dialog.
-        Returns:
-            The selected directory path, or None if cancelled.
-        """
-        directory_path = filedialog.askdirectory(
-            parent=cls.get_root(),
-            title=title
-        )
-        return directory_path if directory_path else None
+        """Show a directory-selection dialog. Returns the chosen path or ``None``."""
+        path = QFileDialog.getExistingDirectory(cls.get_root(), title)
+        return path if path else None
 
     @classmethod
     def prompt_user_yes_no(
         cls,
         title: str,
-        message: str
+        message: str,
     ) -> bool:
-        """Show a yes/no confirmation dialog to the user.
-
-        Args:
-            title: The title of the dialog.
-            message: The message to display in the dialog.
-        Returns:
-            True if the user clicked "Yes", False if "No".
-        """
-        return messagebox.askyesno(
-            parent=cls.get_root(),
-            title=title,
-            message=message
+        """Show a yes/no confirmation dialog. Returns ``True`` if the user chose Yes."""
+        result = QMessageBox.question(
+            cls.get_root(),
+            title,
+            message,
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.No,
         )
+        return result == QMessageBox.StandardButton.Yes
 
     # --------------------------------------------------
-    # Gui Lifecycle Management
+    # GUI Lifecycle Management
     # --------------------------------------------------
 
     @classmethod
     def run_main_loop(cls) -> None:
-        """Start the Tkinter main loop."""
-        cls.get_root().mainloop()
+        """Start the Qt event loop (blocks until the window is closed)."""
+        cls.get_app().exec()
 
     @classmethod
     def quit_application(cls) -> None:
-        """Quit the Tkinter application."""
-        cls.get_root().quit()
+        """Quit the Qt application."""
+        cls.get_app().quit()
 
     # --------------------------------------------------
     # Exception Handling
@@ -540,39 +549,57 @@ class TkGuiManager:
 
     @classmethod
     def reroute_excepthook(cls, callback: Callable[..., None]) -> None:
-        tk.report_callback_exception = callback  # type: ignore
+        """Redirect unhandled exceptions to *callback* via ``sys.excepthook``.
+
+        The callback receives ``(exc_type, exc_value, exc_traceback)``,
+        matching the signature of ``sys.excepthook``.
+        """
+        sys.excepthook = callback
 
     # --------------------------------------------------
-    # Additional utility methods can be added here as needed
+    # Menu Utility
     # --------------------------------------------------
 
     @classmethod
     def insert_menu_command_with_accelerator(
         cls,
-        menu: tk.Menu,
+        menu: QMenu,
         index: int,
         label: str,
         command: Callable | None = None,
         accelerator: str = '',
         underline: int = 0,
-    ) -> None:
-        """Helper method to insert a menu command with an accelerator key binding."""
-        original_command = command
-        command = command if command is not None else lambda: None  # No-op if no command provided
+    ) -> QAction:
+        """Insert a :class:`QAction` into *menu* at *index* with an optional accelerator.
 
-        menu.insert_command(
-            index=index,
-            label=label,
-            command=command,
-            accelerator=accelerator,
-            underline=underline
-        )
-        tk_binding = _accelerator_to_tk_binding(accelerator)
+        Args:
+            menu: The target ``QMenu``.
+            index: Zero-based position at which to insert the action.
+            label: Display text for the action.
+            command: Optional callable connected to the action's ``triggered`` signal.
+            accelerator: Human-readable shortcut string (e.g. ``'Ctrl+S'``).
+            underline: Ignored (Qt handles mnemonics via ``&`` in *label*).
 
-        if tk_binding and original_command:  # only bind if a real command was provided
-            cls.bind_hotkey(tk_binding, command)
+        Returns:
+            QAction: The created action.
+        """
+        action = QAction(label, menu)
+
+        if accelerator:
+            action.setShortcut(QKeySequence(accelerator))
+
+        if command:
+            action.triggered.connect(command)
+
+        actions = menu.actions()
+        if index < len(actions):
+            menu.insertAction(actions[index], action)
+        else:
+            menu.addAction(action)
+
+        return action
 
 
 __all__ = (
-    'TkGuiManager',
+    'GuiManager',
 )

@@ -13,6 +13,7 @@ from typing import Any, Dict, Optional, Union
 from dotenv import load_dotenv, set_key
 
 from pyrox.interfaces import EnvironmentKeys
+from pyrox.services import ServiceManager
 
 
 class EnvManager:
@@ -497,3 +498,6 @@ def get_default_formatter() -> str:
         raise ValueError("Invalid log formatter string from .env file!")
 
     return formatter
+
+
+ServiceManager.register_service('env', EnvManager)

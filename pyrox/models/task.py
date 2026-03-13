@@ -3,12 +3,13 @@
 Tasks are used to add additional functionality to the application via the toolbar
 in the main application frame or as background services.
 """
-import tkinter as tk
+from PyQt6.QtWidgets import QMenu
+from PyQt6.QtGui import QAction
 from typing import Callable
 from pyrox.interfaces import IApplication, IApplicationTask
 from pyrox.models import ServicesRunnableMixin
-from pyrox.services import log, MenuRegistry, TkGuiManager
-from pyrox.models.gui.tk.frame import TkinterTaskFrame
+from pyrox.services import log, MenuRegistry, GuiManager
+from pyrox.models.gui.frame import TaskFrame
 from pyrox.models.factory import MetaFactory, FactoryTypeMeta
 
 
@@ -48,25 +49,25 @@ class ApplicationTask(
         super().__init__()
         self._application = application
         self._application.register_task(self)
-        self._task_frame: TkinterTaskFrame | None = None
+        self._task_frame: TaskFrame | None = None
         self._frame_destroy_callback = lambda *_, **__: self._on_frame_destroyed()
 
     # --------------------------------------------------------------
     # Public Methods
     # --------------------------------------------------------------
 
-    def create_task_frame(self) -> TkinterTaskFrame:
+    def create_task_frame(self) -> TaskFrame:
         """Create the task's frame.
 
         Returns:
-            TkinterTaskFrame: The created task frame instance.
+            PyQt6TaskFrame: The created task frame instance.
         """
         raise NotImplementedError("create_task_frame method must be implemented by subclass.")
 
     def create_or_raise_frame(self):
         """Create the task's frame if it doesn't exist, or raise it if it does.
         """
-        if not self._task_frame or not self._task_frame.root.winfo_exists():
+        if not self._task_frame or not self._task_frame.root.isVisible():
             self._task_frame = self.create_task_frame()
             self.application.workspace.register_frame(self._task_frame)
             self._task_frame.on_destroy().append(self._frame_destroy_callback)
@@ -75,7 +76,7 @@ class ApplicationTask(
 
     def register_menu_command(
         self,
-        menu: tk.Menu,
+        menu: QMenu,
         registry_id: str,
         registry_path: str,
         index: int,
@@ -86,11 +87,11 @@ class ApplicationTask(
         category: str | None = None,
         subcategory: str | None = None,
         enabled: bool = True
-    ) -> None:
+    ) -> QAction:
         """Register a command to the application's menu bar.
         Additionally, register the command with the MenuRegistry.
         """
-        TkGuiManager.insert_menu_command_with_accelerator(
+        action = GuiManager.insert_menu_command_with_accelerator(
             menu=menu,
             index=index,
             label=label,
@@ -99,8 +100,8 @@ class ApplicationTask(
             underline=underline,
         )
 
-        if not enabled:
-            menu.entryconfig(index, state=tk.DISABLED)  # Disable the menu item if not enabled
+        if not enabled and action is not None:
+            action.setEnabled(False)
 
         MenuRegistry.register_item(
             menu_id=registry_id,
@@ -108,34 +109,37 @@ class ApplicationTask(
             menu_widget=menu,
             menu_index=index,
             owner=self.__class__.__name__,
+            action=action,
             command=command,
             category=category,
             subcategory=subcategory,
         )
 
+        return action
+
     def register_submenu(
         self,
-        menu: tk.Menu,
-        submenu: tk.Menu,
+        menu: QMenu,
+        submenu: QMenu,
         registry_id: str,
         registry_path: str,
         index: int,
         label: str,
         underline: int,
         category: str | None = None
-    ) -> tk.Menu:
+    ) -> QMenu:
         """Register a submenu to the application's menu bar.
         Additionally, register the submenu with the MenuRegistry.
 
         Returns:
             IGuiMenu: The created submenu instance.
         """
-        menu.insert_cascade(
-            label=label,
-            menu=submenu,
-            index=index,
-            underline=underline
-        )
+        actions = menu.actions()
+        if index < len(actions):
+            menu.insertMenu(actions[index], submenu)
+        else:
+            menu.addMenu(submenu)
+        submenu.setTitle(label)
 
         MenuRegistry.register_item(
             menu_id=registry_id,

@@ -33,7 +33,7 @@ class TestSceneRunnerService(unittest.TestCase):
         self.mock_scene.on_scene_object_removed = []
 
         # Patch GuiManager to return the mock backend
-        self.gui_manager_patcher = patch('pyrox.services.scene.TkGuiManager')
+        self.gui_manager_patcher = patch('pyrox.services.scene.GuiManager')
         self.mock_gui_manager_class = self.gui_manager_patcher.start()
         self.mock_gui_manager_class.schedule_event.return_value = "event_id_123"
 

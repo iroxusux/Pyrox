@@ -2,7 +2,7 @@
 import unittest
 from unittest.mock import MagicMock, patch
 
-from pyrox.services import TkGuiManager
+from pyrox.services import GuiManager
 from pyrox.services.menu_registry import MenuRegistry
 from pyrox.services.scene import SceneEventBus, SceneEventType
 
@@ -34,12 +34,12 @@ class _SceneviewerTestBase(unittest.TestCase):
 
         self._patches = [
             # TkGuiManager menus
-            patch.object(TkGuiManager, 'get_file_menu',  return_value=self.mock_file_menu),
-            patch.object(TkGuiManager, 'get_edit_menu',  return_value=self.mock_edit_menu),
-            patch.object(TkGuiManager, 'get_view_menu',  return_value=self.mock_view_menu),
-            patch.object(TkGuiManager, 'get_help_menu',  return_value=self.mock_help_menu),
-            patch.object(TkGuiManager, 'get_tools_menu', return_value=self.mock_tools_menu),
-            patch.object(TkGuiManager, 'get_root',       return_value=self.mock_root),
+            patch.object(GuiManager, 'get_file_menu',  return_value=self.mock_file_menu),
+            patch.object(GuiManager, 'get_edit_menu',  return_value=self.mock_edit_menu),
+            patch.object(GuiManager, 'get_view_menu',  return_value=self.mock_view_menu),
+            patch.object(GuiManager, 'get_help_menu',  return_value=self.mock_help_menu),
+            patch.object(GuiManager, 'get_tools_menu', return_value=self.mock_tools_menu),
+            patch.object(GuiManager, 'get_root',       return_value=self.mock_root),
             # MenuRegistry
             patch.object(MenuRegistry, 'register_item'),
             patch.object(MenuRegistry, 'enable_items_by_owner'),
@@ -53,8 +53,10 @@ class _SceneviewerTestBase(unittest.TestCase):
             patch('pyrox.tasks.sceneviewer.SceneViewerFrame'),
             # EnvironmentService
             patch('pyrox.tasks.sceneviewer.EnvironmentService'),
-            # tkinter.Menu — prevents real Tk widget creation
-            patch('pyrox.tasks.sceneviewer.tk.Menu', return_value=self.mock_submenu),
+            # GuiManager Qt method that would crash without a running QApplication
+            patch.object(GuiManager, 'insert_menu_command_with_accelerator', return_value=MagicMock()),
+            # QMenu used in sceneviewer __init__ — prevent real Qt widget construction
+            patch('pyrox.tasks.sceneviewer.QMenu'),
         ]
         self.mocks = [p.start() for p in self._patches]
 
@@ -247,7 +249,7 @@ class TestCreateOrRaiseFrame(_SceneviewerTestBase):
         task = self._make_task()
 
         alive_frame = MagicMock()
-        alive_frame.root.winfo_exists.return_value = True
+        alive_frame.root.isVisible.return_value = True
         task._task_frame = alive_frame
 
         self.MockSceneViewerFrame.reset_mock()
@@ -261,7 +263,7 @@ class TestCreateOrRaiseFrame(_SceneviewerTestBase):
         task = self._make_task()
 
         dead_frame = MagicMock()
-        dead_frame.root.winfo_exists.return_value = False
+        dead_frame.root.isVisible.return_value = False
         task._task_frame = dead_frame
 
         self.MockSceneViewerFrame.reset_mock()

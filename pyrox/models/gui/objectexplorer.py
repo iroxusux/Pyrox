@@ -1,45 +1,60 @@
 """Object Explorer panel for the Scene Viewer.
 
-Provides a Tkinter-based side panel that lists every object currently
+Provides a PyQt6-based side panel that lists every object currently
 present in the loaded scene, with optional search filtering, type-based
 grouping, and a callback to notify the host (e.g. ``SceneViewerFrame``)
 when the user changes selection.
 
-``TkObjectExplorer`` is a :class:`~pyrox.models.gui.tk.frame.TkinterTaskFrame`
+``ObjectExplorer`` is a :class:`~pyrox.models.gui.frame.TaskFrame`
 and therefore ships with a title bar and built-in close button.  Mount it
-inside a ``ttk.PanedWindow`` exactly as the property and bridge panels are
+inside a ``QSplitter`` exactly as the property and bridge panels are
 mounted in :mod:`pyrox.models.gui.sceneviewer`.
 
 Example Usage:
     ```python
-    explorer = TkObjectExplorer(
-        parent=paned_window,
+    explorer = ObjectExplorer(
+        parent=splitter,
         title="Object Explorer",
-        on_selection_changed=lambda obj_ids: viewer.select_objects(obj_ids),
+        on_selection_changed=lambda obj_id: viewer.select_objects([obj_id]),
     )
 
     # Populate / refresh when the scene changes
     explorer.set_scene(my_scene)
 
-    # Add to the paned window
-    paned_window.add(explorer.root, weight=0)
+    # Add to the splitter
+    splitter.addWidget(explorer.root)
     ```
 """
 from __future__ import annotations
 
-import tkinter as tk
-from tkinter import ttk
+import sys
 from typing import Callable, Optional
 
+from PyQt6.QtCore import Qt
+from PyQt6.QtGui import QFont
+from PyQt6.QtWidgets import (
+    QApplication,
+    QFrame,
+    QHBoxLayout,
+    QLabel,
+    QLineEdit,
+    QPushButton,
+    QSizePolicy,
+    QTreeWidget,
+    QTreeWidgetItem,
+    QVBoxLayout,
+    QWidget,
+)
+
 from pyrox.interfaces import IScene, ISceneObject
-from pyrox.models.gui.tk.frame import TkinterTaskFrame
+from pyrox.models.gui.frame import TaskFrame
 from pyrox.services.logging import log
 
 
-class TkObjectExplorer(TkinterTaskFrame):
+class ObjectExplorer(TaskFrame):
     """A resizable side panel that lists all scene objects.
 
-    Objects are grouped by their ``scene_object_type`` under collapsible
+    Objects are grouped by their ``_scene_object_type`` under collapsible
     tree nodes.  A live search bar lets the user filter by name.  Clicking
     a row triggers ``on_selection_changed`` with the selected object's ID
     so the host viewer can synchronise its own selection state.
@@ -49,8 +64,6 @@ class TkObjectExplorer(TkinterTaskFrame):
         - Live name search / filter
         - Refresh button to re-sync with the scene
         - Selection callback consumed by the host viewer
-        - Follows the same ``TkinterTaskFrame`` conventions as
-          ``TkPropertyPanel`` and ``SceneBridgeDialog``
 
     Attributes:
         scene:                The scene currently being browsed.
@@ -60,28 +73,25 @@ class TkObjectExplorer(TkinterTaskFrame):
 
     def __init__(
         self,
-        parent: tk.Widget | tk.Misc,
-        title: str = "object explorer",
+        parent: QWidget,
+        title: str = "Object Explorer",
         width: int = 230,
         on_selection_changed: Optional[Callable[[str], None]] = None,
     ) -> None:
-        """Initialise the TkObjectExplorer.
+        """Initialise the ObjectExplorer.
 
         Args:
-            parent:               Parent widget (typically a ``ttk.PanedWindow``).
+            parent:               Parent widget (typically a ``QSplitter``).
             title:                Title displayed in the panel's title bar.
             width:                Preferred panel width in pixels.
             on_selection_changed: Optional callback invoked with the selected
                                   object's ID when the tree selection changes.
         """
-        TkinterTaskFrame.__init__(self, name=title, parent=parent)  # type: ignore[arg-type]
-        self.root.configure(width=width)
+        super().__init__(name=title, parent=parent)
+        self.root.setMinimumWidth(width)
 
-        self._title = title
         self._scene: Optional[IScene] = None
         self._on_selection_changed = on_selection_changed
-        self._search_var = tk.StringVar()
-        self._search_var.trace_add("write", self._on_search_changed)
 
         self._build_ui()
 
@@ -104,24 +114,27 @@ class TkObjectExplorer(TkinterTaskFrame):
         Safe to call at any time; clears the existing tree and rebuilds it
         from scratch.
         """
-        self._tree.delete(*self._tree.get_children())
+        self._tree.clear()
 
         if self._scene is None:
-            self._status_label.config(text="No scene loaded")
+            self._status_label.setText("No scene loaded")
             return
 
         objects: dict[str, ISceneObject] = self._scene.scene_objects  # type: ignore[assignment]
         if not objects:
-            self._status_label.config(text="Scene is empty")
+            self._status_label.setText("Scene is empty")
             return
 
-        filter_text = self._search_var.get().lower().strip()
+        filter_text = self._search_edit.text().lower().strip()
 
         # Group by type -------------------------------------------------------
         groups: dict[str, list[ISceneObject]] = {}
         for obj in objects.values():
             obj_type = getattr(obj, '_scene_object_type', 'Unknown')
             groups.setdefault(obj_type, []).append(obj)
+
+        bold_font = QFont()
+        bold_font.setBold(True)
 
         total = 0
         for group_name, members in sorted(groups.items()):
@@ -132,27 +145,20 @@ class TkObjectExplorer(TkinterTaskFrame):
             if not matching:
                 continue
 
-            group_node = self._tree.insert(
-                '',
-                tk.END,
-                text=f"{group_name}  ({len(matching)})",
-                open=True,
-                tags=('group',),
-            )
+            group_item = QTreeWidgetItem(self._tree)
+            group_item.setText(0, f"{group_name}  ({len(matching)})")
+            group_item.setFont(0, bold_font)
+            group_item.setData(0, Qt.ItemDataRole.UserRole, None)  # marks as group
+            group_item.setExpanded(True)
 
             for obj in sorted(matching, key=lambda o: o.get_name().lower()):
                 obj_id = getattr(obj, 'id', '') or getattr(obj, 'get_id', lambda: '')()
-                self._tree.insert(
-                    group_node,
-                    tk.END,
-                    iid=obj_id,
-                    text=obj.get_name(),
-                    values=(obj_id, group_name),
-                    tags=('object',),
-                )
+                leaf = QTreeWidgetItem(group_item)
+                leaf.setText(0, obj.get_name())
+                leaf.setData(0, Qt.ItemDataRole.UserRole, obj_id)
                 total += 1
 
-        self._status_label.config(text=f"{total} object{'s' if total != 1 else ''}")
+        self._status_label.setText(f"{total} object{'s' if total != 1 else ''}")
         log(self).debug(f"Object explorer refreshed: {total} objects")
 
     # ------------------------------------------------------------------
@@ -161,137 +167,94 @@ class TkObjectExplorer(TkinterTaskFrame):
 
     def _build_ui(self) -> None:
         """Build the panel's widget hierarchy."""
+        content_layout = self.content_frame.layout()
+        content_layout.setContentsMargins(6, 6, 6, 4)  # type: ignore[union-attr]
+        content_layout.setSpacing(4)  # type: ignore[union-attr]
+
         # -- Toolbar (search + refresh) ------------------------------------
-        toolbar = ttk.Frame(self.content_frame)
-        toolbar.pack(side=tk.TOP, fill=tk.X, padx=6, pady=(6, 2))
+        toolbar = QWidget(self.content_frame)
+        toolbar_layout = QHBoxLayout(toolbar)
+        toolbar_layout.setContentsMargins(0, 0, 0, 0)
+        toolbar_layout.setSpacing(2)
 
-        ttk.Label(toolbar, text="🔍", width=2).pack(side=tk.LEFT)
+        search_icon = QLabel("🔍", toolbar)
+        toolbar_layout.addWidget(search_icon)
 
-        search_entry = ttk.Entry(toolbar, textvariable=self._search_var)
-        search_entry.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=2)
+        self._search_edit = QLineEdit(toolbar)
+        self._search_edit.setPlaceholderText("Search...")
+        self._search_edit.textChanged.connect(self._on_search_changed)
+        toolbar_layout.addWidget(self._search_edit, 1)
 
-        refresh_btn = ttk.Button(toolbar, text="↺", width=3, command=self.refresh)
-        refresh_btn.pack(side=tk.RIGHT, padx=2)
-        self._create_tooltip(refresh_btn, "Refresh object list")
+        refresh_btn = QPushButton("↺", toolbar)
+        refresh_btn.setFixedWidth(28)
+        refresh_btn.setToolTip("Refresh object list")
+        refresh_btn.clicked.connect(self.refresh)
+        toolbar_layout.addWidget(refresh_btn)
 
-        # -- Tree with scrollbar -------------------------------------------
-        tree_frame = ttk.Frame(self.content_frame)
-        tree_frame.pack(side=tk.TOP, fill=tk.BOTH, expand=True, padx=6, pady=4)
+        content_layout.addWidget(toolbar)  # type: ignore[union-attr]
 
-        self._tree = ttk.Treeview(
-            tree_frame,
-            columns=('id', 'type'),
-            show='tree',
-            selectmode='browse',
-        )
-        self._tree.column('#0', width=160, stretch=True)
-        self._tree.column('id', width=0, stretch=False)
-        self._tree.column('type', width=0, stretch=False)
+        # -- Tree ------------------------------------------------------
+        self._tree = QTreeWidget(self.content_frame)
+        self._tree.setHeaderHidden(True)
+        self._tree.setSelectionMode(QTreeWidget.SelectionMode.SingleSelection)
+        self._tree.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
+        self._tree.itemSelectionChanged.connect(self._on_tree_select)
+        self._tree.itemDoubleClicked.connect(self._on_tree_double_click)
+        content_layout.addWidget(self._tree, 1)  # type: ignore[union-attr]
 
-        # Visual distinction between group headers and leaf rows
-        self._tree.tag_configure('group', font=('', 9, 'bold'))
-        self._tree.tag_configure('object', font=('', 9))
+        # -- Status bar ------------------------------------------------
+        separator = QFrame(self.content_frame)
+        separator.setFrameShape(QFrame.Shape.HLine)
+        content_layout.addWidget(separator)  # type: ignore[union-attr]
 
-        yscroll = ttk.Scrollbar(tree_frame, orient=tk.VERTICAL, command=self._tree.yview)
-        self._tree.configure(yscrollcommand=yscroll.set)
-
-        self._tree.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
-        yscroll.pack(side=tk.RIGHT, fill=tk.Y)
-
-        self._tree.bind('<<TreeviewSelect>>', self._on_tree_select)
-        self._tree.bind('<Double-1>', self._on_tree_double_click)
-
-        # -- Status bar ----------------------------------------------------
-        self._status_label = ttk.Label(
-            self.content_frame,
-            text="No scene loaded",
-            anchor=tk.W,
-        )
-        self._status_label.pack(side=tk.BOTTOM, fill=tk.X, padx=6, pady=(0, 4))
+        self._status_label = QLabel("No scene loaded", self.content_frame)
+        self._status_label.setAlignment(Qt.AlignmentFlag.AlignLeft)
+        content_layout.addWidget(self._status_label)  # type: ignore[union-attr]
 
     # ------------------------------------------------------------------
     # Event handlers
     # ------------------------------------------------------------------
 
-    def _on_search_changed(self, *_) -> None:
+    def _on_search_changed(self) -> None:
         """Re-filter the tree whenever the search text changes."""
         self.refresh()
 
-    def _on_tree_select(self, event) -> None:  # noqa: ANN001
+    def _on_tree_select(self) -> None:
         """Fire the selection callback when the user clicks a leaf row.
 
-        Group header rows are ignored.
+        Group header rows (where UserRole data is None) are ignored.
         """
-        selected = self._tree.selection()
+        selected = self._tree.selectedItems()
         if not selected:
             return
 
-        item_id = selected[0]
-        tags = self._tree.item(item_id, 'tags')
-        if 'group' in tags:
-            return  # Don't propagate group-header clicks
+        item = selected[0]
+        obj_id = item.data(0, Qt.ItemDataRole.UserRole)
+        if obj_id is None:
+            return  # group header — ignore
 
         if self._on_selection_changed is not None:
-            self._on_selection_changed(item_id)
+            self._on_selection_changed(obj_id)
 
-    def _on_tree_double_click(self, event) -> None:  # noqa: ANN001
+    def _on_tree_double_click(self, item: QTreeWidgetItem) -> None:
         """Collapse/expand group nodes on double-click; no-op for leaf rows."""
-        item_id = self._tree.identify_row(event.y)
-        if not item_id:
-            return
-        tags = self._tree.item(item_id, 'tags')
-        if 'group' in tags:
-            currently_open = self._tree.item(item_id, 'open')
-            self._tree.item(item_id, open=not currently_open)
-
-    # ------------------------------------------------------------------
-    # Internal helpers
-    # ------------------------------------------------------------------
-
-    def _create_tooltip(self, widget: tk.Widget, text: str) -> None:
-        """Attach a lightweight tooltip to *widget*.
-
-        Args:
-            widget: Target widget.
-            text:   Tooltip text.
-        """
-        def _show(event):  # noqa: ANN001
-            tip = tk.Toplevel()
-            tip.wm_overrideredirect(True)
-            tip.wm_geometry(f"+{event.x_root + 12}+{event.y_root + 10}")
-            tk.Label(
-                tip,
-                text=text,
-                background="#ffffe0",
-                relief=tk.SOLID,
-                borderwidth=1,
-                padx=4,
-                pady=2,
-            ).pack()
-            widget._tooltip = tip  # type: ignore[attr-defined]
-
-        def _hide(event):  # noqa: ANN001
-            if hasattr(widget, '_tooltip'):
-                widget._tooltip.destroy()  # type: ignore[attr-defined]
-                del widget._tooltip  # type: ignore[attr-defined]
-
-        widget.bind('<Enter>', _show)
-        widget.bind('<Leave>', _hide)
+        if item.data(0, Qt.ItemDataRole.UserRole) is None:
+            item.setExpanded(not item.isExpanded())
 
 
 # ---------------------------------------------------------------------------
 # Demo
 # ---------------------------------------------------------------------------
 
-def create_demo_window() -> tk.Tk:
-    """Create a standalone demo window for :class:`TkObjectExplorer`.
+def create_demo_window() -> QWidget:
+    """Create a standalone demo window for :class:`ObjectExplorer`.
 
     Builds a realistic mock scene with objects in several categories so every
     feature of the panel (grouping, search, selection callback, empty / loaded
     states) can be exercised without depending on a live scene engine.
 
     Returns:
-        tk.Tk: The configured root window (caller must call ``mainloop()``).
+        QWidget: The configured root window.
     """
     # ------------------------------------------------------------------
     # Lightweight stand-ins for IScene / ISceneObject
@@ -345,86 +308,75 @@ def create_demo_window() -> tk.Tk:
     )
 
     _SMALL_SCENE = _MockScene(_CONVEYOR_OBJECTS[:2] + _SENSOR_OBJECTS[:2])
-
     _EMPTY_SCENE = _MockScene([])
 
     # ------------------------------------------------------------------
     # Root window
     # ------------------------------------------------------------------
 
-    root = tk.Tk()
-    root.title("TkObjectExplorer — Demo")
-    root.geometry("750x520")
+    window = QWidget()
+    window.setWindowTitle("ObjectExplorer — Demo")
+    window.resize(750, 520)
+
+    main_layout = QVBoxLayout(window)
+    main_layout.setContentsMargins(8, 8, 8, 0)
+    main_layout.setSpacing(4)
 
     # ------------------------------------------------------------------
-    # Top: selection feedback + scene controls
+    # Top: scene controls
     # ------------------------------------------------------------------
 
-    toolbar = ttk.Frame(root)
-    toolbar.pack(side=tk.TOP, fill=tk.X, padx=8, pady=(8, 0))
+    toolbar = QWidget(window)
+    toolbar_layout = QHBoxLayout(toolbar)
+    toolbar_layout.setContentsMargins(0, 0, 0, 0)
+    toolbar_layout.setSpacing(4)
+    toolbar_layout.addWidget(QLabel("Load scene:"))
 
-    ttk.Label(toolbar, text="Load scene:").pack(side=tk.LEFT, padx=(0, 4))
-
-    status_var = tk.StringVar(value="No object selected yet.")
+    status_label = QLabel("No object selected yet.")
 
     def _on_selection(obj_id: str) -> None:
-        status_var.set(f"Selected object ID: {obj_id}")
+        status_label.setText(f"Selected object ID: {obj_id}")
 
-    explorer = TkObjectExplorer(
-        parent=root,
+    explorer = ObjectExplorer(
+        parent=window,
         title="Object Explorer",
         on_selection_changed=_on_selection,
     )
 
-    ttk.Button(
-        toolbar,
-        text="Full scene (14 objects)",
-        command=lambda: explorer.set_scene(_FULL_SCENE),  # type: ignore[arg-type]
-    ).pack(side=tk.LEFT, padx=2)
+    for btn_text, scene in [
+        ("Full scene (14 objects)", _FULL_SCENE),
+        ("Small scene (4 objects)", _SMALL_SCENE),
+        ("Empty scene", _EMPTY_SCENE),
+        ("Clear (no scene)", None),
+    ]:
+        btn = QPushButton(btn_text, toolbar)
+        btn.clicked.connect(lambda checked, s=scene: explorer.set_scene(s))  # type: ignore[arg-type]
+        toolbar_layout.addWidget(btn)
 
-    ttk.Button(
-        toolbar,
-        text="Small scene (4 objects)",
-        command=lambda: explorer.set_scene(_SMALL_SCENE),  # type: ignore[arg-type]
-    ).pack(side=tk.LEFT, padx=2)
-
-    ttk.Button(
-        toolbar,
-        text="Empty scene",
-        command=lambda: explorer.set_scene(_EMPTY_SCENE),  # type: ignore[arg-type]
-    ).pack(side=tk.LEFT, padx=2)
-
-    ttk.Button(
-        toolbar,
-        text="Clear (no scene)",
-        command=lambda: explorer.set_scene(None),
-    ).pack(side=tk.LEFT, padx=2)
+    toolbar_layout.addStretch()
+    main_layout.addWidget(toolbar)
 
     # ------------------------------------------------------------------
-    # Explorer panel (fills remaining space)
+    # Explorer panel
     # ------------------------------------------------------------------
 
-    explorer.root.pack(fill=tk.BOTH, expand=True, padx=8, pady=8)
-
-    # Kick off with the full scene so there is something to see immediately
+    main_layout.addWidget(explorer.root, 1)
     explorer.set_scene(_FULL_SCENE)  # type: ignore[arg-type]
 
     # ------------------------------------------------------------------
     # Status bar
     # ------------------------------------------------------------------
 
-    ttk.Separator(root, orient=tk.HORIZONTAL).pack(fill=tk.X)
-    ttk.Label(
-        root,
-        textvariable=status_var,
-        relief=tk.SUNKEN,
-        anchor=tk.W,
-        padding=(6, 2),
-    ).pack(fill=tk.X, side=tk.BOTTOM)
+    separator = QFrame(window)
+    separator.setFrameShape(QFrame.Shape.HLine)
+    main_layout.addWidget(separator)
+    main_layout.addWidget(status_label)
 
-    return root
+    return window
 
 
 if __name__ == "__main__":
+    app = QApplication(sys.argv)
     demo_window = create_demo_window()
-    demo_window.mainloop()
+    demo_window.show()
+    sys.exit(app.exec())

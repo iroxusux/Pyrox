@@ -1,5 +1,6 @@
 from enum import Enum, auto
-import tkinter as tk
+from PyQt6.QtCore import Qt
+from PyQt6.QtWidgets import QGraphicsView
 
 
 class UserMode(Enum):
@@ -29,10 +30,10 @@ class _SceneViewerUserMode:
     def __init__(
         self,
         parent,
-        canvas: tk.Canvas
+        view: QGraphicsView
     ):
         self._parent = parent
-        self._canvas = canvas
+        self._view = view
         self._current_mode = UserMode.default()
 
         # Public callbacks to be set by the SceneViewerFrame
@@ -45,15 +46,15 @@ class _SceneViewerUserMode:
 
         match self._current_mode:
             case UserMode.SELECT:
-                self._canvas.config(cursor="arrow")
+                self._view.setCursor(Qt.CursorShape.ArrowCursor)
             case UserMode.MOVE:
-                self._canvas.config(cursor="fleur")
+                self._view.setCursor(Qt.CursorShape.SizeAllCursor)
             case UserMode.ROTATE:
-                self._canvas.config(cursor="exchange")
+                self._view.setCursor(Qt.CursorShape.CrossCursor)
             case UserMode.SCALE:
-                self._canvas.config(cursor="sizing")
+                self._view.setCursor(Qt.CursorShape.SizeBDiagCursor)
             case UserMode.INSERT:
-                self._canvas.config(cursor="crosshair")
+                self._view.setCursor(Qt.CursorShape.CrossCursor)
 
     def set_mode(self, mode: UserMode) -> None:
         """Set the current user interaction mode.

@@ -12,7 +12,7 @@ class TestKeyboardSourceDeclaredKeys(unittest.TestCase):
     """Declared keys appear as False bool instance attributes on construction."""
 
     def setUp(self):
-        self.root_patcher = patch("pyrox.services.gui.TkGuiManager.get_root", return_value=MagicMock())
+        self.root_patcher = patch("pyrox.services.gui.GuiManager.get_root", return_value=MagicMock())
         self.root_patcher.start()
         self.kb = KeyboardSource()
 
@@ -35,7 +35,7 @@ class TestKeyboardSourcePressRelease(unittest.TestCase):
     """press / release update the attribute and internal set."""
 
     def setUp(self):
-        self.root_patcher = patch("pyrox.services.gui.TkGuiManager.get_root", return_value=MagicMock())
+        self.root_patcher = patch("pyrox.services.gui.GuiManager.get_root", return_value=MagicMock())
         self.root_patcher.start()
         self.kb = KeyboardSource()
 
@@ -103,7 +103,7 @@ class TestKeyboardSourceIntrospection(unittest.TestCase):
     """SceneBoundLayer can enumerate KeyboardSource properties."""
 
     def setUp(self):
-        self.root_patcher = patch("pyrox.services.gui.TkGuiManager.get_root", return_value=MagicMock())
+        self.root_patcher = patch("pyrox.services.gui.GuiManager.get_root", return_value=MagicMock())
         self.root_patcher.start()
         self.kb = KeyboardSource()
 

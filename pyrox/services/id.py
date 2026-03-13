@@ -1,6 +1,7 @@
 """ID generation service for Pyrox framework.
 Provides a simple unique ID generator for SnowFlake objects.
 """
+from pyrox.services import ServiceManager
 
 
 class IdGeneratorService:
@@ -28,3 +29,6 @@ class IdGeneratorService:
             int: Current value of the counter.
         """
         return IdGeneratorService._ctr
+
+
+ServiceManager.register_service('id_generator', IdGeneratorService)

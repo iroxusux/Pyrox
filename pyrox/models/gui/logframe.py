@@ -1,54 +1,124 @@
-"""Built-in logging window with enhanced features.
+"""Built-in logging window with enhanced features (PyQt6 implementation).
+
 Captures both logging and stderr/stdout streams.
 """
+from __future__ import annotations
+
 import logging
-from typing import Callable, Optional, TextIO, Union
-import tkinter as tk
-from tkinter import ttk
-from pyrox.models.gui import meta
-from pyrox.services.logging import LoggingManager, log
+from typing import Callable, Optional, Union
+
+from PyQt6.QtGui import QColor, QTextCharFormat, QTextCursor
+from PyQt6.QtWidgets import (
+    QComboBox,
+    QFrame,
+    QHBoxLayout,
+    QPushButton,
+    QTextEdit,
+    QVBoxLayout,
+    QWidget,
+)
+
+from pyrox.models.gui.theme import DefaultTheme
+from pyrox.services.logging import LoggingManager
 
 
 __all__ = ('LogFrame',)
 
 
-class LogFrame(ttk.Frame):
+class LogFrame(QFrame):
     """Enhanced log window that captures both logging and stderr/stdout.
 
-    Automatically connects to the LoggingManager to display log messages from sys.stdout and sys.stderr.
+    Automatically connects to the LoggingManager to display log messages
+    from sys.stdout and sys.stderr.
+
+    This is the PyQt6 equivalent of the Tk ``LogFrame``.
     """
-    TRIM_LENGTH = 1000  # Max number of lines to keep in visual log
+
+    TRIM_LENGTH = 1000  # Max number of lines to keep in the visual log
 
     def __init__(
         self,
-        master: ttk.Widget | tk.Misc,
+        parent: Optional[QWidget] = None,
         name: str = 'logframe',
     ) -> None:
-        super().__init__(master=master, name=name)
+        super().__init__(parent)
+        self.setObjectName(name)
+        self.setFrameShape(QFrame.Shape.StyledPanel)
 
-        # Create toolbar frame
-        self._toolbar = ttk.Frame(
-            master=self,
-            height=30,
-        )
-        self._toolbar.pack(
-            fill=tk.X,
-            side=tk.TOP
-        )
-        self._toolbar.pack_propagate(False)
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(0)
 
-        self._setup_toolbar()
-        self._setup_text_widget()
-        self._setup_text_tags()
+        self._setup_toolbar(layout)
+        self._setup_separator(layout)
+        self._setup_text_widget(layout)
         self._fill_log_from_sys_streams()
         self._connect_to_logging_manager()
 
-    def _connect_to_logging_manager(self):
-        """Connect log frame to logging manager."""
+    # ------------------------------------------------------------------
+    # Setup helpers
+    # ------------------------------------------------------------------
+
+    def _setup_toolbar(self, layout: QVBoxLayout) -> None:
+        """Build the toolbar strip at the top of the frame."""
+        self._toolbar = QFrame(self)
+        self._toolbar.setFixedHeight(28)
+        self._toolbar.setStyleSheet(
+            f"background-color: {DefaultTheme.background};"
+        )
+        self._tb_layout = QHBoxLayout(self._toolbar)
+        self._tb_layout.setContentsMargins(4, 2, 4, 2)
+        self._tb_layout.setSpacing(4)
+
+        self.add_toolbar_button("Clear", self.clear_log_window)
+
+        log_levels = list(LoggingManager.get_all_logging_levels().keys())
+        curr_level = logging.getLevelName(LoggingManager.curr_logging_level)
+        if curr_level not in log_levels:
+            raise ValueError(
+                f'Current logging level "{curr_level}" not in available log levels.'
+            )
+        self._level_combo = self.add_toolbar_dropdown(
+            log_levels,
+            self._handle_dropdown_log_level_change,
+            default_option=curr_level,
+        )
+
+        self._tb_layout.addStretch()
+        layout.addWidget(self._toolbar)
+
+    def _setup_separator(self, layout: QVBoxLayout) -> None:
+        sep = QFrame(self)
+        sep.setFrameShape(QFrame.Shape.HLine)
+        sep.setFrameShadow(QFrame.Shadow.Sunken)
+        layout.addWidget(sep)
+
+    def _setup_text_widget(self, layout: QVBoxLayout) -> None:
+        """Create the main read-only QTextEdit with Pyrox theme styling."""
+        self._text_area = QTextEdit(self)
+        self._text_area.setReadOnly(True)
+        self._text_area.setLineWrapMode(QTextEdit.LineWrapMode.NoWrap)
+        self._text_area.setStyleSheet(
+            f"QTextEdit {{"
+            f"  background-color: {DefaultTheme.widget_background};"
+            f"  color: {DefaultTheme.foreground};"
+            f"  font-family: '{DefaultTheme.font_family}';"
+            f"  font-size: {DefaultTheme.font_size}pt;"
+            f"  border: none;"
+            f"}}"
+        )
+        layout.addWidget(self._text_area)
+
+    # ------------------------------------------------------------------
+    # LoggingManager integration
+    # ------------------------------------------------------------------
+
+    def _connect_to_logging_manager(self) -> None:
+        """Subscribe to captured stream output from the LoggingManager."""
         LoggingManager.register_callback_to_captured_streams(self.log)
 
-    def _fill_log_from_sys_streams(self):
-        """Fill the log window from sys.stdout and sys.stderr."""
+    def _fill_log_from_sys_streams(self) -> None:
+        """Populate the log view from the current captured stderr buffer."""
         err_stream = LoggingManager.unsafe_get_captured_stderr()
         self.clear_log_window()
         lines = err_stream.get_lines()
@@ -56,48 +126,36 @@ class LogFrame(ttk.Frame):
             lines = lines[-self.TRIM_LENGTH:]
         self.log(lines)
 
-    def _finalize_msg_log(self) -> None:
-        self._logtext.see('end')
-        self._trim_log_text_lines()
-        self._logtext.config(state='disabled')
-        self._logtext.update_idletasks()
-        self.update_idletasks()
+    # ------------------------------------------------------------------
+    # Level / tag helpers
+    # ------------------------------------------------------------------
 
     @staticmethod
     def _get_msg_colors(tag: str) -> tuple[str, str]:
+        """Return ``(foreground, background)`` hex colour strings for *tag*."""
         match tag:
             case 'INFO':
-                foreground = meta.DefaultTheme.stdout_text
-                background = meta.DefaultTheme.widget_background
+                return DefaultTheme.stdout_text, DefaultTheme.widget_background
             case 'WARNING':
-                foreground = meta.DefaultTheme.widget_background
-                background = meta.DefaultTheme.warning_background
+                return DefaultTheme.widget_background, DefaultTheme.warning_background
             case 'ERROR':
-                foreground = meta.DefaultTheme.foreground_selected
-                background = meta.DefaultTheme.error_background
+                return DefaultTheme.foreground_selected, DefaultTheme.error_background
             case 'DEBUG':
-                foreground = meta.DefaultTheme.debug_text
-                background = meta.DefaultTheme.widget_background
+                return DefaultTheme.debug_text, DefaultTheme.widget_background
             case 'STDERR':
-                foreground = meta.DefaultTheme.stderr_text
-                background = meta.DefaultTheme.widget_background
+                return DefaultTheme.stderr_text, DefaultTheme.widget_background
             case 'STDOUT':
-                foreground = meta.DefaultTheme.stdout_text
-                background = meta.DefaultTheme.widget_background
+                return DefaultTheme.stdout_text, DefaultTheme.widget_background
             case 'SUCCESS':
-                foreground = meta.DefaultTheme.stdout_text
-                background = meta.DefaultTheme.widget_background
+                return DefaultTheme.stdout_text, DefaultTheme.widget_background
             case 'FAILURE':
-                foreground = meta.DefaultTheme.error_background
-                background = meta.DefaultTheme.widget_background
+                return DefaultTheme.error_background, DefaultTheme.widget_background
             case _:
-                foreground = meta.DefaultTheme.foreground_selected
-                background = meta.DefaultTheme.widget_background
-        return foreground, background
+                return DefaultTheme.foreground_selected, DefaultTheme.widget_background
 
     @staticmethod
     def _get_msg_tag(msg: str) -> str:
-        """Determine the tag for a log message based on its content."""
+        """Infer a severity tag from the message content."""
         if 'ERROR' in msg or 'Error' in msg or 'error' in msg:
             return 'ERROR'
         elif 'WARNING' in msg or 'Warning' in msg or 'warning' in msg:
@@ -107,105 +165,34 @@ class LogFrame(ttk.Frame):
         else:
             return 'INFO'
 
-    def _handle_dropdown_log_level_change(self, selection: str):
-        """Handle changes in log level from dropdown."""
+    def _message_is_within_log_level(self, tag: str) -> bool:
+        """Return True if *tag* should be displayed at the current log level."""
+        match tag:
+            case 'DEBUG':
+                return LoggingManager.curr_logging_level <= logging.DEBUG
+            case 'INFO':
+                return LoggingManager.curr_logging_level <= logging.INFO
+            case 'WARNING':
+                return LoggingManager.curr_logging_level <= logging.WARNING
+            case 'ERROR':
+                return LoggingManager.curr_logging_level <= logging.ERROR
+            case 'CRITICAL':
+                return LoggingManager.curr_logging_level <= logging.CRITICAL
+            case _:
+                return True
+
+    def _handle_dropdown_log_level_change(self, selection: str) -> None:
+        """Apply the chosen log level and refresh the display."""
         for level_name, level in LoggingManager.get_all_logging_levels().items():
             if selection == level_name:
                 LoggingManager.set_logging_level(level)
                 self._fill_log_from_sys_streams()
                 return
-
         self.log(f'| ERROR | Unknown log level selected: {selection}\n')
 
-    def _setup_text_widget(self):
-        """Setup the main text widget and scrollbar."""
-        text_frame = ttk.Frame(self)
-        text_frame.pack(
-            side=tk.BOTTOM,
-            fill=tk.BOTH,
-            expand=True
-        )
-
-        self._logtext = meta.PyroxText(
-            text_frame,
-            state='disabled',
-            wrap='word',
-            font=('Consolas', 9),
-            insertbackground='white'
-        )
-
-        # Scrollbars
-        v_scrollbar = ttk.Scrollbar(
-            text_frame,
-            orient=tk.VERTICAL,
-            command=self._logtext.yview
-        )
-
-        self._logtext.configure(
-            yscrollcommand=v_scrollbar.set,
-        )
-
-        # Grid layout
-        self._logtext.grid(row=0, column=0, sticky='nsew')
-        v_scrollbar.grid(row=0, column=1, sticky='ns')
-
-        text_frame.grid_rowconfigure(0, weight=1)
-        text_frame.grid_columnconfigure(0, weight=1)
-
-    def _setup_text_tags(self):
-        """Setup text tags for different types of messages."""
-        # Standard logging levels
-        self._logtext.tag_configure(
-            'INFO',
-            foreground=meta.DefaultTheme.foreground,
-            background=meta.DefaultTheme.widget_background
-        )
-        self._logtext.tag_configure(
-            'WARNING',
-            foreground=meta.DefaultTheme.widget_background,
-            background='yellow'
-        )
-        self._logtext.tag_configure(
-            'ERROR',
-            foreground=meta.DefaultTheme.foreground,
-            background='red'
-        )
-        self._logtext.tag_configure(
-            'DEBUG',
-            foreground='cyan',
-            background=meta.DefaultTheme.widget_background
-        )
-
-        # Stream types
-        self._logtext.tag_configure(
-            'STDERR',
-            foreground='orange',
-            background=meta.DefaultTheme.widget_background
-        )
-        self._logtext.tag_configure(
-            'STDOUT',
-            foreground='lightgreen',
-            background=meta.DefaultTheme.widget_background
-        )
-
-    def _setup_toolbar(self):
-        """Setup the toolbar with control buttons."""
-        self.add_toolbar_button(
-            "Clear",
-            self.clear_log_window
-        )
-
-        log_levels = list(LoggingManager.get_all_logging_levels().keys())
-        curr_level = logging.getLevelName(LoggingManager.curr_logging_level)
-
-        if curr_level not in log_levels:
-            raise ValueError(f'Current logging level "{curr_level}" not in available log levels.')
-
-        self.add_toolbar_dropdown(
-            log_levels,
-            self._handle_dropdown_log_level_change,
-            default_option=curr_level
-        )
+    # ------------------------------------------------------------------
+    # Internal write path
+    # ------------------------------------------------------------------
 
     def _log(
         self,
@@ -213,16 +200,9 @@ class LogFrame(ttk.Frame):
         levelname: str = 'INFO',
         skip_finalize: bool = False,
     ) -> None:
-        """Log a message directly to the text widget."""
-
         if not message.endswith('\n'):
             message += '\n'
-
-        self._log_message(
-            message,
-            levelname,
-            skip_finalize
-        )
+        self._log_message(message, levelname, skip_finalize)
 
     def _log_message(
         self,
@@ -230,138 +210,119 @@ class LogFrame(ttk.Frame):
         tag: str = 'INFO',
         skip_finalize: bool = False,
     ) -> None:
-        """Log a message directly to the text widget."""
-        if self._message_is_within_log_level(tag):
-            try:
-                self._logtext.config(state='normal')
-
-                # Insert message
-                start_idx = self._logtext.index('end-1c')
-                self._logtext.insert('end', message)
-                end_idx = self._logtext.index('end-1c')
-
-                # Apply tag
-                foreground, background = self._get_msg_colors(tag)
-                self._logtext.tag_add(message, start_idx, end_idx)
-                self._logtext.tag_configure(
-                    message,
-                    foreground=foreground,
-                    background=background,
-                )
-
-            except tk.TclError as e:
-                print(f'Error logging message: {e}')
-
-        if skip_finalize is True:
+        if not self._message_is_within_log_level(tag):
+            if not skip_finalize:
+                self._finalize_msg_log()
             return
 
-        self._finalize_msg_log()
+        fg, bg = self._get_msg_colors(tag)
+        fmt = QTextCharFormat()
+        fmt.setForeground(QColor(fg))
+        fmt.setBackground(QColor(bg))
 
-    def _message_is_within_log_level(self, tag: str) -> bool:
-        match tag:
-            case 'DEBUG':
-                if LoggingManager.curr_logging_level > logging.DEBUG:
-                    return False
-            case 'INFO':
-                if LoggingManager.curr_logging_level > logging.INFO:
-                    return False
-            case 'WARNING':
-                if LoggingManager.curr_logging_level > logging.WARNING:
-                    return False
-            case 'ERROR':
-                if LoggingManager.curr_logging_level > logging.ERROR:
-                    return False
-            case 'CRITICAL':
-                if LoggingManager.curr_logging_level > logging.CRITICAL:
-                    return False
-            case 'STDERR' | 'STDOUT' | 'SUCCESS' | 'FAILURE':
-                return True
-            case _:
-                return True
-        return True  # Default to True but this should not be reached
+        cursor = self._text_area.textCursor()
+        cursor.movePosition(QTextCursor.MoveOperation.End)
+        cursor.insertText(message, fmt)
 
-    def _trim_log_text_lines(self):
-        """Trim log text widget to last 1000 lines."""
-        if not self._logtext.cget('state') == 'normal':
-            self._logtext.config(state='normal')
+        if not skip_finalize:
+            self._finalize_msg_log()
 
-        lines = int(self._logtext.index('end-1c').split('.')[0])
-        if lines > self.TRIM_LENGTH:
-            self._logtext.delete('1.0', f'{lines-self.TRIM_LENGTH}.0')
+    def _finalize_msg_log(self) -> None:
+        """Scroll to the end and trim excess lines."""
+        self._trim_log_lines()
+        self._text_area.moveCursor(QTextCursor.MoveOperation.End)
+
+    def _trim_log_lines(self) -> None:
+        """Trim the document to at most TRIM_LENGTH blocks (lines)."""
+        doc = self._text_area.document()
+        if doc is None:
+            return
+        excess = doc.blockCount() - self.TRIM_LENGTH
+        if excess <= 0:
+            return
+
+        cursor = QTextCursor(doc)
+        cursor.movePosition(QTextCursor.MoveOperation.Start)
+        cursor.movePosition(
+            QTextCursor.MoveOperation.NextBlock,
+            QTextCursor.MoveMode.KeepAnchor,
+            excess,
+        )
+        cursor.removeSelectedText()
+
+    # ------------------------------------------------------------------
+    # Toolbar extension API  (mirrors the Tk LogFrame)
+    # ------------------------------------------------------------------
 
     def add_toolbar_button(
         self,
-        text: str, command: Callable
-    ) -> ttk.Button:
-        """Add a custom button to the toolbar."""
-
-        button = ttk.Button(
-            self._toolbar,
-            text=text,
-            command=command,
-            width=8,
-            style='TButton'
-        )
-        button.pack(side=tk.LEFT, fill=tk.Y)
-        return button
+        text: str,
+        command: Callable,
+    ) -> QPushButton:
+        """Add a button to the toolbar. Returns the created ``QPushButton``."""
+        btn = QPushButton(text, self._toolbar)
+        btn.setFixedWidth(60)
+        btn.clicked.connect(command)
+        # Insert before the trailing stretch (last item)
+        stretch_idx = self._tb_layout.count()
+        self._tb_layout.insertWidget(stretch_idx, btn)
+        return btn
 
     def add_toolbar_dropdown(
         self,
         options: list[str],
         command: Callable,
-        default_option: Optional[str] = None
-    ) -> ttk.OptionMenu:
-        """Add a custom dropdown to the toolbar."""
-        variable = tk.StringVar(self._toolbar)
-
-        if len(options) == 0:
+        default_option: Optional[str] = None,
+    ) -> QComboBox:
+        """Add a drop-down selector to the toolbar. Returns the ``QComboBox``."""
+        if not options:
             raise ValueError('Options list cannot be empty.')
-
-        if not default_option:
+        if default_option is None:
             default_option = options[0]
-
         if default_option not in options:
-            raise ValueError(f'Default option "{default_option}" not in options list.')
+            raise ValueError(
+                f'Default option "{default_option}" not in options list.'
+            )
 
-        dropdown = ttk.OptionMenu(
-            self._toolbar,
-            variable,
-            default_option,
-            *options,
-            command=command,
-            style='TMenubutton',
-        )
-        dropdown.pack(side=tk.LEFT, fill=tk.Y)
-        dropdown.configure(width=10)  # Width in characters
-        return dropdown
+        combo = QComboBox(self._toolbar)
+        for opt in options:
+            combo.addItem(opt)
+        combo.setCurrentText(default_option)
+        combo.setFixedWidth(90)
+        combo.currentTextChanged.connect(command)
+        stretch_idx = self._tb_layout.count()
+        self._tb_layout.insertWidget(stretch_idx, combo)
+        return combo
 
-    def clear_log_window(self):
-        """Clear all text from the log window."""
-        try:
-            self._logtext.config(state='normal')
-            self._logtext.delete('1.0', 'end')
-            self._logtext.config(state='disabled')
-            self.update()
-        except tk.TclError as e:
-            print(f'Error clearing log window: {e}')
+    # ------------------------------------------------------------------
+    # Public API
+    # ------------------------------------------------------------------
 
-    def fill_log_from_stream(
-        self,
-        stream: TextIO,
-    ) -> None:
-        """Fill the log window from a stream (stdout/stderr)."""
+    def append(self, text: str) -> None:
+        """Append *text* to the log (alias for ``log`` with severity detection)."""
+        self.log(text)
+
+    def clear_log_window(self) -> None:
+        """Clear all text from the log view."""
+        self._text_area.clear()
+
+    def fill_log_from_stream(self, stream) -> None:
+        """Write every line from *stream* into the log."""
         if not stream:
             return
-
         for line in stream:
             self.log(line)
 
     def log(
         self,
         message: Union[str, list[str]],
-        **kwargs
+        **kwargs,
     ) -> None:
-        """Log a message with automatic severity detection.
+        """Log *message* with automatic severity detection.
+
+        Args:
+            message: A single string or a list of strings to log.
+            **kwargs: Optional ``levelname`` override (e.g. ``levelname='ERROR'``).
         """
         if isinstance(message, str):
             messages = [message]
@@ -372,34 +333,5 @@ class LogFrame(ttk.Frame):
             self._log(
                 msg,
                 kwargs.get('levelname', self._get_msg_tag(msg)),
-                msg is not messages[-1]
+                msg is not messages[-1],
             )
-
-
-if __name__ == '__main__':
-    root = tk.Tk()
-    root.title("LogFrame Test")
-    root.geometry("1000x600")
-
-    toolbar = ttk.Frame(root, height=30)
-    toolbar.pack(fill=tk.X, side=tk.TOP)
-
-    generate_pushbutton = ttk.Button(
-        toolbar,
-        text="Generate 100 Log Messages One-by-One",
-        width=20,
-        command=lambda: [log('test').info(f"Generated log message {x}.") for x in range(100)]
-    )
-    generate_pushbutton.pack(side=tk.LEFT, padx=5, pady=5)
-
-    log_frame = LogFrame(root)
-    log_frame.pack(fill=tk.BOTH, expand=True)
-
-    # Test logging
-    log('test').info("This is an info message.")
-    log('test').warning("This is a warning message.")
-    log('test').error("This is an error message.")
-    log('test').debug("This is a debug message.")
-    log('test').info("This is another info message.")
-
-    root.mainloop()

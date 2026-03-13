@@ -1,10 +1,14 @@
 """Services models for consistent access to services across the application.
 """
 from logging import Logger
-import tkinter as tk
+from PyQt6.QtWidgets import (
+    QMainWindow,
+    QMenu,
+    QMenuBar,
+)
 from pyrox.interfaces import EnvironmentKeys
 from pyrox.models import CoreRunnableMixin
-from pyrox.services import EnvManager, LoggingManager, TkGuiManager, PlatformDirectoryService
+from pyrox.services import EnvManager, LoggingManager, GuiManager, PlatformDirectoryService
 
 
 class SupportsEnvServices:
@@ -41,42 +45,42 @@ class SupportsGUIServices:
     """Model for accessing GUI related services."""
 
     @property
-    def gui(self) -> type[TkGuiManager]:
+    def gui(self) -> type[GuiManager]:
         """Access the TkGuiManager service."""
-        return TkGuiManager
+        return GuiManager
 
     @property
-    def root_window(self) -> tk.Tk:
+    def root_window(self) -> QMainWindow:
         """Access the application's root window via TkGuiManager Service."""
         return self.gui.get_root()
 
     @property
-    def root_menu(self) -> tk.Menu:
+    def root_menu(self) -> QMenuBar:
         """Access the application's root menu via TkGuiManager Service."""
         return self.gui.get_root_menu()
 
     @property
-    def file_menu(self) -> tk.Menu:
+    def file_menu(self) -> QMenu:
         """Access the application's file menu via TkGuiManager Service."""
         return self.gui.get_file_menu()
 
     @property
-    def edit_menu(self) -> tk.Menu:
+    def edit_menu(self) -> QMenu:
         """Access the application's edit menu via TkGuiManager Service."""
         return self.gui.get_edit_menu()
 
     @property
-    def view_menu(self) -> tk.Menu:
+    def view_menu(self) -> QMenu:
         """Access the application's view menu via TkGuiManager Service."""
         return self.gui.get_view_menu()
 
     @property
-    def help_menu(self) -> tk.Menu:
+    def help_menu(self) -> QMenu:
         """Access the application's help menu via TkGuiManager Service."""
         return self.gui.get_help_menu()
 
     @property
-    def tools_menu(self) -> tk.Menu:
+    def tools_menu(self) -> QMenu:
         """Access the application's tools menu via TkGuiManager Service."""
         return self.gui.get_tools_menu()
 

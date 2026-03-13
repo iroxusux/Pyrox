@@ -2,20 +2,12 @@
 Defines the IWorkspace interface for GUI workspaces.
 """
 from abc import abstractmethod
-from typing import Callable, Generic, TypeVar
+from typing import Callable
 from pyrox.interfaces.protocols.meta import ICoreRunnableMixin
-from pyrox.interfaces.gui import ITaskFrame
-from .component import IGuiComponent
+from pyrox.interfaces.gui.frame import ITaskFrame
 
 
-T = TypeVar('T', bound=IGuiComponent)
-
-
-class IWorkspace(
-    Generic[T],
-    IGuiComponent[T],
-    ICoreRunnableMixin
-):
+class IWorkspace(ICoreRunnableMixin):
     """Interface for a GUI Workspace.
     """
 
@@ -230,7 +222,7 @@ class IWorkspace(
     @abstractmethod
     def add_panel(
         self,
-        panel: T,
+        panel,
         position: str = 'left'
     ) -> None:
         """
@@ -245,7 +237,7 @@ class IWorkspace(
     @abstractmethod
     def remove_panel(
         self,
-        panel: T
+        panel
     ) -> None:
         """
         Remove a panel from the workspace.
@@ -256,7 +248,7 @@ class IWorkspace(
         raise NotImplementedError("remove_panel must be implemented by subclass")
 
     @abstractmethod
-    def get_panels(self) -> list[T]:
+    def get_panels(self) -> list:
         """
         Get all panels in the workspace.
 
@@ -302,7 +294,7 @@ class IWorkspace(
     @abstractmethod
     def add_sidebar_widget(
         self,
-        widget: T,
+        widget,
         tab_name: str,
         widget_id: str | None = None,
         icon: str | None = None,
@@ -366,7 +358,7 @@ class IWorkspace(
         raise NotImplementedError("remove_widget must be implemented by subclass")
 
     @abstractmethod
-    def get_widget(self, widget_id: str) -> T | ITaskFrame | None:
+    def get_widget(self, widget_id: str):
         """Get a widget by its ID."""
         raise NotImplementedError("get_widget must be implemented by subclass")
 
@@ -415,7 +407,7 @@ class IWorkspace(
         return self.get_frames()
 
     @property
-    def panels(self) -> list[T]:
+    def panels(self) -> list:
         """Get all panels in the workspace.
 
         Returns:

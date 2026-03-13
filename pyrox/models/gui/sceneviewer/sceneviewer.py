@@ -1,13 +1,25 @@
 """2D Scene Viewer Frame for Pyrox.
 
-This module provides a Tkinter-based canvas frame for viewing and interacting
+This module provides a PyQt6-based graphics view frame for viewing and interacting
 with 2D scenes containing sprites and simple shapes. Supports panning, zooming,
 and integrates with the Scene workflow.
 """
+from __future__ import annotations
+import sys
 from pathlib import Path
-import tkinter as tk
-from tkinter import ttk
 from typing import Callable
+from PyQt6.QtCore import Qt, QRectF, QLineF, QTimer, QPointF
+from PyQt6.QtGui import (
+    QBrush, QColor, QPen, QFont, QCursor, QContextMenuEvent,
+    QKeyEvent, QMouseEvent, QWheelEvent, QResizeEvent,
+)
+from PyQt6.QtWidgets import (
+    QGraphicsEllipseItem, QGraphicsLineItem,
+    QGraphicsRectItem, QGraphicsScene, QGraphicsSimpleTextItem,
+    QGraphicsView, QLabel, QPushButton,
+    QScrollArea, QSplitter, QVBoxLayout, QWidget,
+    QApplication, QMainWindow
+)
 from pyrox.interfaces import (
     IScene,
     ISceneBridge,
@@ -15,47 +27,170 @@ from pyrox.interfaces import (
     ISceneRunnerService,
     IViewport
 )
-from pyrox.models.gui.tk.frame import TkinterTaskFrame
-from pyrox.models.gui import TkPropertyPanel
+from pyrox.models.physics.base import BasePhysicsBody
+from pyrox.models.gui.frame import TaskFrame
+from pyrox.models.gui import PropertyPanel
 from pyrox.models.gui.contextmenu import PyroxContextMenu, MenuItem
 from pyrox.models.gui.connectioneditor import ConnectionEditor
-from pyrox.models.gui.objectexplorer import TkObjectExplorer
+from pyrox.models.gui.objectexplorer import ObjectExplorer
 from pyrox.models.gui.scenebridge import SceneBridgeDialog
-from pyrox.services.scene import SceneBridgeService
 from pyrox.models.physics import PhysicsSceneFactory
 from pyrox.models.scene import Scene, SceneGroup, SceneObject
 from pyrox.services import (
     log,
+    SceneBridgeService,
     CanvasObjectManagmenentService,
     ViewportHostingService,
     MenuRegistry,
     SceneEventType,
-    SceneEventBus
+    SceneEventBus,
 )
-from ._toolbar import _SceneViewerToolbar
-from ._user_mode import _SceneViewerUserMode, UserMode
+from pyrox.services.viewport import ViewportEventBus, ViewportEvent, ViewportEventType
+from pyrox.models.gui.sceneviewer._toolbar import _SceneViewerToolbar
+from pyrox.models.gui.sceneviewer._user_mode import _SceneViewerUserMode, UserMode
 
 
-class SceneViewerFrame(TkinterTaskFrame):
-    """A 2D canvas-based scene viewer with pan and zoom support.
+class _SceneCanvasView(QGraphicsView):
+    """Internal QGraphicsView subclass that routes Qt events into SceneViewerFrame."""
+
+    def __init__(
+        self,
+        scene: QGraphicsScene,
+        frame: 'SceneViewerFrame',
+        parent: QWidget | None = None,
+    ):
+        super().__init__(scene, parent)
+        self._frame = frame
+        self._is_panning = False
+        self._pan_start_x: float = 0.0
+        self._pan_start_y: float = 0.0
+        self.setMouseTracking(True)
+        self.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
+
+    # ---- mouse ----
+
+    def mousePressEvent(self, event: QMouseEvent | None) -> None:
+        if event is None:
+            return
+        btn = event.button()
+        if btn == Qt.MouseButton.LeftButton:
+            pos = event.position()
+            if self._frame._mode == UserMode.INSERT:
+                sx = (pos.x() - self._frame.viewport.x) / self._frame.viewport.zoom
+                sy = (pos.y() - self._frame.viewport.y) / self._frame.viewport.zoom
+                self._frame._place_object_from_template(sx, sy)
+            elif self._frame._mode == UserMode.SELECT:
+                self._frame._on_select_click_qt(event)
+        elif btn == Qt.MouseButton.MiddleButton:
+            self._is_panning = True
+            self._pan_start_x = event.position().x()
+            self._pan_start_y = event.position().y()
+            self.setCursor(Qt.CursorShape.SizeAllCursor)
+
+    def mouseMoveEvent(self, event: QMouseEvent | None) -> None:
+        if event is None:
+            return
+        buttons = event.buttons()
+        if buttons & Qt.MouseButton.LeftButton:
+            if self._frame._mode == UserMode.SELECT:
+                self._frame._on_drag_object_qt(event)
+        elif buttons & Qt.MouseButton.MiddleButton and self._is_panning:
+            pos = event.position()
+            dx = pos.x() - self._pan_start_x
+            dy = pos.y() - self._pan_start_y
+            self._frame.viewport.x += dx
+            self._frame.viewport.y += dy
+            self._pan_start_x = pos.x()
+            self._pan_start_y = pos.y()
+            ViewportEventBus.publish(ViewportEvent(event_type=ViewportEventType.PAN))
+            self._frame._mark_dirty()
+
+    def mouseReleaseEvent(self, event: QMouseEvent | None) -> None:
+        if event is None:
+            return
+        btn = event.button()
+        if btn == Qt.MouseButton.LeftButton:
+            if self._frame._mode == UserMode.SELECT:
+                self._frame._on_drag_end_qt(event)
+        elif btn == Qt.MouseButton.MiddleButton:
+            self._is_panning = False
+            self.setCursor(Qt.CursorShape.ArrowCursor)
+
+    def wheelEvent(self, event: QWheelEvent | None) -> None:
+        if event is None:
+            return
+        x = event.position().x()
+        y = event.position().y()
+        if event.angleDelta().y() > 0:
+            self._frame._viewport_service.zoom.zoom_in(center_x=x, center_y=y)
+        else:
+            self._frame._viewport_service.zoom.zoom_out(center_x=x, center_y=y)
+        self._frame._mark_dirty()
+
+    def keyPressEvent(self, event: QKeyEvent | None) -> None:
+        if event is None:
+            return
+        key = event.key()
+        mods = event.modifiers()
+        ctrl = Qt.KeyboardModifier.ControlModifier
+        ctrl_shift = Qt.KeyboardModifier.ControlModifier | Qt.KeyboardModifier.ShiftModifier
+        ctrl_alt = Qt.KeyboardModifier.ControlModifier | Qt.KeyboardModifier.AltModifier
+        if key == Qt.Key.Key_Delete:
+            self._frame.delete_selected_objects()
+        elif key == Qt.Key.Key_Escape:
+            self._frame.clear_selection()
+        elif key == Qt.Key.Key_L and mods == ctrl:
+            self._frame.toggle_entity_names()
+        elif key == Qt.Key.Key_BracketRight and mods == ctrl:
+            self._frame._context_layer_up()
+        elif key == Qt.Key.Key_BracketLeft and mods == ctrl:
+            self._frame._context_layer_down()
+        elif key == Qt.Key.Key_BracketRight and mods == ctrl_shift:
+            self._frame._context_bring_to_front()
+        elif key == Qt.Key.Key_BracketLeft and mods == ctrl_shift:
+            self._frame._context_send_to_back()
+        elif key == Qt.Key.Key_G and mods == ctrl_alt:
+            self._frame._context_group_selected()
+        elif key == Qt.Key.Key_U and mods == ctrl_alt:
+            self._frame._context_ungroup_selected()
+        else:
+            super().keyPressEvent(event)
+
+    def contextMenuEvent(self, event: QContextMenuEvent | None) -> None:
+        if event is not None:
+            self._frame._on_right_click_qt(event)
+
+    def resizeEvent(self, event: QResizeEvent | None) -> None:
+        w = max(self.width(), 2000)
+        h = max(self.height(), 2000)
+        sc = self.scene()
+        if sc is not None:
+            sc.setSceneRect(0, 0, w, h)
+        super().resizeEvent(event)
+        # Keep the view anchored at scene origin so manual pan/zoom item
+        # positioning is 1:1 with view pixels (QGraphicsView centres by default).
+        self.horizontalScrollBar().setValue(0)
+        self.verticalScrollBar().setValue(0)
+        self._frame._mark_dirty()
+
+
+class SceneViewerFrame(TaskFrame):
+    """A 2D scene viewer with pan and zoom support built on QGraphicsView.
 
     This frame provides a visual canvas for rendering scene objects with
     interactive pan and zoom controls. Integrates with the Scene and
     SceneObject interfaces for managing displayed content.
 
     Features:
-        - Canvas-based 2D rendering
+        - QGraphicsScene/View-based 2D rendering
         - Mouse-based panning (middle mouse drag)
         - Zoom in/out with mouse wheel
         - Customizable toolbar
         - Scene integration
 
     Attributes:
-        canvas: The main Tkinter canvas for rendering
         scene: The currently loaded scene
-        viewport_x: Viewport X offset for panning
-        viewport_y: Viewport Y offset for panning
-        zoom_level: Current zoom level (1.0 = 100%)
+        viewport: Current viewport state (zoom, pan offsets)
     """
 
     _application_menu_built: bool = False
@@ -64,7 +199,7 @@ class SceneViewerFrame(TkinterTaskFrame):
 
     def __init__(
         self,
-        parent,
+        parent: QWidget,
         name: str = "scene viewer",
         runner: type[ISceneRunnerService] | None = None,
         scene: IScene | None = None
@@ -75,7 +210,6 @@ class SceneViewerFrame(TkinterTaskFrame):
             parent: Parent widget
             name: Name of the frame displayed in title bar
             scene: Optional scene to load initially
-            **kwargs: Additional arguments passed to TaskFrame
         """
         super().__init__(
             name=name,
@@ -84,13 +218,16 @@ class SceneViewerFrame(TkinterTaskFrame):
         self._scene = scene
         self._runner = runner
         self._canvas_object_management_service = CanvasObjectManagmenentService()
-        self._viewport_service = ViewportHostingService(canvas_parent=self.content_frame)
+        self._viewport_service = ViewportHostingService(canvas_parent=self._content_frame)
+
+        # Graphics items dict: obj_id -> list[QGraphicsItem] (shape and optional label)
+        self._gfx_items: dict[str, list] = {}
 
         # Properties panel state
         self._properties_panel_visible: bool = False
-        self._properties_panel: TkPropertyPanel | None = None
-        self._properties_panel_current_object_id: str | None = None  # Track displayed object
-        self._previous_selection: set[str] = set()  # Track previous selection to detect changes
+        self._properties_panel: PropertyPanel | None = None
+        self._properties_panel_current_object_id: str | None = None
+        self._previous_selection: set[str] = set()
 
         # Bridge panel state
         self._bridge_panel_visible: bool = False
@@ -99,32 +236,30 @@ class SceneViewerFrame(TkinterTaskFrame):
 
         # Object explorer state
         self._object_explorer_visible: bool = False
-        self._object_explorer: TkObjectExplorer | None = None
-        self._object_explorer_var: tk.BooleanVar = tk.BooleanVar()
+        self._object_explorer: ObjectExplorer | None = None
 
         # Drawing and manipulation state
         self._draw_start_x: float | None = None
         self._draw_start_y: float | None = None
-        self._temp_draw_id: int | None = None  # Temporary canvas ID for drawing preview
         self._drag_start_x: float | None = None
         self._drag_start_y: float | None = None
         self._is_dragging: bool = False
-        self._object_counter: int = 0  # Counter for generating unique object IDs
+        self._object_counter: int = 0
 
-        # Store callback references for proper cleanup
+        # Callbacks for scene events
         self._scene_loaded_callback = lambda event: self.set_scene(event.scene)
         self._scene_unloaded_callback = lambda event: self.set_scene(event.scene)
         self._object_palette_visible: bool = False
-        self._object_palette_frame: ttk.Frame | None = None
-        self._current_object_template: str | None = None  # Selected object template
+        self._object_palette_frame: QWidget | None = None
+        self._current_object_template: str | None = None
 
-        # Clipboard for copy/paste
+        # Clipboard
         self._clipboard_data: list[dict] = []
 
-        # Rendering optimization: dirty flag pattern
+        # Rendering: dirty flag pattern
         self._needs_render: bool = False
-        self._render_timer_id: str | None = None
-        self._render_interval_ms: int = 33  # ~30 FPS for rendering (decoupled from 60 Hz updates)
+        self._render_timer: QTimer | None = None
+        self._render_interval_ms: int = 33  # ~30 FPS
 
         # TODO: remove these following properties and abstract with services
         self._entity_names_visible: bool = True
@@ -132,7 +267,7 @@ class SceneViewerFrame(TkinterTaskFrame):
         # Build the UI
         self._toolbar = _SceneViewerToolbar(self.content_frame).build_toolbar()
         self._build_canvas()
-        self._mode = _SceneViewerUserMode(self, self._canvas)
+        self._mode = _SceneViewerUserMode(self, self._canvas_view)
         self._build_properties_panel()
         self._build_object_explorer()
         self._build_object_palette()
@@ -140,18 +275,23 @@ class SceneViewerFrame(TkinterTaskFrame):
         self._bind()
         self._initialize_object_templates()
 
-        # Start render loop (decoupled from scene update rate)
+        # Start render loop
         self._start_render_loop()
 
     # ==================== Properties ====================
 
     @property
-    def canvas(self) -> tk.Canvas:
-        """Get the main canvas widget."""
-        return self._canvas
+    def canvas(self) -> QGraphicsScene:
+        """Get the main graphics scene."""
+        return self._gfx_scene
 
     @property
-    def properties_panel(self) -> TkPropertyPanel:
+    def canvas_view(self) -> _SceneCanvasView:
+        """Get the graphics view widget."""
+        return self._canvas_view
+
+    @property
+    def properties_panel(self) -> PropertyPanel:
         """Get the properties panel, rebuilding it if it was previously closed."""
         if self._properties_panel is None:
             self._build_properties_panel()
@@ -267,11 +407,10 @@ class SceneViewerFrame(TkinterTaskFrame):
         if not self._scene:
             return
 
-        # Remove from canvas (both shape and label by tag)
-        if obj_id in self._canvas_object_management_service.objects:
-            # Delete by tag to remove both the shape and associated label
-            self._canvas.delete(obj_id)
-            del self._canvas_object_management_service.objects[obj_id]
+        # Remove graphics items
+        for item in self._gfx_items.pop(obj_id, []):
+            if item.scene() == self._gfx_scene:
+                self._gfx_scene.removeItem(item)
 
         # Remove from scene
         self._scene.remove_scene_object(obj_id)
@@ -367,68 +506,54 @@ class SceneViewerFrame(TkinterTaskFrame):
         """Toggle the object palette visibility."""
         self._object_palette_visible = not self._object_palette_visible
 
-        if self._object_palette_visible and self._object_palette_frame:
-            self._object_palette_frame.pack(side=tk.LEFT, fill=tk.Y, padx=5, pady=5, before=self._canvas)
-        elif self._object_palette_frame:
-            self._object_palette_frame.pack_forget()
+        if self._object_palette_frame:
+            if self._object_palette_visible:
+                self._object_palette_frame.show()
+            else:
+                self._object_palette_frame.hide()
 
     def toggle_properties_panel(self) -> None:
         """Toggle the visibility of the properties panel."""
         self._properties_panel_visible = not self._properties_panel_visible
-        panes = list(self._paned_window.panes())
 
         if self._properties_panel_visible:
-            # Rebuild if the panel was previously closed via its X button
             if self._properties_panel is None:
                 self._build_properties_panel()
-            if self._properties_panel is not None and str(self._properties_panel.root) not in panes:
-                self._properties_panel.root.master = self._paned_window
-                self._paned_window.add(self._properties_panel.root, weight=0)
-            self._update_properties_panel()
+            if self._properties_panel is not None:
+                self._properties_panel.root.show()
+                self._update_properties_panel()
         else:
-            if self._properties_panel is not None and str(self._properties_panel.root) in panes:
-                self._properties_panel.root.pack_forget()
-                self._paned_window.remove(self._properties_panel.root)
+            if self._properties_panel is not None:
+                self._properties_panel.root.hide()
 
     def toggle_object_explorer(self) -> None:
         """Toggle the visibility of the object explorer panel."""
         self._object_explorer_visible = not self._object_explorer_visible
-        self._object_explorer_var.set(self._object_explorer_visible)
-        panes = list(self._paned_window.panes())
 
         if self._object_explorer_visible:
             if self._object_explorer is None:
                 self._build_object_explorer()
             if self._object_explorer is not None:
-                if str(self._object_explorer.root) not in panes:
-                    self._object_explorer.root.master = self._paned_window
-                    self._paned_window.add(self._object_explorer.root, weight=0)
+                self._object_explorer.root.show()
                 self._object_explorer.set_scene(self._scene)
         else:
-            if self._object_explorer is not None and str(self._object_explorer.root) in panes:
-                self._object_explorer.root.pack_forget()
-                self._paned_window.remove(self._object_explorer.root)
+            if self._object_explorer is not None:
+                self._object_explorer.root.hide()
 
     def toggle_bridge_panel(self) -> None:
         """Toggle the visibility of the scene bridge panel."""
         self._bridge_panel_visible = not self._bridge_panel_visible
-        panes = list(self._paned_window.panes())
 
         if self._bridge_panel_visible:
-            # Rebuild if the panel was previously closed via its X button
             if self._bridge_panel is None:
                 self._build_bridge_panel()
-            # If the build failed (no scene loaded yet), roll back visible state
             if self._bridge_panel is None:
                 self._bridge_panel_visible = False
                 return
-            if str(self._bridge_panel.root) not in panes:
-                self._bridge_panel.root.master = self._paned_window
-                self._paned_window.add(self._bridge_panel.root, weight=0)
+            self._bridge_panel.root.show()
         else:
-            if self._bridge_panel is not None and str(self._bridge_panel.root) in panes:
-                self._bridge_panel.root.pack_forget()
-                self._paned_window.remove(self._bridge_panel.root)
+            if self._bridge_panel is not None:
+                self._bridge_panel.root.hide()
 
     def toggle_entity_names(self) -> None:
         """Toggle entity name labels visibility on the canvas."""
@@ -451,32 +576,27 @@ class SceneViewerFrame(TkinterTaskFrame):
             log().warning("No scene loaded. Cannot open connection editor.")
             return
 
-        # Create a new top-level window
-        editor_window = tk.Toplevel()
-        editor_window.title("Connection Editor")
-        editor_window.geometry("1200x800")
+        editor_window = QWidget()
+        editor_window.setWindowTitle("Connection Editor")
+        editor_window.resize(1200, 800)
+        editor_window.setWindowFlag(Qt.WindowType.Window)
 
-        # Get the connection registry from the scene
+        layout = QVBoxLayout(editor_window)
+        layout.setContentsMargins(0, 0, 0, 0)
+
         connection_registry = self._scene.get_connection_registry()
-
-        # Create the connection editor
-        # Note: connection_registry is IConnectionRegistry, but ConnectionRegistry implements it
         editor = ConnectionEditor(
-            master=editor_window,
+            parent=editor_window,
             scene=self._scene,
             connection_registry=connection_registry  # type: ignore[arg-type]
         )
-        editor.pack(fill=tk.BOTH, expand=True)
-
-        # Set window icon if available (optional)
-        try:
-            editor_window.iconbitmap(default=str(Path(__file__).parent.parent / "ui" / "icons" / "pyrox.ico"))
-        except Exception:
-            pass  # Icon not found, continue without it
+        layout.addWidget(editor)
+        editor_window.show()
+        editor_window.raise_()
 
     def clear_canvas(self) -> None:
         """Clear all items from the canvas without affecting the scene."""
-        self._canvas_object_management_service.clear()
+        self._clear_scene_objects()
 
     # ==================== Coordinate Conversion ====================
 
@@ -514,28 +634,24 @@ class SceneViewerFrame(TkinterTaskFrame):
         self,
         *_,
     ) -> None:
-        """Render the current scene to the canvas."""
+        """Render the current scene to the graphics scene."""
         if not self._scene:
             return
 
-        self._canvas_object_management_service.clear()
-        self._viewport_service.grid.render()
+        self._clear_scene_objects()
+        self._render_grid()
         self.render_scene_objects()
-
-        # Sync viewport state immediately after render
         self._viewport_service.sync_viewport()
-        # NOTE: Do not call update_idletasks() here — it forces a redundant layout pass
-        # every render cycle (~30 Hz) and can cause nested event re-entry on Windows.
         # TODO: Add scene background rendering
 
     def render_scene_objects(self) -> None:
-        """Render all scene objects to the canvas with viewport culling and layer ordering."""
+        """Render all scene objects with viewport culling and layer ordering."""
         if not self._scene:
             return
 
         # Get visible canvas bounds for culling
-        canvas_width = self._canvas.winfo_width()
-        canvas_height = self._canvas.winfo_height()
+        canvas_width = self._canvas_view.width()
+        canvas_height = self._canvas_view.height()
 
         # Convert canvas bounds to scene coordinates with margin for objects partially visible
         margin = 100  # Extra pixels around viewport to avoid pop-in
@@ -593,129 +709,178 @@ class SceneViewerFrame(TkinterTaskFrame):
         outline_color = self._canvas_object_management_service._selection_color if is_selected else "#ffaa00"
         outline_width = self._canvas_object_management_service._selection_width if is_selected else 1
 
-        canvas_id = self._canvas.create_rectangle(
-            canvas_x,
-            canvas_y,
-            canvas_x + canvas_w,
-            canvas_y + canvas_h,
-            fill="",
-            outline=outline_color,
-            width=outline_width,
-            dash=(6, 4),
-            tags=("scene_object", obj_id)
-        )
-        self._canvas_object_management_service.set_object(obj_id, canvas_id)
+        pen = QPen(QColor(outline_color), outline_width)
+        pen.setDashPattern([6, 4])
+        rect_item = QGraphicsRectItem(QRectF(0, 0, canvas_w, canvas_h))
+        rect_item.setPen(pen)
+        rect_item.setBrush(QBrush(Qt.BrushStyle.NoBrush))
+        rect_item.setPos(canvas_x, canvas_y)
+        rect_item.setData(0, obj_id)
+        rect_item.setData(1, "scene_object")
+        rect_item.setZValue(group.get_layer())
+        self._gfx_scene.addItem(rect_item)
+
+        items: list = [rect_item]
 
         if self._entity_names_visible:
+            label_item = QGraphicsSimpleTextItem(group.name)
             font_size = max(8, int(10 * self.viewport.zoom))
-            self._canvas.create_text(
-                canvas_x + canvas_w / 2,
-                canvas_y - 10 * self.viewport.zoom,
-                text=group.name,
-                fill=outline_color,
-                font=("Arial", font_size),
-                tags=("scene_object_label", obj_id)
+            label_item.setFont(QFont("Arial", font_size))
+            label_item.setBrush(QBrush(QColor("#ffaa00")))
+            lw = label_item.boundingRect().width()
+            label_item.setPos(
+                canvas_x + canvas_w / 2 - lw / 2,
+                canvas_y - 10 * self.viewport.zoom
             )
+            label_item.setData(0, obj_id)
+            label_item.setData(1, "scene_object_label")
+            label_item.setZValue(group.get_layer() + 0.1)
+            self._gfx_scene.addItem(label_item)
+            items.append(label_item)
+
+        self._gfx_items[obj_id] = items
 
     def _render_scene_object(
         self,
         obj_id: str,
         scene_obj: ISceneObject
     ) -> None:
-        """Render a single scene object to the canvas.
+        """Render a single scene object to the graphics scene.
 
         Args:
             obj_id: Unique identifier for the scene object
             scene_obj: The scene object to render
         """
-        # Groups get a dedicated dashed-outline renderer — not a filled shape.
         if isinstance(scene_obj, SceneGroup):
             self._render_scene_group(obj_id, scene_obj)
             return
 
-        # Get properties with defaults
         props = scene_obj.properties
         color = props.get("color", "#4a9eff")
         shape = props.get("shape", "rectangle")
 
-        # Apply viewport transformation to render in canvas space
         canvas_x = scene_obj.x * self.viewport.zoom + self.viewport.x
         canvas_y = scene_obj.y * self.viewport.zoom + self.viewport.y
         canvas_width = scene_obj.width * self.viewport.zoom
         canvas_height = scene_obj.height * self.viewport.zoom
 
-        # Render based on shape type
-        canvas_id = None
         is_selected = obj_id in self._canvas_object_management_service.selected_objects
         outline_color = self._canvas_object_management_service._selection_color if is_selected else "white"
         outline_width = self._canvas_object_management_service._selection_width if is_selected else 2
 
+        shape_item = None
+
         if shape == "rectangle":
-            canvas_id = self._canvas.create_rectangle(
-                canvas_x,
-                canvas_y,
-                canvas_x + canvas_width,
-                canvas_y + canvas_height,
-                fill=color,
-                outline=outline_color,
-                width=outline_width,
-                tags=("scene_object", obj_id)
-            )
-        elif shape == "circle" or shape == "oval":
-            canvas_id = self._canvas.create_oval(
-                canvas_x,
-                canvas_y,
-                canvas_x + canvas_width,
-                canvas_y + canvas_height,
-                fill=color,
-                outline=outline_color,
-                width=outline_width,
-                tags=("scene_object", obj_id)
-            )
+            shape_item = QGraphicsRectItem(QRectF(0, 0, canvas_width, canvas_height))
+            shape_item.setPen(QPen(QColor(outline_color), outline_width))
+            shape_item.setBrush(QBrush(QColor(color)))
+            shape_item.setPos(canvas_x, canvas_y)
+        elif shape in ("circle", "oval"):
+            shape_item = QGraphicsEllipseItem(QRectF(0, 0, canvas_width, canvas_height))
+            shape_item.setPen(QPen(QColor(outline_color), outline_width))
+            shape_item.setBrush(QBrush(QColor(color)))
+            shape_item.setPos(canvas_x, canvas_y)
         elif shape == "line":
             x2 = props.get("x2", scene_obj.x + scene_obj.width)
             y2 = props.get("y2", scene_obj.y + scene_obj.height)
             canvas_x2 = x2 * self.viewport.zoom + self.viewport.x
             canvas_y2 = y2 * self.viewport.zoom + self.viewport.y
-            canvas_id = self._canvas.create_line(
-                canvas_x,
-                canvas_y,
-                canvas_x2,
-                canvas_y2,
-                fill=outline_color if is_selected else color,
-                width=max(outline_width if is_selected else 2, int(2 * self.viewport.zoom)),
-                tags=("scene_object", obj_id)
+            line_color = outline_color if is_selected else color
+            line_width = max(outline_width if is_selected else 2, int(2 * self.viewport.zoom))
+            shape_item = QGraphicsLineItem(
+                QLineF(0, 0, canvas_x2 - canvas_x, canvas_y2 - canvas_y)
             )
+            shape_item.setPen(QPen(QColor(line_color), line_width))
+            shape_item.setPos(canvas_x, canvas_y)
         # TODO: Add support for more shapes (polygon, text, image/sprite)
 
-        # Add label for the object
-        if canvas_id:
-            self._canvas_object_management_service.set_object(obj_id, canvas_id)
+        if shape_item is not None:
+            shape_item.setData(0, obj_id)
+            shape_item.setData(1, "scene_object")
+            shape_item.setZValue(scene_obj.get_layer())
+            self._gfx_scene.addItem(shape_item)
 
-            # Draw name label (only if entity names are visible)
+            items: list = [shape_item]
+
             if self._entity_names_visible:
                 font_size = max(8, int(10 * self.viewport.zoom))
-                _ = self._canvas.create_text(
-                    canvas_x + canvas_width / 2,
-                    canvas_y - 10 * self.viewport.zoom,
-                    text=scene_obj.name,
-                    fill="white",
-                    font=("Arial", font_size),
-                    tags=("scene_object_label", obj_id)
+                label_item = QGraphicsSimpleTextItem(scene_obj.name)
+                label_item.setFont(QFont("Arial", font_size))
+                label_item.setBrush(QBrush(QColor("white")))
+                lw = label_item.boundingRect().width()
+                label_item.setPos(
+                    canvas_x + canvas_width / 2 - lw / 2,
+                    canvas_y - 10 * self.viewport.zoom
                 )
+                label_item.setData(0, obj_id)
+                label_item.setData(1, "scene_object_label")
+                label_item.setZValue(scene_obj.get_layer() + 0.1)
+                self._gfx_scene.addItem(label_item)
+                items.append(label_item)
+
+            self._gfx_items[obj_id] = items
+
+    def _render_grid(self) -> None:
+        """Render the grid overlay directly using QGraphicsScene."""
+        # Clear existing grid items
+        for item in list(self._gfx_scene.items()):
+            if item.data(1) == "grid":
+                self._gfx_scene.removeItem(item)
+
+        grid_service = self._viewport_service.grid
+        if not grid_service.is_enabled():
+            return
+
+        view_w = self._canvas_view.width()
+        view_h = self._canvas_view.height()
+        if view_w <= 1 or view_h <= 1:
+            return
+
+        grid_spacing = grid_service.get_grid_size() * self.viewport.zoom
+        if grid_spacing < grid_service.get_min_spacing_pixels():
+            return
+
+        pen = QPen(QColor(grid_service.get_grid_color()), grid_service.get_grid_line_width())
+
+        start_x = self.viewport.x % grid_spacing
+        start_y = self.viewport.y % grid_spacing
+
+        x = start_x
+        while x < view_w:
+            line = QGraphicsLineItem(x, 0, x, view_h)
+            line.setPen(pen)
+            line.setData(1, "grid")
+            line.setZValue(-1)
+            self._gfx_scene.addItem(line)
+            x += grid_spacing
+
+        y = start_y
+        while y < view_h:
+            line = QGraphicsLineItem(0, y, view_w, y)
+            line.setPen(pen)
+            line.setData(1, "grid")
+            line.setZValue(-1)
+            self._gfx_scene.addItem(line)
+            y += grid_spacing
+
+    def _clear_scene_objects(self) -> None:
+        """Remove all non-grid graphics items from the scene."""
+        for item in list(self._gfx_scene.items()):
+            if item.data(1) in ("scene_object", "scene_object_label"):
+                self._gfx_scene.removeItem(item)
+        self._gfx_items.clear()
 
     def _start_render_loop(self) -> None:
-        """Start the render loop at controlled frame rate."""
-        # Prevent multiple render loops from running simultaneously
-        if self._render_timer_id is not None:
-            try:
-                self._canvas.after_cancel(self._render_timer_id)
-            except (tk.TclError, AttributeError):
-                pass
-            self._render_timer_id = None
+        """Start the render loop at a controlled frame rate."""
+        if self._render_timer is not None:
+            self._render_timer.stop()
+            self._render_timer = None
 
-        self.gui.schedule_event(100, self._mark_dirty)  # Initial render after short delay
-        self._render_loop()
+        QTimer.singleShot(100, self._mark_dirty)  # Initial render after short delay
+
+        self._render_timer = QTimer()
+        self._render_timer.timeout.connect(self._render_loop)
+        self._render_timer.start(self._render_interval_ms)
 
     def _render_loop(self) -> None:
         """Render loop that checks dirty flag and renders if needed."""
@@ -723,14 +888,8 @@ class SceneViewerFrame(TkinterTaskFrame):
             self.render_scene()
             self._needs_render = False
 
-        # Update properties panel if visible and there's a selection
-        # This ensures the panel shows live updates during object movement
         if self._properties_panel_visible and self._canvas_object_management_service.selected_objects:
             self._update_properties_panel()
-
-        # Schedule next render check
-        if self._canvas and self._canvas.winfo_exists():
-            self._render_timer_id = self._canvas.after(self._render_interval_ms, self._render_loop)
 
     def _mark_dirty(self, *_) -> None:
         """Mark scene as needing re-render.
@@ -740,118 +899,89 @@ class SceneViewerFrame(TkinterTaskFrame):
         """
         self._needs_render = True
 
+    def _reset_view(self) -> None:
+        """Reset viewport to default position/zoom and mark scene dirty."""
+        self._viewport_service.reset_view()
+        self._mark_dirty()
+
+    def _zoom_in(self) -> None:
+        """Zoom in by a fixed factor and mark scene dirty."""
+        self._viewport_service.zoom.zoom_in(factor=1.25)
+        self._mark_dirty()
+
+    def _zoom_out(self) -> None:
+        """Zoom out by a fixed factor and mark scene dirty."""
+        self._viewport_service.zoom.zoom_out(factor=1.25)
+        self._mark_dirty()
+
     def _sync_object_positions(self, *_) -> None:
         """Lightweight position sync for physics updates.
 
-        Updates canvas item positions based on scene object positions
+        Updates graphics item positions based on scene object positions
         without full re-render. Used during continuous physics simulation.
 
         NOTE: This is called at scene update rate (~60 FPS). Keep operations minimal.
         """
-        if not self._scene or not self._canvas:
+        if not self._scene or not self._gfx_items:
             return
 
-        # Quick early exit if no objects
-        objects_dict = self._canvas_object_management_service.objects
-        if not objects_dict:
-            return
-
-        # Batch update - iterate through objects and update positions
-        for obj_id, canvas_id in objects_dict.items():
+        for obj_id, items in self._gfx_items.items():
+            if not items:
+                continue
             scene_obj = self._scene.scene_objects.get(obj_id)
             if not scene_obj:
                 continue
 
-            # Calculate new canvas position
             new_canvas_x = scene_obj.x * self.viewport.zoom + self.viewport.x
             new_canvas_y = scene_obj.y * self.viewport.zoom + self.viewport.y
 
-            # Get current canvas position
-            try:
-                coords = self._canvas.coords(canvas_id)
-                if not coords or len(coords) < 2:
-                    continue
-            except tk.TclError:
-                continue
+            shape_item = items[0]
+            current_pos = shape_item.pos()
+            dx = new_canvas_x - current_pos.x()
+            dy = new_canvas_y - current_pos.y()
 
-            current_canvas_x = coords[0]
-            current_canvas_y = coords[1]
-
-            # Calculate delta
-            dx = new_canvas_x - current_canvas_x
-            dy = new_canvas_y - current_canvas_y
-
-            # Only update if meaningful change (threshold increased from 0.01 to 0.5 pixels)
-            # This significantly reduces unnecessary canvas operations when objects are stationary
             if abs(dx) > 0.5 or abs(dy) > 0.5:
-                # Move all items with this obj_id tag (shape + label) in one batch
-                # Note: find_withtag is still expensive, but only called when movement detected
-                for item in self._canvas.find_withtag(obj_id):
-                    self._canvas.move(item, dx, dy)
+                for item in items:
+                    item.moveBy(dx, dy)
 
     # ==================== UI Building Methods ====================
 
-    def _create_tooltip(self, widget, text: str) -> None:
-        """Create a simple tooltip for a widget.
-
-        Args:
-            widget: The widget to attach the tooltip to
-            text: The tooltip text to display
-        """
-        def on_enter(event):
-            # Create tooltip window
-            tooltip = tk.Toplevel()
-            tooltip.wm_overrideredirect(True)  # Remove window decorations
-            tooltip.wm_geometry(f"+{event.x_root + 10}+{event.y_root + 10}")
-
-            label = tk.Label(
-                tooltip,
-                text=text,
-                background="#ffffe0",
-                relief=tk.SOLID,
-                borderwidth=1,
-                padx=5,
-                pady=2
-            )
-            label.pack()
-
-            # Store reference to destroy later
-            widget._tooltip = tooltip
-
-        def on_leave(event):
-            if hasattr(widget, '_tooltip'):
-                widget._tooltip.destroy()
-                delattr(widget, '_tooltip')
-
-        widget.bind('<Enter>', on_enter)
-        widget.bind('<Leave>', on_leave)
-
     def _build_canvas(self) -> None:
-        """Build the main canvas for rendering."""
-        # Use PanedWindow for resizable split between canvas and properties panel
-        self._paned_window = ttk.PanedWindow(self.content_frame, orient=tk.HORIZONTAL)
-        self._paned_window.pack(side=tk.TOP, fill=tk.BOTH, expand=True)
+        """Build the main graphics view for rendering."""
+        content_layout = self.content_frame.layout()
+        if not isinstance(content_layout, QVBoxLayout):
+            content_layout = QVBoxLayout(self.content_frame)
 
-        # Canvas container
-        self._canvas_container = ttk.Frame(self._paned_window)
-        self._paned_window.add(self._canvas_container, weight=1)
+        # Splitter for resizable split between canvas and side panels
+        self._paned_window = QSplitter(Qt.Orientation.Horizontal, self.content_frame)
+        content_layout.addWidget(self._paned_window)
 
-        # Create canvas
-        self._canvas = tk.Canvas(
-            self._canvas_container,
-            bg="#727272",
-            highlightthickness=0
-        )
-        self._canvas.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        # Canvas container inside the splitter
+        self._canvas_container = QWidget()
+        canvas_container_layout = QVBoxLayout(self._canvas_container)
+        canvas_container_layout.setContentsMargins(0, 0, 0, 0)
+        self._paned_window.addWidget(self._canvas_container)
 
-        self._viewport_service.set_canvas(self._canvas)
+        # Graphics scene + view
+        self._gfx_scene = QGraphicsScene()
+        self._gfx_scene.setSceneRect(0, 0, 4000, 3000)
+        self._canvas_view = _SceneCanvasView(self._gfx_scene, self, self._canvas_container)
+        self._canvas_view.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        self._canvas_view.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        self._canvas_view.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignTop)
+        self._canvas_view.setBackgroundBrush(QBrush(QColor("#727272")))
+        self._canvas_view.setFrameShape(self._canvas_view.frameShape().NoFrame)
+        # Anchor at scene origin so manual pan/zoom item positions map 1:1 to
+        # view pixels (QGraphicsView centres on the scene rect by default).
+        self._canvas_view.horizontalScrollBar().setValue(0)
+        self._canvas_view.verticalScrollBar().setValue(0)
+        canvas_container_layout.addWidget(self._canvas_view)
 
-        # TODO: Add scrollbars for large scenes
         # TODO: Add ruler/coordinate display
 
     def _build_properties_panel(self) -> None:
         """Build the properties panel for selected objects."""
-        self._properties_panel = TkPropertyPanel(
+        self._properties_panel = PropertyPanel(
             parent=self._paned_window,
             title="Object Properties",
             width=250,
@@ -859,17 +989,17 @@ class SceneViewerFrame(TkinterTaskFrame):
         )
 
         def _on_properties_panel_closed(frame):
-            """Reset state when the properties panel's X button destroys the frame."""
             self._properties_panel = None
             self._properties_panel_visible = False
             self._properties_panel_current_object_id = None
 
         self._properties_panel.on_destroy().append(_on_properties_panel_closed)
-        # Panel is initially hidden, will be added to paned window when toggled
+        self._paned_window.addWidget(self._properties_panel.root)
+        self._properties_panel.root.hide()
 
     def _build_object_explorer(self) -> None:
         """Build the object explorer side panel."""
-        self._object_explorer = TkObjectExplorer(
+        self._object_explorer = ObjectExplorer(
             parent=self._paned_window,
             title="object explorer",
             width=230,
@@ -878,17 +1008,15 @@ class SceneViewerFrame(TkinterTaskFrame):
         self._object_explorer.set_scene(self._scene)
 
         def _on_explorer_closed(frame):
-            """Reset state when the explorer's X button destroys the frame."""
             self._object_explorer = None
             self._object_explorer_visible = False
-            self._object_explorer_var.set(False)
 
         self._object_explorer.on_destroy().append(_on_explorer_closed)
-        # Panel is initially hidden; added to PanedWindow when toggled
+        self._paned_window.addWidget(self._object_explorer.root)
+        self._object_explorer.root.hide()
 
     def _build_bridge_panel(self) -> None:
         """Build the scene bridge panel."""
-        # Bridge is owned by SceneBridgeService; the viewer only holds a reference.
         self._bridge = SceneBridgeService.get_bridge()
         if self._bridge is None:
             log(self).warning("Cannot open bridge panel: no scene is currently loaded")
@@ -900,57 +1028,44 @@ class SceneViewerFrame(TkinterTaskFrame):
         )
 
         def _on_bridge_panel_closed(frame):
-            """Reset state when the bridge panel's X button destroys the frame."""
             self._bridge_panel = None
             self._bridge_panel_visible = False
 
         self._bridge_panel.on_destroy().append(_on_bridge_panel_closed)
-        # Panel is initially hidden, will be added to paned window when toggled
+        self._paned_window.addWidget(self._bridge_panel.root)
+        self._bridge_panel.root.hide()
 
     def _build_object_palette(self) -> None:
         """Build the object palette for design mode."""
-        # Palette frame (initially hidden, shown on left side of canvas)
-        self._object_palette_frame = ttk.Frame(self._canvas_container, width=200)
-        # Don't pack it yet - will be shown when toggled
+        self._object_palette_frame = QWidget(self._canvas_container)
+        self._object_palette_frame.setFixedWidth(200)
+        palette_layout = QVBoxLayout(self._object_palette_frame)
+        palette_layout.setContentsMargins(4, 4, 4, 4)
 
-        # Palette title
-        title_label = ttk.Label(
-            self._object_palette_frame,
-            text="Object Palette",
-            font=("Arial", 10, "bold")
-        )
-        title_label.pack(side=tk.TOP, pady=5)
+        title_label = QLabel("Object Palette")
+        title_label.setFont(QFont("Arial", 10, QFont.Weight.Bold))
+        palette_layout.addWidget(title_label)
 
-        # Scrollable frame for object buttons
-        canvas_scroll = tk.Canvas(self._object_palette_frame, highlightthickness=0)
-        scrollbar = ttk.Scrollbar(
-            self._object_palette_frame,
-            orient=tk.VERTICAL,
-            command=canvas_scroll.yview
-        )
-        canvas_scroll.configure(yscrollcommand=scrollbar.set)
+        scroll_area = QScrollArea()
+        scroll_area.setWidgetResizable(True)
+        scroll_area.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        palette_layout.addWidget(scroll_area)
 
-        scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
-        canvas_scroll.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        self._palette_content_widget = QWidget()
+        self._palette_content_layout = QVBoxLayout(self._palette_content_widget)
+        self._palette_content_layout.setAlignment(Qt.AlignmentFlag.AlignTop)
+        scroll_area.setWidget(self._palette_content_widget)
 
-        palette_content = ttk.Frame(canvas_scroll)
-        canvas_scroll.create_window((0, 0), window=palette_content, anchor=tk.NW)
-
-        # Object template buttons will be populated in _initialize_object_templates
-        self._palette_content_frame = palette_content
-
-        def _configure_scroll(event):
-            canvas_scroll.configure(scrollregion=canvas_scroll.bbox("all"))
-
-        palette_content.bind("<Configure>", _configure_scroll)
+        # Insert BEFORE the canvas view in the canvas container layout
+        canvas_container_layout = self._canvas_container.layout()
+        if isinstance(canvas_container_layout, QVBoxLayout):
+            canvas_container_layout.insertWidget(0, self._object_palette_frame)
+        self._object_palette_frame.hide()
 
     def _build_context_menus(self) -> None:
         """Build context menus for different contexts."""
-        # Context menu for empty canvas space
-        self._canvas_context_menu = PyroxContextMenu(self._canvas)
-
-        # Context menu for selected objects
-        self._object_context_menu = PyroxContextMenu(self._canvas)
+        self._canvas_context_menu = PyroxContextMenu(self._canvas_view)
+        self._object_context_menu = PyroxContextMenu(self._canvas_view)
 
         # Populate canvas context menu
         self._canvas_context_menu.add_item(MenuItem(
@@ -958,28 +1073,28 @@ class SceneViewerFrame(TkinterTaskFrame):
             label="Paste",
             command=self._context_paste,
             accelerator="Ctrl+V",
-            icon="📋"
+            icon="\ud83d\udccb"
         ))
         self._canvas_context_menu.add_item(MenuItem(
             id="zoom_in",
             label="Zoom In",
-            command=lambda: self._viewport_service.zoom.zoom_in(factor=1.25),
+            command=self._zoom_in,
             accelerator="Ctrl++",
-            icon="🔍➕",
+            icon="\ud83d\udd0d\u2795",
             separator_before=True
         ))
         self._canvas_context_menu.add_item(MenuItem(
             id="zoom_out",
             label="Zoom Out",
-            command=lambda: self._viewport_service.zoom.zoom_out(factor=1.25),
+            command=self._zoom_out,
             accelerator="Ctrl+-",
-            icon="🔍➖"
+            icon="\ud83d\udd0d\u2796"
         ))
         self._canvas_context_menu.add_item(MenuItem(
             id="reset_view",
             label="Reset View",
-            command=self._viewport_service.reset_view,
-            icon="🔄",
+            command=self._reset_view,
+            icon="\ud83d\udd04",
             separator_before=True
         ))
         self._canvas_context_menu.add_item(MenuItem(
@@ -1106,35 +1221,6 @@ class SceneViewerFrame(TkinterTaskFrame):
 
     # ==================== Event Binding ====================
 
-    def _bind_canvas(self) -> None:
-        """Bind canvas events for interaction."""
-        # Left mouse button - context-dependent (select, draw, or drag)
-        self._canvas.bind("<ButtonPress-1>", self._on_left_click)
-        self._canvas.bind("<B1-Motion>", self._on_left_drag)
-        self._canvas.bind("<ButtonRelease-1>", self._on_left_release)
-
-        # Right mouse button - context menu
-        self._canvas.bind("<ButtonPress-3>", self._on_right_click)
-
-        # Delete key to remove selected objects
-        self._canvas.bind("<Delete>", lambda e: self.delete_selected_objects())
-
-        # Deselect with Escape key
-        self._canvas.bind("<Escape>", lambda e: self.clear_selection())
-
-        # Toggle entity names with Ctrl+L
-        self._canvas.bind("<Control-l>", lambda e: self.toggle_entity_names())
-
-        # Layer ordering shortcuts
-        self._canvas.bind("<Control-bracketright>", lambda e: self._context_layer_up())  # Ctrl+]
-        self._canvas.bind("<Control-bracketleft>", lambda e: self._context_layer_down())  # Ctrl+[
-        self._canvas.bind("<Control-Shift-bracketright>", lambda e: self._context_bring_to_front())  # Ctrl+Shift+]
-        self._canvas.bind("<Control-Shift-bracketleft>", lambda e: self._context_send_to_back())  # Ctrl+Shift+[
-
-        # Grouping shortcuts
-        self._canvas.bind("<Control-Alt-g>", lambda e: self._context_group_selected())   # Ctrl+Alt+G
-        self._canvas.bind("<Control-Alt-u>", lambda e: self._context_ungroup_selected())  # Ctrl+Alt+U
-
     def _bind_toolbar(self) -> None:
         """Bind toolbar buttons to their respective commands."""
         self._toolbar.on_toggle_bridge_panel = self.toggle_bridge_panel
@@ -1143,37 +1229,17 @@ class SceneViewerFrame(TkinterTaskFrame):
         self._toolbar.on_toggle_object_palette = self.toggle_object_palette
         self._toolbar.on_toggle_entity_names = self.toggle_entity_names
 
-    def _bind(
-        self,
-        *_,
-    ) -> None:
-        """Bind mouse and keyboard events for interaction."""
-        self._canvas.update_idletasks()
-
-        self._canvas_object_management_service.set_canvas(self._canvas)
-        self._viewport_service.set_canvas(self._canvas)
+    def _bind(self, *_) -> None:
+        """Wire up events and service integrations."""
         self._mode.on_mode_change = self._viewport_service._viewport_status_service.set_current_tool
 
-        self._bind_canvas()
         self._bind_toolbar()
 
-        # Subscribe to scene events using stored callback references
-        SceneEventBus.subscribe(
-            SceneEventType.SCENE_LOADED,
-            self._scene_loaded_callback
-        )
-        SceneEventBus.subscribe(
-            SceneEventType.SCENE_UNLOADED,
-            self._scene_unloaded_callback
-        )
+        SceneEventBus.subscribe(SceneEventType.SCENE_LOADED, self._scene_loaded_callback)
+        SceneEventBus.subscribe(SceneEventType.SCENE_UNLOADED, self._scene_unloaded_callback)
 
-        # Register the unbind for when the frame is closed to prevent memory leaks
         self.on_destroy().append(self._unbind_events)
 
-        self._canvas.update_idletasks()  # Final update to ensure canvas is ready before rendering
-
-        # Use dirty flag pattern instead of direct render on every update
-        # For physics updates, use lightweight position sync instead of full render
         if self._scene:
             self._scene.get_on_scene_updated().append(self._sync_object_positions)
 
@@ -1186,6 +1252,11 @@ class SceneViewerFrame(TkinterTaskFrame):
         This method properly cleans up all callbacks to prevent memory leaks and runtime errors
         from stale references after the frame is destroyed.
         """
+        # Stop the render timer
+        if self._render_timer:
+            self._render_timer.stop()
+            self._render_timer = None
+
         # Unsubscribe from SceneEventBus using the exact callback references
         SceneEventBus.unsubscribe(
             SceneEventType.SCENE_LOADED,
@@ -1294,57 +1365,41 @@ class SceneViewerFrame(TkinterTaskFrame):
 
     # ==================== Mouse Event Handlers ====================
 
-    def _on_left_click(self, event: tk.Event) -> None:
-        """Handle left mouse button press - context dependent on current tool.
-
-        Args:
-            event: Mouse click event
-        """
+    def _on_left_click_qt(self, event: QMouseEvent) -> None:
+        """Handle left mouse button press (called from _SceneCanvasView)."""
         if self._mode == UserMode.INSERT:
-            # Design mode - place object from template
-            scene_x = (event.x - self.viewport.x) / self.viewport.zoom
-            scene_y = (event.y - self.viewport.y) / self.viewport.zoom
+            scene_pos = self._canvas_view.mapToScene(int(event.position().x()), int(event.position().y()))
+            scene_x = (scene_pos.x() - self.viewport.x) / self.viewport.zoom
+            scene_y = (scene_pos.y() - self.viewport.y) / self.viewport.zoom
             self._place_object_from_template(scene_x, scene_y)
         elif self._mode == UserMode.SELECT:
-            self._on_select_click(event)
+            self._on_select_click_qt(event)
 
-    def _on_left_drag(self, event: tk.Event) -> None:
-        """Handle left mouse drag - drawing or object manipulation.
-
-        Args:
-            event: Mouse drag event
-        """
+    def _on_left_drag_qt(self, event: QMouseEvent) -> None:
+        """Handle left mouse drag (called from _SceneCanvasView)."""
         if self._mode == UserMode.SELECT:
-            self._on_drag_object(event)
+            self._on_drag_object_qt(event)
 
-    def _on_left_release(self, event: tk.Event) -> None:
-        """Handle left mouse button release.
-
-        Args:
-            event: Mouse release event
-        """
+    def _on_left_release_qt(self, event: QMouseEvent) -> None:
+        """Handle left mouse button release (called from _SceneCanvasView)."""
         if self._mode == UserMode.SELECT:
-            self._on_drag_end(event)
+            self._on_drag_end_qt(event)
 
-    def _on_select_click(self, event: tk.Event) -> None:
-        """Handle selection click events.
+    def _on_select_click_qt(self, event: QMouseEvent) -> None:
+        """Handle selection click in Qt scene."""
+        pos = event.position()
+        scene_pos = self._canvas_view.mapToScene(int(pos.x()), int(pos.y()))
+        items = self._gfx_scene.items(QPointF(scene_pos))
+        non_grid = [i for i in items if i.data(1) not in ("grid", "scene_object_label")]
 
-        Args:
-            event: Mouse click event
-        """
-        canvas_items = self._canvas_object_management_service.get_non_grid_objects(event)
-
-        if not canvas_items:
-            # Click on empty space - clear selection unless Ctrl is held
-            if not (event.state & 0x0004):  # Check if Ctrl key is not pressed  # type: ignore
+        if not non_grid:
+            if not (event.modifiers() & Qt.KeyboardModifier.ControlModifier):
                 self.clear_selection()
             return
 
-        # Find which scene object was clicked
-        clicked_obj_id = self._canvas_object_management_service.get_from_canvas_id(canvas_items[-1])  # Get topmost item
+        clicked_obj_id = non_grid[0].data(0)
 
         if clicked_obj_id:
-            # If the clicked object is a member of a group, redirect to the group anchor
             if self._scene:
                 clicked_scene_obj = self._scene.scene_objects.get(clicked_obj_id)
                 if clicked_scene_obj:
@@ -1352,97 +1407,66 @@ class SceneViewerFrame(TkinterTaskFrame):
                     if group_id and group_id in self._scene.scene_objects:
                         clicked_obj_id = group_id
 
-            # Check if Ctrl key is pressed for multi-select
-            if event.state & 0x0004:  # Ctrl key  # type: ignore
+            if event.modifiers() & Qt.KeyboardModifier.ControlModifier:
                 self.toggle_selection(clicked_obj_id)
             else:
-                # Single select (clear previous selection)
                 self.select_object(clicked_obj_id, clear_previous=True)
 
-            # Prepare for potential drag
-            self._drag_start_x = event.x
-            self._drag_start_y = event.y
+            self._drag_start_x = pos.x()
+            self._drag_start_y = pos.y()
 
-    def _on_drag_object(self, event: tk.Event) -> None:
-        """Handle dragging selected objects.
-
-        Args:
-            event: Mouse drag event
-        """
+    def _on_drag_object_qt(self, event: QMouseEvent) -> None:
+        """Handle dragging selected objects in Qt scene."""
         if not self._canvas_object_management_service.selected_objects:
             return
-
         if self._drag_start_x is None or self._drag_start_y is None:
             return
 
-        # Calculate drag delta in canvas coordinates
-        dx = event.x - self._drag_start_x
-        dy = event.y - self._drag_start_y
+        pos = event.position()
+        dx = pos.x() - self._drag_start_x
+        dy = pos.y() - self._drag_start_y
 
-        # Only start dragging if moved more than 3 pixels (avoid accidental drags)
         if not self._is_dragging and (abs(dx) < 3 and abs(dy) < 3):
             return
 
         self._is_dragging = True
 
-        # Convert to scene coordinates
         scene_dx = dx / self.viewport.zoom
         scene_dy = dy / self.viewport.zoom
 
-        # Move canvas items directly for smooth dragging (no full redraw!)
         for obj_id in self._canvas_object_management_service.selected_objects:
-            # Move the canvas shape and label by delta
-            for item in self._canvas.find_withtag(obj_id):
-                self._canvas.move(item, dx, dy)
+            for item in self._gfx_items.get(obj_id, []):
+                item.moveBy(dx, dy)
 
-            # Update underlying scene object position
             if self._scene:
                 scene_obj = self._scene.scene_objects.get(obj_id)
                 if scene_obj:
                     if isinstance(scene_obj, SceneGroup):
-                        # Also move all member canvas items so they follow the anchor
                         for member_id in scene_obj.get_member_ids():
-                            for item in self._canvas.find_withtag(member_id):
-                                self._canvas.move(item, dx, dy)
-
-                        # Update ALL positions (anchor + members) via move_delta
+                            for item in self._gfx_items.get(member_id, []):
+                                item.moveBy(dx, dy)
                         snapped_x, snapped_y = self._viewport_service.grid.snap_to_grid(
                             scene_obj.x + scene_dx, scene_obj.y + scene_dy
                         )
                         scene_obj.move_delta(snapped_x - scene_obj.x, snapped_y - scene_obj.y)
                     else:
-                        # Calculate new position
                         new_x = scene_obj.x + scene_dx
                         new_y = scene_obj.y + scene_dy
-
-                        # Apply snap to grid if enabled
                         new_x, new_y = self._viewport_service.grid.snap_to_grid(new_x, new_y)
-
-                        # Update object position
                         scene_obj.physics_body.set_x(new_x)
                         scene_obj.physics_body.set_y(new_y)
-
                         props = scene_obj.properties
-                        # For line objects, also update x2, y2
                         if props.get("shape") == "line":
-                            # Calculate line endpoint delta based on snapped position
                             actual_dx = new_x - scene_obj.x
                             actual_dy = new_y - scene_obj.y
                             props["x2"] = props.get("x2", 0) + actual_dx
                             props["y2"] = props.get("y2", 0) + actual_dy
 
-        # Update drag start position
-        self._drag_start_x = event.x
-        self._drag_start_y = event.y
+        self._drag_start_x = pos.x()
+        self._drag_start_y = pos.y()
 
-        # No render_scene() call - just moved canvas items directly!
-
-    def _on_drag_end(self, event: tk.Event) -> None:
-        """Handle end of drag operation.
-
-        Args:
-            event: Mouse release event
-        """
+    def _on_drag_end_qt(self, event: QMouseEvent) -> None:
+        """Handle end of drag operation (called from _SceneCanvasView)."""
         self._is_dragging = False
         self._drag_start_x = None
         self._drag_start_y = None
@@ -1451,17 +1475,12 @@ class SceneViewerFrame(TkinterTaskFrame):
 
     def _initialize_object_templates(self) -> None:
         """Initialize object templates and populate palette."""
-        # Define object templates
         self._templates = PhysicsSceneFactory.get_all_templates()
 
-        # Populate palette with buttons
         for template_name in self._templates.keys():
-            btn = ttk.Button(
-                self._palette_content_frame,
-                text=template_name,
-                command=lambda name=template_name: self._select_object_template(name)
-            )
-            btn.pack(side=tk.TOP, fill=tk.X, padx=5, pady=2)
+            btn = QPushButton(text=template_name, parent=self._palette_content_widget)
+            btn.clicked.connect(lambda checked, name=template_name: self._select_object_template(name))
+            self._palette_content_layout.addWidget(btn)
 
     def _select_object_template(self, template_name: str) -> None:
         """Select an object template for placement.
@@ -1538,20 +1557,16 @@ class SceneViewerFrame(TkinterTaskFrame):
 
     # ==================== Context Menu Handlers ====================
 
-    def _on_right_click(self, event: tk.Event) -> None:
-        """Handle right-click to show context menu.
+    def _on_right_click_qt(self, event: QContextMenuEvent) -> None:
+        """Handle right-click to show context menu (called from _SceneCanvasView)."""
+        pos = event.pos()
+        scene_pos = self._canvas_view.mapToScene(pos)
+        items = self._gfx_scene.items(QPointF(scene_pos))
+        non_grid = [i for i in items if i.data(1) not in ("grid", "scene_object_label")]
 
-        Args:
-            event: Mouse click event
-        """
-        # Find what was clicked (excluding grid items)
-        canvas_items = self._canvas_object_management_service.get_non_grid_objects(event)
-
-        # Check if we clicked on a scene object
-        clicked_obj_id = self._canvas_object_management_service.get_from_canvas_id(canvas_items[-1]) if canvas_items else None
+        clicked_obj_id = non_grid[0].data(0) if non_grid else None
 
         if clicked_obj_id:
-            # If the clicked object is a member of a group, redirect to the group anchor
             if self._scene:
                 clicked_scene_obj = self._scene.scene_objects.get(clicked_obj_id)
                 if clicked_scene_obj:
@@ -1559,15 +1574,14 @@ class SceneViewerFrame(TkinterTaskFrame):
                     if group_id and group_id in self._scene.scene_objects:
                         clicked_obj_id = group_id
 
-            # Clicked on an object - ensure it's selected
             if clicked_obj_id not in self._canvas_object_management_service.selected_objects:
                 self.select_object(clicked_obj_id, clear_previous=True)
 
-            # Show object context menu
-            self._object_context_menu.post(event.x_root, event.y_root)
+            global_pos = event.globalPos()
+            self._object_context_menu.show_at(global_pos.x(), global_pos.y())
         else:
-            # Clicked on empty space - show canvas context menu
-            self._canvas_context_menu.post(event.x_root, event.y_root)
+            global_pos = event.globalPos()
+            self._canvas_context_menu.show_at(global_pos.x(), global_pos.y())
 
     def _context_copy(self) -> None:
         """Copy selected objects to clipboard."""
@@ -1607,9 +1621,11 @@ class SceneViewerFrame(TkinterTaskFrame):
             log(self).warning("Nothing to paste")
             return
 
-        # Get mouse position relative to viewport for paste location
-        mouse_x = self._canvas.winfo_pointerx() - self._canvas.winfo_rootx()
-        mouse_y = self._canvas.winfo_pointery() - self._canvas.winfo_rooty()
+        # Get mouse position relative to the canvas view
+        global_cursor = QCursor.pos()
+        local_pos = self._canvas_view.mapFromGlobal(global_cursor)
+        mouse_x = local_pos.x()
+        mouse_y = local_pos.y()
         scene_x = (mouse_x - self.viewport.x) / self.viewport.zoom
         scene_y = (mouse_y - self.viewport.y) / self.viewport.zoom
 
@@ -1867,7 +1883,7 @@ class SceneViewerFrame(TkinterTaskFrame):
 
     def _update_selection_display(self) -> None:
         """Update the selection info display in toolbar."""
-        self._toolbar._selection_label.config(text=self._canvas_object_management_service.selected_objects_display)
+        self._toolbar._selection_label.setText(self._canvas_object_management_service.selected_objects_display)
 
         # Only force refresh properties panel if selection actually changed
         if self._properties_panel_visible:
@@ -1877,37 +1893,32 @@ class SceneViewerFrame(TkinterTaskFrame):
                 self._previous_selection = current_selection.copy()
 
     def _update_object_appearance(self, obj_id: str) -> None:
-        """Update visual appearance of an object based on selection state.
-
-        Args:
-            obj_id: ID of the object to update
-        """
-        if obj_id not in self._canvas_object_management_service.objects:
+        """Update visual appearance of an object based on selection state."""
+        items = self._gfx_items.get(obj_id)
+        if not items:
             return
 
-        canvas_id = self._canvas_object_management_service.objects[obj_id]
+        shape_item = items[0]
         is_selected = obj_id in self._canvas_object_management_service.selected_objects
+        selection_color = self._canvas_object_management_service._selection_color
+        selection_width = self._canvas_object_management_service._selection_width
 
-        # Update outline color and width
-        outline_color = self._canvas_object_management_service._selection_color if is_selected else "white"
-        outline_width = self._canvas_object_management_service._selection_width if is_selected else 2
+        if is_selected:
+            pen = QPen(QColor(selection_color), selection_width)
+        else:
+            pen = QPen(QColor("white"), 2)
+            if self._scene:
+                scene_obj = self._scene.scene_objects.get(obj_id)
+                if scene_obj:
+                    color = scene_obj.properties.get("color", "#4a9eff")
+                    shape = scene_obj.properties.get("shape", "rect")
+                    if shape == "line":
+                        pen = QPen(QColor(color), 2)
+                    else:
+                        pen = QPen(QColor("white"), 2)
 
-        try:
-            self._canvas.itemconfig(canvas_id, outline=outline_color, width=outline_width)
-        except tk.TclError:
-            # Handle line objects which use 'fill' instead of 'outline'
-            try:
-                if is_selected:
-                    self._canvas.itemconfig(canvas_id, fill=outline_color, width=outline_width)
-                else:
-                    # Restore original color from scene object
-                    if self._scene:
-                        scene_obj = self._scene.scene_objects.get(obj_id)
-                        if scene_obj:
-                            color = scene_obj.properties.get("color", "#4a9eff")
-                            self._canvas.itemconfig(canvas_id, fill=color, width=2)
-            except tk.TclError:
-                pass
+        if isinstance(shape_item, (QGraphicsRectItem, QGraphicsEllipseItem, QGraphicsLineItem)):
+            shape_item.setPen(pen)
 
     def _update_properties_panel(self, force_refresh: bool = False) -> None:
         """Update the properties panel with selected object information.
@@ -1959,32 +1970,23 @@ class SceneViewerFrame(TkinterTaskFrame):
             self._properties_panel.update_values()
 
     def _on_property_changed(self, property_name: str, new_value) -> None:
-        """Handle property changes from the properties panel.
-
-        Args:
-            property_name: Name of the property that changed
-            new_value: New value for the property
-        """
-        # If layer changed, need to re-render entire scene for correct z-order
+        """Handle property changes from the properties panel."""
         if property_name == 'layer':
             self.render_scene()
             log(self).debug(f"Layer changed to {new_value}, re-rendering scene")
             return
 
-        # Only re-render the affected object(s), not the entire scene
         if self._canvas_object_management_service.selected_objects:
             for obj_id in self._canvas_object_management_service.selected_objects:
-                # Update the specific canvas item appearance
                 self._update_object_appearance(obj_id)
 
-                # If position changed, need to re-render that object
                 if property_name in ('x', 'y', 'width', 'height', 'radius', 'name', 'color'):
                     if self._scene:
                         scene_obj = self._scene.scene_objects.get(obj_id)
                         if scene_obj:
-                            # Delete old rendering
-                            self._canvas.delete(obj_id)
-                            # Re-render just this object
+                            for item in self._gfx_items.pop(obj_id, []):
+                                if item.scene() == self._gfx_scene:
+                                    self._gfx_scene.removeItem(item)
                             self._render_scene_object(obj_id, scene_obj)
 
         log(self).debug(f"Property '{property_name}' changed to: {new_value}")
@@ -2004,6 +2006,103 @@ class SceneViewerFrame(TkinterTaskFrame):
             return
         self.select_object(obj_id, clear_previous=True)
         self._update_properties_panel()
+
+
+# ---------------------------------------------------------------------------
+# Scene helpers
+# ---------------------------------------------------------------------------
+
+def _obj(name: str, x: float, y: float, w: float, h: float,
+         color: str = "#4a9eff", shape: str = "rectangle") -> SceneObject:
+    """Create a simple SceneObject backed by a BasePhysicsBody."""
+    body = BasePhysicsBody(name=name, x=x, y=y, width=w, height=h)
+    obj = SceneObject(
+        name=name,
+        scene_object_type="BasePhysicsBody",
+        physics_body=body,
+    )
+    obj.properties["color"] = color
+    obj.properties["shape"] = shape
+    return obj
+
+
+def _build_demo_scene() -> Scene:
+    """Return a Scene populated with demo objects."""
+    scene = Scene(name="Demo Scene", description="Sceneviewer QA demo")
+
+    # A row of coloured rectangles
+    colors = ["#e74c3c", "#e67e22", "#f1c40f", "#2ecc71", "#3498db", "#9b59b6"]
+    for i, color in enumerate(colors):
+        scene.add_scene_object(_obj(f"Box_{i+1}", 40 + i * 80, 60, 60, 40, color))
+
+    # A circle
+    circle_body = BasePhysicsBody(name="Circle", x=80, y=180, width=60, height=60)
+    circle_obj = SceneObject(name="Circle", scene_object_type="BasePhysicsBody",
+                             physics_body=circle_body)
+    circle_obj.properties["color"] = "#1abc9c"
+    circle_obj.properties["shape"] = "circle"
+    scene.add_scene_object(circle_obj)
+
+    # A line
+    line_body = BasePhysicsBody(name="Line", x=200, y=200, width=120, height=0)
+    line_obj = SceneObject(name="Line", scene_object_type="BasePhysicsBody",
+                           physics_body=line_body)
+    line_obj.properties["color"] = "#ecf0f1"
+    line_obj.properties["shape"] = "line"
+    line_obj.properties["x2"] = 320.0
+    line_obj.properties["y2"] = 260.0
+    scene.add_scene_object(line_obj)
+
+    # A group containing two members
+    m1 = _obj("GroupMember_A", 350, 180, 50, 35, "#e74c3c")
+    m2 = _obj("GroupMember_B", 420, 180, 50, 35, "#9b59b6")
+    scene.add_scene_object(m1)
+    scene.add_scene_object(m2)
+    # Build the group anchor manually (no scene.group_objects helper)
+    anchor_body = BasePhysicsBody(name="DemoGroup", x=350, y=180, width=120, height=35)
+    group = SceneGroup(name="DemoGroup", physics_body=anchor_body)
+    group.add_member(m1)
+    group.add_member(m2)
+    scene.add_scene_object(group)
+
+    return scene
+
+
+# ---------------------------------------------------------------------------
+# Main window
+# ---------------------------------------------------------------------------
+
+class DemoWindow(QMainWindow):
+    def __init__(self) -> None:
+        super().__init__()
+        self.setWindowTitle("SceneViewerFrame — PyQt6 Demo")
+        self.resize(1200, 700)
+
+        central = QWidget(self)
+        self.setCentralWidget(central)
+        layout = QVBoxLayout(central)
+        layout.setContentsMargins(0, 0, 0, 0)
+
+        scene = _build_demo_scene()
+        self._viewer = SceneViewerFrame(parent=central, name="Demo Viewer", scene=scene)
+        layout.addWidget(self._viewer.root)
+
+        # Load the scene so the render loop picks it up
+        self._viewer.set_scene(scene)
+
+
+# ---------------------------------------------------------------------------
+# Entry point
+# ---------------------------------------------------------------------------
+
+if __name__ == "__main__":
+    app = QApplication(sys.argv)
+    app.setStyle("Fusion")
+
+    window = DemoWindow()
+    window.show()
+
+    sys.exit(app.exec())
 
 
 __all__ = ['SceneViewerFrame']
