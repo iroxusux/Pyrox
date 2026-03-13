@@ -29,9 +29,8 @@ from PyQt6.QtWidgets import (
 )
 
 from pyrox.interfaces import EnvironmentKeys
-from pyrox.interfaces.gui.frame import ITaskFrame
 from pyrox.models.gui.commandbar import CommandButton
-from pyrox.models.gui.logframe import LogFrame
+from pyrox.models.gui import LogFrame, TaskFrame
 from pyrox.services import EnvManager, LoggingManager
 
 # ---- Display map to help visualize what the layout should look like ----
@@ -177,12 +176,12 @@ class Workspace(QWidget):
         # Widget tracking
         self._mounted_widgets: dict[str, QWidget] = {}
         self._sidebar_tabs: dict[str, str] = {}       # widget_id -> tab_id
-        self._workspace_frames: dict[str, ITaskFrame] = {}
+        self._workspace_frames: dict[str, TaskFrame] = {}
 
         # Event callbacks
         self.on_sidebar_toggle: Optional[Callable[[bool], None]] = None
-        self.on_task_frame_mounted: Optional[Callable[[ITaskFrame, str], None]] = None
-        self.on_task_frame_unmounted: Optional[Callable[[ITaskFrame], None]] = None
+        self.on_task_frame_mounted: Optional[Callable[[TaskFrame, str], None]] = None
+        self.on_task_frame_unmounted: Optional[Callable[[TaskFrame], None]] = None
         self.on_sidebar_widget_mounted: Optional[Callable[[QWidget, str], None]] = None
         self.on_sidebar_widget_unmounted: Optional[Callable[[str], None]] = None
         self.on_workspace_changed: Optional[Callable[[str], None]] = None
@@ -406,13 +405,13 @@ class Workspace(QWidget):
 
     # -------- Frames management --------
 
-    def _unregister_frame_from_view_menu(self, frame: ITaskFrame) -> None:
+    def _unregister_frame_from_view_menu(self, frame: TaskFrame) -> None:
         # Qt applications own their menus separately.
         # The host application should connect to on_task_frame_unmounted to
         # update its View menu when a frame is removed.
         pass
 
-    def _unregister_workspace_frame(self, frame: ITaskFrame) -> None:
+    def _unregister_workspace_frame(self, frame: TaskFrame) -> None:
         if frame.shown:
             self._hide_frames()
 
@@ -440,7 +439,7 @@ class Workspace(QWidget):
             if root is not None:
                 root.setVisible(False)
 
-    def _pack_frame_into_workspace(self, frame: ITaskFrame) -> None:
+    def _pack_frame_into_workspace(self, frame: TaskFrame) -> None:
         """Reparent *frame.root* into the workspace area and show it."""
         if frame.name not in self._workspace_frames:
             raise ValueError("Frame is not registered in the workspace")
@@ -451,17 +450,20 @@ class Workspace(QWidget):
 
         if root.parent() is not self._workspace_area:
             root.setParent(self._workspace_area)
-            assert self._workspace_layout is not None
+            assert root.parent() is self._workspace_area, "Failed to reparent frame root to workspace area"
+
+        assert self._workspace_layout is not None
+        if self._workspace_layout.indexOf(root) == -1:
             self._workspace_layout.addWidget(root)
-            root.setSizePolicy(
-                QSizePolicy.Policy.Expanding,
-                QSizePolicy.Policy.Expanding,
-            )
+        root.setSizePolicy(
+            QSizePolicy.Policy.Expanding,
+            QSizePolicy.Policy.Expanding,
+        )
 
         root.setVisible(True)
         self.set_status(f"Packed frame into workspace: {frame.name}")
 
-    def _raise_frame(self, frame: ITaskFrame) -> None:
+    def _raise_frame(self, frame: TaskFrame) -> None:
         """Bring *frame* to the front of the workspace area."""
         if frame.name not in self._workspace_frames:
             raise ValueError("Frame is not registered in the workspace")
@@ -478,7 +480,7 @@ class Workspace(QWidget):
                 self._raise_frame(frame)
                 return
 
-    def _register_frame_to_view_menu(self, frame: ITaskFrame) -> None:
+    def _register_frame_to_view_menu(self, frame: TaskFrame) -> None:
         # Qt applications own their menus separately.
         # The host application should connect to on_task_frame_mounted to
         # update its View menu when a new frame is registered.
@@ -486,7 +488,7 @@ class Workspace(QWidget):
 
     def _register_workspace_frame(
         self,
-        frame: ITaskFrame,
+        frame: TaskFrame,
         raise_frame: bool = False,
     ) -> None:
         if frame is None:
@@ -497,7 +499,7 @@ class Workspace(QWidget):
 
         self._workspace_frames[frame.name] = frame
 
-        def _destroy_func(f: ITaskFrame) -> None:
+        def _destroy_func(f: TaskFrame) -> None:
             self._unregister_workspace_frame(f)
 
         if _destroy_func not in frame.on_destroy():
@@ -516,50 +518,50 @@ class Workspace(QWidget):
         if raise_frame:
             self._raise_frame(frame)
 
-    def _select_frame(self, frame: ITaskFrame) -> None:
+    def _select_frame(self, frame: TaskFrame) -> None:
         self._unset_frames_selected()
         frame.set_shown(True)
 
-    def _get_shown_frame(self) -> Optional[ITaskFrame]:
+    def _get_shown_frame(self) -> Optional[TaskFrame]:
         for frame in self._workspace_frames.values():
             if frame.shown:
                 return frame
         return None
 
-    def register_frame(self, frame: ITaskFrame, raise_frame: bool = True) -> None:
+    def register_frame(self, frame: TaskFrame, raise_frame: bool = True) -> None:
         """Register *frame* with the workspace.
 
         Args:
             frame: The ITaskFrame to register.
             raise_frame: Whether to bring the frame to the front immediately.
         """
-        if not isinstance(frame, ITaskFrame):
+        if not isinstance(frame, TaskFrame):
             raise ValueError("Only ITaskFrame instances can be registered in the workspace")
         self._register_workspace_frame(frame, raise_frame)
 
-    def unregister_frame(self, frame: ITaskFrame) -> None:
+    def unregister_frame(self, frame: TaskFrame) -> None:
         """Remove *frame* from the workspace."""
-        if not isinstance(frame, ITaskFrame):
+        if not isinstance(frame, TaskFrame):
             raise ValueError("Only ITaskFrame instances can be unregistered from the workspace")
         self._unregister_workspace_frame(frame)
 
-    def get_frame(self, frame_name: str) -> Optional[ITaskFrame]:
+    def get_frame(self, frame_name: str) -> Optional[TaskFrame]:
         """Return the registered frame with name *frame_name*, or None."""
         return self._workspace_frames.get(frame_name)
 
-    def get_frames(self) -> list[ITaskFrame]:
+    def get_frames(self) -> list[TaskFrame]:
         """Return all registered task frames."""
         return list(self._workspace_frames.values())
 
-    def set_frames(self, frames: list[ITaskFrame]) -> None:
+    def set_frames(self, frames: list[TaskFrame]) -> None:
         """Replace all workspace frames with *frames*."""
         self.clear_workspace()
         for frame in frames:
             self._register_workspace_frame(frame, raise_frame=False)
 
-    def raise_frame(self, frame: ITaskFrame) -> None:
+    def raise_frame(self, frame: TaskFrame) -> None:
         """Bring a registered *frame* to the front of the workspace."""
-        if not isinstance(frame, ITaskFrame):
+        if not isinstance(frame, TaskFrame):
             raise ValueError("Only ITaskFrame instances can be raised in the workspace")
         self._raise_frame(frame)
 
@@ -786,7 +788,7 @@ class Workspace(QWidget):
 
     def add_workspace_task_frame(
         self,
-        task_frame: ITaskFrame,
+        task_frame: TaskFrame,
         raise_frame: bool = True,
     ) -> str:
         """Add *task_frame* to the main workspace area.
@@ -845,7 +847,7 @@ class Workspace(QWidget):
 
         return removed
 
-    def get_widget(self, widget_id: str) -> Optional[QWidget | ITaskFrame]:
+    def get_widget(self, widget_id: str) -> Optional[QWidget | TaskFrame]:
         """Return the widget or task frame for *widget_id*, or None."""
         return self._mounted_widgets.get(widget_id) or self._workspace_frames.get(widget_id)
 
@@ -1015,7 +1017,7 @@ def create_demo_window():  # -> QMainWindow
     # ------------------------------------------------------------------ #
     # Minimal stub that satisfies ITaskFrame just enough for the demo     #
     # ------------------------------------------------------------------ #
-    class _DemoFrame(ITaskFrame):
+    class _DemoFrame(TaskFrame):
         """Lightweight stand-in for a real ITaskFrame."""
 
         def __init__(self, title: str, color: str) -> None:

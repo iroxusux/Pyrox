@@ -141,6 +141,12 @@ class TaskFrame:
         """Get the name of the task frame."""
         return self._name
 
+    @name.setter
+    def name(self, name: str) -> None:
+        """Set the name of the task frame."""
+        self._name = name
+        self._title_label.setText(name)
+
     def get_name(self) -> str:
         """Get the name of the task frame."""
         return self._name

@@ -1,6 +1,7 @@
 from .commandbar import CommandButton
 from .connectioneditor import ConnectionEditor
 from .contextmenu import PyroxContextMenu, MenuItem as ContextMenuItem
+from .frame import TaskFrame
 from .logframe import LogFrame
 from .objectexplorer import ObjectExplorer
 from .propertypanel import PropertyPanel
@@ -15,6 +16,7 @@ __all__ = (
     'ContextMenuItem',
     'DefaultTheme',
     'LogFrame',
+    'TaskFrame',
     'PyroxContextMenu',
     'PyroxYamlEditor',
     'Workspace',

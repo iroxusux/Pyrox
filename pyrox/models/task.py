@@ -68,11 +68,13 @@ class ApplicationTask(
         """Create the task's frame if it doesn't exist, or raise it if it does.
         """
         if not self._task_frame or not self._task_frame.root.isVisible():
+            del self._task_frame
             self._task_frame = self.create_task_frame()
+            assert self._task_frame is not None, "create_task_frame must return a TaskFrame instance"
             self.application.workspace.register_frame(self._task_frame)
             self._task_frame.on_destroy().append(self._frame_destroy_callback)
-        else:
-            self.application.workspace.raise_frame(self._task_frame)
+
+        self.application.workspace.raise_frame(self._task_frame)
 
     def register_menu_command(
         self,
