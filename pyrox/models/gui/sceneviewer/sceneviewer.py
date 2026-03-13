@@ -978,6 +978,13 @@ class SceneViewerFrame(TaskFrame):
         self._canvas_view.verticalScrollBar().setValue(0)
         canvas_container_layout.addWidget(self._canvas_view)
 
+        # Add status bar below the canvas view
+        status_bar = self._viewport_service.status.get_status_bar()
+        if status_bar:
+            canvas_container_layout.addWidget(status_bar)
+
+        self._viewport_service.set_canvas(self._canvas_view)
+
         # TODO: Add ruler/coordinate display
 
     def _build_properties_panel(self) -> None:
