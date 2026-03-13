@@ -2,11 +2,11 @@
 This file is paired with the Sceneviewer GUI to initialize all command bar buttons.
 They intialize as disabled until a sceneviewer is running, but all the buttons will occupy a space in the menu.
 """
-import tkinter as tk
+from PyQt6.QtWidgets import QMenu
 from pyrox.interfaces.application import IApplication
 from pyrox.models import ApplicationTask, Scene
 from pyrox.models.gui import SceneViewerFrame
-from pyrox.models.gui.tk.frame import TkinterTaskFrame
+from pyrox.models.gui.frame import TaskFrame
 from pyrox.services import (
     EnvironmentService,
     SceneRunnerService,
@@ -71,10 +71,7 @@ class SceneviewerApplicationTask(ApplicationTask):
         )
 
         # ---------- Edit Menu ----------
-        scene_edit_dropdown = tk.Menu(
-            master=self.edit_menu,
-            tearoff=0
-        )
+        scene_edit_dropdown = QMenu("Scene Viewer", self.edit_menu)
 
         self.register_menu_command(
             menu=scene_edit_dropdown,
@@ -89,7 +86,7 @@ class SceneviewerApplicationTask(ApplicationTask):
             enabled=False
         )
 
-        scene_edit_dropdown.insert_separator(1)
+        scene_edit_dropdown.addSeparator()
 
         self.register_menu_command(
             menu=scene_edit_dropdown,
@@ -141,11 +138,7 @@ class SceneviewerApplicationTask(ApplicationTask):
             category="scene",
             subcategory="persistent"
         )
-
-        scene_view_dropdown = tk.Menu(
-            master=self.view_menu,
-            tearoff=0
-        )
+        scene_view_dropdown = QMenu("Scene Viewer", self.view_menu)
 
         # Zoom controls
         self.register_menu_command(
@@ -185,7 +178,7 @@ class SceneviewerApplicationTask(ApplicationTask):
             enabled=False
         )
 
-        scene_view_dropdown.insert_separator(3)
+        scene_view_dropdown.addSeparator()
 
         # Grid controls
         self.register_menu_command(
@@ -213,21 +206,9 @@ class SceneviewerApplicationTask(ApplicationTask):
             enabled=False
         )
 
-        scene_view_dropdown.insert_separator(6)
+        scene_view_dropdown.addSeparator()
 
         # Design Mode controls
-        self.register_menu_command(
-            menu=scene_view_dropdown,
-            registry_id="scene.view.design_mode",
-            registry_path="View/Scene Viewer/Design Mode",
-            index=7,
-            label="Design Mode",
-            command=None,  # To be assigned by SceneViewer
-            accelerator="Ctrl+D",
-            underline=0,
-            category="scene",
-            enabled=False
-        )
         self.register_menu_command(
             menu=scene_view_dropdown,
             registry_id="scene.view.object_palette",
@@ -281,7 +262,7 @@ class SceneviewerApplicationTask(ApplicationTask):
             enabled=False
         )
 
-        scene_view_dropdown.insert_separator(12)
+        scene_view_dropdown.addSeparator()
 
         # Entity Names Toggle
         self.register_menu_command(
@@ -386,7 +367,7 @@ class SceneviewerApplicationTask(ApplicationTask):
         SceneRunnerService.set_scene(None)
         super()._on_frame_destroyed()
 
-    def create_task_frame(self) -> TkinterTaskFrame:
+    def create_task_frame(self) -> TaskFrame:
         return SceneViewerFrame(
             parent=self.application.workspace.workspace_area,
             runner=SceneRunnerService

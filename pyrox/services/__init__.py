@@ -1,7 +1,10 @@
 """services module for pyrox
 """
+# Service imports
+from .service import ServiceManager
+
 # Environment imports
-from .env import (  # MUST COME FIRST, loading env affects logging for global logging level
+from .env import (
     EnvManager,
     get_env,
     set_env,
@@ -11,7 +14,7 @@ from .env import (  # MUST COME FIRST, loading env affects logging for global lo
 )
 
 # Logging imports
-from .logging import (  # MUST COME SECOND, logging must be configured before other imports
+from .logging import (
     log,
     LoggingManager
 )
@@ -36,7 +39,7 @@ from .menu_registry import (
 )
 
 # GUI imports
-from .gui import TkGuiManager
+from .gui import GuiManager
 
 # File imports
 from .file import (
@@ -105,6 +108,8 @@ from . import (
 
 
 __all__ = (
+    # Service imports
+    'ServiceManager',
     # Environment imports
     'EnvManager',
     'get_env',
@@ -124,7 +129,7 @@ __all__ = (
     # Theme imports
     'ThemeManager',
     # GUI imports
-    'TkGuiManager',
+    'GuiManager',
     # File imports
     'get_open_file',
     'get_save_file',

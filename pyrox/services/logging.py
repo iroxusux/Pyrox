@@ -7,6 +7,7 @@ import io
 from typing import Optional, TextIO
 from pyrox.interfaces import EnvironmentKeys
 from pyrox.services import EnvManager, get_default_date_format, get_default_formatter
+from pyrox.services import ServiceManager
 
 ###
 # Custom Logging Configuration
@@ -538,3 +539,5 @@ def log(caller: Optional[object] = None) -> logging.Logger:
 LoggingManager.initialize_additional_logging_levels()
 LoggingManager.initialize_logging_level_from_env()
 LoggingManager.capture_system_streams()
+
+ServiceManager.register_service('logging', LoggingManager)

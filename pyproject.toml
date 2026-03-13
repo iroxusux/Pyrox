@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "pyrox"
-version = "2.13.4"
+version = "3.0.3"
 authors = [
   { name="Brian LaFond", email="Brian.L.LaFond@gmail.com" },
 ]
@@ -43,7 +43,7 @@ dependencies = [
   "pytest",
   "python-dotenv",
   "pyyaml>=6.0",
-  "tk",
+  "PyQt6",
   "tomli",
   "xmltodict",
 ]

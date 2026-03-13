@@ -13,11 +13,11 @@ class TestApplicationInitialization(unittest.TestCase):
     def setUp(self):
         """Set up test fixtures."""
         # Mock all the service classes
-        self.gui_manager_patcher = patch('pyrox.application.TkGuiManager')
+        self.gui_manager_patcher = patch('pyrox.models.services.GuiManager')
         self.task_factory_patcher = patch('pyrox.application.ApplicationTaskFactory')
         self.logging_manager_patcher = patch('pyrox.models.services.LoggingManager')
         self.env_manager_patcher = patch('pyrox.models.services.EnvManager')
-        self.workspace_patcher = patch('pyrox.application.TkWorkspace')
+        self.workspace_patcher = patch('pyrox.application.Workspace')
         self.platform_dir_patcher = patch('pyrox.models.services.PlatformDirectoryService')
 
         self.mock_gui_manager = self.gui_manager_patcher.start()
@@ -121,16 +121,14 @@ class TestApplicationProperties(unittest.TestCase):
         """Set up test fixtures."""
         # Both namespaces must be patched: pyrox.application for direct calls in
         # Application.__init__, and pyrox.models.services for self.gui property access.
-        self.gui_manager_app_patcher = patch('pyrox.application.TkGuiManager')
-        self.gui_manager_patcher = patch('pyrox.models.services.TkGuiManager')
+        self.gui_manager_patcher = patch('pyrox.models.services.GuiManager')
         self.task_factory_patcher = patch('pyrox.application.ApplicationTaskFactory')
         self.logging_manager_patcher = patch('pyrox.models.services.LoggingManager')
         self.env_manager_patcher = patch('pyrox.models.services.EnvManager')
-        self.workspace_patcher = patch('pyrox.application.TkWorkspace')
+        self.workspace_patcher = patch('pyrox.application.Workspace')
         self.platform_dir_patcher = patch('pyrox.models.services.PlatformDirectoryService')
 
-        self.gui_manager_app_patcher.start()
-        self.mock_gui_manager = self.gui_manager_patcher.start()
+        self.gui_manager_patcher.start()
         self.mock_task_factory = self.task_factory_patcher.start()
         self.mock_logging_manager = self.logging_manager_patcher.start()
         self.mock_env_manager = self.env_manager_patcher.start()
@@ -146,7 +144,6 @@ class TestApplicationProperties(unittest.TestCase):
 
     def tearDown(self):
         """Clean up after tests."""
-        self.gui_manager_app_patcher.stop()
         self.gui_manager_patcher.stop()
         self.task_factory_patcher.stop()
         self.logging_manager_patcher.stop()
@@ -159,12 +156,6 @@ class TestApplicationProperties(unittest.TestCase):
         result = self.app.env
 
         self.assertEqual(result, self.mock_env_manager)
-
-    def test_gui_mgr_property_returns_gui_manager_class(self):
-        """Test that gui_mgr property returns GuiManager class."""
-        result = self.app.gui
-
-        self.assertEqual(result, self.mock_gui_manager)
 
     def test_logging_property_returns_logging_manager_class(self):
         """Test that logging property returns LoggingManager class."""
@@ -208,16 +199,14 @@ class TestApplicationMethods(unittest.TestCase):
         """Set up test fixtures."""
         # Both namespaces must be patched: pyrox.application for direct calls in
         # Application.__init__, and pyrox.models.services for self.gui property access.
-        self.gui_manager_app_patcher = patch('pyrox.application.TkGuiManager')
-        self.gui_manager_patcher = patch('pyrox.models.services.TkGuiManager')
+        self.gui_manager_patcher = patch('pyrox.models.services.GuiManager')
         self.task_factory_patcher = patch('pyrox.application.ApplicationTaskFactory')
         self.logging_manager_patcher = patch('pyrox.models.services.LoggingManager')
         self.env_manager_patcher = patch('pyrox.models.services.EnvManager')
-        self.workspace_patcher = patch('pyrox.application.TkWorkspace')
+        self.workspace_patcher = patch('pyrox.application.Workspace')
         self.platform_dir_patcher = patch('pyrox.models.services.PlatformDirectoryService')
         self.log_patcher = patch('pyrox.models.services.LoggingManager')
 
-        self.gui_manager_app_patcher.start()
         self.mock_gui_manager = self.gui_manager_patcher.start()
         self.mock_task_factory = self.task_factory_patcher.start()
         self.mock_logging_manager = self.logging_manager_patcher.start()
@@ -238,7 +227,6 @@ class TestApplicationMethods(unittest.TestCase):
 
     def tearDown(self):
         """Clean up after tests."""
-        self.gui_manager_app_patcher.stop()
         self.gui_manager_patcher.stop()
         self.task_factory_patcher.stop()
         self.logging_manager_patcher.stop()
@@ -328,15 +316,13 @@ class TestApplicationIntegration(unittest.TestCase):
         """Set up test fixtures."""
         # Both namespaces must be patched: pyrox.application for direct calls in
         # Application.__init__, and pyrox.models.services for self.gui property access.
-        self.gui_manager_app_patcher = patch('pyrox.application.TkGuiManager')
-        self.gui_manager_patcher = patch('pyrox.models.services.TkGuiManager')
+        self.gui_manager_patcher = patch('pyrox.models.services.GuiManager')
         self.task_factory_patcher = patch('pyrox.application.ApplicationTaskFactory')
         self.logging_manager_patcher = patch('pyrox.models.services.LoggingManager')
         self.env_manager_patcher = patch('pyrox.models.services.EnvManager')
-        self.workspace_patcher = patch('pyrox.application.TkWorkspace')
+        self.workspace_patcher = patch('pyrox.application.Workspace')
         self.platform_dir_patcher = patch('pyrox.models.services.PlatformDirectoryService')
 
-        self.gui_manager_app_patcher.start()
         self.mock_gui_manager = self.gui_manager_patcher.start()
         self.mock_task_factory = self.task_factory_patcher.start()
         self.mock_logging_manager = self.logging_manager_patcher.start()
@@ -353,7 +339,6 @@ class TestApplicationIntegration(unittest.TestCase):
 
     def tearDown(self):
         """Clean up after tests."""
-        self.gui_manager_app_patcher.stop()
         self.gui_manager_patcher.stop()
         self.task_factory_patcher.stop()
         self.logging_manager_patcher.stop()

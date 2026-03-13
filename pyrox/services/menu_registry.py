@@ -14,9 +14,10 @@ class MenuItemDescriptor:
 
     menu_id: str  # Unique identifier for the menu item
     menu_path: str  # e.g., "File/Save Scene" or "View/Scene Viewer/Properties Panel"
-    menu_widget: Any  # The actual menu widget (tk.Menu)
+    menu_widget: Any  # The parent QMenu widget
     menu_index: int  # Index within the menu
     owner: str  # Task or component that owns this item
+    action: Any = None  # The QAction for this item (None for submenus)
     command: Optional[Callable] = None  # The command callback
     enabled: bool = True  # Current enabled state
     metadata: Dict[str, Any] = field(default_factory=dict)  # Additional metadata
@@ -24,7 +25,13 @@ class MenuItemDescriptor:
     def set_command(self, command: Callable | None) -> None:
         """Set or update the command callback for this menu item."""
         try:
-            self.menu_widget.entryconfig(self.menu_index, command=command)
+            if self.action is not None:
+                try:
+                    self.action.triggered.disconnect()
+                except RuntimeError:
+                    pass  # No connections to disconnect
+                if command is not None:
+                    self.action.triggered.connect(command)
             self.command = command
             log(self.menu_id).debug(f"Updated command for menu item: {self.menu_id}")
         except Exception as e:
@@ -33,8 +40,8 @@ class MenuItemDescriptor:
     def set_enabled(self, enabled: bool) -> None:
         """Enable or disable this menu item."""
         try:
-            state = 'normal' if enabled else 'disabled'
-            self.menu_widget.entryconfig(self.menu_index, state=state)
+            if self.action is not None:
+                self.action.setEnabled(enabled)
             self.enabled = enabled
             log(self.menu_id).debug(f"{'Enabled' if enabled else 'Disabled'} menu item: {self.menu_id}")
         except Exception as e:
@@ -81,6 +88,7 @@ class MenuRegistry:
         menu_widget: Any,
         menu_index: int,
         owner: str,
+        action: Any = None,
         command: Optional[Callable] = None,
         **metadata
     ) -> None:
@@ -101,6 +109,7 @@ class MenuRegistry:
             menu_widget=menu_widget,
             menu_index=menu_index,
             owner=owner,
+            action=action,
             command=command,
             enabled=True,
             metadata=metadata
@@ -168,13 +177,8 @@ class MenuRegistry:
             if subcategory and descriptor.metadata.get('subcategory') != subcategory:
                 return False
             try:
-                # Check if it's a separator
-                item_type = descriptor.menu_widget.type(descriptor.menu_index)
-                if item_type != 'separator':
-                    descriptor.menu_widget.entryconfig(descriptor.menu_index, state='normal')
-                    descriptor.enabled = True
-                    log(cls).debug(f"Enabled menu item: {menu_id}")
-                    return True
+                descriptor.set_enabled(True)
+                return True
             except Exception as e:
                 log(cls).warning(f"Failed to enable menu item {menu_id}: {e}")
         return False
@@ -192,13 +196,8 @@ class MenuRegistry:
         descriptor = cls.get_item(menu_id)
         if descriptor:
             try:
-                # Check if it's a separator
-                item_type = descriptor.menu_widget.type(descriptor.menu_index)
-                if item_type != 'separator':
-                    descriptor.menu_widget.entryconfig(descriptor.menu_index, state='disabled')
-                    descriptor.enabled = False
-                    log(cls).debug(f"Disabled menu item: {menu_id}")
-                    return True
+                descriptor.set_enabled(False)
+                return True
             except Exception as e:
                 log(cls).warning(f"Failed to disable menu item {menu_id}: {e}")
         return False
@@ -217,9 +216,7 @@ class MenuRegistry:
         descriptor = cls.get_item(menu_id)
         if descriptor:
             try:
-                descriptor.menu_widget.entryconfig(descriptor.menu_index, command=command)
-                descriptor.command = command
-                log(cls).debug(f"Updated command for menu item: {menu_id}")
+                descriptor.set_command(command)
                 return True
             except Exception as e:
                 log(cls).warning(f"Failed to set command for menu item {menu_id}: {e}")

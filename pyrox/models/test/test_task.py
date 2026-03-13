@@ -1,5 +1,5 @@
 """Unit tests for task.py module."""
-import tkinter as tk
+from PyQt6.QtWidgets import QMenu
 import unittest
 from unittest.mock import MagicMock, patch
 
@@ -111,10 +111,10 @@ class TestApplicationTask(unittest.TestCase):
         mock_app = self._make_application()
         task = ApplicationTask(application=mock_app)
 
-        mock_menu = MagicMock(spec=tk.Menu)
+        mock_menu = MagicMock(spec=QMenu)
         dummy_command = MagicMock()
 
-        with patch('pyrox.models.task.TkGuiManager.insert_menu_command_with_accelerator') as mock_insert, \
+        with patch('pyrox.models.task.GuiManager.insert_menu_command_with_accelerator') as mock_insert, \
                 patch('pyrox.models.task.MenuRegistry'):
             task.register_menu_command(
                 menu=mock_menu,
@@ -140,9 +140,9 @@ class TestApplicationTask(unittest.TestCase):
         """None command is passed through to insert_menu_command_with_accelerator without raising."""
         mock_app = self._make_application()
         task = ApplicationTask(application=mock_app)
-        mock_menu = MagicMock(spec=tk.Menu)
+        mock_menu = MagicMock(spec=QMenu)
 
-        with patch('pyrox.models.task.TkGuiManager.insert_menu_command_with_accelerator') as mock_insert, \
+        with patch('pyrox.models.task.GuiManager.insert_menu_command_with_accelerator') as mock_insert, \
                 patch('pyrox.models.task.MenuRegistry'):
             task.register_menu_command(
                 menu=mock_menu,
@@ -160,12 +160,14 @@ class TestApplicationTask(unittest.TestCase):
         self.assertIsNone(mock_insert.call_args.kwargs['command'])
 
     def test_register_menu_command_disables_when_not_enabled(self):
-        """Test that a disabled menu command calls entryconfig with DISABLED state."""
+        """Test that a disabled menu command calls setEnabled(False) on the returned action."""
         mock_app = self._make_application()
         task = ApplicationTask(application=mock_app)
-        mock_menu = MagicMock(spec=tk.Menu)
+        mock_menu = MagicMock(spec=QMenu)
+        mock_action = MagicMock()
 
-        with patch('pyrox.models.task.TkGuiManager.insert_menu_command_with_accelerator'), \
+        with patch('pyrox.models.task.GuiManager.insert_menu_command_with_accelerator',
+                   return_value=mock_action), \
                 patch('pyrox.models.task.MenuRegistry'):
             task.register_menu_command(
                 menu=mock_menu,
@@ -179,15 +181,17 @@ class TestApplicationTask(unittest.TestCase):
                 enabled=False,
             )
 
-        mock_menu.entryconfig.assert_called_once_with(0, state=tk.DISABLED)
+        mock_action.setEnabled.assert_called_once_with(False)
 
     def test_register_menu_command_enabled_does_not_call_entryconfig(self):
-        """Test that an enabled menu command does not call entryconfig."""
+        """Test that an enabled menu command does not call setEnabled on the action."""
         mock_app = self._make_application()
         task = ApplicationTask(application=mock_app)
-        mock_menu = MagicMock(spec=tk.Menu)
+        mock_menu = MagicMock(spec=QMenu)
+        mock_action = MagicMock()
 
-        with patch('pyrox.models.task.TkGuiManager.insert_menu_command_with_accelerator'), \
+        with patch('pyrox.models.task.GuiManager.insert_menu_command_with_accelerator',
+                   return_value=mock_action), \
                 patch('pyrox.models.task.MenuRegistry'):
             task.register_menu_command(
                 menu=mock_menu,
@@ -201,16 +205,18 @@ class TestApplicationTask(unittest.TestCase):
                 enabled=True,
             )
 
-        mock_menu.entryconfig.assert_not_called()
+        mock_action.setEnabled.assert_not_called()
 
     def test_register_menu_command_registers_with_registry(self):
         """Test that register_menu_command registers with MenuRegistry."""
         mock_app = self._make_application()
         task = ApplicationTask(application=mock_app)
-        mock_menu = MagicMock(spec=tk.Menu)
+        mock_menu = MagicMock(spec=QMenu)
         dummy_command = MagicMock()
 
-        with patch('pyrox.models.task.TkGuiManager.insert_menu_command_with_accelerator'), \
+        mock_action = MagicMock()
+        with patch('pyrox.models.task.GuiManager.insert_menu_command_with_accelerator',
+                   return_value=mock_action), \
                 patch('pyrox.models.task.MenuRegistry') as mock_registry:
             task.register_menu_command(
                 menu=mock_menu,
@@ -231,17 +237,20 @@ class TestApplicationTask(unittest.TestCase):
             menu_widget=mock_menu,
             menu_index=2,
             owner='ApplicationTask',
+            action=mock_action,
             command=dummy_command,
             category='file',
             subcategory='actions',
         )
 
     def test_register_submenu_inserts_cascade(self):
-        """Test that register_submenu calls menu.insert_cascade."""
+        """Test that register_submenu calls insertMenu when index is within existing actions."""
         mock_app = self._make_application()
         task = ApplicationTask(application=mock_app)
-        mock_menu = MagicMock(spec=tk.Menu)
-        mock_submenu = MagicMock(spec=tk.Menu)
+        mock_menu = MagicMock(spec=QMenu)
+        mock_submenu = MagicMock(spec=QMenu)
+        existing_action = MagicMock()
+        mock_menu.actions.return_value = [MagicMock(), existing_action]
 
         with patch('pyrox.models.task.MenuRegistry'):
             task.register_submenu(
@@ -254,19 +263,15 @@ class TestApplicationTask(unittest.TestCase):
                 underline=0,
             )
 
-        mock_menu.insert_cascade.assert_called_once_with(
-            label='Panels',
-            menu=mock_submenu,
-            index=1,
-            underline=0,
-        )
+        mock_menu.insertMenu.assert_called_once_with(existing_action, mock_submenu)
+        mock_submenu.setTitle.assert_called_once_with('Panels')
 
     def test_register_submenu_returns_submenu(self):
         """Test that register_submenu returns the submenu passed in."""
         mock_app = self._make_application()
         task = ApplicationTask(application=mock_app)
-        mock_menu = MagicMock(spec=tk.Menu)
-        mock_submenu = MagicMock(spec=tk.Menu)
+        mock_menu = MagicMock(spec=QMenu)
+        mock_submenu = MagicMock(spec=QMenu)
 
         with patch('pyrox.models.task.MenuRegistry'):
             result = task.register_submenu(
@@ -285,8 +290,8 @@ class TestApplicationTask(unittest.TestCase):
         """Test that register_submenu registers with MenuRegistry."""
         mock_app = self._make_application()
         task = ApplicationTask(application=mock_app)
-        mock_menu = MagicMock(spec=tk.Menu)
-        mock_submenu = MagicMock(spec=tk.Menu)
+        mock_menu = MagicMock(spec=QMenu)
+        mock_submenu = MagicMock(spec=QMenu)
 
         with patch('pyrox.models.task.MenuRegistry') as mock_registry:
             task.register_submenu(
@@ -380,16 +385,16 @@ class TestApplicationTask(unittest.TestCase):
         mock_app.workspace.raise_frame.assert_called_once_with(alive_frame)
 
     def test_create_or_raise_frame_recreates_destroyed_frame(self):
-        """create_or_raise_frame creates a new frame when the existing window is destroyed."""
+        """create_or_raise_frame creates a new frame when the existing window is not visible."""
         mock_app = self._make_application()
         task = ApplicationTask(application=mock_app)
 
         dead_frame = MagicMock()
-        dead_frame.root.winfo_exists.return_value = False
+        dead_frame.root.isVisible.return_value = False
         task._task_frame = dead_frame
 
         new_frame = MagicMock()
-        new_frame.root.winfo_exists.return_value = True
+        new_frame.root.isVisible.return_value = True
 
         with patch.object(task, 'create_task_frame', return_value=new_frame):
             task.create_or_raise_frame()

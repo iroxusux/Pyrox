@@ -4,13 +4,13 @@ This module provides essential built-in tasks that are commonly needed
 in Pyrox applications, including File and Help menu items.
 """
 import os
-import tkinter as tk
+from PyQt6.QtWidgets import QMenu
 from pyrox.interfaces import IApplication
 from pyrox.services import PlatformDirectoryService
 from pyrox.models import ApplicationTask
-from pyrox.models.gui.tk.frame import TkinterTaskFrame
-from pyrox.models.gui.tk.help import show_help_window
-from pyrox.models.gui.editor import TextEditorFrame
+from pyrox.models.gui.frame import TaskFrame
+from pyrox.models.gui.help import show_help_window
+from pyrox.models.gui.texteditor import TextEditorFrame
 
 
 __all__ = (
@@ -26,7 +26,7 @@ class FileTask(ApplicationTask):
 
     def __init__(self, application: IApplication) -> None:
         super().__init__(application)
-        self.file_menu.insert_separator(index=99998)  # Add separator before Exit
+        self.file_menu.addSeparator()
         self.register_menu_command(
             menu=self.file_menu,
             registry_id="exit",
@@ -75,7 +75,7 @@ class ToolsTask(ApplicationTask):
             category="tools",
         )
 
-    def create_task_frame(self) -> TkinterTaskFrame:
+    def create_task_frame(self) -> TaskFrame:
         return TextEditorFrame(self.application.workspace.workspace_area)
 
 
@@ -87,7 +87,7 @@ class ViewTask(ApplicationTask):
 
         menu = self.register_submenu(
             menu=self.view_menu,
-            submenu=tk.Menu(self.view_menu, tearoff=0),
+            submenu=QMenu(),
             registry_id="application_directories",
             registry_path="View/Application Directories",
             index=0,
@@ -102,7 +102,7 @@ class ViewTask(ApplicationTask):
                 registry_path=f"View/Application Directories/Open {dir_name} Directory",
                 index=0,
                 label=f"Open {dir_name} Directory",
-                command=lambda d=dir_name: os.startfile(PlatformDirectoryService.all_directories()[d]),
+                command=lambda *_, d=dir_name: os.startfile(PlatformDirectoryService.all_directories()[d]),
                 underline=0,
                 category="view",
             )

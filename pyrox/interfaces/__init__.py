@@ -94,6 +94,8 @@ from .services import (
     IEnvironmentManager,
     ILogger,
     ILoggingManager,
+    IHasViewableServiceAttributes,
+    ISupportsServiceStatus,
 )
 
 # Application interfaces
@@ -104,13 +106,6 @@ from .application import (
 
 # GUI interfaces
 from .gui import (
-    IApplicationGuiMenu,
-    IGuiComponent,
-    IGuiFrame,
-    ITaskFrame,
-    IGuiMenu,
-    IGuiWidget,
-    IGuiWindow,
     IWorkspace,
     IViewport,
 )
@@ -193,13 +188,6 @@ __all__ = (
     'IBasePhysicsBody',
 
     # GUI Interfaces
-    'IGuiWidget',
-    'IGuiWindow',
-    'IGuiMenu',
-    'IGuiFrame',
-    'ITaskFrame',
-    'IGuiComponent',
-    'IApplicationGuiMenu',
     'IWorkspace',
     'IViewport',
 
@@ -207,6 +195,8 @@ __all__ = (
     'IEnvironmentManager',
     'ILogger',
     'ILoggingManager',
+    'IHasViewableServiceAttributes',
+    'ISupportsServiceStatus',
 
     # Application Interfaces
     'IApplication',

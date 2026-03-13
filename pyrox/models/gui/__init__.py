@@ -1,17 +1,14 @@
-from . import meta
-from . import tk
-
-from .commandbar import PyroxCommandBar, CommandButton
+from .commandbar import CommandButton
 from .connectioneditor import ConnectionEditor
 from .contextmenu import PyroxContextMenu, MenuItem as ContextMenuItem
+from .frame import TaskFrame
 from .logframe import LogFrame
-from .meta import ObjectEditField
-from .objectexplorer import TkObjectExplorer
-from .propertypanel import TkPropertyPanel
+from .objectexplorer import ObjectExplorer
+from .propertypanel import PropertyPanel
+from .workspace import Workspace
 from .sceneviewer.sceneviewer import SceneViewerFrame
 from .theme import DefaultTheme
 from .yamleditor import PyroxYamlEditor
-from .workspace import TkWorkspace
 
 __all__ = (
     'CommandButton',
@@ -19,14 +16,12 @@ __all__ = (
     'ContextMenuItem',
     'DefaultTheme',
     'LogFrame',
-    'ObjectEditField',
-    'meta',
-    'PyroxCommandBar',
+    'TaskFrame',
     'PyroxContextMenu',
     'PyroxYamlEditor',
+    'Workspace',
     'SceneViewerFrame',
-    'tk',
-    'TkObjectExplorer',
-    'TkPropertyPanel',
-    'TkWorkspace',
+    'ObjectExplorer',
+    'PropertyPanel',
+    'Workspace',
 )

@@ -3,7 +3,7 @@ import importlib
 import unittest
 from unittest.mock import MagicMock, patch
 
-from pyrox.services import TkGuiManager
+from pyrox.services import GuiManager
 from pyrox.services.menu_registry import MenuRegistry
 
 
@@ -19,8 +19,8 @@ def _make_app(name: str = 'TestApp') -> MagicMock:
 
 
 class _TaskTestBase(unittest.TestCase):
-    """Base class that patches all TkGuiManager menu accessors and MenuRegistry
-    so that no real tkinter or GUI code runs during tests."""
+    """Base class that patches all GuiManager menu accessors and MenuRegistry
+    so that no real GUI code runs during tests."""
 
     def setUp(self):
         self.app = _make_app()
@@ -33,16 +33,18 @@ class _TaskTestBase(unittest.TestCase):
         self.mock_root = MagicMock()
 
         self._patches = [
-            patch.object(TkGuiManager, 'get_file_menu',  return_value=self.mock_file_menu),
-            patch.object(TkGuiManager, 'get_edit_menu',  return_value=self.mock_edit_menu),
-            patch.object(TkGuiManager, 'get_view_menu',  return_value=self.mock_view_menu),
-            patch.object(TkGuiManager, 'get_help_menu',  return_value=self.mock_help_menu),
-            patch.object(TkGuiManager, 'get_tools_menu', return_value=self.mock_tools_menu),
-            patch.object(TkGuiManager, 'get_root',       return_value=self.mock_root),
+            patch.object(GuiManager, 'get_file_menu',  return_value=self.mock_file_menu),
+            patch.object(GuiManager, 'get_edit_menu',  return_value=self.mock_edit_menu),
+            patch.object(GuiManager, 'get_view_menu',  return_value=self.mock_view_menu),
+            patch.object(GuiManager, 'get_help_menu',  return_value=self.mock_help_menu),
+            patch.object(GuiManager, 'get_tools_menu', return_value=self.mock_tools_menu),
+            patch.object(GuiManager, 'get_root',       return_value=self.mock_root),
             patch.object(MenuRegistry, 'register_item'),
+            patch.object(GuiManager, 'insert_menu_command_with_accelerator', return_value=MagicMock()),
         ]
         self.mocks = [p.start() for p in self._patches]
-        self.mock_register_item = self.mocks[-1]
+        self.mock_register_item = self.mocks[-2]
+        self.mock_insert = self.mocks[-1]
 
     def tearDown(self):
         for p in self._patches:
@@ -72,9 +74,9 @@ class TestFileTask(_TaskTestBase):
         self.app.register_task.assert_called_once_with(task)
 
     def test_inserts_separator_on_file_menu(self):
-        """FileTask adds a separator at index 99998 before the Exit item."""
+        """FileTask adds a separator before the Exit item."""
         self._make_task()
-        self.mock_file_menu.insert_separator.assert_called_once_with(index=99998)
+        self.mock_file_menu.addSeparator.assert_called_once_with()
 
     def test_registers_exit_command(self):
         """FileTask registers an Exit command with the expected id and path."""
@@ -94,24 +96,13 @@ class TestFileTask(_TaskTestBase):
     def test_exit_command_calls_application_quit(self):
         """Invoking the Exit command calls application.quit(exit_code=0)."""
         self._make_task()
-        _ = next(
-            c for c in self.mock_register_item.call_args_list
-            if c.kwargs.get('menu_id') == 'exit'
+        exit_call = next(
+            c for c in self.mock_insert.call_args_list
+            if c.kwargs.get('label') == 'Exit'
         )
-        # The command is stored in the menu widget call, not directly in register_item;
-        # retrieve it from insert_command call on the file menu mock.
-        insert_calls = self.mock_file_menu.insert_command.call_args_list
-        self.assertTrue(len(insert_calls) > 0, "insert_command should have been called")
-        command = insert_calls[0].kwargs.get('command') or insert_calls[0].args[1] if insert_calls[0].args else None
-        if command is None:
-            # Reconstruct from kwargs
-            for c in insert_calls:
-                if 'Exit' in str(c):
-                    command = c.kwargs.get('command')
-                    break
-        if command:
-            command()
-            self.app.quit.assert_called_once_with(exit_code=0)
+        command = exit_call.kwargs['command']
+        command()
+        self.app.quit.assert_called_once_with(exit_code=0)
 
     def test_exit_uses_file_menu(self):
         """The Exit command is inserted into the file menu widget."""
@@ -132,10 +123,10 @@ class TestFileTask(_TaskTestBase):
         self.assertEqual(exit_call.kwargs.get('category'), 'system')
 
     def test_exit_accelerator_is_bound_on_root(self):
-        """FileTask binds Ctrl+Q on the root window so the hotkey works."""
+        """FileTask registers Ctrl+Q as the Exit accelerator."""
         self._make_task()
-        bound_keys = [c[0][0] for c in self.mock_root.bind.call_args_list]
-        self.assertIn('<Control-q>', bound_keys)
+        accelerators = [c.kwargs.get('accelerator') for c in self.mock_insert.call_args_list]
+        self.assertIn('Ctrl+Q', accelerators)
 
 
 # ---------------------------------------------------------------------------
@@ -187,24 +178,23 @@ class TestHelpTask(_TaskTestBase):
         self.assertEqual(about_call.kwargs.get('category'), 'help')
 
     def test_about_accelerator_is_bound_on_root(self):
-        """HelpTask binds F1 on the root window so the hotkey works."""
+        """HelpTask registers F1 as the About accelerator."""
         self._make_task()
-        bound_keys = [c[0][0] for c in self.mock_root.bind.call_args_list]
-        self.assertIn('<F1>', bound_keys)
+        accelerators = [c.kwargs.get('accelerator') for c in self.mock_insert.call_args_list]
+        self.assertIn('F1', accelerators)
 
     def test_about_command_invokes_show_help_window(self):
         """Invoking the about command calls show_help_window with the root window."""
         with patch('pyrox.tasks.builtin.show_help_window') as mock_show:
-            _ = HelpTask = None
-            from pyrox.tasks.builtin import HelpTask  # type: ignore
-            _ = HelpTask(application=self.app)
-            # Pull the command out of insert_command call on the help menu
-            insert_calls = self.mock_help_menu.insert_command.call_args_list
-            self.assertTrue(insert_calls, "insert_command should have been called on help_menu")
-            command = insert_calls[0].kwargs.get('command')
-            if command:
-                command()
-                mock_show.assert_called_once_with(self.mock_root)
+            from pyrox.tasks.builtin import HelpTask
+            HelpTask(application=self.app)
+            about_call = next(
+                c for c in self.mock_insert.call_args_list
+                if c.kwargs.get('label') == 'About Pyrox'
+            )
+            command = about_call.kwargs['command']
+            command()
+            mock_show.assert_called_once_with(self.mock_root)
 
 
 # ---------------------------------------------------------------------------
@@ -256,10 +246,10 @@ class TestToolsTask(_TaskTestBase):
         self.assertEqual(te_call.kwargs.get('category'), 'tools')
 
     def test_text_editor_accelerator_is_bound_on_root(self):
-        """ToolsTask binds Ctrl+T on the root window so the hotkey works."""
+        """ToolsTask registers Ctrl+T as the Text Editor accelerator."""
         self._make_task()
-        bound_keys = [c[0][0] for c in self.mock_root.bind.call_args_list]
-        self.assertIn('<Control-t>', bound_keys)
+        accelerators = [c.kwargs.get('accelerator') for c in self.mock_insert.call_args_list]
+        self.assertIn('Ctrl+T', accelerators)
 
     def test_initial_frame_is_none(self):
         """_text_editor_frame starts as None."""
@@ -270,7 +260,7 @@ class TestToolsTask(_TaskTestBase):
         """_create_frame builds a TextEditorFrame when none exists."""
         from pyrox.tasks.builtin import ToolsTask
         mock_frame = MagicMock()
-        mock_frame.root.winfo_exists.return_value = True
+        mock_frame.root.isVisible.return_value = True
 
         with patch('pyrox.tasks.builtin.TextEditorFrame', return_value=mock_frame) as MockTEF:
             task = ToolsTask(application=self.app)
@@ -285,7 +275,7 @@ class TestToolsTask(_TaskTestBase):
         from pyrox.tasks.builtin import ToolsTask
 
         mock_frame = MagicMock()
-        mock_frame.root.winfo_exists.return_value = True  # frame is alive
+        mock_frame.root.isVisible.return_value = True  # frame is alive
 
         with patch('pyrox.tasks.builtin.TextEditorFrame', return_value=mock_frame):
             task = ToolsTask(application=self.app)
@@ -297,11 +287,11 @@ class TestToolsTask(_TaskTestBase):
             self.app.workspace.register_frame.assert_not_called()
 
     def test_create_frame_recreates_after_frame_destroyed(self):
-        """_create_frame creates a new frame if the existing frame's window is gone."""
+        """_create_frame creates a new frame if the existing frame's window is not visible."""
         from pyrox.tasks.builtin import ToolsTask
 
         dead_frame = MagicMock()
-        dead_frame.root.winfo_exists.return_value = False  # window destroyed
+        dead_frame.root.isVisible.return_value = False  # window not visible
 
         new_frame = MagicMock()
         with patch('pyrox.tasks.builtin.TextEditorFrame', return_value=new_frame) as MockTEF:

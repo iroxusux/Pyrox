@@ -5,17 +5,38 @@ a source object and scene object properties.
 """
 from __future__ import annotations
 
-import tkinter as tk
-from tkinter import ttk, messagebox
 from typing import Any, Optional
 
+from PyQt6.QtCore import Qt, QTimer
+from PyQt6.QtGui import QFont
+from PyQt6.QtWidgets import (
+    QButtonGroup,
+    QCheckBox,
+    QDialog,
+    QGroupBox,
+    QHBoxLayout,
+    QLabel,
+    QLineEdit,
+    QListWidget,
+    QMenu,
+    QMessageBox,
+    QPushButton,
+    QRadioButton,
+    QSplitter,
+    QStatusBar,
+    QTreeWidget,
+    QTreeWidgetItem,
+    QVBoxLayout,
+    QWidget,
+)
+
 from pyrox.interfaces import BindingDirection, IScene, ISceneBinding, ISceneBridge
-from pyrox.models.gui.tk.frame import TkinterTaskFrame
+from pyrox.models.gui.frame import TaskFrame
 from pyrox.models.scene.sceneboundlayer import SceneBoundLayer
 from pyrox.services.logging import log
 
 
-class SceneBridgeDialog(TkinterTaskFrame):
+class SceneBridgeDialog(TaskFrame):
     """Dialog for managing Scene Bridge bindings.
 
     Allows users to:
@@ -39,9 +60,18 @@ class SceneBridgeDialog(TkinterTaskFrame):
         self.bridge = bridge
         self.scene = scene
 
-        self._create_toolbar()
-        self._create_bindings_view()
-        self._create_status_bar()
+        # content_frame already has a QVBoxLayout from TaskFrame — reuse it
+        _existing = self.content_frame.layout()
+        main_layout: QVBoxLayout = (
+            _existing if isinstance(_existing, QVBoxLayout)
+            else QVBoxLayout(self.content_frame)
+        )
+        main_layout.setContentsMargins(0, 0, 0, 0)
+        main_layout.setSpacing(0)
+
+        self._create_toolbar(main_layout)
+        self._create_bindings_view(main_layout)
+        self._create_status_bar(main_layout)
 
         self._refresh_bindings()
         self._update_status()
@@ -51,124 +81,86 @@ class SceneBridgeDialog(TkinterTaskFrame):
     # UI construction
     # ------------------------------------------------------------------
 
-    def _create_toolbar(self):
+    def _create_toolbar(self, layout: QVBoxLayout):
         """Create toolbar with control buttons."""
-        toolbar = tk.Frame(self.content_frame)
-        toolbar.pack(side=tk.TOP, fill=tk.X, padx=5, pady=5)
+        toolbar = QWidget()
+        toolbar_layout = QHBoxLayout(toolbar)
+        toolbar_layout.setContentsMargins(5, 5, 5, 5)
 
         # Bridge controls
-        control_frame = tk.LabelFrame(toolbar, text="Bridge Control")
-        control_frame.pack(side=tk.LEFT, padx=2)
+        control_group = QGroupBox("Bridge Control")
+        control_layout = QHBoxLayout(control_group)
 
-        self.start_button = tk.Button(
-            control_frame,
-            text="\u25b6 Start",
-            command=self._start_bridge,
-            bg="lightgreen",
-        )
-        self.start_button.pack(side=tk.LEFT, padx=2)
+        self.start_button = QPushButton("\u25b6 Start")
+        self.start_button.setStyleSheet("background-color: lightgreen;")
+        self.start_button.clicked.connect(self._start_bridge)
+        control_layout.addWidget(self.start_button)
 
-        self.stop_button = tk.Button(
-            control_frame,
-            text="\u23f9 Stop",
-            command=self._stop_bridge,
-            bg="lightcoral",
-            state=tk.DISABLED,
-        )
-        self.stop_button.pack(side=tk.LEFT, padx=2)
+        self.stop_button = QPushButton("\u23f9 Stop")
+        self.stop_button.setStyleSheet("background-color: lightcoral;")
+        self.stop_button.setEnabled(False)
+        self.stop_button.clicked.connect(self._stop_bridge)
+        control_layout.addWidget(self.stop_button)
+
+        toolbar_layout.addWidget(control_group)
 
         # Binding management
-        binding_frame = tk.LabelFrame(toolbar, text="Bindings")
-        binding_frame.pack(side=tk.LEFT, padx=2)
+        binding_group = QGroupBox("Bindings")
+        binding_layout = QHBoxLayout(binding_group)
 
-        tk.Button(
-            binding_frame,
-            text="\u2795 Add Binding",
-            command=self._add_binding_dialog,
-        ).pack(side=tk.LEFT, padx=2)
+        add_btn = QPushButton("\u2795 Add Binding")
+        add_btn.clicked.connect(self._add_binding_dialog)
+        binding_layout.addWidget(add_btn)
 
-        tk.Button(
-            binding_frame,
-            text="\u270f Edit Selected",
-            command=self._edit_selected_binding,
-        ).pack(side=tk.LEFT, padx=2)
+        edit_btn = QPushButton("\u270f Edit Selected")
+        edit_btn.clicked.connect(self._edit_selected_binding)
+        binding_layout.addWidget(edit_btn)
 
-        tk.Button(
-            binding_frame,
-            text="\U0001f5d1 Remove Selected",
-            command=self._remove_selected_binding,
-        ).pack(side=tk.LEFT, padx=2)
+        remove_btn = QPushButton("\U0001f5d1 Remove Selected")
+        remove_btn.clicked.connect(self._remove_selected_binding)
+        binding_layout.addWidget(remove_btn)
 
-        tk.Button(
-            binding_frame,
-            text="Clear All",
-            command=self._clear_all_bindings,
-        ).pack(side=tk.LEFT, padx=2)
+        clear_btn = QPushButton("Clear All")
+        clear_btn.clicked.connect(self._clear_all_bindings)
+        binding_layout.addWidget(clear_btn)
+
+        toolbar_layout.addWidget(binding_group)
 
         # Refresh
-        tk.Button(
-            toolbar,
-            text="\U0001f504 Refresh",
-            command=self._refresh_bindings,
-        ).pack(side=tk.LEFT, padx=5)
+        refresh_btn = QPushButton("\U0001f504 Refresh")
+        refresh_btn.clicked.connect(self._refresh_bindings)
+        toolbar_layout.addWidget(refresh_btn)
 
-    def _create_bindings_view(self):
-        """Create treeview for bindings."""
-        view_frame = tk.Frame(self.content_frame)
-        view_frame.pack(side=tk.TOP, fill=tk.BOTH, expand=True, padx=5, pady=5)
+        toolbar_layout.addStretch()
+        layout.addWidget(toolbar)
 
-        vsb = ttk.Scrollbar(view_frame, orient="vertical")
-        hsb = ttk.Scrollbar(view_frame, orient="horizontal")
+    def _create_bindings_view(self, layout: QVBoxLayout):
+        """Create tree widget for bindings."""
+        self.tree = QTreeWidget()
+        self.tree.setHeaderLabels([
+            '\u2713', 'Binding Key', 'Direction', 'Scene Object',
+            'Property', 'Source Value', 'Scene Value', 'Description',
+        ])
+        self.tree.setColumnWidth(0, 40)
+        self.tree.setColumnWidth(1, 160)
+        self.tree.setColumnWidth(2, 80)
+        self.tree.setColumnWidth(3, 120)
+        self.tree.setColumnWidth(4, 100)
+        self.tree.setColumnWidth(5, 100)
+        self.tree.setColumnWidth(6, 100)
+        self.tree.setColumnWidth(7, 200)
+        self.tree.setAlternatingRowColors(True)
+        self.tree.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+        self.tree.customContextMenuRequested.connect(self._show_context_menu)
+        self.tree.itemDoubleClicked.connect(self._toggle_binding_enabled)
 
-        self.tree = ttk.Treeview(
-            view_frame,
-            columns=('Enabled', 'Key', 'Direction', 'Object', 'Property', 'SourceValue', 'SceneValue', 'Description'),
-            show='headings',
-            yscrollcommand=vsb.set,
-            xscrollcommand=hsb.set,
-        )
+        layout.addWidget(self.tree, 1)
 
-        vsb.config(command=self.tree.yview)
-        hsb.config(command=self.tree.xview)
-
-        self.tree.heading('Enabled', text='\u2713')
-        self.tree.heading('Key', text='Binding Key')
-        self.tree.heading('Direction', text='Direction')
-        self.tree.heading('Object', text='Scene Object')
-        self.tree.heading('Property', text='Property')
-        self.tree.heading('SourceValue', text='Source Value')
-        self.tree.heading('SceneValue', text='Scene Value')
-        self.tree.heading('Description', text='Description')
-
-        self.tree.column('Enabled', width=40)
-        self.tree.column('Key', width=160)
-        self.tree.column('Direction', width=80)
-        self.tree.column('Object', width=120)
-        self.tree.column('Property', width=100)
-        self.tree.column('SourceValue', width=100)
-        self.tree.column('SceneValue', width=100)
-        self.tree.column('Description', width=200)
-
-        self.tree.grid(row=0, column=0, sticky='nsew')
-        vsb.grid(row=0, column=1, sticky='ns')
-        hsb.grid(row=1, column=0, sticky='ew')
-
-        view_frame.grid_rowconfigure(0, weight=1)
-        view_frame.grid_columnconfigure(0, weight=1)
-
-        self.tree.bind('<Button-3>', self._show_context_menu)
-        self.tree.bind('<Double-Button-1>', self._toggle_binding_enabled)
-
-    def _create_status_bar(self):
+    def _create_status_bar(self, layout: QVBoxLayout):
         """Create status bar."""
-        self.status_var = tk.StringVar(value="Ready")
-        status_bar = tk.Label(
-            self.content_frame,
-            textvariable=self.status_var,
-            relief=tk.SUNKEN,
-            anchor=tk.W
-        )
-        status_bar.pack(side=tk.BOTTOM, fill=tk.X)
+        self._status_bar = QStatusBar()
+        self._status_bar.showMessage("Ready")
+        layout.addWidget(self._status_bar)
 
     # ------------------------------------------------------------------
     # Data refresh / status
@@ -176,8 +168,7 @@ class SceneBridgeDialog(TkinterTaskFrame):
 
     def _refresh_bindings(self):
         """Refresh the bindings display."""
-        for item in self.tree.get_children():
-            self.tree.delete(item)
+        self.tree.clear()
 
         direction_icon = {
             BindingDirection.READ: "\u2192",
@@ -190,7 +181,7 @@ class SceneBridgeDialog(TkinterTaskFrame):
             source_value = str(binding.last_source_value) if binding.last_source_value is not None else "N/A"
             scene_value = str(binding.last_scene_value) if binding.last_scene_value is not None else "N/A"
 
-            self.tree.insert('', tk.END, values=(
+            item = QTreeWidgetItem([
                 enabled_icon,
                 binding.binding_key,
                 direction_icon.get(binding.direction, "?"),
@@ -199,7 +190,8 @@ class SceneBridgeDialog(TkinterTaskFrame):
                 source_value,
                 scene_value,
                 binding.description,
-            ))
+            ])
+            self.tree.addTopLevelItem(item)
 
         self._update_status()
 
@@ -209,16 +201,16 @@ class SceneBridgeDialog(TkinterTaskFrame):
         enabled_count = sum(1 for b in bindings if b.enabled)
         active_status = "ACTIVE" if self.bridge.is_active() else "STOPPED"
 
-        self.status_var.set(
+        self._status_bar.showMessage(
             f"{active_status} | {enabled_count}/{len(bindings)} bindings enabled"
         )
 
         if self.bridge.is_active():
-            self.start_button.config(state=tk.DISABLED)
-            self.stop_button.config(state=tk.NORMAL)
+            self.start_button.setEnabled(False)
+            self.stop_button.setEnabled(True)
         else:
-            self.start_button.config(state=tk.NORMAL)
-            self.stop_button.config(state=tk.DISABLED)
+            self.start_button.setEnabled(True)
+            self.stop_button.setEnabled(False)
 
     # ------------------------------------------------------------------
     # Bridge control
@@ -229,16 +221,16 @@ class SceneBridgeDialog(TkinterTaskFrame):
         try:
             self.bridge.start()
             self._update_status()
-            messagebox.showinfo("Bridge Started", "Scene bridge is now active")
+            QMessageBox.information(self.root, "Bridge Started", "Scene bridge is now active")
         except Exception as e:
-            messagebox.showerror("Error", f"Failed to start bridge: {e}")
+            QMessageBox.critical(self.root, "Error", f"Failed to start bridge: {e}")
             log(self).error(f"Failed to start bridge: {e}")
 
     def _stop_bridge(self):
         """Stop the bridge."""
         self.bridge.stop()
         self._update_status()
-        messagebox.showinfo("Bridge Stopped", "Scene bridge has been stopped")
+        QMessageBox.information(self.root, "Bridge Stopped", "Scene bridge has been stopped")
 
     # ------------------------------------------------------------------
     # Binding management
@@ -247,20 +239,20 @@ class SceneBridgeDialog(TkinterTaskFrame):
     def _add_binding_dialog(self):
         """Show dialog to add a new binding."""
         dialog = AddBindingDialog(self.root, self.bridge, self.scene)
-        self.root.wait_window(dialog)
+        dialog.exec()
         self._refresh_bindings()
 
     def _edit_selected_binding(self):
         """Edit the selected binding."""
-        selection = self.tree.selection()
-        if not selection:
-            messagebox.showinfo("No Selection", "Please select a binding to edit")
+        items = self.tree.selectedItems()
+        if not items:
+            QMessageBox.information(self.root, "No Selection", "Please select a binding to edit")
             return
 
-        item = self.tree.item(selection[0])
-        binding_key = item['values'][1]
-        object_id = item['values'][3]
-        property_path = item['values'][4]
+        item = items[0]
+        binding_key = item.text(1)
+        object_id = item.text(3)
+        property_path = item.text(4)
 
         matches = [
             b for b in self.bridge.get_bindings()
@@ -271,47 +263,48 @@ class SceneBridgeDialog(TkinterTaskFrame):
 
         if matches:
             dialog = EditBindingDialog(self.root, self.bridge, matches[0])
-            self.root.wait_window(dialog)
+            dialog.exec()
             self._refresh_bindings()
 
     def _remove_selected_binding(self):
         """Remove the selected binding."""
-        selection = self.tree.selection()
-        if not selection:
-            messagebox.showinfo("No Selection", "Please select a binding to remove")
+        items = self.tree.selectedItems()
+        if not items:
+            QMessageBox.information(self.root, "No Selection", "Please select a binding to remove")
             return
 
-        item = self.tree.item(selection[0])
-        binding_key = item['values'][1]
-        object_id = item['values'][3]
-        property_path = item['values'][4]
+        item = items[0]
+        binding_key = item.text(1)
+        object_id = item.text(3)
+        property_path = item.text(4)
 
-        if messagebox.askyesno(
+        reply = QMessageBox.question(
+            self.root,
             "Confirm Remove",
             f"Remove binding '{binding_key}' \u2192 {object_id}.{property_path}?",
-        ):
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+        )
+        if reply == QMessageBox.StandardButton.Yes:
             self.bridge.remove_binding(binding_key, object_id, property_path)
             self._refresh_bindings()
 
     def _clear_all_bindings(self):
         """Clear all bindings."""
-        if messagebox.askyesno("Confirm Clear", "Remove all bindings?"):
+        reply = QMessageBox.question(
+            self.root,
+            "Confirm Clear",
+            "Remove all bindings?",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+        )
+        if reply == QMessageBox.StandardButton.Yes:
             self.bridge.clear_bindings()
             self._refresh_bindings()
 
-    def _toggle_binding_enabled(self, event):
+    def _toggle_binding_enabled(self, item: QTreeWidgetItem, column: int):
         """Toggle enabled state of double-clicked binding."""
-        if self.tree.identify_region(event.x, event.y) != "cell":
-            return
-
-        selection = self.tree.selection()
-        if not selection:
-            return
-
-        item = self.tree.item(selection[0])
-        binding_key = item['values'][1]
-        object_id = item['values'][3]
-        property_path = item['values'][4]
+        binding_key = item.text(1)
+        object_id = item.text(3)
+        property_path = item.text(4)
 
         for binding in self.bridge.get_bindings():
             if (
@@ -328,38 +321,37 @@ class SceneBridgeDialog(TkinterTaskFrame):
 
         self._refresh_bindings()
 
-    def _show_context_menu(self, event):
+    def _show_context_menu(self, pos):
         """Show context menu on right-click."""
-        # Select item under cursor
-        item_id = self.tree.identify_row(event.y)
-        if item_id:
-            self.tree.selection_set(item_id)
-
-            menu = tk.Menu(self.root, tearoff=0)
-            menu.add_command(label="Edit", command=self._edit_selected_binding)
-            menu.add_command(label="Remove", command=self._remove_selected_binding)
-            menu.add_separator()
-            menu.add_command(label="Toggle Enabled", command=lambda: self._toggle_binding_enabled(event))
-
-            menu.post(event.x_root, event.y_root)
+        item = self.tree.itemAt(pos)
+        if item:
+            self.tree.setCurrentItem(item)
+            menu = QMenu(self.root)
+            menu.addAction("Edit", self._edit_selected_binding)
+            menu.addAction("Remove", self._remove_selected_binding)
+            menu.addSeparator()
+            menu.addAction("Toggle Enabled", lambda: self._toggle_binding_enabled(item, 0))
+            viewport = self.tree.viewport()
+            if viewport:
+                menu.exec(viewport.mapToGlobal(pos))
 
     def _schedule_refresh(self):
         """Schedule periodic refresh."""
-        try:
-            if not self.root.winfo_exists():
-                return
-        except Exception:
-            return
+        self._refresh_timer = QTimer(self.root)
+        self._refresh_timer.timeout.connect(self._on_timer)
+        self._refresh_timer.start(1000)
+
+    def _on_timer(self):
+        """Handle periodic refresh timer."""
         if self.bridge.is_active():
             self._refresh_bindings()
-        self.root.after(1000, self._schedule_refresh)
 
 
 # ---------------------------------------------------------------------------
 # Add / Edit dialogs
 # ---------------------------------------------------------------------------
 
-class AddBindingDialog(tk.Toplevel):
+class AddBindingDialog(QDialog):
     """Dialog for adding a new scene bridge binding.
 
     The form is split into two clearly labelled sections:
@@ -378,93 +370,115 @@ class AddBindingDialog(tk.Toplevel):
         self.bridge = bridge
         self.scene = scene
 
-        self.title("Add Scene Binding")
-        self.geometry("540x400")
-        self.resizable(False, False)
-        self.transient(parent)
-        self.grab_set()
+        self.setWindowTitle("Add Scene Binding")
+        self.setFixedSize(540, 400)
+        self.setModal(True)
 
-        outer = tk.Frame(self, padx=10, pady=8)
-        outer.pack(fill=tk.BOTH, expand=True)
+        outer_layout = QVBoxLayout(self)
+        outer_layout.setContentsMargins(10, 8, 10, 8)
 
         # ── External Source section ───────────────────────────────────────────
-        src_lf = tk.LabelFrame(outer, text=" External Source ", padx=8, pady=6)
-        src_lf.pack(fill=tk.X, pady=(0, 6))
-        src_lf.columnconfigure(1, weight=1)
+        src_group = QGroupBox(" External Source ")
+        src_layout = QHBoxLayout(src_group)
 
-        tk.Label(src_lf, text="Binding Key:").grid(row=0, column=0, sticky=tk.W, pady=4)
-        self.key_entry = tk.Entry(src_lf, width=38)
-        self.key_entry.grid(row=0, column=1, sticky=tk.EW, pady=4, padx=(4, 0))
-        tk.Button(
-            src_lf, text="Browse\u2026", command=self._browse_external
-        ).grid(row=0, column=2, padx=(6, 0))
+        src_form = QWidget()
+        src_form_layout = QHBoxLayout(src_form)
+        src_form_layout.setContentsMargins(0, 0, 0, 0)
+        src_form_layout.addWidget(QLabel("Binding Key:"))
+        self.key_entry = QLineEdit()
+        src_form_layout.addWidget(self.key_entry, 1)
+        browse_ext_btn = QPushButton("Browse\u2026")
+        browse_ext_btn.clicked.connect(self._browse_external)
+        src_form_layout.addWidget(browse_ext_btn)
+        src_layout.addWidget(src_form)
+        outer_layout.addWidget(src_group)
 
         # ── Scene Destination section ─────────────────────────────────────────
-        dst_lf = tk.LabelFrame(outer, text=" Scene Destination ", padx=8, pady=6)
-        dst_lf.pack(fill=tk.X, pady=(0, 6))
-        dst_lf.columnconfigure(1, weight=1)
+        dst_group = QGroupBox(" Scene Destination ")
+        dst_layout = QVBoxLayout(dst_group)
 
-        tk.Label(dst_lf, text="Object ID:").grid(row=0, column=0, sticky=tk.W, pady=4)
-        self.object_entry = tk.Entry(dst_lf, width=38)
-        self.object_entry.grid(row=0, column=1, sticky=tk.EW, pady=4, padx=(4, 0))
-        tk.Button(
-            dst_lf, text="Browse\u2026", command=self._browse_scene
-        ).grid(row=0, column=2, padx=(6, 0), rowspan=2, sticky=tk.NS)
+        obj_row = QWidget()
+        obj_row_layout = QHBoxLayout(obj_row)
+        obj_row_layout.setContentsMargins(0, 0, 0, 0)
+        obj_row_layout.addWidget(QLabel("Object ID:"))
+        self.object_entry = QLineEdit()
+        obj_row_layout.addWidget(self.object_entry, 1)
+        browse_scene_btn = QPushButton("Browse\u2026")
+        browse_scene_btn.clicked.connect(self._browse_scene)
+        obj_row_layout.addWidget(browse_scene_btn)
+        dst_layout.addWidget(obj_row)
 
-        tk.Label(dst_lf, text="Property:").grid(row=1, column=0, sticky=tk.W, pady=4)
-        self.property_entry = tk.Entry(dst_lf, width=38, state="readonly")
-        self.property_entry.grid(row=1, column=1, sticky=tk.EW, pady=4, padx=(4, 0))
+        prop_row = QWidget()
+        prop_row_layout = QHBoxLayout(prop_row)
+        prop_row_layout.setContentsMargins(0, 0, 0, 0)
+        prop_row_layout.addWidget(QLabel("Property:"))
+        self.property_entry = QLineEdit()
+        self.property_entry.setReadOnly(True)
+        prop_row_layout.addWidget(self.property_entry, 1)
+        dst_layout.addWidget(prop_row)
+        outer_layout.addWidget(dst_group)
 
         # ── Direction row ─────────────────────────────────────────────────────
-        dir_frame = tk.Frame(outer)
-        dir_frame.pack(fill=tk.X, pady=(0, 4))
-
-        tk.Label(dir_frame, text="Direction:").pack(side=tk.LEFT)
-        self.direction_var = tk.StringVar(value="read")
-        for label, value in (
+        dir_row = QWidget()
+        dir_layout = QHBoxLayout(dir_row)
+        dir_layout.setContentsMargins(0, 0, 0, 0)
+        dir_layout.addWidget(QLabel("Direction:"))
+        self._direction_group = QButtonGroup(self)
+        for i, (label, value) in enumerate((
             ("External \u2192 Scene", "read"),
             ("Scene \u2192 External", "write"),
             ("Both", "both"),
-        ):
-            tk.Radiobutton(
-                dir_frame, text=label,
-                variable=self.direction_var, value=value,
-            ).pack(side=tk.LEFT, padx=(8, 0))
+        )):
+            rb = QRadioButton(label)
+            rb.setProperty("direction_value", value)
+            if i == 0:
+                rb.setChecked(True)
+            self._direction_group.addButton(rb)
+            dir_layout.addWidget(rb)
+        dir_layout.addStretch()
+        outer_layout.addWidget(dir_row)
 
         # ── Description row ───────────────────────────────────────────────────
-        desc_frame = tk.Frame(outer)
-        desc_frame.pack(fill=tk.X, pady=(0, 4))
-        desc_frame.columnconfigure(1, weight=1)
+        desc_row = QWidget()
+        desc_layout = QHBoxLayout(desc_row)
+        desc_layout.setContentsMargins(0, 0, 0, 0)
+        desc_layout.addWidget(QLabel("Description:"))
+        self.description_entry = QLineEdit()
+        desc_layout.addWidget(self.description_entry, 1)
+        outer_layout.addWidget(desc_row)
 
-        tk.Label(desc_frame, text="Description:").grid(row=0, column=0, sticky=tk.W)
-        self.description_entry = tk.Entry(desc_frame)
-        self.description_entry.grid(row=0, column=1, sticky=tk.EW, padx=(6, 0))
+        outer_layout.addStretch()
 
         # ── Buttons ───────────────────────────────────────────────────────────
-        btn_frame = tk.Frame(self)
-        btn_frame.pack(side=tk.BOTTOM, fill=tk.X, padx=10, pady=8)
-        tk.Button(btn_frame, text="Add Binding", command=self._add_binding).pack(side=tk.RIGHT, padx=5)
-        tk.Button(btn_frame, text="Cancel", command=self.destroy).pack(side=tk.RIGHT)
+        btn_row = QWidget()
+        btn_layout = QHBoxLayout(btn_row)
+        btn_layout.setContentsMargins(0, 0, 0, 0)
+        btn_layout.addStretch()
+        cancel_btn = QPushButton("Cancel")
+        cancel_btn.clicked.connect(self.reject)
+        btn_layout.addWidget(cancel_btn)
+        add_btn = QPushButton("Add Binding")
+        add_btn.clicked.connect(self._add_binding)
+        btn_layout.addWidget(add_btn)
+        outer_layout.addWidget(btn_row)
 
     # ------------------------------------------------------------------
     # Browse helpers
     # ------------------------------------------------------------------
 
     def _browse_external(self) -> None:
-        """Open the external-source browser and fill the *Binding Key* entry.
-
-        When the bridge's bound object is a :class:`~pyrox.models.scene.sceneboundlayer.SceneBoundLayer`
-        the dialog shows all registered sources (keyboard, plc, …) with their
-        introspected properties in a two-pane treeview.  Otherwise falls back to
-        the list of keys currently registered in existing bindings.
-        """
+        """Open the external-source browser and fill the *Binding Key* entry."""
         bound_obj = self.bridge.get_bound_object()
         if isinstance(bound_obj, SceneBoundLayer):
             dialog = ExternalSourceBrowserDialog(self, bound_obj)
+            dialog.exec()
+            if hasattr(dialog, 'selected_item'):
+                self.key_entry.setText(dialog.selected_item)
         else:
             existing_keys = sorted({b.binding_key for b in self.bridge.get_bindings()})
             if not existing_keys:
-                messagebox.showinfo(
+                QMessageBox.information(
+                    self,
                     "No Keys",
                     "No binding keys available.\n"
                     "Register a SceneBoundLayer as the bound object to "
@@ -472,53 +486,43 @@ class AddBindingDialog(tk.Toplevel):
                 )
                 return
             dialog = ItemSelectionDialog(self, "Select Binding Key", existing_keys)
-
-        self.wait_window(dialog)
-
-        if hasattr(dialog, 'selected_item'):
-            self.key_entry.delete(0, tk.END)
-            self.key_entry.insert(0, dialog.selected_item)
+            dialog.exec()
+            if hasattr(dialog, 'selected_item'):
+                self.key_entry.setText(dialog.selected_item)
 
     def _browse_scene(self) -> None:
-        """Open the scene-object property browser and fill *Object ID* + *Property*.
-
-        Opens :class:`SceneObjectPropertyBrowserDialog` which shows a grouped
-        treeview of scene objects (with optional ``physics_body`` children) on the
-        left and introspected properties on the right.  Confirming a selection
-        fills both the *Object ID* and *Property* fields simultaneously.
-        """
+        """Open the scene-object property browser and fill *Object ID* + *Property*."""
         if not self.scene:
-            messagebox.showwarning("No Scene", "No scene is loaded.")
+            QMessageBox.warning(self, "No Scene", "No scene is loaded.")
             return
 
         dialog = SceneObjectPropertyBrowserDialog(self, self.scene)
-        self.wait_window(dialog)
+        dialog.exec()
 
         if hasattr(dialog, 'selected_object_id'):
-            self.object_entry.delete(0, tk.END)
-            self.object_entry.insert(0, dialog.selected_object_id)
+            self.object_entry.setText(dialog.selected_object_id)
         if hasattr(dialog, 'selected_property'):
-            self.property_entry.config(state="normal")
-            self.property_entry.delete(0, tk.END)
-            self.property_entry.insert(0, dialog.selected_property)
-            self.property_entry.config(state="readonly")
+            self.property_entry.setReadOnly(False)
+            self.property_entry.setText(dialog.selected_property)
+            self.property_entry.setReadOnly(True)
 
     # ------------------------------------------------------------------
     # Commit
     # ------------------------------------------------------------------
 
     def _add_binding(self) -> None:
-        """Validate entries and call :py:meth:`~pyrox.interfaces.scene.ISceneBridge.add_binding`."""
-        binding_key = self.key_entry.get().strip()
-        object_id = self.object_entry.get().strip()
-        property_path = self.property_entry.get().strip()
+        """Validate entries and call add_binding."""
+        binding_key = self.key_entry.text().strip()
+        object_id = self.object_entry.text().strip()
+        property_path = self.property_entry.text().strip()
 
         if not binding_key or not object_id or not property_path:
-            messagebox.showerror("Missing Fields", "Please fill in all required fields.")
+            QMessageBox.critical(self, "Missing Fields", "Please fill in all required fields.")
             return
 
-        direction = BindingDirection(self.direction_var.get())
-        description = self.description_entry.get().strip()
+        checked_btn = self._direction_group.checkedButton()
+        direction = BindingDirection(checked_btn.property("direction_value") if checked_btn else "read")
+        description = self.description_entry.text().strip()
 
         try:
             self.bridge.add_binding(
@@ -528,13 +532,13 @@ class AddBindingDialog(tk.Toplevel):
                 direction=direction,
                 description=description,
             )
-            messagebox.showinfo("Success", "Binding added successfully.")
-            self.destroy()
+            QMessageBox.information(self, "Success", "Binding added successfully.")
+            self.accept()
         except Exception as e:
-            messagebox.showerror("Error", f"Failed to add binding: {e}")
+            QMessageBox.critical(self, "Error", f"Failed to add binding: {e}")
 
 
-class EditBindingDialog(tk.Toplevel):
+class EditBindingDialog(QDialog):
     """Dialog for editing an existing binding."""
 
     def __init__(self, parent, bridge: ISceneBridge, binding: ISceneBinding):
@@ -542,52 +546,60 @@ class EditBindingDialog(tk.Toplevel):
         self.bridge = bridge
         self.binding = binding
 
-        self.title("Edit Binding")
-        self.geometry("400x280")
-        self.resizable(False, False)
-        self.transient(parent)
-        self.grab_set()
+        self.setWindowTitle("Edit Binding")
+        self.setFixedSize(400, 280)
+        self.setModal(True)
 
-        form_frame = tk.Frame(self, padx=10, pady=10)
-        form_frame.pack(fill=tk.BOTH, expand=True)
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(10, 10, 10, 10)
 
-        tk.Label(form_frame, text=f"Key:      {binding.binding_key}").pack(anchor=tk.W, pady=4)
-        tk.Label(form_frame, text=f"Object:   {binding.object_id}").pack(anchor=tk.W, pady=4)
-        tk.Label(form_frame, text=f"Property: {binding.property_path}").pack(anchor=tk.W, pady=4)
+        layout.addWidget(QLabel(f"Key:      {binding.binding_key}"))
+        layout.addWidget(QLabel(f"Object:   {binding.object_id}"))
+        layout.addWidget(QLabel(f"Property: {binding.property_path}"))
 
-        tk.Label(form_frame, text="Description:").pack(anchor=tk.W, pady=(10, 0))
-        self.description_entry = tk.Entry(form_frame, width=50)
-        self.description_entry.insert(0, binding.description)
-        self.description_entry.pack(fill=tk.X, pady=5)
+        layout.addWidget(QLabel("Description:"))
+        self.description_entry = QLineEdit(binding.description)
+        self.description_entry.setMinimumWidth(300)
+        layout.addWidget(self.description_entry)
 
-        self.enabled_var = tk.BooleanVar(value=binding.enabled)
-        tk.Checkbutton(form_frame, text="Enabled", variable=self.enabled_var).pack(anchor=tk.W, pady=5)
+        self.enabled_check = QCheckBox("Enabled")
+        self.enabled_check.setChecked(binding.enabled)
+        layout.addWidget(self.enabled_check)
 
-        button_frame = tk.Frame(self)
-        button_frame.pack(side=tk.BOTTOM, fill=tk.X, padx=10, pady=10)
-        tk.Button(button_frame, text="Save", command=self._save).pack(side=tk.RIGHT, padx=5)
-        tk.Button(button_frame, text="Cancel", command=self.destroy).pack(side=tk.RIGHT)
+        layout.addStretch()
+
+        btn_row = QWidget()
+        btn_layout = QHBoxLayout(btn_row)
+        btn_layout.setContentsMargins(0, 0, 0, 0)
+        btn_layout.addStretch()
+        cancel_btn = QPushButton("Cancel")
+        cancel_btn.clicked.connect(self.reject)
+        btn_layout.addWidget(cancel_btn)
+        save_btn = QPushButton("Save")
+        save_btn.clicked.connect(self._save)
+        btn_layout.addWidget(save_btn)
+        layout.addWidget(btn_row)
 
     def _save(self):
         """Persist edits to the binding."""
-        self.binding.description = self.description_entry.get()
-        self.binding.enabled = self.enabled_var.get()
-        messagebox.showinfo("Success", "Binding updated")
-        self.destroy()
+        self.binding.description = self.description_entry.text()
+        self.binding.enabled = self.enabled_check.isChecked()
+        QMessageBox.information(self, "Success", "Binding updated")
+        self.accept()
 
 
 # ---------------------------------------------------------------------------
 # External source browser (SceneBoundLayer → source → property)
 # ---------------------------------------------------------------------------
 
-class ExternalSourceBrowserDialog(tk.Toplevel):
+class ExternalSourceBrowserDialog(QDialog):
     """Two-pane browser for selecting a binding key from a
     :class:`~pyrox.models.scene.sceneboundlayer.SceneBoundLayer`.
 
-    * **Left pane** \u2014 listbox of registered source names (e.g. ``"plc"``,
+    * **Left pane** — listbox of registered source names (e.g. ``"plc"``,
       ``"keyboard"``, ``"sim"``).  Selecting a source populates the right
-      pane with that source\'s inspectable public properties.
-    * **Right pane** \u2014 treeview showing ``Property`` name and ``Type``
+      pane with that source's inspectable public properties.
+    * **Right pane** — treeview showing ``Property`` name and ``Type``
       columns, introspected from the actual source object so the user can
       see at a glance what kind of value each property holds.
 
@@ -598,86 +610,76 @@ class ExternalSourceBrowserDialog(tk.Toplevel):
     def __init__(self, parent, layer: SceneBoundLayer) -> None:
         super().__init__(parent)
         self.layer = layer
-        self.title("Browse External Sources")
-        self.geometry("580x380")
-        self.resizable(True, True)
-        self.transient(parent)
-        self.grab_set()
+        self.setWindowTitle("Browse External Sources")
+        self.resize(580, 380)
+        self.setModal(True)
 
-        tk.Label(
-            self,
-            text="Select a source (left), then a property (right), then click Select.",
-            anchor=tk.W, padx=8, pady=4,
-        ).pack(fill=tk.X)
+        layout = QVBoxLayout(self)
 
-        panes = tk.Frame(self)
-        panes.pack(fill=tk.BOTH, expand=True, padx=8, pady=4)
+        layout.addWidget(QLabel(
+            "Select a source (left), then a property (right), then click Select."
+        ))
 
-        # Left \u2014 source listbox
-        left = tk.LabelFrame(panes, text="Sources")
-        left.pack(side=tk.LEFT, fill=tk.BOTH, expand=False, padx=(0, 4))
+        splitter = QSplitter(Qt.Orientation.Horizontal)
 
-        left_scroll = ttk.Scrollbar(left)
-        left_scroll.pack(side=tk.RIGHT, fill=tk.Y)
-        self._source_lb = tk.Listbox(
-            left, yscrollcommand=left_scroll.set, exportselection=False, width=20,
-        )
-        self._source_lb.pack(fill=tk.BOTH, expand=True)
-        left_scroll.config(command=self._source_lb.yview)
-
+        # Left — source list
+        left_group = QGroupBox("Sources")
+        left_layout = QVBoxLayout(left_group)
+        self._source_list = QListWidget()
+        self._source_list.currentRowChanged.connect(self._on_source_selected)
+        left_layout.addWidget(self._source_list)
         for name in layer.list_sources():
-            self._source_lb.insert(tk.END, name)
+            self._source_list.addItem(name)
+        splitter.addWidget(left_group)
+        splitter.setStretchFactor(0, 0)
 
-        self._source_lb.bind('<<ListboxSelect>>', self._on_source_selected)
+        # Right — property tree
+        right_group = QGroupBox("Properties")
+        right_layout = QVBoxLayout(right_group)
+        self._prop_tree = QTreeWidget()
+        self._prop_tree.setHeaderLabels(["Property", "Type"])
+        prop_header = self._prop_tree.header()
+        if prop_header:
+            prop_header.setStretchLastSection(False)
+        self._prop_tree.setColumnWidth(1, 80)
+        self._prop_tree.itemDoubleClicked.connect(lambda _i, _c: self._select())
+        right_layout.addWidget(self._prop_tree)
+        splitter.addWidget(right_group)
+        splitter.setStretchFactor(1, 1)
 
-        # Right \u2014 property treeview
-        right = tk.LabelFrame(panes, text="Properties")
-        right.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=(4, 0))
-
-        right_scroll = ttk.Scrollbar(right)
-        right_scroll.pack(side=tk.RIGHT, fill=tk.Y)
-        self._prop_tree = ttk.Treeview(
-            right,
-            columns=('type',),
-            show='tree headings',
-            selectmode='browse',
-            yscrollcommand=right_scroll.set,
-        )
-        self._prop_tree.heading('#0', text='Property')
-        self._prop_tree.heading('type', text='Type')
-        self._prop_tree.column('#0', stretch=True)
-        self._prop_tree.column('type', width=80, stretch=False)
-        self._prop_tree.pack(fill=tk.BOTH, expand=True)
-        right_scroll.config(command=self._prop_tree.yview)
-
-        self._prop_tree.bind('<<TreeviewSelect>>', self._on_prop_selected)
-        self._prop_tree.bind('<Double-Button-1>', lambda _e: self._select())
+        layout.addWidget(splitter, 1)
 
         # Preview
-        self._preview_var = tk.StringVar(value="")
-        tk.Label(self, textvariable=self._preview_var, anchor=tk.W,
-                 padx=8, fg='#444').pack(fill=tk.X)
+        self._preview_label = QLabel("")
+        layout.addWidget(self._preview_label)
 
         # Buttons
-        btn_frame = tk.Frame(self)
-        btn_frame.pack(side=tk.BOTTOM, fill=tk.X, padx=8, pady=6)
-        tk.Button(btn_frame, text="Select", command=self._select).pack(side=tk.RIGHT, padx=4)
-        tk.Button(btn_frame, text="Cancel", command=self.destroy).pack(side=tk.RIGHT)
+        btn_row = QWidget()
+        btn_layout = QHBoxLayout(btn_row)
+        btn_layout.addStretch()
+        cancel_btn = QPushButton("Cancel")
+        cancel_btn.clicked.connect(self.reject)
+        btn_layout.addWidget(cancel_btn)
+        select_btn = QPushButton("Select")
+        select_btn.clicked.connect(self._select)
+        btn_layout.addWidget(select_btn)
+        layout.addWidget(btn_row)
 
-        # Pre-select first source so the right pane is immediately populated
+        # Pre-select first source
         if layer.list_sources():
-            self._source_lb.selection_set(0)
-            self._on_source_selected(None)
+            self._source_list.setCurrentRow(0)
 
-    def _on_source_selected(self, _event: Any) -> None:
+    def _on_source_selected(self, row: int) -> None:
         """Populate the property pane for the currently selected source."""
-        sel = self._source_lb.curselection()
-        if not sel:
+        if row < 0:
             return
-        source_name = self._source_lb.get(sel[0])
+        list_item = self._source_list.item(row)
+        if list_item is None:
+            return
+        source_name = list_item.text()
         source_obj = self.layer.get_source(source_name)
 
-        self._prop_tree.delete(*self._prop_tree.get_children())
+        self._prop_tree.clear()
         props = self.layer.enumerate_source_properties(source_name)
         for prop in props:
             try:
@@ -689,43 +691,41 @@ class ExternalSourceBrowserDialog(tk.Toplevel):
                 type_name = type(val).__name__
             except Exception:
                 type_name = '?'
-            self._prop_tree.insert('', tk.END, text=prop, values=(type_name,))
+            QTreeWidgetItem(self._prop_tree, [prop, type_name])
 
-        self._preview_var.set(
+        self._preview_label.setText(
             f"source: {source_name}  \u2014  select a property"
             if props else f"source: {source_name}  \u2014  (no public properties)"
         )
 
-    def _on_prop_selected(self, _event: Any) -> None:
+    def _on_prop_selected(self) -> None:
         """Update the preview label."""
-        src_sel = self._source_lb.curselection()
-        prop_sel = self._prop_tree.selection()
-        if src_sel and prop_sel:
-            src = self._source_lb.get(src_sel[0])
-            prop = self._prop_tree.item(prop_sel[0], 'text')
-            self._preview_var.set(f"key: {src}.{prop}")
+        src_item = self._source_list.currentItem()
+        prop_items = self._prop_tree.selectedItems()
+        if src_item and prop_items:
+            src = src_item.text()
+            prop = prop_items[0].text(0)
+            self._preview_label.setText(f"key: {src}.{prop}")
 
     def _select(self) -> None:
         """Compose and store the selected binding key, then close."""
-        src_sel = self._source_lb.curselection()
-        prop_sel = self._prop_tree.selection()
-        if not src_sel:
-            messagebox.showwarning("No Source", "Please select a source first", parent=self)
+        src_item = self._source_list.currentItem()
+        prop_items = self._prop_tree.selectedItems()
+        if not src_item:
+            QMessageBox.warning(self, "No Source", "Please select a source first")
             return
-        if not prop_sel:
-            messagebox.showwarning("No Property", "Please select a property first", parent=self)
+        if not prop_items:
+            QMessageBox.warning(self, "No Property", "Please select a property first")
             return
-        src = self._source_lb.get(src_sel[0])
-        prop = self._prop_tree.item(prop_sel[0], 'text')
-        self.selected_item = f"{src}.{prop}"
-        self.destroy()
+        self.selected_item = f"{src_item.text()}.{prop_items[0].text(0)}"
+        self.accept()
 
 
 # ---------------------------------------------------------------------------
 # Scene object + property browser
 # ---------------------------------------------------------------------------
 
-class SceneObjectPropertyBrowserDialog(tk.Toplevel):
+class SceneObjectPropertyBrowserDialog(QDialog):
     """Browser for selecting a scene object (or its physics body) and a property.
 
     * **Left pane** — treeview of scene objects grouped by
@@ -750,92 +750,74 @@ class SceneObjectPropertyBrowserDialog(tk.Toplevel):
     def __init__(self, parent, scene: IScene) -> None:
         super().__init__(parent)
         self.scene = scene
-        self.title("Browse Scene Destination")
-        self.geometry("660x440")
-        self.resizable(True, True)
-        self.transient(parent)
-        self.grab_set()
-
-        tk.Label(
-            self,
-            text="Select an object or its \u2699 Physics Body (left), then a property (right), then click Select.",
-            anchor=tk.W, padx=8, pady=4,
-        ).pack(fill=tk.X)
-
-        # -- Search bar --------------------------------------------------------
-        search_frame = tk.Frame(self)
-        search_frame.pack(fill=tk.X, padx=8, pady=(0, 4))
-        tk.Label(search_frame, text="\U0001f50d").pack(side=tk.LEFT)
-        self._search_var = tk.StringVar()
-        self._search_var.trace_add("write", lambda *_: self._populate_objects())
-        tk.Entry(search_frame, textvariable=self._search_var).pack(
-            side=tk.LEFT, fill=tk.X, expand=True, padx=4
-        )
-
-        # -- Two panes ---------------------------------------------------------
-        panes = tk.Frame(self)
-        panes.pack(fill=tk.BOTH, expand=True, padx=8, pady=4)
-
-        # Left — scene object treeview (with optional physics body children)
-        left = tk.LabelFrame(panes, text="Scene Objects")
-        left.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=(0, 4))
-
-        left_scroll = ttk.Scrollbar(left)
-        left_scroll.pack(side=tk.RIGHT, fill=tk.Y)
-        self._obj_tree = ttk.Treeview(
-            left,
-            columns=('id', 'node_type'),
-            show='tree',
-            selectmode='browse',
-            yscrollcommand=left_scroll.set,
-        )
-        self._obj_tree.column('#0', stretch=True)
-        self._obj_tree.column('id', width=0, stretch=False)
-        self._obj_tree.column('node_type', width=0, stretch=False)
-        self._obj_tree.tag_configure(self._TAG_GROUP, font=('', 9, 'bold'))
-        self._obj_tree.tag_configure(self._TAG_OBJECT, font=('', 9))
-        self._obj_tree.tag_configure(
-            self._TAG_PHYSICS, font=('', 9, 'italic'), foreground='#445566'
-        )
-        self._obj_tree.pack(fill=tk.BOTH, expand=True)
-        left_scroll.config(command=self._obj_tree.yview)
-        self._obj_tree.bind('<<TreeviewSelect>>', self._on_node_selected)
-
-        # Right — property treeview
-        right = tk.LabelFrame(panes, text="Properties")
-        right.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=(4, 0))
-
-        right_scroll = ttk.Scrollbar(right)
-        right_scroll.pack(side=tk.RIGHT, fill=tk.Y)
-        self._prop_tree = ttk.Treeview(
-            right,
-            columns=('type',),
-            show='tree headings',
-            selectmode='browse',
-            yscrollcommand=right_scroll.set,
-        )
-        self._prop_tree.heading('#0', text='Property')
-        self._prop_tree.heading('type', text='Type')
-        self._prop_tree.column('#0', stretch=True)
-        self._prop_tree.column('type', width=80, stretch=False)
-        self._prop_tree.pack(fill=tk.BOTH, expand=True)
-        right_scroll.config(command=self._prop_tree.yview)
-        self._prop_tree.bind('<<TreeviewSelect>>', self._on_prop_selected)
-        self._prop_tree.bind('<Double-Button-1>', lambda _e: self._select())
-
-        # Preview
-        self._preview_var = tk.StringVar(value="")
-        tk.Label(self, textvariable=self._preview_var, anchor=tk.W,
-                 padx=8, fg='#444').pack(fill=tk.X)
-
-        # Buttons
-        btn_frame = tk.Frame(self)
-        btn_frame.pack(side=tk.BOTTOM, fill=tk.X, padx=8, pady=6)
-        tk.Button(btn_frame, text="Select", command=self._select).pack(side=tk.RIGHT, padx=4)
-        tk.Button(btn_frame, text="Cancel", command=self.destroy).pack(side=tk.RIGHT)
+        self.setWindowTitle("Browse Scene Destination")
+        self.resize(660, 440)
+        self.setModal(True)
 
         # iid → (object_id: str, target_obj: Any, is_physics_body: bool)
-        self._node_map: dict[str, tuple[str, Any, bool]] = {}
+        self._node_map: dict[int, tuple[str, Any, bool]] = {}
+
+        layout = QVBoxLayout(self)
+
+        layout.addWidget(QLabel(
+            "Select an object or its \u2699 Physics Body (left), "
+            "then a property (right), then click Select."
+        ))
+
+        # -- Search bar --------------------------------------------------------
+        search_row = QWidget()
+        search_layout = QHBoxLayout(search_row)
+        search_layout.setContentsMargins(0, 0, 0, 0)
+        search_layout.addWidget(QLabel("\U0001f50d"))
+        self._search_edit = QLineEdit()
+        self._search_edit.setPlaceholderText("Filter objects…")
+        self._search_edit.textChanged.connect(lambda _: self._populate_objects())
+        search_layout.addWidget(self._search_edit, 1)
+        layout.addWidget(search_row)
+
+        # -- Two panes ---------------------------------------------------------
+        splitter = QSplitter(Qt.Orientation.Horizontal)
+
+        # Left — scene object tree
+        left_group = QGroupBox("Scene Objects")
+        left_layout = QVBoxLayout(left_group)
+        self._obj_tree = QTreeWidget()
+        self._obj_tree.setHeaderHidden(True)
+        self._obj_tree.itemSelectionChanged.connect(self._on_node_selected)
+        left_layout.addWidget(self._obj_tree)
+        splitter.addWidget(left_group)
+
+        # Right — property tree
+        right_group = QGroupBox("Properties")
+        right_layout = QVBoxLayout(right_group)
+        self._prop_tree = QTreeWidget()
+        self._prop_tree.setHeaderLabels(["Property", "Type"])
+        scene_prop_header = self._prop_tree.header()
+        if scene_prop_header:
+            scene_prop_header.setStretchLastSection(False)
+        self._prop_tree.setColumnWidth(1, 80)
+        self._prop_tree.itemSelectionChanged.connect(self._on_prop_selected)
+        self._prop_tree.itemDoubleClicked.connect(lambda _i, _c: self._select())
+        right_layout.addWidget(self._prop_tree)
+        splitter.addWidget(right_group)
+
+        layout.addWidget(splitter, 1)
+
+        # Preview
+        self._preview_label = QLabel("")
+        layout.addWidget(self._preview_label)
+
+        # Buttons
+        btn_row = QWidget()
+        btn_layout = QHBoxLayout(btn_row)
+        btn_layout.addStretch()
+        cancel_btn = QPushButton("Cancel")
+        cancel_btn.clicked.connect(self.reject)
+        btn_layout.addWidget(cancel_btn)
+        select_btn = QPushButton("Select")
+        select_btn.clicked.connect(self._select)
+        btn_layout.addWidget(select_btn)
+        layout.addWidget(btn_row)
 
         self._populate_objects()
 
@@ -864,16 +846,16 @@ class SceneObjectPropertyBrowserDialog(tk.Toplevel):
 
     def _populate_objects(self) -> None:
         """Rebuild the object treeview from the current scene."""
-        self._obj_tree.delete(*self._obj_tree.get_children())
-        self._prop_tree.delete(*self._prop_tree.get_children())
+        self._obj_tree.clear()
+        self._prop_tree.clear()
         self._node_map.clear()
-        self._preview_var.set("")
+        self._preview_label.setText("")
 
         objects = self._get_objects()
         if not objects:
             return
 
-        filter_text = self._search_var.get().lower().strip()
+        filter_text = self._search_edit.text().lower().strip()
 
         groups: dict[str, list] = {}
         for obj in objects:
@@ -884,6 +866,11 @@ class SceneObjectPropertyBrowserDialog(tk.Toplevel):
             )
             groups.setdefault(obj_type, []).append(obj)
 
+        bold_font = QFont()
+        bold_font.setBold(True)
+        italic_font = QFont()
+        italic_font.setItalic(True)
+
         for group_name, members in sorted(groups.items()):
             matching = [
                 obj for obj in members
@@ -892,52 +879,41 @@ class SceneObjectPropertyBrowserDialog(tk.Toplevel):
             if not matching:
                 continue
 
-            group_node = self._obj_tree.insert(
-                '', tk.END,
-                text=f"{group_name}  ({len(matching)})",
-                values=('', self._TAG_GROUP),
-                open=True,
-                tags=(self._TAG_GROUP,),
-            )
+            group_item = QTreeWidgetItem(self._obj_tree, [f"{group_name}  ({len(matching)})"])
+            group_item.setFont(0, bold_font)
+            group_item.setExpanded(True)
+            group_item.setFlags(group_item.flags() & ~Qt.ItemFlag.ItemIsSelectable)
 
             for obj in sorted(matching, key=lambda o: self._label(o).lower()):
                 obj_id = getattr(obj, 'get_id', lambda: getattr(obj, 'id', str(obj)))()
-                obj_iid = self._obj_tree.insert(
-                    group_node, tk.END,
-                    text=self._label(obj),
-                    values=(obj_id, self._TAG_OBJECT),
-                    open=False,
-                    tags=(self._TAG_OBJECT,),
-                )
-                self._node_map[obj_iid] = (obj_id, obj, False)
+                obj_item = QTreeWidgetItem(group_item, [self._label(obj)])
+                self._node_map[id(obj_item)] = (obj_id, obj, False)
 
                 # Expose physics body as a selectable child node
                 physics_body = getattr(obj, 'physics_body', None)
                 if physics_body is not None:
-                    pb_iid = self._obj_tree.insert(
-                        obj_iid, tk.END,
-                        text="\u2699 Physics Body",
-                        values=(obj_id, self._TAG_PHYSICS),
-                        tags=(self._TAG_PHYSICS,),
-                    )
-                    self._node_map[pb_iid] = (obj_id, physics_body, True)
+                    pb_item = QTreeWidgetItem(obj_item, ["\u2699 Physics Body"])
+                    pb_item.setFont(0, italic_font)
+                    pb_item.setForeground(0, pb_item.foreground(0))
+                    self._node_map[id(pb_item)] = (obj_id, physics_body, True)
 
     # ------------------------------------------------------------------
     # Event handlers
     # ------------------------------------------------------------------
 
-    def _on_node_selected(self, _event: Any) -> None:
+    def _on_node_selected(self) -> None:
         """Populate the property pane for the selected object or physics body."""
-        selected = self._obj_tree.selection()
+        selected = self._obj_tree.selectedItems()
         if not selected:
             return
-        iid = selected[0]
-        if iid not in self._node_map:
+        sel_item = selected[0]
+        node_id = id(sel_item)
+        if node_id not in self._node_map:
             return  # group header
 
-        obj_id, target_obj, is_physics = self._node_map[iid]
+        obj_id, target_obj, is_physics = self._node_map[node_id]
 
-        self._prop_tree.delete(*self._prop_tree.get_children())
+        self._prop_tree.clear()
         props = SceneBoundLayer._inspect_properties(target_obj)
         for prop in props:
             try:
@@ -945,91 +921,90 @@ class SceneObjectPropertyBrowserDialog(tk.Toplevel):
                 type_name = type(val).__name__
             except Exception:
                 type_name = '?'
-            self._prop_tree.insert('', tk.END, text=prop, values=(type_name,))
+            QTreeWidgetItem(self._prop_tree, [prop, type_name])
 
         target_label = "physics_body" if is_physics else "object"
-        self._preview_var.set(
+        self._preview_label.setText(
             f"object: {obj_id}  \u2014  target: {target_label}  \u2014  select a property"
             if props
             else f"object: {obj_id}  \u2014  target: {target_label}  \u2014  (no public properties)"
         )
 
-    def _on_prop_selected(self, _event: Any) -> None:
+    def _on_prop_selected(self) -> None:
         """Update the preview label."""
-        obj_sel = self._obj_tree.selection()
-        prop_sel = self._prop_tree.selection()
-        if obj_sel and prop_sel and obj_sel[0] in self._node_map:
-            obj_id, _, is_physics = self._node_map[obj_sel[0]]
-            prop = self._prop_tree.item(prop_sel[0], 'text')
-            full_prop = f"physics_body.{prop}" if is_physics else prop
-            self._preview_var.set(f"object: {obj_id}  \u2014  property: {full_prop}")
+        obj_sel = self._obj_tree.selectedItems()
+        prop_sel = self._prop_tree.selectedItems()
+        if obj_sel and prop_sel:
+            node_id = id(obj_sel[0])
+            if node_id in self._node_map:
+                obj_id, _, is_physics = self._node_map[node_id]
+                prop = prop_sel[0].text(0)
+                full_prop = f"physics_body.{prop}" if is_physics else prop
+                self._preview_label.setText(f"object: {obj_id}  \u2014  property: {full_prop}")
 
     def _select(self) -> None:
         """Validate selection, compose results, and close."""
-        obj_sel = self._obj_tree.selection()
-        if not obj_sel or obj_sel[0] not in self._node_map:
-            messagebox.showwarning(
+        obj_sel = self._obj_tree.selectedItems()
+        if not obj_sel or id(obj_sel[0]) not in self._node_map:
+            QMessageBox.warning(
+                self,
                 "No Object",
                 "Please select an object or its Physics Body node first.",
-                parent=self,
             )
             return
-        prop_sel = self._prop_tree.selection()
+        prop_sel = self._prop_tree.selectedItems()
         if not prop_sel:
-            messagebox.showwarning("No Property", "Please select a property first", parent=self)
+            QMessageBox.warning(self, "No Property", "Please select a property first")
             return
 
-        obj_id, _, is_physics = self._node_map[obj_sel[0]]
-        prop = self._prop_tree.item(prop_sel[0], 'text')
+        obj_id, _, is_physics = self._node_map[id(obj_sel[0])]
+        prop = prop_sel[0].text(0)
         self.selected_object_id: str = obj_id
         self.selected_property: str = f"physics_body.{prop}" if is_physics else prop
-        self.destroy()
+        self.accept()
 
 
-class ItemSelectionDialog(tk.Toplevel):
-    """Generic single-item selection dialog backed by a listbox."""
+class ItemSelectionDialog(QDialog):
+    """Generic single-item selection dialog backed by a list widget."""
 
     def __init__(self, parent, title: str, items: list[str]):
         super().__init__(parent)
-        self.title(title)
-        self.geometry("420x300")
-        self.resizable(True, True)
-        self.transient(parent)
-        self.grab_set()
+        self.setWindowTitle(title)
+        self.resize(420, 300)
+        self.setModal(True)
 
-        frame = tk.Frame(self)
-        frame.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
+        layout = QVBoxLayout(self)
 
-        scrollbar = tk.Scrollbar(frame)
-        scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
-
-        self.listbox = tk.Listbox(frame, yscrollcommand=scrollbar.set)
-        self.listbox.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
-        scrollbar.config(command=self.listbox.yview)
-
+        self.list_widget = QListWidget()
         for item in items:
-            self.listbox.insert(tk.END, item)
+            self.list_widget.addItem(item)
+        self.list_widget.itemDoubleClicked.connect(self._select)
+        layout.addWidget(self.list_widget, 1)
 
-        button_frame = tk.Frame(self)
-        button_frame.pack(side=tk.BOTTOM, fill=tk.X, padx=10, pady=10)
-        tk.Button(button_frame, text="Select", command=self._select).pack(side=tk.RIGHT, padx=5)
-        tk.Button(button_frame, text="Cancel", command=self.destroy).pack(side=tk.RIGHT)
-
-        self.listbox.bind('<Double-Button-1>', lambda _e: self._select())
+        btn_row = QWidget()
+        btn_layout = QHBoxLayout(btn_row)
+        btn_layout.addStretch()
+        cancel_btn = QPushButton("Cancel")
+        cancel_btn.clicked.connect(self.reject)
+        btn_layout.addWidget(cancel_btn)
+        select_btn = QPushButton("Select")
+        select_btn.clicked.connect(self._select)
+        btn_layout.addWidget(select_btn)
+        layout.addWidget(btn_row)
 
     def _select(self):
         """Confirm selection and close."""
-        selection = self.listbox.curselection()
-        if selection:
-            self.selected_item = self.listbox.get(selection[0])
-            self.destroy()
+        items = self.list_widget.selectedItems()
+        if items:
+            self.selected_item = items[0].text()
+            self.accept()
 
 
 # ---------------------------------------------------------------------------
 # Demo
 # ---------------------------------------------------------------------------
 
-def create_demo_window() -> tk.Tk:
+def create_demo_window():
     """Create a standalone demo window for :class:`SceneBridgeDialog`.
 
     Builds lightweight mock implementations of :class:`~pyrox.interfaces.ISceneBridge`,
@@ -1045,9 +1020,11 @@ def create_demo_window() -> tk.Tk:
     physics-body child nodes are exercised as well.
 
     Returns:
-        tk.Tk: The configured root window (caller must call ``mainloop()``).
+        QWidget: The configured root widget (caller must show and exec the app).
     """
+    import sys
     from types import SimpleNamespace
+    from PyQt6.QtWidgets import QApplication
 
     # ------------------------------------------------------------------
     # Mock binding
@@ -1075,8 +1052,7 @@ def create_demo_window() -> tk.Tk:
             self.last_scene_value = scene_val
 
     # ------------------------------------------------------------------
-    # Mock physics body  (inspectable properties shown as children in the
-    # left treeview of SceneObjectPropertyBrowserDialog)
+    # Mock physics body
     # ------------------------------------------------------------------
 
     class _MockPhysicsBody:
@@ -1088,8 +1064,7 @@ def create_demo_window() -> tk.Tk:
             self.collisions_enabled: bool = True
 
     # ------------------------------------------------------------------
-    # Typed mock scene objects — each carries scene_object_type,
-    # physics_body (or None), and bindable public properties.
+    # Typed mock scene objects
     # ------------------------------------------------------------------
 
     class _MockConveyor:
@@ -1115,7 +1090,7 @@ def create_demo_window() -> tk.Tk:
             self._id = obj_id
             self.active: bool = False
             self.signal_strength: float = 0.0
-            self.physics_body = None  # sensors have no physics body in this demo
+            self.physics_body = None
 
         def get_id(self) -> str:
             return self._id
@@ -1151,8 +1126,7 @@ def create_demo_window() -> tk.Tk:
             return list(self._objects)
 
     # ------------------------------------------------------------------
-    # Mock bridge — returns a real SceneBoundLayer so ExternalSourceBrowserDialog
-    # can display the two-pane source/property treeview.
+    # Mock bridge
     # ------------------------------------------------------------------
 
     class _MockBridge:
@@ -1300,20 +1274,26 @@ def create_demo_window() -> tk.Tk:
     # Root window + dialog
     # ------------------------------------------------------------------
 
-    root = tk.Tk()
-    root.title("SceneBridgeDialog — Demo")
-    root.geometry("980x460")
+    app = QApplication.instance() or QApplication(sys.argv)
+    root = QWidget()
+    root.setWindowTitle("SceneBridgeDialog — Demo")
+    root.resize(980, 460)
+
+    root_layout = QVBoxLayout(root)
+    root_layout.setContentsMargins(8, 8, 8, 8)
 
     dialog = SceneBridgeDialog(
         parent=root,
         bridge=_mock_bridge,   # type: ignore[arg-type]
         scene=_mock_scene,     # type: ignore[arg-type]
     )
-    dialog.root.pack(fill=tk.BOTH, expand=True, padx=8, pady=8)
+    root_layout.addWidget(dialog.root)
 
-    return root
+    return root, app
 
 
 if __name__ == "__main__":
-    demo_window = create_demo_window()
-    demo_window.mainloop()
+    import sys
+    demo_root, app = create_demo_window()
+    demo_root.show()
+    sys.exit(app.exec())

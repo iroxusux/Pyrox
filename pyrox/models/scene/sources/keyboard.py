@@ -25,14 +25,35 @@ custom factory that adds extra attributes after construction.
 """
 from __future__ import annotations
 from pyrox.services.scene import SceneBridgeService
-from pyrox.services.gui import TkGuiManager
+from pyrox.services.gui import GuiManager
 
 from typing import FrozenSet
+try:
+    from PyQt6.QtCore import QEvent, QObject
+except ImportError:  # pragma: no cover
+    QEvent = None  # type: ignore[assignment,misc]
+    QObject = object  # type: ignore[assignment,misc]
+
+
+def _qt_key_name(qt_key: int) -> str:
+    """Map a Qt key value to a keysym-style name."""
+    try:
+        from PyQt6.QtCore import Qt
+        _MAP = {
+            Qt.Key.Key_Up: 'Up', Qt.Key.Key_Down: 'Down',
+            Qt.Key.Key_Left: 'Left', Qt.Key.Key_Right: 'Right',
+            Qt.Key.Key_Space: 'space', Qt.Key.Key_Return: 'Return',
+            Qt.Key.Key_Backspace: 'BackSpace', Qt.Key.Key_Escape: 'Escape',
+            Qt.Key.Key_Tab: 'Tab', Qt.Key.Key_Shift: 'shift_l',
+            Qt.Key.Key_Control: 'control_l', Qt.Key.Key_Alt: 'alt_l',
+        }
+        return _MAP.get(Qt.Key(qt_key), '')
+    except Exception:
+        return ''
 
 
 # Keys whose state is pre-declared as instance attributes (appear in browser)
 _DECLARED_KEYS: FrozenSet[str] = frozenset({
-    # WASD movement
     "w", "a", "s", "d",
     # Arrow keys  (tkinter keysym names)
     "Up", "Down", "Left", "Right",
@@ -82,10 +103,28 @@ class KeyboardSource:
         # This is a convenience only — if no GUI is active the KeyboardSource
         # still works; callers are responsible for driving press/release manually.
         try:
-            root = TkGuiManager.get_root()
-            root.bind("<KeyPress>", lambda e: self.press(e.keysym))
-            root.bind("<KeyRelease>", lambda e: self.release(e.keysym))
-            root.bind("<FocusOut>", lambda e: self.release_all())
+            root = GuiManager.get_root()
+
+            class _KeyFilter(QObject):  # type: ignore[misc]
+                def __init__(self_f) -> None:
+                    super().__init__()
+
+                def eventFilter(self_f, obj, event) -> bool:
+                    t = event.type()
+                    if t == QEvent.Type.KeyPress and not event.isAutoRepeat():
+                        name = event.text() or _qt_key_name(event.key())
+                        if name:
+                            self.press(name)
+                    elif t == QEvent.Type.KeyRelease and not event.isAutoRepeat():
+                        name = event.text() or _qt_key_name(event.key())
+                        if name:
+                            self.release(name)
+                    elif t == QEvent.Type.FocusOut:
+                        self.release_all()
+                    return False
+
+            self._key_filter = _KeyFilter()
+            root.installEventFilter(self._key_filter)
         except RuntimeError:
             pass  # No GUI initialized; bindings must be wired by the caller.
 
