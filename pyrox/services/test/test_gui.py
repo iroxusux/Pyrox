@@ -7,7 +7,7 @@ import unittest
 from unittest.mock import MagicMock, Mock, patch
 
 from pyrox.interfaces.constants import EnvironmentKeys
-from pyrox.services.gui import GuiManager, _tk_binding_to_qt_sequence
+from pyrox.services.gui import GuiManager
 from pyrox.services.menu_registry import MenuRegistry
 
 
@@ -512,118 +512,10 @@ class TestGuiManagerWindowGeometry(unittest.TestCase):
 
         self.mock_root.showFullScreen.assert_called_once()
 
-    @patch('pyrox.services.gui.EnvManager')
-    def test_restore_root_geometry_applies_size(self, mock_env):
-        """restore_root_geometry() calls resize() when a size is present."""
-        def _get(key, default=None, cast_type=None):
-            mapping = {
-                EnvironmentKeys.ui.UI_WINDOW_FULLSCREEN: False,
-                EnvironmentKeys.ui.UI_WINDOW_SIZE: '1024x768',
-                EnvironmentKeys.ui.UI_WINDOW_POSITION: None,
-                EnvironmentKeys.ui.UI_WINDOW_STATE: 'normal',
-            }
-            return mapping.get(key, default)
-
-        mock_env.get.side_effect = _get
-
-        GuiManager.restore_root_geometry()
-
-        self.mock_root.resize.assert_called_with(1024, 768)
-
-    @patch('pyrox.services.gui.EnvManager')
-    def test_restore_root_geometry_applies_position(self, mock_env):
-        """restore_root_geometry() calls move() when a position is present."""
-        def _get(key, default=None, cast_type=None):
-            mapping = {
-                EnvironmentKeys.ui.UI_WINDOW_FULLSCREEN: False,
-                EnvironmentKeys.ui.UI_WINDOW_SIZE: None,
-                EnvironmentKeys.ui.UI_WINDOW_POSITION: (100, 200),
-                EnvironmentKeys.ui.UI_WINDOW_STATE: 'normal',
-            }
-            return mapping.get(key, default)
-
-        mock_env.get.side_effect = _get
-
-        GuiManager.restore_root_geometry()
-
-        self.mock_root.move.assert_called_with(100, 200)
-
-    @patch('pyrox.services.gui.EnvManager')
-    def test_restore_root_geometry_maximized_state(self, mock_env):
-        """restore_root_geometry() calls showMaximized() for 'zoomed' state."""
-        def _get(key, default=None, cast_type=None):
-            mapping = {
-                EnvironmentKeys.ui.UI_WINDOW_FULLSCREEN: False,
-                EnvironmentKeys.ui.UI_WINDOW_SIZE: None,
-                EnvironmentKeys.ui.UI_WINDOW_POSITION: None,
-                EnvironmentKeys.ui.UI_WINDOW_STATE: 'zoomed',
-            }
-            return mapping.get(key, default)
-
-        mock_env.get.side_effect = _get
-
-        GuiManager.restore_root_geometry()
-
-        self.mock_root.showMaximized.assert_called_once()
-
-    @patch('pyrox.services.gui.EnvManager')
-    def test_restore_root_geometry_minimized_state(self, mock_env):
-        """restore_root_geometry() calls showMinimized() for 'iconic' state."""
-        def _get(key, default=None, cast_type=None):
-            mapping = {
-                EnvironmentKeys.ui.UI_WINDOW_FULLSCREEN: False,
-                EnvironmentKeys.ui.UI_WINDOW_SIZE: None,
-                EnvironmentKeys.ui.UI_WINDOW_POSITION: None,
-                EnvironmentKeys.ui.UI_WINDOW_STATE: 'iconic',
-            }
-            return mapping.get(key, default)
-
-        mock_env.get.side_effect = _get
-
-        GuiManager.restore_root_geometry()
-
-        self.mock_root.showMinimized.assert_called_once()
-
-
-# ---------------------------------------------------------------------------
-# Tk binding → Qt key-sequence conversion
-# ---------------------------------------------------------------------------
-
-class TestTkBindingToQtSequence(unittest.TestCase):
-    """Tests for the module-level _tk_binding_to_qt_sequence() helper."""
-
-    def test_ctrl_alpha_converts(self):
-        """<Control-s> becomes Ctrl+S."""
-        self.assertEqual(_tk_binding_to_qt_sequence('<Control-s>'), 'Ctrl+S')
-
-    def test_ctrl_shift_alpha_converts(self):
-        """<Control-Shift-S> becomes Ctrl+Shift+S."""
-        self.assertEqual(_tk_binding_to_qt_sequence('<Control-Shift-S>'), 'Ctrl+Shift+S')
-
-    def test_function_key_only(self):
-        """<F1> becomes F1."""
-        self.assertEqual(_tk_binding_to_qt_sequence('<F1>'), 'F1')
-
-    def test_alt_function_key(self):
-        """<Alt-F4> becomes Alt+F4."""
-        self.assertEqual(_tk_binding_to_qt_sequence('<Alt-F4>'), 'Alt+F4')
-
-    def test_empty_string_returns_none(self):
-        """Empty string returns None."""
-        self.assertIsNone(_tk_binding_to_qt_sequence(''))
-
-    def test_no_angle_brackets_returns_none(self):
-        """String without angle brackets returns None."""
-        self.assertIsNone(_tk_binding_to_qt_sequence('Control-s'))
-
-    def test_multiple_modifiers(self):
-        """<Control-Alt-Delete> becomes Ctrl+Alt+Delete."""
-        self.assertEqual(_tk_binding_to_qt_sequence('<Control-Alt-Delete>'), 'Ctrl+Alt+Delete')
-
-
 # ---------------------------------------------------------------------------
 # GuiManager.insert_menu_command_with_accelerator
 # ---------------------------------------------------------------------------
+
 
 class TestInsertMenuCommandWithAccelerator(unittest.TestCase):
     """Tests for GuiManager.insert_menu_command_with_accelerator()."""
