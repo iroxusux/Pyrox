@@ -94,8 +94,8 @@ class ProximitySensorBody(BasePhysicsBody):
         self._is_active: bool = False
 
         # State change callbacks
-        self._on_activate_callbacks: List[Callable[['ProximitySensorBody'], None]] = []
-        self._on_deactivate_callbacks: List[Callable[['ProximitySensorBody'], None]] = []
+        self._on_activate_callbacks: List[Callable[[bool], None]] = []
+        self._on_deactivate_callbacks: List[Callable[[bool], None]] = []
 
         # Object detection callbacks
         self._on_object_enter_callbacks: List[Callable[['ProximitySensorBody', IPhysicsBody2D], None]] = []
@@ -129,7 +129,7 @@ class ProximitySensorBody(BasePhysicsBody):
         return len(self._detected_objects)
 
     @property
-    def on_activate_callbacks(self) -> List[Callable[['ProximitySensorBody'], None]]:
+    def on_activate_callbacks(self) -> List[Callable[[bool], None]]:
         """Get list of callbacks fired when sensor activates (empty -> occupied).
 
         Returns:
@@ -138,7 +138,7 @@ class ProximitySensorBody(BasePhysicsBody):
         return self._on_activate_callbacks
 
     @property
-    def on_deactivate_callbacks(self) -> List[Callable[['ProximitySensorBody'], None]]:
+    def on_deactivate_callbacks(self) -> List[Callable[[bool], None]]:
         """Get list of callbacks fired when sensor deactivates (occupied -> empty).
 
         Returns:
@@ -217,7 +217,7 @@ class ProximitySensorBody(BasePhysicsBody):
             # Fire activate callbacks
             for callback in self._on_activate_callbacks:
                 try:
-                    callback(self)
+                    callback(self._is_active)
                 except Exception as e:
                     print(f"Error in sensor activate callback: {e}")
 
@@ -232,7 +232,7 @@ class ProximitySensorBody(BasePhysicsBody):
             # Fire deactivate callbacks
             for callback in self._on_deactivate_callbacks:
                 try:
-                    callback(self)
+                    callback(self._is_active)
                 except Exception as e:
                     print(f"Error in sensor deactivate callback: {e}")
 
