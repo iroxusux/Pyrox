@@ -12,7 +12,8 @@ from __future__ import annotations
 
 from typing import Optional, Callable, Any
 
-from PyQt6.QtCore import Qt, QTimer
+from PyQt6.QtCore import Qt, QTimer, QSize, QRect, QPoint
+
 from PyQt6.QtWidgets import (
     QDialog,
     QFrame,
@@ -20,6 +21,9 @@ from PyQt6.QtWidgets import (
     QSizePolicy,
     QSplitter,
     QStatusBar,
+    QStyle,
+    QStyleOptionTab,
+    QStylePainter,
     QTabBar,
     QTabWidget,
     QToolBar,
@@ -47,18 +51,53 @@ from pyrox.services import EnvManager, LoggingManager
 # +-----------------------------------------------------+
 
 
+class _VerticalTabBar(QTabBar):
+    """A QTabBar that renders tab labels rotated 90° for a VSCode-style vertical sidebar."""
+
+    TAB_WIDTH = 55
+    TAB_HEIGHT = 55
+
+    def tabSizeHint(self, index: int) -> QSize:
+        return QSize(self.TAB_WIDTH, self.TAB_HEIGHT)
+
+    def minimumTabSizeHint(self, index: int) -> QSize:
+        return QSize(self.TAB_WIDTH, self.TAB_HEIGHT)
+
+    def paintEvent(self, event) -> None:  # type: ignore[override]
+        painter = QStylePainter(self)
+        opt = QStyleOptionTab()
+        for i in range(self.count()):
+            self.initStyleOption(opt, i)
+            painter.drawControl(QStyle.ControlElement.CE_TabBarTabShape, opt)
+            painter.save()
+            s = opt.rect.size()
+            s.transpose()
+            r = QRect(QPoint(), s)
+            r.moveCenter(opt.rect.center())
+            opt.rect = r
+            c = self.tabRect(i).center()
+            painter.translate(c)
+            painter.rotate(90)
+            painter.translate(-c)
+            painter.drawControl(QStyle.ControlElement.CE_TabBarTabLabel, opt)
+            painter.restore()
+
+
 class _SidebarTabWidget(QTabWidget):
     """Internal QTabWidget used as the sidebar organizer.
 
     Provides a thin wrapper around QTabWidget that mirrors the callback-driven
     API of the Pyrox PyroxNotebook used in the tkinter workspace.
+    Tabs are displayed vertically on the left edge, VSCode-style.
     """
 
     def __init__(self, parent: Optional[QWidget] = None) -> None:
         super().__init__(parent)
-        self.setTabsClosable(True)
+        self.setTabBar(_VerticalTabBar(self))
+        self.setTabPosition(QTabWidget.TabPosition.West)
+        self.setTabsClosable(False)
         self.setMovable(True)
-        self.setDocumentMode(True)
+        self.setDocumentMode(False)
 
         self.on_tab_selected: Optional[Callable[[str, QWidget], None]] = None
         self.on_tab_added: Optional[Callable[[str, QWidget], None]] = None

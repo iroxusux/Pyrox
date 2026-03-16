@@ -19,6 +19,7 @@ from PyQt6.QtWidgets import (
 )
 
 from pyrox.services.env import EnvManager
+from pyrox.services.gui_state import GuiStateService
 from pyrox.services.menu_registry import MenuRegistry
 from pyrox.interfaces import EnvironmentKeys
 
@@ -26,53 +27,6 @@ from pyrox.interfaces import EnvironmentKeys
 # ---------------------------------------------------------------------------
 # Key-binding helpers
 # ---------------------------------------------------------------------------
-
-_TK_MODIFIER_TO_QT: dict[str, str] = {
-    'Control': 'Ctrl',
-    'Alt': 'Alt',
-    'Shift': 'Shift',
-    'Meta': 'Meta',
-    'Win': 'Meta',
-    'Command': 'Meta',
-}
-
-
-def _tk_binding_to_qt_sequence(binding: str) -> str | None:
-    """Convert a Tkinter key binding to a Qt key-sequence string.
-
-    Examples::
-
-        '<Control-s>'       -> 'Ctrl+S'
-        '<Control-Shift-S>' -> 'Ctrl+Shift+S'
-        '<F1>'              -> 'F1'
-        '<Alt-F4>'          -> 'Alt+F4'
-
-    Returns None if the binding cannot be parsed.
-    """
-    if not binding or not binding.startswith('<') or not binding.endswith('>'):
-        return None
-
-    inner = binding[1:-1]
-    parts = inner.split('-')
-    modifiers: list[str] = []
-    key: str | None = None
-
-    for part in parts:
-        qt_mod = _TK_MODIFIER_TO_QT.get(part)
-        if qt_mod:
-            modifiers.append(qt_mod)
-        else:
-            key = part
-
-    if key is None:
-        return None
-
-    # Uppercase single alpha key for Qt convention
-    if len(key) == 1 and key.isalpha():
-        key = key.upper()
-
-    return '+'.join(modifiers + [key])
-
 
 def _filetypes_to_qt_filter(filetypes: list[tuple[str, str]] | None) -> str:
     """Convert Tk-style ``[(label, pattern), ...]`` to a Qt filter string."""
@@ -149,20 +103,18 @@ class GuiManager:
         cls,
         hotkey: str,
         callback: Callable,
-        **kwargs,
     ) -> None:
         """Bind a global hotkey to a callback function.
 
         Args:
-            hotkey: Tk-style (e.g. ``'<Control-s>'``) or Qt-style (``'Ctrl+S'``).
+            hotkey: Qt-style (``'Ctrl+S'``).
             callback: Function to invoke when the hotkey fires.
 
         Raises:
             RuntimeError: If the root window is not initialized.
         """
-        qt_seq = _tk_binding_to_qt_sequence(hotkey) if hotkey.startswith('<') else hotkey
-        if qt_seq:
-            shortcut = QShortcut(QKeySequence(qt_seq), cls.get_root())
+        if hotkey:
+            shortcut = QShortcut(QKeySequence(hotkey), cls.get_root())
             shortcut.activated.connect(callback)
 
     # --------------------------------------------------
@@ -233,7 +185,10 @@ class GuiManager:
                 default=kwargs.get('title', 'Pyrox Application'),
             )
         )
+        GuiStateService.load()
         cls.restore_root_geometry()
+        # Auto-save window geometry whenever the window is moved or resized.
+        cls.subscribe_to_window_change_event(cls.save_root_geometry)
         icon_path = cls.get_default_icon_path()
         if icon_path:
             cls.set_icon(icon_path)
@@ -318,28 +273,10 @@ class GuiManager:
 
     @classmethod
     def _store_root_state(cls) -> None:
-        """Persist current window geometry and state to the environment."""
+        """Persist current window geometry and state via GuiStateService."""
         cls._after_id = None
-
-        w = cls.get_root().width()
-        h = cls.get_root().height()
-        EnvManager.set(EnvironmentKeys.ui.UI_WINDOW_SIZE, f'{w}x{h}')
-
-        pos = cls.get_root().x(), cls.get_root().y()
-        EnvManager.set(EnvironmentKeys.ui.UI_WINDOW_POSITION, str(pos))
-
-        if cls.get_root().isMaximized():
-            state = 'zoomed'
-        elif cls.get_root().isMinimized():
-            state = 'iconic'
-        else:
-            state = 'normal'
-        EnvManager.set(EnvironmentKeys.ui.UI_WINDOW_STATE, state)
-
-        EnvManager.set(
-            EnvironmentKeys.ui.UI_WINDOW_FULLSCREEN,
-            str(cls.get_root().isFullScreen()),
-        )
+        GuiStateService.capture_from_window(cls.get_root())
+        GuiStateService.save()
 
     @classmethod
     def save_root_geometry(cls) -> None:
@@ -350,49 +287,8 @@ class GuiManager:
 
     @classmethod
     def restore_root_geometry(cls) -> None:
-        """Restore window geometry and state from environment variables."""
-        full_screen = EnvManager.get(
-            key=EnvironmentKeys.ui.UI_WINDOW_FULLSCREEN,
-            default=False,
-            cast_type=bool,
-        )
-        if full_screen:
-            cls.get_root().showFullScreen()
-            return
-
-        window_size = EnvManager.get(
-            key=EnvironmentKeys.ui.UI_WINDOW_SIZE,
-            default=None,
-            cast_type=str,
-        )
-        if window_size:
-            parts = window_size.split('x')
-            if len(parts) == 2:
-                try:
-                    cls.get_root().resize(int(parts[0]), int(parts[1]))
-                except ValueError:
-                    pass
-
-        window_position = EnvManager.get(
-            key=EnvironmentKeys.ui.UI_WINDOW_POSITION,
-            default=None,
-            cast_type=tuple,
-        )
-        if window_position and len(window_position) == 2:
-            try:
-                cls.get_root().move(int(window_position[0]), int(window_position[1]))
-            except (ValueError, TypeError):
-                pass
-
-        window_state = EnvManager.get(
-            key=EnvironmentKeys.ui.UI_WINDOW_STATE,
-            default='normal',
-            cast_type=str,
-        )
-        if window_state == 'zoomed':
-            cls.get_root().showMaximized()
-        elif window_state in ('iconic', 'minimized'):
-            cls.get_root().showMinimized()
+        """Restore window geometry and state from GuiStateService."""
+        GuiStateService.apply_to_window(cls.get_root())
 
     # --------------------------------------------------
     # Root Menu Management
@@ -540,7 +436,12 @@ class GuiManager:
 
     @classmethod
     def quit_application(cls) -> None:
-        """Quit the Qt application."""
+        """Flush window state to disk then quit the Qt application."""
+        # Cancel any pending debounce timer and do an immediate synchronous save
+        # so geometry is never lost even if the user closes the window quickly.
+        if cls._after_id:
+            cls.cancel_scheduled_event(cls._after_id)
+        cls._store_root_state()
         cls.get_app().quit()
 
     # --------------------------------------------------

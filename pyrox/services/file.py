@@ -6,7 +6,6 @@ import shutil
 from io import TextIOWrapper
 
 from .env import EnvManager
-from .gui import GuiManager
 from pyrox.interfaces import EnvironmentKeys
 
 
@@ -239,6 +238,7 @@ def get_open_file(
     Returns:
         str | None: file location
     """
+    from pyrox.services.gui import GuiManager  # deferred to avoid circular import
     return GuiManager.prompt_user_open_file(title, filetypes)
 
 
@@ -254,6 +254,7 @@ def get_save_file(
     Returns:
         str | None: file location
     """
+    from pyrox.services.gui import GuiManager  # deferred to avoid circular import
     return GuiManager.prompt_user_save_file(title, filetypes)
 
 
@@ -265,6 +266,7 @@ def get_directory_location(title: str = "Select a Directory") -> str | None:
     Returns:
         str | None: directory
     """
+    from pyrox.services.gui import GuiManager  # deferred to avoid circular import
     return GuiManager.prompt_user_select_directory(title=title)
 
 

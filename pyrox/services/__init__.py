@@ -40,6 +40,7 @@ from .menu_registry import (
 
 # GUI imports
 from .gui import GuiManager
+from .gui_state import GuiStateService
 
 # File imports
 from .file import (
@@ -130,6 +131,7 @@ __all__ = (
     'ThemeManager',
     # GUI imports
     'GuiManager',
+    'GuiStateService',
     # File imports
     'get_open_file',
     'get_save_file',
