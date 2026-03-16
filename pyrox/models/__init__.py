@@ -62,6 +62,7 @@ from .physics import (
 from .gui import (
     LogFrame,
     SceneViewerFrame,
+    Workspace
 )
 
 
@@ -132,6 +133,7 @@ __all__ = [
     # GUI components
     'LogFrame',
     'SceneViewerFrame',
+    'Workspace',
 
     # Services components
     'SupportsEnvServices',

@@ -14,7 +14,14 @@ from pyrox.interfaces import (
 
 from pyrox.services import ServiceManager, GuiManager, log, physics
 from pyrox.services import environment as env
-from pyrox.services.bus import EventBus, Event, EventType
+from pyrox.services import (
+    EventBus,
+    Event,
+    EventType,
+    StatusUpdateEventBus,
+    StatusUpdateEvent,
+    StatusUpdateEventType
+)
 from pyrox.services.file import get_open_file, get_save_file
 
 
@@ -487,6 +494,11 @@ class SceneRunnerService(
             cls._scene_filepath = filepath
             cls.set_scene(scene)
 
+        StatusUpdateEventBus.publish(StatusUpdateEvent(
+            event_type=StatusUpdateEventType.UPDATE,
+            status_message=f"Scene loaded: {filepath.name}"
+        ))
+
     @classmethod
     def save_scene(
         cls,
@@ -514,6 +526,10 @@ class SceneRunnerService(
             event_type=SceneEventType.SCENE_SAVED,
             scene=cls._scene,
             data={"filepath": filepath},
+        ))
+        StatusUpdateEventBus.publish(StatusUpdateEvent(
+            event_type=StatusUpdateEventType.UPDATE,
+            status_message=f"Scene saved: {filepath.name}"
         ))
 
     @classmethod

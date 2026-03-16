@@ -61,6 +61,13 @@ from .collision import (
 # Environment imports
 from .environment import EnvironmentService
 
+# Status imports
+from .status import (
+    StatusUpdateEventType,
+    StatusUpdateEvent,
+    StatusUpdateEventBus
+)
+
 # Physics imports
 from .physics import PhysicsEngineService
 
@@ -96,12 +103,12 @@ from . import (
     dict,
     environment,
     logic,
-    notify_services,
     object,
     physics,
     progress,
     scene,
     search,
+    status,
     stream,
     timer,
     xml,
@@ -143,6 +150,10 @@ __all__ = (
     'SpatialGrid',
     # Environment imports
     'EnvironmentService',
+    # Status imports
+    'StatusUpdateEventType',
+    'StatusUpdateEvent',
+    'StatusUpdateEventBus',
     # Physics imports
     'PhysicsEngineService',
     # Scene imports
@@ -171,7 +182,7 @@ __all__ = (
     'dict',
     'environment',
     'logic',
-    'notify_services',
+    'status',
     'object',
     'physics',
     'progress',

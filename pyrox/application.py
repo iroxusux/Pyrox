@@ -1,7 +1,4 @@
 """Application ABC types for the Pyrox framework."""
-from __future__ import annotations
-
-from io import TextIOWrapper
 import sys
 from typing import Any
 
@@ -12,12 +9,16 @@ from pyrox.interfaces import (
     IWorkspace,
 )
 
+from pyrox.services import (
+    StatusUpdateEventBus,
+    StatusUpdateEventType
+)
+
 from pyrox.models import (
     ApplicationTaskFactory,
     ServicesRunnableMixin,
+    Workspace,
 )
-
-from pyrox.models.gui import Workspace
 
 __all__ = ('Application',)
 
@@ -70,7 +71,7 @@ class Application(
         self.gui.subscribe_to_window_close_event(self.on_close)
 
         # Set up logging
-        self.logging.register_callback_to_captured_streams(self.log_stream.write)
+        self.logging.register_callback_to_captured_streams(self.directory.get_log_file_stream().write)
 
         # Initialize tasks list
         self._tasks: list[IApplicationTask] = []
@@ -78,20 +79,13 @@ class Application(
         # Initialize workspace
         self._workspace = Workspace(parent=self._root)
         self._root.setCentralWidget(self._workspace)
+        StatusUpdateEventBus.subscribe(
+            StatusUpdateEventType.UPDATE,
+            lambda event: self._workspace.set_status(event.status_message)
+        )
 
         # Build default tasks
         ApplicationTaskFactory.build_tasks(self)
-
-    @property
-    def log_stream(self) -> TextIOWrapper:
-        """The SimpleStream for this Application.
-
-        This stream captures stdout and stderr and redirects them to the log file for this application.
-
-        Returns:
-            stream.SimpleStream: The SimpleStream instance.
-        """
-        return self.directory.get_log_file_stream()
 
     def get_author(self) -> str:
         """Get the application author.
