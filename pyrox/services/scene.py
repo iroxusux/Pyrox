@@ -351,8 +351,8 @@ class SceneRunnerService(
     _environment: env.EnvironmentService | None = None
     _physics_engine: physics.PhysicsEngineService | None = None
 
-    # Scene file tracking (set by load_scene, consumed once by set_scene → SceneEventBus)
-    _last_scene_filepath: Path | None = None
+    # Persistent filepath of the currently loaded/saved scene (enables quick-save without a dialog)
+    _scene_filepath: Path | None = None
 
     # Events
     _event_id: str | None = None
@@ -439,9 +439,18 @@ class SceneRunnerService(
         SceneEventBus.publish(SceneEvent(
             event_type=event_type,
             scene=scene,
-            data={"filepath": cls._last_scene_filepath} if cls._last_scene_filepath else {},
+            data={"filepath": cls._scene_filepath} if cls._scene_filepath else {},
         ))
-        cls._last_scene_filepath = None
+
+    @classmethod
+    def get_scene_filepath(cls) -> Path | None:
+        """Return the filepath of the currently loaded/saved scene, or None.
+
+        This is set automatically by :meth:`load_scene` and :meth:`save_scene`
+        and cleared by :meth:`new_scene`, enabling a quick-save workflow where
+        :meth:`save_scene` can be called without supplying a path.
+        """
+        return cls._scene_filepath
 
     @classmethod
     def new_scene(cls) -> None:
@@ -449,6 +458,7 @@ class SceneRunnerService(
         """
         from pyrox.models.scene import Scene
         scene = Scene()
+        cls._scene_filepath = None
         cls.set_scene(scene)
 
     @classmethod
@@ -474,7 +484,7 @@ class SceneRunnerService(
             from pyrox.models.scene import Scene
             data = json.load(f)
             scene = Scene.from_dict(data)
-            cls._last_scene_filepath = filepath
+            cls._scene_filepath = filepath
             cls.set_scene(scene)
 
     @classmethod
@@ -487,7 +497,7 @@ class SceneRunnerService(
             return
 
         if not filepath:
-            filepath = get_save_file(
+            filepath = cls._scene_filepath or get_save_file(
                 filetypes=[("JSON files", "*.json"), ("All files", "*.*")]
             )
             if not filepath:
@@ -499,6 +509,7 @@ class SceneRunnerService(
         with open(filepath, 'w') as f:
             json.dump(data, f, indent=4)
 
+        cls._scene_filepath = filepath
         SceneEventBus.publish(SceneEvent(
             event_type=SceneEventType.SCENE_SAVED,
             scene=cls._scene,

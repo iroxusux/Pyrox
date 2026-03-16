@@ -6,6 +6,7 @@ rendering.
 """
 
 import unittest
+from pathlib import Path
 from unittest.mock import Mock, patch
 from pyrox.interfaces import ISceneObject, IPhysicsBody2D
 from pyrox.services.scene import (
@@ -45,6 +46,7 @@ class TestSceneRunnerService(unittest.TestCase):
         SceneRunnerService._physics_engine = None
         SceneRunnerService._event_id = None
         SceneRunnerService._update_interval_ms = 16
+        SceneRunnerService._scene_filepath = None
 
         # Clear event bus subscriptions
         SceneEventBus.clear()
@@ -62,6 +64,7 @@ class TestSceneRunnerService(unittest.TestCase):
         SceneRunnerService._environment = None
         SceneRunnerService._physics_engine = None
         SceneRunnerService._event_id = None
+        SceneRunnerService._scene_filepath = None
 
         # Clear event bus subscriptions
         SceneEventBus.clear()
@@ -663,6 +666,202 @@ class TestSceneRunnerService(unittest.TestCase):
         self.assertEqual(SceneEventBus.get_subscriber_count(SceneEventType.SCENE_LOADED), 0)
         self.assertEqual(SceneEventBus.get_subscriber_count(SceneEventType.SCENE_UNLOADED), 0)
         self.assertEqual(SceneEventBus.get_subscriber_count(SceneEventType.SCENE_STARTED), 0)
+
+
+class TestSceneRunnerServiceFilepath(unittest.TestCase):
+    """Tests for persistent filepath tracking in SceneRunnerService."""
+
+    def setUp(self):
+        self.mock_scene = Mock()
+        self.mock_scene.get_scene_objects = Mock(return_value={})
+        self.mock_scene.on_scene_object_added = []
+        self.mock_scene.on_scene_object_removed = []
+        self.mock_scene.to_dict = Mock(return_value={"name": "Test", "scene_objects": [], "connections": []})
+
+        self.gui_manager_patcher = patch('pyrox.services.scene.GuiManager')
+        self.mock_gui_manager_class = self.gui_manager_patcher.start()
+        self.mock_gui_manager_class.schedule_event.return_value = "event_id_123"
+
+        SceneRunnerService._running = False
+        SceneRunnerService._enable_physics = False
+        SceneRunnerService._scene = None
+        SceneRunnerService._environment = None
+        SceneRunnerService._physics_engine = None
+        SceneRunnerService._event_id = None
+        SceneRunnerService._update_interval_ms = 16
+        SceneRunnerService._scene_filepath = None
+
+        SceneEventBus.clear()
+
+    def tearDown(self):
+        if SceneRunnerService._running:
+            SceneRunnerService.stop()
+        SceneRunnerService._running = False
+        SceneRunnerService._scene = None
+        SceneRunnerService._scene_filepath = None
+        SceneEventBus.clear()
+        self.gui_manager_patcher.stop()
+
+    def test_filepath_none_initially(self):
+        """get_scene_filepath returns None before any load or save."""
+        SceneRunnerService.initialize(scene=None, enable_physics=False)
+        self.assertIsNone(SceneRunnerService.get_scene_filepath())
+
+    def test_load_scene_stores_filepath(self):
+        """load_scene persists the filepath after loading."""
+        import json
+        import tempfile
+        import os
+        scene_data = {"name": "Test", "scene_objects": [], "connections": []}
+
+        with tempfile.NamedTemporaryFile(
+            mode='w', suffix='.json', delete=False
+        ) as f:
+            json.dump(scene_data, f)
+            tmp_path = f.name
+
+        try:
+            SceneRunnerService.initialize(scene=None, enable_physics=False)
+            SceneRunnerService.load_scene(tmp_path)
+            self.assertEqual(SceneRunnerService.get_scene_filepath(), Path(tmp_path))
+        finally:
+            os.unlink(tmp_path)
+
+    def test_save_scene_stores_filepath(self):
+        """save_scene persists the filepath after saving."""
+        import tempfile
+        import os
+
+        SceneRunnerService.initialize(scene=self.mock_scene, enable_physics=False)
+
+        with tempfile.NamedTemporaryFile(
+            suffix='.json', delete=False
+        ) as f:
+            tmp_path = f.name
+
+        try:
+            SceneRunnerService.save_scene(tmp_path)
+            self.assertEqual(SceneRunnerService.get_scene_filepath(), Path(tmp_path))
+        finally:
+            os.unlink(tmp_path)
+
+    def test_save_scene_quick_save_uses_stored_filepath(self):
+        """save_scene() without argument reuses the last known filepath."""
+        import tempfile
+        import os
+
+        SceneRunnerService.initialize(scene=self.mock_scene, enable_physics=False)
+
+        with tempfile.NamedTemporaryFile(
+            suffix='.json', delete=False
+        ) as f:
+            tmp_path = f.name
+
+        try:
+            # First explicit save sets filepath
+            SceneRunnerService.save_scene(tmp_path)
+            self.assertEqual(SceneRunnerService.get_scene_filepath(), Path(tmp_path))
+
+            # Quick-save (no arg) should write to the same file without a dialog
+            with patch('pyrox.services.scene.get_save_file') as mock_dialog:
+                SceneRunnerService.save_scene()
+                mock_dialog.assert_not_called()
+
+            self.assertTrue(os.path.exists(tmp_path))
+        finally:
+            os.unlink(tmp_path)
+
+    def test_save_scene_without_filepath_opens_dialog_when_unknown(self):
+        """save_scene() opens a dialog when no filepath is known."""
+        SceneRunnerService.initialize(scene=self.mock_scene, enable_physics=False)
+
+        with patch('pyrox.services.scene.get_save_file', return_value=None) as mock_dialog:
+            SceneRunnerService.save_scene()  # no arg, no stored filepath
+            mock_dialog.assert_called_once()
+
+        # Nothing was saved, filepath remains None
+        self.assertIsNone(SceneRunnerService.get_scene_filepath())
+
+    def test_new_scene_clears_filepath(self):
+        """new_scene() resets the stored filepath to None."""
+        import tempfile
+        import os
+
+        SceneRunnerService.initialize(scene=self.mock_scene, enable_physics=False)
+
+        with tempfile.NamedTemporaryFile(
+            suffix='.json', delete=False
+        ) as f:
+            tmp_path = f.name
+
+        try:
+            SceneRunnerService.save_scene(tmp_path)
+            self.assertIsNotNone(SceneRunnerService.get_scene_filepath())
+
+            SceneRunnerService.new_scene()
+            self.assertIsNone(SceneRunnerService.get_scene_filepath())
+        finally:
+            if os.path.exists(tmp_path):
+                os.unlink(tmp_path)
+
+    def test_scene_loaded_event_carries_filepath(self):
+        """SCENE_LOADED event data contains the filepath after load_scene."""
+        import json
+        import tempfile
+        import os
+
+        scene_data = {"name": "Test", "scene_objects": [], "connections": []}
+        with tempfile.NamedTemporaryFile(
+            mode='w', suffix='.json', delete=False
+        ) as f:
+            json.dump(scene_data, f)
+            tmp_path = f.name
+
+        events_received = []
+        SceneEventBus.subscribe(
+            SceneEventType.SCENE_LOADED,
+            lambda e: events_received.append(e)
+        )
+
+        try:
+            SceneRunnerService.initialize(scene=None, enable_physics=False)
+            SceneRunnerService.load_scene(tmp_path)
+
+            self.assertTrue(events_received)
+            self.assertEqual(
+                events_received[-1].data.get("filepath"),
+                Path(tmp_path)
+            )
+        finally:
+            os.unlink(tmp_path)
+
+    def test_scene_saved_event_carries_filepath(self):
+        """SCENE_SAVED event data contains the filepath."""
+        import tempfile
+        import os
+
+        SceneRunnerService.initialize(scene=self.mock_scene, enable_physics=False)
+
+        events_received = []
+        SceneEventBus.subscribe(
+            SceneEventType.SCENE_SAVED,
+            lambda e: events_received.append(e)
+        )
+
+        with tempfile.NamedTemporaryFile(
+            suffix='.json', delete=False
+        ) as f:
+            tmp_path = f.name
+
+        try:
+            SceneRunnerService.save_scene(tmp_path)
+            self.assertTrue(events_received)
+            self.assertEqual(
+                events_received[0].data.get("filepath"),
+                Path(tmp_path)
+            )
+        finally:
+            os.unlink(tmp_path)
 
 
 if __name__ == '__main__':

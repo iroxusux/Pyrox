@@ -99,21 +99,35 @@ class ISceneRunnerService(
 
     @classmethod
     @abstractmethod
-    def load_scene(cls, filepath: str | Path) -> None:
-        """Load a scene from a file.
+    def get_scene_filepath(cls) -> Path | None:
+        """Return the filepath of the currently loaded/saved scene, or None.
 
-        Args:
-            filepath (Union[str, Path]): The path to the scene file.
+        Set automatically by load_scene and save_scene; cleared by new_scene.
         """
         ...
 
     @classmethod
     @abstractmethod
-    def save_scene(cls, filepath: str | Path) -> None:
-        """Save the current scene to a file.
+    def load_scene(cls, filepath: str | Path | None = None) -> None:
+        """Load a scene from a file.
 
         Args:
-            filepath (Union[str, Path]): The path to save the scene file.
+            filepath: Path to the scene file.  When *None* a file-open dialog
+                      is presented to the user.
+        """
+        ...
+
+    @classmethod
+    @abstractmethod
+    def save_scene(cls, filepath: str | Path | None = None) -> None:
+        """Save the current scene to a file.
+
+        When *filepath* is *None* the service first tries the last known
+        filepath (enabling quick-save); only if that is also unknown is a
+        file-save dialog presented.
+
+        Args:
+            filepath: Destination path.  Omit for quick-save behaviour.
         """
         ...
 
