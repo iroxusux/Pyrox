@@ -6,15 +6,17 @@ and integrates with the Scene workflow.
 """
 from __future__ import annotations
 import sys
+import time
 from pathlib import Path
 from typing import Callable
 from PyQt6.QtCore import Qt, QRectF, QLineF, QTimer, QPointF
 from PyQt6.QtGui import (
     QBrush, QColor, QPen, QFont, QCursor, QContextMenuEvent,
     QKeyEvent, QMouseEvent, QWheelEvent, QResizeEvent,
+    QPixmap,
 )
 from PyQt6.QtWidgets import (
-    QGraphicsEllipseItem, QGraphicsLineItem,
+    QGraphicsEllipseItem, QGraphicsLineItem, QGraphicsPixmapItem,
     QGraphicsRectItem, QGraphicsScene, QGraphicsSimpleTextItem,
     QGraphicsView, QLabel, QPushButton,
     QScrollArea, QSplitter, QVBoxLayout, QWidget,
@@ -260,6 +262,14 @@ class SceneViewerFrame(TaskFrame):
         self._needs_render: bool = False
         self._render_timer: QTimer | None = None
         self._render_interval_ms: int = 33  # ~30 FPS
+
+        # Sprite pixmap cache: "path:w:h" -> QPixmap
+        # Invalidated when zoom changes to avoid stale scaled copies.
+        self._sprite_cache: dict[str, QPixmap] = {}
+        self._sprite_cache_zoom: float = -1.0  # sentinel → forces first fill
+
+        # Animation tick timing
+        self._last_tick_time: float = time.monotonic()
 
         # TODO: remove these following properties and abstract with services
         self._entity_names_visible: bool = True
@@ -748,78 +758,176 @@ class SceneViewerFrame(TaskFrame):
     ) -> None:
         """Render a single scene object to the graphics scene.
 
+        Rendering priority:
+        1. If ``sprite_path`` is set and the file can be loaded → pixmap item.
+        2. Otherwise → solid-colour shape (rectangle / circle / line).
+
+        Rotation (``yaw``) is applied to all item types via
+        ``setTransformOriginPoint`` + ``setRotation``.
+
         Args:
-            obj_id: Unique identifier for the scene object
-            scene_obj: The scene object to render
+            obj_id:    Unique identifier for the scene object.
+            scene_obj: The scene object to render.
         """
         if isinstance(scene_obj, SceneGroup):
             self._render_scene_group(obj_id, scene_obj)
             return
 
         props = scene_obj.properties
-        color = props.get("color", "#4a9eff")
-        shape = props.get("shape", "rectangle")
+        sprite_path: str | None = props.get("sprite_path")
+        bg_color: str = props.get("bg_color", props.get("color", "#4a9eff"))
+        shape: str = props.get("shape", "rectangle")
 
         canvas_x = scene_obj.x * self.viewport.zoom + self.viewport.x
         canvas_y = scene_obj.y * self.viewport.zoom + self.viewport.y
         canvas_width = scene_obj.width * self.viewport.zoom
         canvas_height = scene_obj.height * self.viewport.zoom
+        yaw: float = getattr(scene_obj, 'yaw', 0.0)
 
         is_selected = obj_id in self._canvas_object_management_service.selected_objects
         outline_color = self._canvas_object_management_service._selection_color if is_selected else "white"
         outline_width = self._canvas_object_management_service._selection_width if is_selected else 2
 
-        shape_item = None
+        items: list = []
 
-        if shape == "rectangle":
-            shape_item = QGraphicsRectItem(QRectF(0, 0, canvas_width, canvas_height))
-            shape_item.setPen(QPen(QColor(outline_color), outline_width))
-            shape_item.setBrush(QBrush(QColor(color)))
-            shape_item.setPos(canvas_x, canvas_y)
-        elif shape in ("circle", "oval"):
-            shape_item = QGraphicsEllipseItem(QRectF(0, 0, canvas_width, canvas_height))
-            shape_item.setPen(QPen(QColor(outline_color), outline_width))
-            shape_item.setBrush(QBrush(QColor(color)))
-            shape_item.setPos(canvas_x, canvas_y)
-        elif shape == "line":
-            x2 = props.get("x2", scene_obj.x + scene_obj.width)
-            y2 = props.get("y2", scene_obj.y + scene_obj.height)
-            canvas_x2 = x2 * self.viewport.zoom + self.viewport.x
-            canvas_y2 = y2 * self.viewport.zoom + self.viewport.y
-            line_color = outline_color if is_selected else color
-            line_width = max(outline_width if is_selected else 2, int(2 * self.viewport.zoom))
-            shape_item = QGraphicsLineItem(
-                QLineF(0, 0, canvas_x2 - canvas_x, canvas_y2 - canvas_y)
-            )
-            shape_item.setPen(QPen(QColor(line_color), line_width))
-            shape_item.setPos(canvas_x, canvas_y)
-        # TODO: Add support for more shapes (polygon, text, image/sprite)
+        # ----------------------------------------------------------------
+        # Sprite path: use a QGraphicsPixmapItem + invisible selection rect
+        # ----------------------------------------------------------------
+        if sprite_path:
+            pixmap = self._get_sprite_pixmap(sprite_path, int(canvas_width), int(canvas_height))
+            if pixmap is not None:
+                sprite_item = QGraphicsPixmapItem(pixmap)
+                sprite_item.setPos(canvas_x, canvas_y)
+                sprite_item.setData(0, obj_id)
+                sprite_item.setData(1, "scene_object")
+                sprite_item.setZValue(scene_obj.get_layer())
+                if yaw:
+                    sprite_item.setTransformOriginPoint(canvas_width / 2, canvas_height / 2)
+                    sprite_item.setRotation(yaw)
+                self._gfx_scene.addItem(sprite_item)
+                items.append(sprite_item)
 
-        if shape_item is not None:
-            shape_item.setData(0, obj_id)
-            shape_item.setData(1, "scene_object")
-            shape_item.setZValue(scene_obj.get_layer())
-            self._gfx_scene.addItem(shape_item)
-
-            items: list = [shape_item]
-
-            if self._entity_names_visible:
-                font_size = max(8, int(10 * self.viewport.zoom))
-                label_item = QGraphicsSimpleTextItem(scene_obj.name)
-                label_item.setFont(QFont("Arial", font_size))
-                label_item.setBrush(QBrush(QColor("white")))
-                lw = label_item.boundingRect().width()
-                label_item.setPos(
-                    canvas_x + canvas_width / 2 - lw / 2,
-                    canvas_y - 10 * self.viewport.zoom
+                # Selection border overlay (always present, pen toggled on select)
+                sel_pen = (
+                    QPen(QColor(outline_color), outline_width)
+                    if is_selected else QPen(Qt.PenStyle.NoPen)
                 )
-                label_item.setData(0, obj_id)
-                label_item.setData(1, "scene_object_label")
-                label_item.setZValue(scene_obj.get_layer() + 0.1)
-                self._gfx_scene.addItem(label_item)
-                items.append(label_item)
+                sel_rect = QGraphicsRectItem(QRectF(0, 0, canvas_width, canvas_height))
+                sel_rect.setPen(sel_pen)
+                sel_rect.setBrush(QBrush(Qt.BrushStyle.NoBrush))
+                sel_rect.setPos(canvas_x, canvas_y)
+                sel_rect.setData(0, obj_id)
+                sel_rect.setData(1, "scene_object")
+                sel_rect.setZValue(scene_obj.get_layer() + 0.05)
+                if yaw:
+                    sel_rect.setTransformOriginPoint(canvas_width / 2, canvas_height / 2)
+                    sel_rect.setRotation(yaw)
+                self._gfx_scene.addItem(sel_rect)
+                items.append(sel_rect)
+            else:
+                sprite_path = None  # Fall back to colour fill if load failed
 
+        # ----------------------------------------------------------------
+        # Colour fill fallback
+        # ----------------------------------------------------------------
+        if not sprite_path:
+            shape_item = None
+
+            if shape == "rectangle":
+                shape_item = QGraphicsRectItem(QRectF(0, 0, canvas_width, canvas_height))
+                shape_item.setPen(QPen(QColor(outline_color), outline_width))
+                shape_item.setBrush(QBrush(QColor(bg_color)))
+                shape_item.setPos(canvas_x, canvas_y)
+            elif shape in ("circle", "oval"):
+                shape_item = QGraphicsEllipseItem(QRectF(0, 0, canvas_width, canvas_height))
+                shape_item.setPen(QPen(QColor(outline_color), outline_width))
+                shape_item.setBrush(QBrush(QColor(bg_color)))
+                shape_item.setPos(canvas_x, canvas_y)
+            elif shape == "line":
+                x2 = props.get("x2", scene_obj.x + scene_obj.width)
+                y2 = props.get("y2", scene_obj.y + scene_obj.height)
+                canvas_x2 = x2 * self.viewport.zoom + self.viewport.x
+                canvas_y2 = y2 * self.viewport.zoom + self.viewport.y
+                line_color = outline_color if is_selected else bg_color
+                line_width = max(outline_width if is_selected else 2, int(2 * self.viewport.zoom))
+                shape_item = QGraphicsLineItem(
+                    QLineF(0, 0, canvas_x2 - canvas_x, canvas_y2 - canvas_y)
+                )
+                shape_item.setPen(QPen(QColor(line_color), line_width))
+                shape_item.setPos(canvas_x, canvas_y)
+
+            if shape_item is not None:
+                if yaw and shape != "line":
+                    shape_item.setTransformOriginPoint(canvas_width / 2, canvas_height / 2)
+                    shape_item.setRotation(yaw)
+                shape_item.setData(0, obj_id)
+                shape_item.setData(1, "scene_object")
+                shape_item.setZValue(scene_obj.get_layer())
+                self._gfx_scene.addItem(shape_item)
+                items.append(shape_item)
+
+        # ----------------------------------------------------------------
+        # Entity name label
+        # ----------------------------------------------------------------
+        if items and self._entity_names_visible:
+            font_size = max(8, int(10 * self.viewport.zoom))
+            label_item = QGraphicsSimpleTextItem(scene_obj.name)
+            label_item.setFont(QFont("Arial", font_size))
+            label_item.setBrush(QBrush(QColor("white")))
+            lw = label_item.boundingRect().width()
+            label_item.setPos(
+                canvas_x + canvas_width / 2 - lw / 2,
+                canvas_y - 10 * self.viewport.zoom,
+            )
+            label_item.setData(0, obj_id)
+            label_item.setData(1, "scene_object_label")
+            label_item.setZValue(scene_obj.get_layer() + 0.1)
+            self._gfx_scene.addItem(label_item)
+            items.append(label_item)
+
+        if items:
             self._gfx_items[obj_id] = items
+
+    def _get_sprite_pixmap(self, path: str, w: int, h: int) -> QPixmap | None:
+        """Return a cached, scaled :class:`QPixmap` for *path* at *w* × *h* pixels.
+
+        The cache is keyed by ``"path:w:h"`` and flushed whenever the viewport
+        zoom factor changes by more than 1 %, so stale scaled copies never
+        accumulate across zoom levels.
+
+        Args:
+            path: Filesystem path to the image file.
+            w:    Target width in canvas pixels.
+            h:    Target height in canvas pixels.
+
+        Returns:
+            A valid :class:`QPixmap`, or ``None`` if the file could not be loaded.
+        """
+        if w <= 0 or h <= 0:
+            return None
+
+        # Invalidate cache on zoom change
+        if abs(self.viewport.zoom - self._sprite_cache_zoom) > 0.01:
+            self._sprite_cache.clear()
+            self._sprite_cache_zoom = self.viewport.zoom
+
+        cache_key = f"{path}:{w}:{h}"
+        cached = self._sprite_cache.get(cache_key)
+        if cached is not None:
+            return cached if not cached.isNull() else None
+
+        raw = QPixmap(path)
+        if raw.isNull():
+            self._sprite_cache[cache_key] = QPixmap()  # null sentinel
+            return None
+
+        scaled = raw.scaled(
+            w, h,
+            Qt.AspectRatioMode.IgnoreAspectRatio,
+            Qt.TransformationMode.SmoothTransformation,
+        )
+        self._sprite_cache[cache_key] = scaled
+        return scaled if not scaled.isNull() else None
 
     def _render_grid(self) -> None:
         """Render the grid overlay directly using QGraphicsScene."""
@@ -885,6 +993,17 @@ class SceneViewerFrame(TaskFrame):
 
     def _render_loop(self) -> None:
         """Render loop that checks dirty flag and renders if needed."""
+        # --- Animation tick ---
+        now = time.monotonic()
+        dt = now - self._last_tick_time
+        self._last_tick_time = now
+
+        if self._scene:
+            for obj in self._scene.scene_objects.values():
+                if hasattr(obj, 'animator') and obj.animator.is_playing:
+                    obj.update(dt)
+                    self._mark_dirty()
+
         if self._needs_render or self._viewport_service.needs_render():
             self.render_scene()
             self._needs_render = False
@@ -974,8 +1093,8 @@ class SceneViewerFrame(TaskFrame):
         self._canvas_view.setFrameShape(self._canvas_view.frameShape().NoFrame)
         # Anchor at scene origin so manual pan/zoom item positions map 1:1 to
         # view pixels (QGraphicsView centres on the scene rect by default).
-        self._canvas_view.horizontalScrollBar().setValue(0)
-        self._canvas_view.verticalScrollBar().setValue(0)
+        self._canvas_view.horizontalScrollBar().setValue(0)  # type: ignore[union-attr]
+        self._canvas_view.verticalScrollBar().setValue(0)  # type: ignore[union-attr]
         canvas_container_layout.addWidget(self._canvas_view)
 
         # Add status bar below the canvas view
@@ -1288,6 +1407,12 @@ class SceneViewerFrame(TaskFrame):
         if self._render_timer:
             self._render_timer.stop()
             self._render_timer = None
+
+        # Unsubscribe viewport services from ViewportEventBus before the Qt
+        # widgets are deleted.  Without this, stale bound-method references
+        # remain in the bus and raise 'wrapped C/C++ object has been deleted'
+        # errors the next time a pan/zoom event fires.
+        self._viewport_service.destroy()
 
         # Unsubscribe from SceneEventBus using the exact callback references
         SceneEventBus.unsubscribe(
@@ -1935,6 +2060,17 @@ class SceneViewerFrame(TaskFrame):
         selection_color = self._canvas_object_management_service._selection_color
         selection_width = self._canvas_object_management_service._selection_width
 
+        # --- Sprite items: toggle the selection-border overlay (items[1]) ---
+        if isinstance(shape_item, QGraphicsPixmapItem):
+            if len(items) > 1 and isinstance(items[1], QGraphicsRectItem):
+                sel_border = items[1]
+                if is_selected:
+                    sel_border.setPen(QPen(QColor(selection_color), selection_width))
+                else:
+                    sel_border.setPen(QPen(Qt.PenStyle.NoPen))
+            return
+
+        # --- Colour-fill items: update pen directly ---
         if is_selected:
             pen = QPen(QColor(selection_color), selection_width)
         else:
@@ -1942,7 +2078,7 @@ class SceneViewerFrame(TaskFrame):
             if self._scene:
                 scene_obj = self._scene.scene_objects.get(obj_id)
                 if scene_obj:
-                    color = scene_obj.properties.get("color", "#4a9eff")
+                    color = scene_obj.properties.get("bg_color", scene_obj.properties.get("color", "#4a9eff"))
                     shape = scene_obj.properties.get("shape", "rect")
                     if shape == "line":
                         pen = QPen(QColor(color), 2)

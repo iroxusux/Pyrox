@@ -9,6 +9,14 @@ from .sceneboundlayer import SceneBoundLayer
 from .scenegroup import SceneGroup
 from .compositesceneobject import CompositeSceneObject
 from .sources import KeyboardSource
+from .animation import (
+    AnimationClip,
+    AnimationEasing,
+    AnimationMode,
+    AnimationTrack,
+    Keyframe,
+    SceneAnimator,
+)
 from . import sources
 
 
@@ -22,5 +30,11 @@ __all__ = [
     "SceneGroup",
     "CompositeSceneObject",
     "KeyboardSource",
+    "AnimationClip",
+    "AnimationEasing",
+    "AnimationMode",
+    "AnimationTrack",
+    "Keyframe",
+    "SceneAnimator",
     "sources",
 ]

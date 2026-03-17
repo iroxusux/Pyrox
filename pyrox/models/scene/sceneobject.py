@@ -7,19 +7,17 @@ from typing import (
     Optional,
 )
 from pyrox.interfaces import (
-    Connection,
     IBasePhysicsBody,
-    INameable,
-    IDescribable,
     ISceneObject,
 )
+from pyrox.models.protocols import CoreMixin
 from pyrox.models.physics.factory import PhysicsSceneFactory
+from pyrox.models.scene.animation import SceneAnimator
 
 
 class SceneObject(
         ISceneObject,
-        INameable,
-        IDescribable,
+        CoreMixin
 ):
     """Base class for scene objects.
     """
@@ -43,6 +41,8 @@ class SceneObject(
         properties: Optional[Dict] = None,
         parent: Optional['SceneObject'] = None,
         layer: int = 0,
+        sprite_path: Optional[str] = None,
+        bg_color: str = "#4a9eff",
     ):
         self._description = description
         self._scene_object_type = scene_object_type
@@ -61,6 +61,17 @@ class SceneObject(
         # Common layers: -100 (floor), 0 (default), 50 (conveyors), 100 (objects), 200 (UI)
         self._layer: int = layer
 
+        # Visual properties
+        # sprite_path / bg_color can also be supplied via the properties dict
+        # (e.g. when loading from JSON).  The explicit constructor args take
+        # priority; if absent, fall back to whatever the properties dict says.
+        _props = properties or {}
+        self._sprite_path: Optional[str] = sprite_path if sprite_path is not None else _props.get("sprite_path")
+        self._bg_color: str = bg_color if bg_color != "#4a9eff" else _props.get("bg_color", _props.get("color", "#4a9eff"))
+
+        # Animation
+        self._animator: SceneAnimator = SceneAnimator()
+
         # Event handlers for interactive elements
         self._on_click_handlers: list[Callable] = []
         self._on_hover_handlers: list[Callable] = []
@@ -69,19 +80,47 @@ class SceneObject(
         # Group membership — ID of the SceneGroup this object belongs to, or None
         self._group_id: Optional[str] = None
 
+    # ------------------------------------------------------------------
+    # Visual properties
+    # ------------------------------------------------------------------
+
+    @property
+    def sprite_path(self) -> Optional[str]:
+        """Filesystem path to a sprite image, or ``None`` to use a plain colour fill."""
+        return self._sprite_path
+
+    @sprite_path.setter
+    def sprite_path(self, path: Optional[str]) -> None:
+        self._sprite_path = path
+
+    @property
+    def bg_color(self) -> str:
+        """Background / fill colour used when no sprite is set (CSS hex string)."""
+        return self._bg_color
+
+    @bg_color.setter
+    def bg_color(self, color: str) -> None:
+        self._bg_color = color
+
+    # ------------------------------------------------------------------
+    # Animation
+    # ------------------------------------------------------------------
+
+    @property
+    def animator(self) -> SceneAnimator:
+        """The :class:`~pyrox.models.scene.animation.SceneAnimator` for this object."""
+        return self._animator
+
+    # ------------------------------------------------------------------
+    # INameable methods
+    # ------------------------------------------------------------------
+
     # INamable methods
     def get_name(self) -> str:
         return self._physics_body.name
 
     def set_name(self, name: str) -> None:
         self._physics_body.name = name
-
-    # IDescribable methods
-    def get_description(self) -> str:
-        return self._description
-
-    def set_description(self, description: str) -> None:
-        self._description = description
 
     # Properties and serialization methods
     def get_property(self, name: str) -> Any:
@@ -187,16 +226,19 @@ class SceneObject(
             layer=data.get("layer", 0)
         )
         obj._group_id = data.get("group_id", None)
+        # Restore visual properties explicitly so they survive _compile_properties
+        props = data.get("properties", {})
+        obj._sprite_path = props.get("sprite_path")
+        obj._bg_color = props.get("bg_color", props.get("color", "#4a9eff"))
         return obj
 
     def update(self, dt: float) -> None:
-        """
-        Update the scene object.
+        """Tick the object — advances any active animation.
 
         Args:
-            delta_time: Time elapsed since last update in seconds
+            dt: Elapsed time in seconds since the last call.
         """
-        pass
+        self._animator.update(dt, self)
 
     def get_physics_body(self) -> IBasePhysicsBody:
         return self._physics_body
@@ -396,27 +438,12 @@ class SceneObject(
             "group_id": self._group_id,
         })
 
+        # Visual properties
+        self._properties.update({
+            "sprite_path": self._sprite_path,
+            "bg_color": self._bg_color,
+            "color": self._bg_color,  # backward-compat alias
+        })
+
         # Physics body properties
         self._properties.update(self.physics_body.get_properties())
-
-    # IConnectable interface
-
-    def get_connections(self) -> list[Connection]:
-        return self.physics_body.get_connections()
-
-    def set_connections(self, connections: list[Connection]) -> None:
-        self.physics_body.set_connections(connections)
-
-    def get_outputs(self) -> dict[str, Any]:
-        return self.physics_body.get_outputs()
-
-    def get_inputs(self) -> dict[str, Any]:
-        return self.physics_body.get_inputs()
-
-    # IHasId interface
-
-    def get_id(self) -> str:
-        return self.physics_body.id
-
-    def set_id(self, id: str) -> None:
-        raise NotImplementedError("ID cannot be changed after creation")

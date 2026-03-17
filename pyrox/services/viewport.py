@@ -141,6 +141,23 @@ class ViewportStatusService:
         # Update callbacks
         self._on_update_callbacks: list[Callable] = []
 
+    def destroy(self) -> None:
+        """Unsubscribe from ViewportEventBus and remove event filters.
+
+        Call this when the owning widget is being torn down to prevent stale
+        bound-method references from accumulating in the bus and causing
+        'wrapped C/C++ object … has been deleted' errors on the next pan/zoom.
+        """
+        ViewportEventBus.unsubscribe(ViewportEventType.GRID, self._on_grid_event)
+        ViewportEventBus.unsubscribe(ViewportEventType.PAN, self.update_viewport_info)
+        ViewportEventBus.unsubscribe(ViewportEventType.ZOOM, self.update_viewport_info)
+        if self._canvas and self._motion_filter:
+            try:
+                self._canvas.removeEventFilter(self._motion_filter)
+            except RuntimeError:
+                pass
+        self._motion_filter = None
+
     # ----------------------------------------
     # Build methods
     # ----------------------------------------
@@ -1270,6 +1287,17 @@ class ViewportHostingService:
             [ViewportEventType.GRID, ViewportEventType.PAN, ViewportEventType.ZOOM],
             self.update_viewport
         )
+
+    def destroy(self) -> None:
+        """Unsubscribe from ViewportEventBus and destroy child services.
+
+        Must be called when the hosting widget is closed so that stale
+        references are removed from the bus before a new scene/frame is opened.
+        """
+        ViewportEventBus.unsubscribe(ViewportEventType.GRID, self.update_viewport)
+        ViewportEventBus.unsubscribe(ViewportEventType.PAN, self.update_viewport)
+        ViewportEventBus.unsubscribe(ViewportEventType.ZOOM, self.update_viewport)
+        self._viewport_status_service.destroy()
 
     def _mark_dirty(self) -> None:
         """Mark the viewport as needing a re-render."""

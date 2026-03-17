@@ -8,7 +8,6 @@ from typing import (
 )
 from pyrox.interfaces import (
     INameable,
-    IConnectable,
     IDescribable,
     IBasePhysicsBody,
 )
@@ -16,7 +15,6 @@ from pyrox.interfaces import (
 
 @runtime_checkable
 class ISceneObject(
-        IConnectable,
         INameable,
         IDescribable,
         Protocol
