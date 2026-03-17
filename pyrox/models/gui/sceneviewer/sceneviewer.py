@@ -169,8 +169,8 @@ class _SceneCanvasView(QGraphicsView):
         super().resizeEvent(event)
         # Keep the view anchored at scene origin so manual pan/zoom item
         # positioning is 1:1 with view pixels (QGraphicsView centres by default).
-        self.horizontalScrollBar().setValue(0)
-        self.verticalScrollBar().setValue(0)
+        self.horizontalScrollBar().setValue(0)  # type: ignore[union-attr]
+        self.verticalScrollBar().setValue(0)  # type: ignore[union-attr]
         self._frame._mark_dirty()
 
 

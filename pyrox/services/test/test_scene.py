@@ -712,10 +712,10 @@ class TestSceneRunnerServiceFilepath(unittest.TestCase):
         import json
         import tempfile
         import os
-        scene_data = {"name": "Test", "scene_objects": [], "connections": []}
+        scene_data = {"version": "1.0", "scene": {"name": "Test", "scene_objects": [], "connections": []}, "bridge": {}}
 
         with tempfile.NamedTemporaryFile(
-            mode='w', suffix='.json', delete=False
+            mode='w', suffix='.cr2d', delete=False
         ) as f:
             json.dump(scene_data, f)
             tmp_path = f.name
@@ -735,7 +735,7 @@ class TestSceneRunnerServiceFilepath(unittest.TestCase):
         SceneRunnerService.initialize(scene=self.mock_scene, enable_physics=False)
 
         with tempfile.NamedTemporaryFile(
-            suffix='.json', delete=False
+            suffix='.cr2d', delete=False
         ) as f:
             tmp_path = f.name
 
@@ -753,7 +753,7 @@ class TestSceneRunnerServiceFilepath(unittest.TestCase):
         SceneRunnerService.initialize(scene=self.mock_scene, enable_physics=False)
 
         with tempfile.NamedTemporaryFile(
-            suffix='.json', delete=False
+            suffix='.cr2d', delete=False
         ) as f:
             tmp_path = f.name
 
@@ -790,7 +790,7 @@ class TestSceneRunnerServiceFilepath(unittest.TestCase):
         SceneRunnerService.initialize(scene=self.mock_scene, enable_physics=False)
 
         with tempfile.NamedTemporaryFile(
-            suffix='.json', delete=False
+            suffix='.cr2d', delete=False
         ) as f:
             tmp_path = f.name
 
@@ -810,9 +810,9 @@ class TestSceneRunnerServiceFilepath(unittest.TestCase):
         import tempfile
         import os
 
-        scene_data = {"name": "Test", "scene_objects": [], "connections": []}
+        scene_data = {"version": "1.0", "scene": {"name": "Test", "scene_objects": [], "connections": []}, "bridge": {}}
         with tempfile.NamedTemporaryFile(
-            mode='w', suffix='.json', delete=False
+            mode='w', suffix='.cr2d', delete=False
         ) as f:
             json.dump(scene_data, f)
             tmp_path = f.name
@@ -849,7 +849,7 @@ class TestSceneRunnerServiceFilepath(unittest.TestCase):
         )
 
         with tempfile.NamedTemporaryFile(
-            suffix='.json', delete=False
+            suffix='.cr2d', delete=False
         ) as f:
             tmp_path = f.name
 

@@ -89,12 +89,6 @@ class TestApplicationInitialization(unittest.TestCase):
 
         self.mock_workspace.assert_called_once()
 
-    def test_application_initializes_log_stream(self):
-        """Test that Application initializes log stream correctly."""
-        app = Application()
-
-        self.assertEqual(app.log_stream, self.mock_log_stream)
-
     def test_application_initializes_tasks(self):
         """Test that Application initializes ApplicationTaskFactory."""
         app = Application()
@@ -168,13 +162,6 @@ class TestApplicationProperties(unittest.TestCase):
         result = self.app.directory
 
         self.assertEqual(result, self.mock_platform_dir)
-
-    def test_log_stream_property_returns_log_file_stream(self):
-        """Test that log_stream property returns log file stream."""
-        result = self.app.log_stream
-
-        self.assertEqual(result, self.mock_log_stream)
-        self.mock_platform_dir.get_log_file_stream.assert_called()
 
     def test_workspace_property_returns_workspace_instance(self):
         """Test that workspace property returns workspace instance."""
@@ -371,7 +358,6 @@ class TestApplicationIntegration(unittest.TestCase):
         self.assertIsNotNone(app.gui)
         self.assertIsNotNone(app.logging)
         self.assertIsNotNone(app.directory)
-        self.assertIsNotNone(app.log_stream)
         self.assertIsNotNone(app.workspace)
 
 
