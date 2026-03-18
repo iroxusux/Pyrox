@@ -210,8 +210,26 @@ class SceneObject(
         }
 
     @classmethod
-    def from_dict(cls, data: dict) -> "SceneObject":
-        """Create scene object from dictionary."""
+    def from_dict(cls, data: dict) -> ISceneObject:
+        """Create scene object from dictionary.
+
+        When called on the base :class:`SceneObject` class and a
+        ``template_name`` is present in *data*, dispatches to the registered
+        subclass via :class:`~pyrox.models.scene.factory.SceneObjectFactory`.
+        Falls back to constructing a plain :class:`SceneObject` when no
+        matching template is found (backward-compatible with generic objects).
+        """
+        # Dispatch via SceneObjectFactory — only when called on the base class
+        # to avoid infinite recursion when a subclass inherits this method.
+        if cls is SceneObject:
+            # Local import avoids a circular dependency between sceneobject and factory.
+            from pyrox.models.scene.factory import SceneObjectFactory  # noqa: PLC0415
+            template_name: str = data.get("template_name", "")
+            if template_name:
+                template = SceneObjectFactory.get_template(template_name)
+                if template is not None and template.scene_object_class is not SceneObject:
+                    return template.scene_object_class.from_dict(data)
+
         body_data: dict = data.get("body", {})
         body_template = PhysicsSceneFactory.get_template(body_data.get("template_name", ""))
         if not body_template:

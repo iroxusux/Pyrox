@@ -35,37 +35,15 @@
 #        → PhysicsSceneFactory.get_template() → body_class.from_dict(body_data)
 #     Both factories remain; each handles its own layer. No merging needed.
 #
-# COMPLETED
-# -----------------------------------------------------------------------------
-# TODO-SCENE-01: SceneObject should own its own name  [DONE]
-#   SceneObject now stores self._name; get_name / set_name use it directly.
-#   IBasePhysicsBody no longer extends INameable.  BasePhysicsBody retains a
-#   'name' field as an internal debugging label only (used in __repr__ and ID
-#   generation); it is no longer written-to by SceneObject.
-#
-# TODO-SCENE-02: Add template_name to SceneObject  [DONE]
-#   SceneObject.__init__ now accepts template_name (default "").
-#   to_dict emits "template_name"; from_dict reads it back.
-#   get_template_name / set_template_name / template_name property added.
-#   BasePhysicsBody.template_name is unchanged — the two fields are
-#   independent: SceneObject.template_name → SceneObjectFactory key;
-#   body.template_name → PhysicsSceneFactory key.
-#
 # IN PROGRESS / NEXT
 # -----------------------------------------------------------------------------
 #
-# TODO-SCENE-03: Fix SceneObject.from_dict to dispatch via SceneObjectFactory
-#   PROBLEM:  SceneObject.from_dict always constructs a plain SceneObject.
-#             Registered subclasses (e.g. ConveyorSceneObject) are never
-#             instantiated on load; their domain logic is silently dropped.
-#   FIX:      After SCENE-02: SceneObject.from_dict reads "template_name" and
-#             calls SceneObjectFactory.get_template(template_name).  If found,
-#             delegates to template.scene_object_class.from_dict(data).
-#             Falls back to constructing base SceneObject when no template
-#             is registered (backward compatible for plain generic objects).
-#             The body reconstruction path (reading data["body"]["template_name"]
-#             → PhysicsSceneFactory) stays inside the individual from_dict
-#             implementations where it belongs.
+# TODO-SCENE-04: Fix Scene.from_dict — remove hardcoded type dispatching  [DONE]
+#   SceneObject.from_dict now checks cls is SceneObject, reads "template_name",
+#   and delegates to template.scene_object_class.from_dict(data) when a
+#   matching template is registered.  The cls-guard prevents infinite recursion
+#   when a subclass inherits the base method.  Falls back to plain SceneObject
+#   construction for generic/unregistered objects (backward compatible).
 #
 # TODO-SCENE-04: Fix Scene.from_dict — remove hardcoded type dispatching
 #   PROBLEM:  Scene.from_dict has a hardcoded conditional block that special-
