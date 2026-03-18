@@ -38,13 +38,15 @@
 # IN PROGRESS / NEXT
 # -----------------------------------------------------------------------------
 #
-# TODO-SCENE-08: Reconsider IConnectable on IBasePhysicsBody
-#   PROBLEM:  IBasePhysicsBody extends IConnectable (inputs/outputs for the
-#             connection graph).  Logical connections are a SceneObject concern;
-#             the physics simulation (mass, velocity, collider) should not be
-#             part of the connection registry.
-#   FIX:      Remove IConnectable from IBasePhysicsBody.  Move connection
-#             support to SceneObject or specialised subclasses as needed.
+# DONE-SCENE-08: Reconsider IConnectable on IBasePhysicsBody
+#   IConnectable removed from IBasePhysicsBody and Connectable removed from
+#   BasePhysicsBody (replaced with HasId for id tracking).
+#   get_inputs/get_outputs kept on IBasePhysicsBody/BasePhysicsBody as
+#   standalone endpoint-discovery methods.
+#   ISceneObject now carries the connection contract (get_connections,
+#   set_connections, get_inputs, get_outputs); SceneObject implements it,
+#   delegating get_inputs/get_outputs to its physics body.
+#   ConnectionEditor updated to use scene_obj.get_inputs/outputs().
 #
 # TODO-SCENE-09: Audit / complete _compile_properties
 #   PROBLEM:  SceneObject.get_properties() calls _compile_properties() but the

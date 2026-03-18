@@ -1,10 +1,8 @@
-from typing import Optional
-from pyrox.interfaces import IConnectable
+from typing import Any, Optional
 from pyrox.interfaces.protocols.physics import IPhysicsBody2D
 
 
 class IBasePhysicsBody(
-    IConnectable,
     IPhysicsBody2D
 ):
     """Interface class for custom physics bodies extending IPhysicsBody2D.
@@ -36,6 +34,22 @@ class IBasePhysicsBody(
 
         Returns:
             Dictionary mapping property names to their metadata
+        """
+        raise NotImplementedError()
+
+    def get_inputs(self) -> dict[str, Any]:
+        """Describe the input connection endpoints this body exposes.
+
+        Returns:
+            Dictionary mapping input names to callables / methods
+        """
+        raise NotImplementedError()
+
+    def get_outputs(self) -> dict[str, Any]:
+        """Describe the output connection endpoints this body exposes.
+
+        Returns:
+            Dictionary mapping output names to callback lists / properties
         """
         raise NotImplementedError()
 

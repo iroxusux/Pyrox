@@ -295,8 +295,8 @@ class ConnectionEditor(QWidget):
             x: X position in scene coordinates
             y: Y position in scene coordinates
         """
-        outputs = scene_obj.physics_body.get_outputs()
-        inputs = scene_obj.physics_body.get_inputs()
+        outputs = scene_obj.get_outputs()
+        inputs = scene_obj.get_inputs()
 
         port_spacing = 25.0
         max_ports = max(len(outputs), len(inputs), 1)

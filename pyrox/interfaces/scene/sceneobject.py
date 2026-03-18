@@ -3,12 +3,14 @@ Scene management for field scene_object simulations.
 """
 from abc import abstractmethod
 from typing import (
+    Any,
     Protocol,
     runtime_checkable,
 )
 from pyrox.interfaces import (
     IBasePhysicsBody,
-    ICoreMixin
+    ICoreMixin,
+    Connection,
 )
 
 
@@ -255,6 +257,33 @@ class ISceneObject(
     @abstractmethod
     def remove_tag(self, tag: str) -> None:
         """Remove a tag from this scene object (no-op if not present)."""
+        ...
+
+    # ---------- Connection methods ----------
+
+    @property
+    def connections(self) -> list[Connection]:
+        """The list of Connection records associated with this scene object."""
+        return self.get_connections()
+
+    @abstractmethod
+    def get_connections(self) -> list[Connection]:
+        """Return the connection records for this scene object."""
+        ...
+
+    @abstractmethod
+    def set_connections(self, connections: list[Connection]) -> None:
+        """Replace the connection records for this scene object."""
+        ...
+
+    @abstractmethod
+    def get_inputs(self) -> dict[str, Any]:
+        """Describe the input connection endpoints this object exposes."""
+        ...
+
+    @abstractmethod
+    def get_outputs(self) -> dict[str, Any]:
+        """Describe the output connection endpoints this object exposes."""
         ...
 
     # ---------- Physics body convenience methods ----------

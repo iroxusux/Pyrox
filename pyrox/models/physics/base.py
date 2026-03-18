@@ -16,7 +16,7 @@ from pyrox.interfaces import (
     CollisionLayer,
     IMaterial
 )
-from pyrox.models.protocols import Nameable, Connectable
+from pyrox.models.protocols import Nameable, HasId
 from pyrox.models.protocols.physics import PhysicsBody2D, Material
 from .factory import PhysicsSceneTemplate, PhysicsSceneFactory
 
@@ -24,7 +24,7 @@ from .factory import PhysicsSceneTemplate, PhysicsSceneFactory
 class BasePhysicsBody(
     IBasePhysicsBody,
     Nameable,
-    Connectable,
+    HasId,
     PhysicsBody2D,
 ):
     """Base class for custom physics bodies.
@@ -93,7 +93,7 @@ class BasePhysicsBody(
         """
         Nameable.__init__(self=self, name=name)
         id = id or f'physics-body-{name}-{uuid.uuid4()}'
-        Connectable.__init__(self=self, id=id)
+        HasId.__init__(self=self, id=id)
         PhysicsBody2D.__init__(
             self=self,
             body_type=body_type,

@@ -8,6 +8,7 @@ import uuid
 from pyrox.interfaces import (
     IBasePhysicsBody,
     ISceneObject,
+    Connection,
 )
 from pyrox.models.protocols import CoreMixin
 from pyrox.models.physics.factory import PhysicsSceneFactory
@@ -71,6 +72,31 @@ class SceneObject(
 
         # Tags for gameplay / logic categorisation
         self._tags: list[str] = list(tags) if tags else []
+
+        # Connection records (managed by Scene / ConnectionRegistry)
+        self._connections: list[Connection] = []
+    # ------------------------------------------------------------------
+    # Connections
+    # ------------------------------------------------------------------
+
+    @property
+    def connections(self) -> list[Connection]:
+        return self._connections
+
+    def get_connections(self) -> list[Connection]:
+        return self._connections
+
+    def set_connections(self, connections: list[Connection]) -> None:
+        self._connections = list(connections)
+
+    def get_inputs(self) -> dict[str, Any]:
+        """Delegate to the physics body's input endpoints."""
+        return self._physics_body.get_inputs()
+
+    def get_outputs(self) -> dict[str, Any]:
+        """Delegate to the physics body's output endpoints."""
+        return self._physics_body.get_outputs()
+
     # ------------------------------------------------------------------
     # Tags
     # ------------------------------------------------------------------
