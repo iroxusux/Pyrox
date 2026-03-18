@@ -70,7 +70,6 @@ class ProximitySensorBody(BasePhysicsBody):
             name=name,
             id=id,
             template_name=template_name,
-            tags=["sensor", "proximity"],
             body_type=BodyType.STATIC,
             is_trigger=True,
             mass=0.0,

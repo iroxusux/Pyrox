@@ -188,13 +188,6 @@ class TestConveyorBody(unittest.TestCase):
 
         self.assertEqual(conveyor.mass, 100.0)
 
-    def test_automatic_tags(self):
-        """Test conveyor automatically has platform tags."""
-        conveyor = ConveyorBody()
-
-        self.assertTrue(conveyor.has_tag("conveyor"))
-        self.assertTrue(conveyor.has_tag("platform"))
-
     def test_inheritance_from_base_physics_body(self):
         """Test that ConveyorBody inherits from BasePhysicsBody."""
         conveyor = ConveyorBody()

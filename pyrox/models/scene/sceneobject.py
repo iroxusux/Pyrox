@@ -29,17 +29,20 @@ class SceneObject(
         description: str = "",
         template_name: str = "",
         id: str | None = None,
+        group_id: str | None = None,
         properties: dict | None = None,
         parent: 'SceneObject | None' = None,
         layer: int = 0,
         sprite_path: str | None = None,
         bg_color: str = "#4a9eff",
+        tags: list[str] | None = None,
     ):
         CoreMixin.__init__(self, name=name, description=description, id=id or f'scene_object_{uuid.uuid4()}')
         self._scene_object_type = scene_object_type
         self._template_name: str = template_name
         self._properties: dict[str, Any] = properties if properties is not None else dict()
         self._physics_body = physics_body
+        self._group_id: str | None = group_id
 
         # Parent-child hierarchy
         self._parent: 'SceneObject | None' = parent
@@ -66,8 +69,34 @@ class SceneObject(
         self._on_hover_handlers: list[Callable] = []
         self._clickable: bool = False  # Whether this object responds to clicks
 
-        # Group membership — ID of the SceneGroup this object belongs to, or None
-        self._group_id: str | None = None
+        # Tags for gameplay / logic categorisation
+        self._tags: list[str] = list(tags) if tags else []
+    # ------------------------------------------------------------------
+    # Tags
+    # ------------------------------------------------------------------
+
+    @property
+    def tags(self) -> list[str]:
+        """Tags used for gameplay / logic categorisation."""
+        return self._tags
+
+    def get_tags(self) -> list[str]:
+        return self._tags
+
+    def set_tags(self, tags: list[str]) -> None:
+        self._tags = list(tags)
+
+    def has_tag(self, tag: str) -> bool:
+        return tag in self._tags
+
+    def add_tag(self, tag: str) -> None:
+        if tag not in self._tags:
+            self._tags.append(tag)
+
+    def remove_tag(self, tag: str) -> None:
+        if tag in self._tags:
+            self._tags.remove(tag)
+
     # ------------------------------------------------------------------
     # Visual properties
     # ------------------------------------------------------------------
@@ -189,10 +218,11 @@ class SceneObject(
             "scene_object_type": self._scene_object_type,
             "template_name": self._template_name,
             "id": self.id,
+            "group_id": self._group_id,
             "description": self._description,
+            "tags": self._tags,
             "properties": self.properties,
             "layer": self._layer,
-            "group_id": self._group_id,
             "body": body,
         }
 
@@ -238,12 +268,13 @@ class SceneObject(
             scene_object_type=data["scene_object_type"],
             template_name=data.get("template_name", ""),
             id=data.get("id", None),
+            group_id=data.get("group_id", None),
             physics_body=body,
             description=data.get("description", ""),
             properties=data.get("properties", {}),
-            layer=data.get("layer", 0)
+            layer=data.get("layer", 0),
+            tags=data.get("tags", []),
         )
-        obj._group_id = data.get("group_id", None)
         # Restore visual properties explicitly so they survive _compile_properties
         props = data.get("properties", {})
         obj._sprite_path = props.get("sprite_path")

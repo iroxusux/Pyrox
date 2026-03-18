@@ -225,6 +225,38 @@ class ISceneObject(
         """
         ...
 
+    # ---------- Tag methods ----------
+
+    @property
+    def tags(self) -> list[str]:
+        """Get the list of tags associated with this scene object."""
+        return self.get_tags()
+
+    @abstractmethod
+    def get_tags(self) -> list[str]:
+        """Return the list of tags for this scene object."""
+        ...
+
+    @abstractmethod
+    def set_tags(self, tags: list[str]) -> None:
+        """Replace the tag list for this scene object."""
+        ...
+
+    @abstractmethod
+    def has_tag(self, tag: str) -> bool:
+        """Return True if this scene object carries the given tag."""
+        ...
+
+    @abstractmethod
+    def add_tag(self, tag: str) -> None:
+        """Add a tag to this scene object (no-op if already present)."""
+        ...
+
+    @abstractmethod
+    def remove_tag(self, tag: str) -> None:
+        """Remove a tag from this scene object (no-op if not present)."""
+        ...
+
     # ---------- Physics body convenience methods ----------
 
     @property

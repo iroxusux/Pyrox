@@ -15,49 +15,6 @@ class IBasePhysicsBody(
     interact, be tagged, and have common checks performed.
     """
 
-    def get_tags(self) -> list[str]:
-        """Get the list of tags associated with this body.
-
-        Returns:
-            List of tags
-        """
-        ...
-
-    def set_tags(self, tags: list[str]) -> None:
-        """Set the list of tags for this body.
-
-        Args:
-            tags: List of tags to set
-        """
-        ...
-
-    def has_tag(self, tag: str) -> bool:
-        """Check if this body has a specific tag.
-
-        Args:
-            tag: Tag to check for
-
-        Returns:
-            True if the body has the tag
-        """
-        ...
-
-    def add_tag(self, tag: str) -> None:
-        """Add a tag to this body.
-
-        Args:
-            tag: Tag to add
-        """
-        ...
-
-    def remove_tag(self, tag: str) -> None:
-        """Remove a tag from this body.
-
-        Args:
-            tag: Tag to remove
-        """
-        ...
-
     def get_template_name(self) -> Optional[str]:
         """Get the template name associated with this body, if any.
 
@@ -104,15 +61,6 @@ class IBasePhysicsBody(
             Dictionary with body properties
         """
         raise NotImplementedError()
-
-    @property
-    def tags(self) -> list[str]:
-        """Get the list of tags associated with this body.
-
-        Returns:
-            List of tags
-        """
-        return self.get_tags()
 
     @property
     def template_name(self) -> Optional[str]:

@@ -34,7 +34,6 @@ class BasePhysicsBody(
 
     Attributes:
         name: Optional name for identification
-        tags: List of string tags for categorization
     """
 
     def __init__(
@@ -42,7 +41,6 @@ class BasePhysicsBody(
         name: str = "",
         id: str = "",
         template_name: Optional[str] = None,
-        tags: Optional[List[str]] = None,
         body_type: BodyType = BodyType.DYNAMIC,
         enabled: bool = True,
         sleeping: bool = False,
@@ -70,7 +68,6 @@ class BasePhysicsBody(
 
         Args:
             name: Optional name for identification
-            tags: List of tags for categorization
             body_type: Type of physics body (STATIC, DYNAMIC, KINEMATIC)
             enabled: Whether physics simulation is enabled
             sleeping: Whether the body starts sleeping
@@ -123,52 +120,6 @@ class BasePhysicsBody(
             material=material,
         )
         self._template_name = template_name
-        self._tags = tags or []
-
-    def get_tags(self) -> list[str]:
-        """Get the list of tags associated with this body.
-
-        Returns:
-            List of tags
-        """
-        return self._tags
-
-    def set_tags(self, tags: list[str]) -> None:
-        """Set the list of tags for this body.
-
-        Args:
-            tags: List of tags to set
-        """
-        self._tags = tags
-
-    def has_tag(self, tag: str) -> bool:
-        """Check if this body has a specific tag.
-
-        Args:
-            tag: Tag to check for
-
-        Returns:
-            True if the body has the tag
-        """
-        return tag in self.tags
-
-    def add_tag(self, tag: str) -> None:
-        """Add a tag to this body.
-
-        Args:
-            tag: Tag to add
-        """
-        if tag not in self.tags:
-            self.tags.append(tag)
-
-    def remove_tag(self, tag: str) -> None:
-        """Remove a tag from this body.
-
-        Args:
-            tag: Tag to remove
-        """
-        if tag in self.tags:
-            self.tags.remove(tag)
 
     # IConnectable methods
     def get_inputs(self) -> dict[str, Any]:
@@ -239,7 +190,6 @@ class BasePhysicsBody(
             name=data.get('name', ''),
             id=data.get('id', ''),
             template_name=data.get('template_name'),
-            tags=data.get('tags', []),
             body_type=BodyType.from_str(data.get('body_type', 'DYNAMIC')),
             enabled=data.get('enabled', True),
             sleeping=data.get('sleeping', False),
@@ -276,7 +226,6 @@ class BasePhysicsBody(
             "name": self.name,
             "id": self.id,
             "template_name": self.template_name,
-            "tags": self.tags,
             "body_type": self.body_type.name,
             "enabled": self.enabled,
             "sleeping": self.sleeping,

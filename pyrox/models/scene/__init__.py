@@ -35,23 +35,13 @@
 #        → PhysicsSceneFactory.get_template() → body_class.from_dict(body_data)
 #     Both factories remain; each handles its own layer. No merging needed.
 #
-# TODO-SCENE-06: Replace __getattribute__ delegation with explicit properties  [DONE]
-#   Removed SceneObject.__getattribute__ override.  Explicit @property accessors
-#   added for yaw, velocity_x, velocity_y (all delegates to self._physics_body).
-#   x, y, width, height were already explicit in ISceneObject and remain unchanged.
-#   All other physics body access now goes through scene_object.physics_body.
-#
 # IN PROGRESS / NEXT
 # -----------------------------------------------------------------------------
 #
-# TODO-SCENE-07: Move tags from BasePhysicsBody to SceneObject
-#   PROBLEM:  IBasePhysicsBody / BasePhysicsBody carry general-purpose tags
-#             (get_tags, add_tag, …) used for gameplay / logic categorisation.
-#             These are scene-entity concerns, not physics simulation concerns.
-#             Physics-layer classification is already handled by collision_layer
-#             and collision_mask.
-#   FIX:      Move _tags and all tag methods to SceneObject.
-#             Remove from IBasePhysicsBody and BasePhysicsBody.
+# DONE-SCENE-07: Move tags from BasePhysicsBody to SceneObject
+#   Tags (_tags, get_tags, set_tags, has_tag, add_tag, remove_tag) removed from
+#   IBasePhysicsBody and BasePhysicsBody; moved to ISceneObject and SceneObject.
+#   SceneObject serializes tags via to_dict / from_dict on its own key.
 #
 # TODO-SCENE-08: Reconsider IConnectable on IBasePhysicsBody
 #   PROBLEM:  IBasePhysicsBody extends IConnectable (inputs/outputs for the

@@ -65,7 +65,6 @@ class UIPanelBody(BasePhysicsBody):
             name=name,
             id=id,
             template_name=template_name,
-            tags=["ui", panel_type],
             body_type=BodyType.STATIC,
             enabled=True,
             sleeping=False,

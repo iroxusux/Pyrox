@@ -99,7 +99,6 @@ class TopDownPlayerBody(BasePhysicsBody):
             name=name,
             id=id,
             template_name=template_name,
-            tags=["player", "actor"],
             body_type=BodyType.KINEMATIC,
             enabled=True,
             sleeping=False,
