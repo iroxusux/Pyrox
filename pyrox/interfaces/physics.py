@@ -1,10 +1,9 @@
 from typing import Optional
-from pyrox.interfaces import INameable, IConnectable
+from pyrox.interfaces import IConnectable
 from pyrox.interfaces.protocols.physics import IPhysicsBody2D
 
 
 class IBasePhysicsBody(
-    INameable,
     IConnectable,
     IPhysicsBody2D
 ):

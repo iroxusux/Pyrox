@@ -278,6 +278,7 @@ class PistonSceneObject(CompositeSceneObject):
         rod_color: str = "#888888",
         head_color: str = "#555555",
         layer: int = 0,
+        **kwargs,
     ) -> "PistonSceneObject":
         """Create a :class:`PistonSceneObject` without manually building a physics body.
 
@@ -424,7 +425,7 @@ SceneObjectFactory.register_template(
         description="Composite piston with animated rod and head (top-down view)",
         factory_func=PistonSceneObject.create,
         default_kwargs={
-            "name": "Piston",
+            "name": "Top-Down Piston",
             "direction": PistonDirection.RIGHT,
             "retracted_length": 20.0,
             "extended_length": 60.0,

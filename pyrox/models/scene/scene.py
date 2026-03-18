@@ -208,7 +208,13 @@ class Scene(CoreMixin):
                 obj = SceneGroup.from_dict(scene_object_data)
                 groups.append(obj)
             elif sot == SCENE_OBJECT_TYPE_COMPOSITE or scene_object_data.get("components"):
-                obj = CompositeSceneObject.from_dict(scene_object_data)
+                from pyrox.models.scene.factory import SceneObjectFactory
+                template_name = scene_object_data.get("name", "")
+                if not template_name:
+                    raise ValueError("Scene object data missing 'name' field required for template lookup.")
+                obj = SceneObjectFactory.create_from_template(template_name, **scene_object_data)
+                if obj is None:
+                    raise ValueError(f"Failed to create scene object from template '{template_name}'.")
             else:
                 obj = SceneObject.from_dict(scene_object_data)
 
