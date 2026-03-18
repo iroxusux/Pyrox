@@ -38,11 +38,6 @@
 # IN PROGRESS / NEXT
 # -----------------------------------------------------------------------------
 #
-# DONE-SCENE-07: Move tags from BasePhysicsBody to SceneObject
-#   Tags (_tags, get_tags, set_tags, has_tag, add_tag, remove_tag) removed from
-#   IBasePhysicsBody and BasePhysicsBody; moved to ISceneObject and SceneObject.
-#   SceneObject serializes tags via to_dict / from_dict on its own key.
-#
 # TODO-SCENE-08: Reconsider IConnectable on IBasePhysicsBody
 #   PROBLEM:  IBasePhysicsBody extends IConnectable (inputs/outputs for the
 #             connection graph).  Logical connections are a SceneObject concern;

@@ -17,6 +17,7 @@ from pyrox.models.protocols import CoreMixin
 from pyrox.models.connection import ConnectionRegistry
 from pyrox.models.scene.sceneobject import SceneObject
 from pyrox.models.scene.scenegroup import SceneGroup
+from pyrox.models.scene.factory import SceneObjectFactory
 
 
 class Scene(CoreMixin):
@@ -202,7 +203,15 @@ class Scene(CoreMixin):
         # ------ Pass 1: instantiate every scene object ------
         groups: list[SceneGroup] = []
         for scene_object_data in data.get("scene_objects", []):
-            obj = SceneObject.from_dict(scene_object_data)
+            assert isinstance(scene_object_data, dict), "Each scene object must be a dictionary"
+
+            build_args = scene_object_data.copy()  # avoid mutating original dict
+            template_name = build_args.pop("template_name", None)
+            obj = SceneObjectFactory.create_from_template(template_name, **build_args)
+
+            if not obj:
+                obj = SceneObject.from_dict(scene_object_data)
+
             if isinstance(obj, SceneGroup):
                 groups.append(obj)
 

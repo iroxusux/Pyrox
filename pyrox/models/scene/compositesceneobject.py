@@ -52,21 +52,26 @@ class CompositeSceneObject(SceneObject, ICompositeSceneObject):
         physics_body: IBasePhysicsBody,
         description: str = "",
         scene_object_type: str = SCENE_OBJECT_TYPE_COMPOSITE,
+        template_name: str = SCENE_OBJECT_TYPE_COMPOSITE,
         id: str | None = None,
+        group_id: str | None = None,
         properties: Optional[Dict] = None,
         parent: Optional[SceneObject] = None,
         layer: int = 0,
+        tags: list[str] | None = None,
     ):
         super().__init__(
             name=name,
             scene_object_type=scene_object_type,
-            template_name=SCENE_OBJECT_TYPE_COMPOSITE,
+            template_name=template_name,
             physics_body=physics_body,
             description=description,
             id=id or f'{SCENE_OBJECT_TYPE_COMPOSITE}_{uuid.uuid4()}',
+            group_id=group_id,
             properties=properties,
             parent=parent,
             layer=layer,
+            tags=tags,
         )
         # name -> (scene_object, offset_x, offset_y)
         self._components: Dict[str, Tuple[ISceneObject, float, float]] = {}

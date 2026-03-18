@@ -53,6 +53,7 @@ from pyrox.models.scene.sceneobject import SceneObject
 from pyrox.models.scene.factory import SceneObjectFactory, SceneObjectTemplate
 
 SCENE_OBJECT_TYPE_PISTON = "piston"
+SCENE_OBJECT_TEMPLATE_NAME_PISTON = "Top-Down Piston"
 
 
 class PistonDirection(Enum):
@@ -124,6 +125,7 @@ class PistonSceneObject(CompositeSceneObject):
             name=name,
             physics_body=physics_body,
             scene_object_type=SCENE_OBJECT_TYPE_PISTON,
+            template_name=SCENE_OBJECT_TEMPLATE_NAME_PISTON,
             layer=layer,
         )
 
@@ -278,6 +280,7 @@ class PistonSceneObject(CompositeSceneObject):
         rod_color: str = "#888888",
         head_color: str = "#555555",
         layer: int = 0,
+        body_dict: dict | None = None,
         **kwargs,
     ) -> "PistonSceneObject":
         """Create a :class:`PistonSceneObject` without manually building a physics body.
@@ -302,22 +305,26 @@ class PistonSceneObject(CompositeSceneObject):
         Returns:
             A fully-initialised :class:`PistonSceneObject`.
         """
-        is_horizontal = direction in (PistonDirection.RIGHT, PistonDirection.LEFT)
-        if is_horizontal:
-            body_w = extended_length + head_size
-            body_h = head_size
-        else:
-            body_w = head_size
-            body_h = extended_length + head_size
+        body_dict = body_dict or kwargs.get("body")
+        if body_dict:
+            body = BasePhysicsBody.from_dict(body_dict)
 
-        body = BasePhysicsBody(
-            name=f"{name}_body",
-            template_name='Base Physics Body',
-            x=x,
-            y=y,
-            width=body_w,
-            height=body_h,
-        )
+        else:
+            is_horizontal = direction in (PistonDirection.RIGHT, PistonDirection.LEFT)
+            if is_horizontal:
+                body_w = extended_length + head_size
+                body_h = head_size
+            else:
+                body_w = head_size
+                body_h = extended_length + head_size
+            body = BasePhysicsBody(
+                name=f"{name}_body",
+                template_name='Base Physics Body',
+                x=float(x),
+                y=float(y),
+                width=body_w,
+                height=body_h,
+            )
         return cls(
             name=name,
             physics_body=body,
@@ -420,12 +427,12 @@ class PistonSceneObject(CompositeSceneObject):
 SceneObjectFactory.register_template(
     "Top-Down Piston",
     SceneObjectTemplate(
-        name="Top-Down Piston",
+        name=SCENE_OBJECT_TEMPLATE_NAME_PISTON,
         scene_object_class=PistonSceneObject,
         description="Composite piston with animated rod and head (top-down view)",
         factory_func=PistonSceneObject.create,
         default_kwargs={
-            "name": "Top-Down Piston",
+            "name": SCENE_OBJECT_TEMPLATE_NAME_PISTON,
             "direction": PistonDirection.RIGHT,
             "retracted_length": 20.0,
             "extended_length": 60.0,
