@@ -205,7 +205,6 @@ class SceneObject(
             "layer": self._layer,
             "group_id": self._group_id,
             "body": body,
-            "material": body.get("material", {}) if isinstance(body, dict) else {},
         }
 
     @classmethod

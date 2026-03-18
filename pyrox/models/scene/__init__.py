@@ -35,24 +35,13 @@
 #        → PhysicsSceneFactory.get_template() → body_class.from_dict(body_data)
 #     Both factories remain; each handles its own layer. No merging needed.
 #
-# TODO-SCENE-04: Fix Scene.from_dict — remove hardcoded type dispatching  [DONE]
-#   SceneGroup and CompositeSceneObject are now registered in SceneObjectFactory
-#   under their scene_object_type constants ("group" / "composite") at import
-#   time.  Their __init__ also passes template_name= so new saves carry the key.
-#   SceneObject.from_dict uses template_name first, then falls back to
-#   scene_object_type for backward-compatible loading of older save files.
-#   Scene.from_dict now calls SceneObject.from_dict for every entry; groups are
-#   identified afterwards by isinstance check for the second-pass member linking.
-#   No hardcoded scene_object_type string comparisons remain in Scene.from_dict.
+# TODO-SCENE-05: Remove redundant top-level "material" key from to_dict  [DONE]
+#   Removed the "material" key from SceneObject.to_dict.  Material data is
+#   already present inside data["body"]["material"] and all physics body
+#   from_dict methods read it from there — the top-level key was never consumed.
 #
 # IN PROGRESS / NEXT
 # -----------------------------------------------------------------------------
-#
-# TODO-SCENE-05: Remove redundant top-level "material" key from to_dict
-#   PROBLEM:  SceneObject.to_dict emits "material" at the top level AND it is
-#             already present inside "body".  One will silently diverge.
-#   FIX:      Remove the top-level "material" key from SceneObject.to_dict.
-#             Read material data from data["body"]["material"] everywhere.
 #
 # TODO-SCENE-06: Replace __getattribute__ delegation with explicit properties
 #   PROBLEM:  SceneObject.__getattribute__ catches every AttributeError and
