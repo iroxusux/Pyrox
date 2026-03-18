@@ -48,14 +48,17 @@
 #   delegating get_inputs/get_outputs to its physics body.
 #   ConnectionEditor updated to use scene_obj.get_inputs/outputs().
 #
-# TODO-SCENE-09: Audit / complete _compile_properties
-#   PROBLEM:  SceneObject.get_properties() calls _compile_properties() but the
-#             contract is undocumented.  set_property writes to both the live
-#             attribute AND self._properties dict, creating two sources of truth.
-#   FIX:      Document that self._properties is a serialisation snapshot built
-#             on demand by _compile_properties (reads from live attrs).
-#             Ensure all subclass overrides call super()._compile_properties().
-#             Remove the dual-write in set_property.
+# DONE-SCENE-09: Audit / complete _compile_properties
+#   _compile_properties docstring updated: self._properties is a lazy
+#   serialisation snapshot built on demand (reads from live attrs).
+#   Subclass contract documented: overrides MUST call
+#   super()._compile_properties() — already followed by PistonSceneObject.
+#   Dual-write removed from set_property: known properties (with a live attr
+#   on self or the physics body) are now updated only via setattr; the
+#   snapshot is refreshed by _compile_properties on the next get_properties()
+#   call.  Truly custom properties (no live attr) still fall through to an
+#   else-branch that writes directly to self._properties so they survive
+#   serialisation.
 #
 # TODO-SCENE-10: CompositeSceneObject serialization round-trip
 #   PROBLEM:  CompositeSceneObject.from_dict uses SceneObject.from_dict for

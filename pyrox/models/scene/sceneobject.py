@@ -183,17 +183,25 @@ class SceneObject(
     def set_property(self, name: str, value: Any) -> None:
         """Set a single property of the scene object.
 
+        For properties that correspond to a live attribute on the physics body
+        or on this object, only the live attribute is updated; the serialisation
+        snapshot (``self._properties``) will reflect the change the next time
+        :meth:`get_properties` is called.
+
+        For truly custom properties that have no live attribute, the value is
+        stored directly in ``self._properties`` so that it survives
+        serialisation.
+
         Args:
-            key (str): The property key.
+            name (str): The property key.
             value (Any): The property value.
         """
-        # Check to see if the property exists as an attribute of this object
-        # We have to check physics body first to avoid setting a new property on the scene object when it actually belongs to the physics body
         if hasattr(self.physics_body, name):
             setattr(self.physics_body, name, value)
         elif hasattr(self, name):
             setattr(self, name, value)
-        self._properties[name] = value
+        else:
+            self._properties[name] = value
 
     def set_properties(self, properties: dict) -> None:
         """Set the properties of the scene object.
@@ -501,7 +509,20 @@ class SceneObject(
         self._group_id = group_id
 
     def _compile_properties(self) -> None:
-        """Compile properties for physics simulation."""
+        """Build the serialisation snapshot from live attributes.
+
+        ``self._properties`` is a *lazy snapshot*: it is only populated here
+        (and in the ``else`` branch of :meth:`set_property` for custom
+        properties that have no corresponding live attribute).  Consumer code
+        should always obtain properties through :meth:`get_properties`, which
+        calls this method before returning the dict.
+
+        **Subclass contract**: overrides MUST call
+        ``super()._compile_properties()`` before adding their own keys so that
+        all base-class fields are present in the snapshot.  See
+        :class:`~pyrox.models.scene.assets.topdown.piston.PistonSceneObject`
+        for a reference implementation.
+        """
 
         # Scene object properties
         self._properties.update({

@@ -326,7 +326,11 @@ class TestSceneObject(unittest.TestCase):
         self.assertEqual(loaded.get_properties(), original.get_properties())
 
     def test_set_property_sets_attribute_and_dictionary(self):
-        """Test that set_property sets both attribute and properties dict."""
+        """Test that set_property updates the physics body attribute directly.
+
+        The properties snapshot reflects the new value on the next call to
+        get_properties() (via _compile_properties), not via a direct write.
+        """
         obj = SceneObject(name="Name", scene_object_type="Type",
                           physics_body=self.TestPhysicsBody())
 
