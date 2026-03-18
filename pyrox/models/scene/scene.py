@@ -189,10 +189,7 @@ class Scene(CoreMixin):
         """
         # Import here to avoid circular imports at module level.
         from pyrox.models.scene.scenegroup import SceneGroup, SCENE_OBJECT_TYPE_GROUP
-        from pyrox.models.scene.compositesceneobject import (
-            CompositeSceneObject,
-            SCENE_OBJECT_TYPE_COMPOSITE,
-        )
+        from pyrox.models.scene.compositesceneobject import SCENE_OBJECT_TYPE_COMPOSITE
 
         scene = cls(
             name=data.get("name", "Untitled Scene"),

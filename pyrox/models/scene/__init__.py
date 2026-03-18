@@ -43,20 +43,16 @@
 #   'name' field as an internal debugging label only (used in __repr__ and ID
 #   generation); it is no longer written-to by SceneObject.
 #
+# TODO-SCENE-02: Add template_name to SceneObject  [DONE]
+#   SceneObject.__init__ now accepts template_name (default "").
+#   to_dict emits "template_name"; from_dict reads it back.
+#   get_template_name / set_template_name / template_name property added.
+#   BasePhysicsBody.template_name is unchanged — the two fields are
+#   independent: SceneObject.template_name → SceneObjectFactory key;
+#   body.template_name → PhysicsSceneFactory key.
+#
 # IN PROGRESS / NEXT
 # -----------------------------------------------------------------------------
-# TODO-SCENE-02: Add template_name to SceneObject
-#   PROBLEM:  SceneObject has no template_name of its own.  SceneObject.from_dict
-#             cannot look up a registered SceneObject subclass, so custom
-#             subclasses are lost on save/load — they always deserialize as a
-#             plain SceneObject wrapping a physics body of the right type.
-#   FIX:      Add self._template_name to SceneObject.__init__ (default "").
-#             Emit it in to_dict as "template_name".  Read it back in from_dict.
-#             Do NOT remove template_name from BasePhysicsBody — that field
-#             continues to serve as the PhysicsSceneFactory lookup key for the
-#             body layer.  The two template_name fields are independent:
-#               SceneObject.template_name  → SceneObjectFactory key
-#               physics body.template_name → PhysicsSceneFactory key
 #
 # TODO-SCENE-03: Fix SceneObject.from_dict to dispatch via SceneObjectFactory
 #   PROBLEM:  SceneObject.from_dict always constructs a plain SceneObject.
@@ -77,8 +73,12 @@
 #             then routes composites to SceneObjectFactory.create_from_template
 #             using the object's runtime name as a template key (wrong — names
 #             are instance identifiers, not template identifiers).
-#             Plain objects fall through to SceneObject.from_dict which already
-#             bypasses SceneObjectFactory (see SCENE-03).
+#             Additionally, the composite branch splats **scene_object_data
+#             which now includes the "template_name" key from SCENE-02, causing
+#             a TypeError (duplicate keyword argument) against the positional
+#             template_name param of create_from_template.
+#             Plain objects fall through to SceneObject.from_dict which still
+#             bypasses SceneObjectFactory entirely (see SCENE-03).
 #   FIX:      After SCENE-02/03: Scene.from_dict calls SceneObject.from_dict
 #             for every entry.  SceneObject.from_dict dispatches to the right
 #             subclass via SceneObjectFactory using template_name.  Groups and

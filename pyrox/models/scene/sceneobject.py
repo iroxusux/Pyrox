@@ -38,6 +38,7 @@ class SceneObject(
         scene_object_type: str,
         physics_body: IBasePhysicsBody,
         description: str = "",
+        template_name: str = "",
         properties: Optional[Dict] = None,
         parent: Optional['SceneObject'] = None,
         layer: int = 0,
@@ -47,6 +48,7 @@ class SceneObject(
         self._name = name
         self._description = description
         self._scene_object_type = scene_object_type
+        self._template_name: str = template_name
         self._properties: Dict[str, Any] = properties if properties is not None else dict()
         self._physics_body = physics_body
 
@@ -110,16 +112,9 @@ class SceneObject(
         return self._animator
 
     # ------------------------------------------------------------------
-    # INameable methods
+    # Properties and serialization
     # ------------------------------------------------------------------
 
-    def get_name(self) -> str:
-        return self._name
-
-    def set_name(self, name: str) -> None:
-        self._name = name
-
-    # Properties and serialization methods
     def get_property(self, name: str) -> Any:
         """Get a single property of the scene object.
 
@@ -183,6 +178,19 @@ class SceneObject(
         """
         self._scene_object_type = scene_object_type
 
+    def get_template_name(self) -> str:
+        """Get the SceneObjectFactory template name for this object."""
+        return self._template_name
+
+    def set_template_name(self, template_name: str) -> None:
+        """Set the SceneObjectFactory template name for this object."""
+        self._template_name = template_name
+
+    @property
+    def template_name(self) -> str:
+        """SceneObjectFactory template name used to reconstruct this object."""
+        return self._template_name
+
     def to_dict(self) -> dict:
         """Convert scene object to dictionary for JSON serialization."""
         # Use physics body's to_dict if available, otherwise construct manually
@@ -191,6 +199,7 @@ class SceneObject(
         return {
             "name": self.name,
             "scene_object_type": self._scene_object_type,
+            "template_name": self._template_name,
             "id": self.id,
             "description": self._description,
             "properties": self.properties,
@@ -217,6 +226,7 @@ class SceneObject(
         obj = cls(
             name=data["name"],
             scene_object_type=data["scene_object_type"],
+            template_name=data.get("template_name", ""),
             physics_body=body,
             description=data.get("description", ""),
             properties=data.get("properties", {}),
