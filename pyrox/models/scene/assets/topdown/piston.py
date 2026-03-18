@@ -143,6 +143,7 @@ class PistonSceneObject(CompositeSceneObject):
 
         rod_body = BasePhysicsBody(
             name=f"{name}_rod",
+            template_name='Base Physics Body',
             width=rod_w,
             height=rod_h,
         )
@@ -159,6 +160,7 @@ class PistonSceneObject(CompositeSceneObject):
         # ------------------------------------------------------------------
         head_body = BasePhysicsBody(
             name=f"{name}_head",
+            template_name='Base Physics Body',
             width=head_size,
             height=head_size,
         )
@@ -309,6 +311,7 @@ class PistonSceneObject(CompositeSceneObject):
 
         body = BasePhysicsBody(
             name=f"{name}_body",
+            template_name='Base Physics Body',
             x=x,
             y=y,
             width=body_w,

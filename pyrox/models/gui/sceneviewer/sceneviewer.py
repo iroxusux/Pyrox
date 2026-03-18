@@ -44,12 +44,10 @@ from pyrox.services import (
     SceneEventBus,
 )
 from pyrox.services.viewport import ViewportEventBus, ViewportEvent, ViewportEventType
-from pyrox.models.gui.sceneviewer._panels import (
-    _SceneViewerBridgePanel,
-    _SceneViewerObjectExplorerPanel,
-    _SceneViewerObjectPalettePanel,
-    _SceneViewerPropertiesPanel,
-)
+from pyrox.models.gui.sceneviewer._bridge import _SceneViewerBridgePanel
+from pyrox.models.gui.sceneviewer._explorer import _SceneViewerObjectExplorerPanel
+from pyrox.models.gui.sceneviewer._objectpallet import _SceneViewerObjectPalettePanel
+from pyrox.models.gui.sceneviewer._properties import _SceneViewerPropertiesPanel
 from pyrox.models.gui.sceneviewer._toolbar import _SceneViewerToolbar
 from pyrox.models.gui.sceneviewer._user_mode import _SceneViewerUserMode, UserMode
 
@@ -409,36 +407,6 @@ class SceneViewerFrame(TaskFrame):
             self._scene.set_scene_objects({})
 
     # ==================== Object Management ====================
-
-    def add_scene_object(self, scene_obj: ISceneObject) -> None:
-        """Add a scene object to the current scene and render it.
-
-        Args:
-            scene_obj: Scene object to add
-        """
-        if not self._scene:
-            log(self).warning("Cannot add scene object: no scene loaded")
-            return
-
-        self._scene.add_scene_object(scene_obj)
-        self._render_scene_object(scene_obj.id, scene_obj)
-
-    def remove_scene_object(self, obj_id: str) -> None:
-        """Remove a scene object from the scene and canvas.
-
-        Args:
-            obj_id: ID of the scene object to remove
-        """
-        if not self._scene:
-            return
-
-        # Remove graphics items
-        for item in self._gfx_items.pop(obj_id, []):
-            if item.scene() == self._gfx_scene:
-                self._gfx_scene.removeItem(item)
-
-        # Remove from scene
-        self._scene.remove_scene_object(obj_id)
 
     def delete_selected_objects(self) -> None:
         """Delete all currently selected objects from the scene."""
@@ -1078,8 +1046,7 @@ class SceneViewerFrame(TaskFrame):
 
         if self._scene:
             for obj in self._scene.scene_objects.values():
-                if hasattr(obj, 'animator') and obj.animator.is_playing:
-                    obj.update(dt)
+                obj.update(dt)
 
         if self._needs_full_render or self._viewport_service.needs_render():
             self.render_scene()
@@ -1179,6 +1146,23 @@ class SceneViewerFrame(TaskFrame):
         items = self._gfx_items.get(obj_id)
         if not items:
             return
+
+        # For composite objects (e.g. pistons), animations change *component
+        # offsets* rather than the composite's own x/y.  A simple moveBy won't
+        # reflect those offset changes, so clear the stale items and re-render
+        # the composite from scratch whenever any component is animating.
+        if isinstance(scene_obj, CompositeSceneObject):
+            has_animating_component = any(
+                getattr(comp, 'animator', None) is not None
+                and getattr(comp, 'animator').is_playing
+                for comp, _, _ in scene_obj.get_components().values()
+            )
+            if has_animating_component:
+                for item in self._gfx_items.pop(obj_id, []):
+                    if item.scene() == self._gfx_scene:
+                        self._gfx_scene.removeItem(item)
+                self._render_composite_scene_object(obj_id, scene_obj)
+                return
 
         new_canvas_x = scene_obj.x * self.viewport.zoom + self.viewport.x
         new_canvas_y = scene_obj.y * self.viewport.zoom + self.viewport.y
