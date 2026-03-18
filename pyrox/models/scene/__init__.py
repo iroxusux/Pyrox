@@ -9,111 +9,135 @@
 #       Bare physics bodies are components owned by SceneObjects, never placed
 #       directly as scene citizens.
 #
+# SERIALIZATION CONTRACT (target state):
+#   SceneObject.to_dict() emits:
+#     {
+#       "name": ...,                  # owned by SceneObject (SCENE-01 done)
+#       "scene_object_type": ...,
+#       "template_name": ...,         # SceneObjectFactory lookup key (SCENE-02)
+#       "id": ...,
+#       "description": ...,
+#       "layer": ...,
+#       "group_id": ...,
+#       "properties": { ... },
+#       "body": {                     # emitted by BasePhysicsBody.to_dict()
+#         "template_name": ...,       # PhysicsSceneFactory lookup key
+#         "body_type": ...,
+#         ...physics fields...
+#       }
+#     }
+#
+#   Deserialization order (Scene.from_dict → SceneObject.from_dict):
+#     1. Read "template_name" → SceneObjectFactory.get_template()
+#        → call template.scene_object_class.from_dict(data)
+#        (falls back to base SceneObject.from_dict if no template registered)
+#     2. Inside SceneObject.from_dict, read data["body"]["template_name"]
+#        → PhysicsSceneFactory.get_template() → body_class.from_dict(body_data)
+#     Both factories remain; each handles its own layer. No merging needed.
+#
+# COMPLETED
 # -----------------------------------------------------------------------------
 # TODO-SCENE-01: SceneObject should own its own name  [DONE]
-#   SceneObject now stores self._name and get_name/set_name use it directly.
-#   IBasePhysicsBody no longer extends INameable — name is not part of the
-#   physics body contract.  BasePhysicsBody keeps a 'name' field as a private
-#   debugging label (used in __repr__ and ID generation) but it is no longer
-#   written from SceneObject and is not part of the public interface.
+#   SceneObject now stores self._name; get_name / set_name use it directly.
+#   IBasePhysicsBody no longer extends INameable.  BasePhysicsBody retains a
+#   'name' field as an internal debugging label only (used in __repr__ and ID
+#   generation); it is no longer written-to by SceneObject.
 #
-# TODO-SCENE-02: template_name belongs on SceneObject, not the physics body
-#   PROBLEM:  BasePhysicsBody carries _template_name which is used by
-#             SceneObject.from_dict to look up PhysicsSceneFactory.  A
-#             template name is a factory / serialization concern for the
-#             scene entity, not a physics simulation concern.
-#   FIX:      Add template_name to SceneObject (stored as self._template_name).
-#             Remove it from BasePhysicsBody and IBasePhysicsBody.
-#             Update to_dict / from_dict accordingly.
+# IN PROGRESS / NEXT
+# -----------------------------------------------------------------------------
+# TODO-SCENE-02: Add template_name to SceneObject
+#   PROBLEM:  SceneObject has no template_name of its own.  SceneObject.from_dict
+#             cannot look up a registered SceneObject subclass, so custom
+#             subclasses are lost on save/load — they always deserialize as a
+#             plain SceneObject wrapping a physics body of the right type.
+#   FIX:      Add self._template_name to SceneObject.__init__ (default "").
+#             Emit it in to_dict as "template_name".  Read it back in from_dict.
+#             Do NOT remove template_name from BasePhysicsBody — that field
+#             continues to serve as the PhysicsSceneFactory lookup key for the
+#             body layer.  The two template_name fields are independent:
+#               SceneObject.template_name  → SceneObjectFactory key
+#               physics body.template_name → PhysicsSceneFactory key
 #
-# TODO-SCENE-03: Unify the two factory systems into one
-#   PROBLEM:  PhysicsSceneFactory (registers bare physics bodies that are then
-#             wrapped in a generic SceneObject) and SceneObjectFactory (registers
-#             full SceneObject subclasses) do the same job at different levels.
-#             This split means custom SceneObject subclasses registered in
-#             SceneObjectFactory cannot be reconstructed from a saved scene
-#             (Scene.from_dict falls back to the physics-body path for plain
-#             objects, bypassing SceneObjectFactory entirely).
-#   FIX:      SceneObjectFactory becomes the single registration point.
-#             SceneObjectTemplate references a SceneObject subclass (which
-#             owns its physics body internally).  Deprecate / remove
-#             PhysicsSceneFactory and PhysicsSceneTemplate.  Migrate all
-#             existing physics-body templates to SceneObject subclasses.
+# TODO-SCENE-03: Fix SceneObject.from_dict to dispatch via SceneObjectFactory
+#   PROBLEM:  SceneObject.from_dict always constructs a plain SceneObject.
+#             Registered subclasses (e.g. ConveyorSceneObject) are never
+#             instantiated on load; their domain logic is silently dropped.
+#   FIX:      After SCENE-02: SceneObject.from_dict reads "template_name" and
+#             calls SceneObjectFactory.get_template(template_name).  If found,
+#             delegates to template.scene_object_class.from_dict(data).
+#             Falls back to constructing base SceneObject when no template
+#             is registered (backward compatible for plain generic objects).
+#             The body reconstruction path (reading data["body"]["template_name"]
+#             → PhysicsSceneFactory) stays inside the individual from_dict
+#             implementations where it belongs.
 #
-# TODO-SCENE-04: Fix SceneObject.from_dict to use SceneObjectFactory
-#   PROBLEM:  Currently looks up PhysicsSceneFactory by the body's
-#             template_name, reconstructs the physics body, then wraps it.
-#             Any custom SceneObject subclass is lost after a save/load cycle.
-#   FIX:      After TODO-SCENE-02/03: from_dict looks up SceneObjectFactory
-#             by scene_object_type (or template_name on SceneObject).  The
-#             located template's class handles full reconstruction via its own
-#             from_dict.  Base SceneObject.from_dict serves as the fallback.
+# TODO-SCENE-04: Fix Scene.from_dict — remove hardcoded type dispatching
+#   PROBLEM:  Scene.from_dict has a hardcoded conditional block that special-
+#             cases composites and groups by string-comparing scene_object_type,
+#             then routes composites to SceneObjectFactory.create_from_template
+#             using the object's runtime name as a template key (wrong — names
+#             are instance identifiers, not template identifiers).
+#             Plain objects fall through to SceneObject.from_dict which already
+#             bypasses SceneObjectFactory (see SCENE-03).
+#   FIX:      After SCENE-02/03: Scene.from_dict calls SceneObject.from_dict
+#             for every entry.  SceneObject.from_dict dispatches to the right
+#             subclass via SceneObjectFactory using template_name.  Groups and
+#             composites are registered templates like any other type; no
+#             special-case string checks needed.  The two-pass group-linking
+#             strategy can remain as-is.
 #
-# TODO-SCENE-05: Fix Scene.from_dict to use SceneObjectFactory for all types
-#   PROBLEM:  Scene.from_dict has a hardcoded conditional — composites go via
-#             SceneObjectFactory.create_from_template, but plain objects go
-#             via SceneObject.from_dict → PhysicsSceneFactory.  The type
-#             detection is also fragile (string comparison on scene_object_type
-#             rather than factory lookup).
-#   FIX:      After TODO-SCENE-03/04: Scene.from_dict dispatches every object
-#             through SceneObjectFactory, with SceneObject.from_dict as the
-#             fallback for any unknown type.  Remove the hardcoded type checks.
+# QUEUED
+# -----------------------------------------------------------------------------
+# TODO-SCENE-05: Remove redundant top-level "material" key from to_dict
+#   PROBLEM:  SceneObject.to_dict emits "material" at the top level AND it is
+#             already present inside "body".  One will silently diverge.
+#   FIX:      Remove the top-level "material" key from SceneObject.to_dict.
+#             Read material data from data["body"]["material"] everywhere.
 #
-# TODO-SCENE-06: Remove redundant top-level "material" key from to_dict
-#   PROBLEM:  SceneObject.to_dict emits "material" as a top-level key AND
-#             it is already nested inside "body".  Inconsistent; one will
-#             silently diverge from the other.
-#   FIX:      Remove the top-level "material" key.  Consumers that need
-#             material data should read from data["body"]["material"].
-#
-# TODO-SCENE-07: Replace __getattribute__ delegation with explicit properties
+# TODO-SCENE-06: Replace __getattribute__ delegation with explicit properties
 #   PROBLEM:  SceneObject.__getattribute__ catches every AttributeError and
-#             silently tries the physics body.  This obscures stack traces,
-#             makes the public API of SceneObject invisible, and leaks physics
-#             internals as if they are scene-level properties.
+#             silently falls back to the physics body.  This obscures stack
+#             traces, hides the public API, and leaks physics internals as if
+#             they were scene-level properties.
 #   FIX:      Remove __getattribute__ override.  Explicitly expose the physics
-#             properties that belong on a SceneObject's public API as @property
+#             properties that belong on SceneObject's public API as @property
 #             accessors (x, y, width, height, yaw, velocity_x/y, etc.).
 #             All other physics body access should go through scene_object.body.
 #
-# TODO-SCENE-08: Move tags from BasePhysicsBody to SceneObject
-#   PROBLEM:  IBasePhysicsBody / BasePhysicsBody carry tags (get_tags, add_tag,
-#             etc.) which are used for gameplay / logic categorisation ("enemy",
-#             "destructible", …).  These are scene-entity concerns, not physics
-#             simulation concerns.  Physics-layer classification already exists
-#             via collision_layer / collision_mask.
-#   FIX:      Move _tags, get_tags, set_tags, has_tag, add_tag, remove_tag to
-#             SceneObject.  Remove from IBasePhysicsBody and BasePhysicsBody.
+# TODO-SCENE-07: Move tags from BasePhysicsBody to SceneObject
+#   PROBLEM:  IBasePhysicsBody / BasePhysicsBody carry general-purpose tags
+#             (get_tags, add_tag, …) used for gameplay / logic categorisation.
+#             These are scene-entity concerns, not physics simulation concerns.
+#             Physics-layer classification is already handled by collision_layer
+#             and collision_mask.
+#   FIX:      Move _tags and all tag methods to SceneObject.
+#             Remove from IBasePhysicsBody and BasePhysicsBody.
 #
-# TODO-SCENE-09: Reconsider IConnectable on IBasePhysicsBody
+# TODO-SCENE-08: Reconsider IConnectable on IBasePhysicsBody
 #   PROBLEM:  IBasePhysicsBody extends IConnectable (inputs/outputs for the
-#             connection graph).  Logical connections between scene entities are
-#             a SceneObject concern — the physics body (mass, velocity, collider)
-#             should not be part of the connection registry.
-#   FIX:      Remove IConnectable from IBasePhysicsBody.  SceneObject already
-#             uses the connection registry via Scene; ensure SceneObject (or
-#             specialised subclasses) implement IConnectable as needed instead.
+#             connection graph).  Logical connections are a SceneObject concern;
+#             the physics simulation (mass, velocity, collider) should not be
+#             part of the connection registry.
+#   FIX:      Remove IConnectable from IBasePhysicsBody.  Move connection
+#             support to SceneObject or specialised subclasses as needed.
 #
-# TODO-SCENE-10: Audit / complete _compile_properties
-#   PROBLEM:  SceneObject.get_properties calls _compile_properties() but the
-#             method's contract is unclear — subclasses override it but there
-#             is no documented invariant for what it must populate or when it
-#             is safe to call.  Also, set_property writes both to the live
-#             attribute AND to self._properties dict, creating two sources of
-#             truth.
-#   FIX:      Clarify _compile_properties contract (write to self._properties
-#             from live attrs); document that self._properties is a
-#             serialisation snapshot, not the live store.  Ensure all
-#             subclass overrides call super()._compile_properties() first.
+# TODO-SCENE-09: Audit / complete _compile_properties
+#   PROBLEM:  SceneObject.get_properties() calls _compile_properties() but the
+#             contract is undocumented.  set_property writes to both the live
+#             attribute AND self._properties dict, creating two sources of truth.
+#   FIX:      Document that self._properties is a serialisation snapshot built
+#             on demand by _compile_properties (reads from live attrs).
+#             Ensure all subclass overrides call super()._compile_properties().
+#             Remove the dual-write in set_property.
 #
-# TODO-SCENE-11: CompositeSceneObject serialization round-trip
-#   PROBLEM:  CompositeSceneObject has child components with relative offsets.
-#             from_dict currently uses SceneObject.from_dict for each child,
-#             which goes through PhysicsSceneFactory (same problem as SCENE-04).
-#             Also unclear if offset data survives a full scene save/load cycle.
-#   FIX:      After TODO-SCENE-03/04, verify composite round-trip end-to-end
-#             with a test.  Ensure component offsets are included in to_dict
-#             and restored in from_dict.
+# TODO-SCENE-10: CompositeSceneObject serialization round-trip
+#   PROBLEM:  CompositeSceneObject.from_dict uses SceneObject.from_dict for
+#             child components, which has the same dispatch problem as SCENE-03.
+#             Unclear whether component offsets survive a full scene save/load.
+#   FIX:      After SCENE-03, verify composite round-trip with an end-to-end
+#             test.  Ensure offset_x/offset_y are included in to_dict and
+#             correctly restored in from_dict.  Register CompositeSceneObject
+#             in SceneObjectFactory so Scene.from_dict dispatch works.
 # =============================================================================
 
 from .sceneobject import SceneObject
