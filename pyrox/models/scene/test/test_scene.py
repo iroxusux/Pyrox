@@ -159,6 +159,7 @@ class TestScene(unittest.TestCase):
 
         scene.add_scene_object(scene_object1)
         obj_id = scene_object1.get_id()
+        scene_object2.set_id(obj_id)  # Force duplicate ID
 
         with self.assertRaises(ValueError) as context:
             scene.add_scene_object(scene_object2)

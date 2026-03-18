@@ -16,6 +16,7 @@ from pyrox.interfaces import (
 from pyrox.models.protocols import CoreMixin
 from pyrox.models.connection import ConnectionRegistry
 from pyrox.models.scene.sceneobject import SceneObject
+from pyrox.models.scene.scenegroup import SceneGroup
 
 
 class Scene(CoreMixin):
@@ -183,13 +184,15 @@ class Scene(CoreMixin):
         """Create scene from dictionary.
 
         Uses a 2-pass strategy:
-        * Pass 1 — create all plain SceneObjects, CompositeSceneObjects, and
-          SceneGroup *shells* (without member links).
-        * Pass 2 — link SceneGroup shells to their previously-created members.
+        * Pass 1 — deserialise every scene object via ``SceneObject.from_dict``.
+          That method dispatches to the correct subclass through
+          ``SceneObjectFactory`` (keyed by ``template_name``, with
+          ``scene_object_type`` as a backward-compatible fallback), so groups
+          and composites are restored as their proper types automatically.
+        * Pass 2 — link ``SceneGroup`` shells to their previously-created
+          members (required because members must exist before they can be added
+          to their group).
         """
-        # Import here to avoid circular imports at module level.
-        from pyrox.models.scene.scenegroup import SceneGroup, SCENE_OBJECT_TYPE_GROUP
-        from pyrox.models.scene.compositesceneobject import SCENE_OBJECT_TYPE_COMPOSITE
 
         scene = cls(
             name=data.get("name", "Untitled Scene"),
@@ -199,21 +202,9 @@ class Scene(CoreMixin):
         # ------ Pass 1: instantiate every scene object ------
         groups: list[SceneGroup] = []
         for scene_object_data in data.get("scene_objects", []):
-            sot = scene_object_data.get("scene_object_type", "")
-
-            if sot == SCENE_OBJECT_TYPE_GROUP:
-                obj = SceneGroup.from_dict(scene_object_data)
+            obj = SceneObject.from_dict(scene_object_data)
+            if isinstance(obj, SceneGroup):
                 groups.append(obj)
-            elif sot == SCENE_OBJECT_TYPE_COMPOSITE or scene_object_data.get("components"):
-                from pyrox.models.scene.factory import SceneObjectFactory
-                template_name = scene_object_data.get("name", "")
-                if not template_name:
-                    raise ValueError("Scene object data missing 'name' field required for template lookup.")
-                obj = SceneObjectFactory.create_from_template(template_name, **scene_object_data)
-                if obj is None:
-                    raise ValueError(f"Failed to create scene object from template '{template_name}'.")
-            else:
-                obj = SceneObject.from_dict(scene_object_data)
 
             scene.add_scene_object(obj)
             scene._connection_registry.register_object(obj.id, obj)

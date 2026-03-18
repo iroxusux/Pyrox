@@ -8,7 +8,6 @@ from pyrox.models.meta import (
     SliceableInt,
     SnowFlake,
 )
-from pyrox.services import IdGeneratorService
 
 
 class TestSliceableInt:
@@ -88,24 +87,6 @@ class TestSliceableInt:
 class TestSnowFlake:
     """Test the SnowFlake class."""
 
-    def setup_method(self):
-        """Reset the ID generator before each test."""
-        IdGeneratorService._ctr = 0
-
-    def test_unique_ids(self):
-        """Test that each SnowFlake gets a unique ID."""
-        sf1 = SnowFlake()
-        sf2 = SnowFlake()
-        sf3 = SnowFlake()
-
-        assert sf1.id == 1
-        assert sf2.id == 2
-        assert sf3.id == 3
-
-        # All IDs should be different
-        assert sf1.id != sf2.id
-        assert sf2.id != sf3.id
-
     def test_equality(self):
         """Test SnowFlake equality comparison."""
         sf1 = SnowFlake()
@@ -143,17 +124,13 @@ class TestSnowFlake:
 class TestPyroxObject:
     """Test the PyroxObject class."""
 
-    def setup_method(self):
-        """Reset the ID generator before each test."""
-        IdGeneratorService._ctr = 0
-
     def test_inheritance(self):
         """Test PyroxObject inheritance."""
         obj = PyroxObject()
 
         # Should inherit from SnowFlake
         assert hasattr(obj, 'id')
-        assert obj.id == 1
+        assert obj.id is not None
 
     def test_repr(self):
         """Test PyroxObject string representation."""

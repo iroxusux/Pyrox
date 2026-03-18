@@ -21,6 +21,7 @@ from typing import (
     Optional,
     Tuple,
 )
+import uuid
 
 from pyrox.interfaces import (
     IBasePhysicsBody,
@@ -51,6 +52,7 @@ class CompositeSceneObject(SceneObject, ICompositeSceneObject):
         physics_body: IBasePhysicsBody,
         description: str = "",
         scene_object_type: str = SCENE_OBJECT_TYPE_COMPOSITE,
+        id: str | None = None,
         properties: Optional[Dict] = None,
         parent: Optional[SceneObject] = None,
         layer: int = 0,
@@ -58,8 +60,10 @@ class CompositeSceneObject(SceneObject, ICompositeSceneObject):
         super().__init__(
             name=name,
             scene_object_type=scene_object_type,
+            template_name=SCENE_OBJECT_TYPE_COMPOSITE,
             physics_body=physics_body,
             description=description,
+            id=id or f'{SCENE_OBJECT_TYPE_COMPOSITE}_{uuid.uuid4()}',
             properties=properties,
             parent=parent,
             layer=layer,
@@ -206,6 +210,7 @@ class CompositeSceneObject(SceneObject, ICompositeSceneObject):
             physics_body=body,
             description=data.get("description", ""),
             scene_object_type=data.get("scene_object_type", SCENE_OBJECT_TYPE_COMPOSITE),
+            id=data.get("id", None),
             properties=data.get("properties", {}),
             layer=data.get("layer", 0),
         )
@@ -220,3 +225,21 @@ class CompositeSceneObject(SceneObject, ICompositeSceneObject):
             )
 
         return composite
+
+
+# ---------------------------------------------------------------------------
+# Factory registration — done once at import time so SceneObject.from_dict
+# can dispatch to CompositeSceneObject when it sees template_name /
+# scene_object_type equal to SCENE_OBJECT_TYPE_COMPOSITE ("composite").
+# ---------------------------------------------------------------------------
+from pyrox.models.scene.factory import SceneObjectFactory, SceneObjectTemplate  # noqa: E402
+
+SceneObjectFactory.register_template(
+    SCENE_OBJECT_TYPE_COMPOSITE,
+    SceneObjectTemplate(
+        name=SCENE_OBJECT_TYPE_COMPOSITE,
+        scene_object_class=CompositeSceneObject,
+        description="Design-locked composite that owns child components at relative offsets.",
+        category="Groups",
+    ),
+)

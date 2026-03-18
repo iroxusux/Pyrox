@@ -1,6 +1,6 @@
 """Meta module for Pyrox framework base classes."""
 from pathlib import Path
-from pyrox.services import IdGeneratorService
+import uuid
 
 
 __all__ = (
@@ -122,7 +122,7 @@ class SnowFlake:
         self,
         **_
     ) -> None:
-        self._id = IdGeneratorService.get_id()
+        self._id = uuid.uuid4().int
 
     def __str__(self) -> str:
         return str(self.id)

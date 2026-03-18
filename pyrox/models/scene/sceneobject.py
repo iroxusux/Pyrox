@@ -3,9 +3,8 @@
 from typing import (
     Any,
     Callable,
-    Dict,
-    Optional,
 )
+import uuid
 from pyrox.interfaces import (
     IBasePhysicsBody,
     ISceneObject,
@@ -39,22 +38,22 @@ class SceneObject(
         physics_body: IBasePhysicsBody,
         description: str = "",
         template_name: str = "",
-        properties: Optional[Dict] = None,
-        parent: Optional['SceneObject'] = None,
+        id: str | None = None,
+        properties: dict | None = None,
+        parent: 'SceneObject | None' = None,
         layer: int = 0,
-        sprite_path: Optional[str] = None,
+        sprite_path: str | None = None,
         bg_color: str = "#4a9eff",
     ):
-        self._name = name
-        self._description = description
+        CoreMixin.__init__(self, name=name, description=description, id=id or f'scene_object_{uuid.uuid4()}')
         self._scene_object_type = scene_object_type
         self._template_name: str = template_name
-        self._properties: Dict[str, Any] = properties if properties is not None else dict()
+        self._properties: dict[str, Any] = properties if properties is not None else dict()
         self._physics_body = physics_body
 
         # Parent-child hierarchy
-        self._parent: Optional['SceneObject'] = parent
-        self._children: Dict[str, 'SceneObject'] = {}
+        self._parent: 'SceneObject | None' = parent
+        self._children: dict[str, 'SceneObject'] = {}
 
         # Rendering layer (z-order)
         # Lower values render first (background), higher values render last (foreground)
@@ -66,7 +65,7 @@ class SceneObject(
         # (e.g. when loading from JSON).  The explicit constructor args take
         # priority; if absent, fall back to whatever the properties dict says.
         _props = properties or {}
-        self._sprite_path: Optional[str] = sprite_path if sprite_path is not None else _props.get("sprite_path")
+        self._sprite_path: str | None = sprite_path if sprite_path is not None else _props.get("sprite_path")
         self._bg_color: str = bg_color if bg_color != "#4a9eff" else _props.get("bg_color", _props.get("color", "#4a9eff"))
 
         # Animation
@@ -78,19 +77,19 @@ class SceneObject(
         self._clickable: bool = False  # Whether this object responds to clicks
 
         # Group membership — ID of the SceneGroup this object belongs to, or None
-        self._group_id: Optional[str] = None
+        self._group_id: str | None = None
 
     # ------------------------------------------------------------------
     # Visual properties
     # ------------------------------------------------------------------
 
     @property
-    def sprite_path(self) -> Optional[str]:
+    def sprite_path(self) -> str | None:
         """Filesystem path to a sprite image, or ``None`` to use a plain colour fill."""
         return self._sprite_path
 
     @sprite_path.setter
-    def sprite_path(self, path: Optional[str]) -> None:
+    def sprite_path(self, path: str | None) -> None:
         self._sprite_path = path
 
     @property
@@ -128,7 +127,7 @@ class SceneObject(
             self._properties[name] = getattr(self, name)
         return self._properties.get(name)
 
-    def get_properties(self) -> Dict:
+    def get_properties(self) -> dict:
         """Get the properties of the scene object.
 
         Returns:
@@ -152,7 +151,7 @@ class SceneObject(
             setattr(self, name, value)
         self._properties[name] = value
 
-    def set_properties(self, properties: Dict) -> None:
+    def set_properties(self, properties: dict) -> None:
         """Set the properties of the scene object.
 
         Args:
@@ -224,7 +223,12 @@ class SceneObject(
         if cls is SceneObject:
             # Local import avoids a circular dependency between sceneobject and factory.
             from pyrox.models.scene.factory import SceneObjectFactory  # noqa: PLC0415
-            template_name: str = data.get("template_name", "")
+            # Primary key: template_name.  Fallback: scene_object_type for files
+            # saved before the template_name field was populated (backward compat).
+            template_name: str = (
+                data.get("template_name", "")
+                or data.get("scene_object_type", "")
+            )
             if template_name:
                 template = SceneObjectFactory.get_template(template_name)
                 if template is not None and template.scene_object_class is not SceneObject:
@@ -245,6 +249,7 @@ class SceneObject(
             name=data["name"],
             scene_object_type=data["scene_object_type"],
             template_name=data.get("template_name", ""),
+            id=data.get("id", None),
             physics_body=body,
             description=data.get("description", ""),
             properties=data.get("properties", {}),
@@ -273,11 +278,11 @@ class SceneObject(
 
     # Parent-child relationship methods
 
-    def get_parent(self) -> Optional['SceneObject']:
+    def get_parent(self) -> 'SceneObject | None':
         """Get the parent scene object."""
         return self._parent
 
-    def set_parent(self, parent: Optional['SceneObject']) -> None:
+    def set_parent(self, parent: 'SceneObject | None') -> None:
         """Set the parent scene object.
 
         Args:
@@ -310,7 +315,7 @@ class SceneObject(
         if child_id in self._children:
             self._children[child_id].set_parent(None)
 
-    def get_children(self) -> Dict[str, 'SceneObject']:
+    def get_children(self) -> dict[str, 'SceneObject']:
         """Get all child scene objects.
 
         Returns:
@@ -318,7 +323,7 @@ class SceneObject(
         """
         return self._children
 
-    def get_child(self, child_id: str) -> Optional['SceneObject']:
+    def get_child(self, child_id: str) -> 'SceneObject | None':
         """Get a specific child by ID.
 
         Args:
@@ -438,11 +443,11 @@ class SceneObject(
     # IGroupable — group membership
     # ------------------------------------------------------------------
 
-    def get_group_id(self) -> Optional[str]:
+    def get_group_id(self) -> str | None:
         """Get the ID of the SceneGroup this object belongs to, or None."""
         return self._group_id
 
-    def set_group_id(self, group_id: Optional[str]) -> None:
+    def set_group_id(self, group_id: str | None) -> None:
         """Set the group ID for this object.
 
         Args:

@@ -48,6 +48,7 @@ def _make_obj(name: str = "Obj", x: float = 0.0, y: float = 0.0,
     """Create a plain SceneObject with the given geometry."""
     return SceneObject(
         name=name,
+        template_name="Scene Object",
         scene_object_type="test",
         physics_body=_TestPhysicsBody(name=name, x=x, y=y, width=width, height=height),
     )

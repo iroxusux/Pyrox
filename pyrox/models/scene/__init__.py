@@ -35,37 +35,19 @@
 #        → PhysicsSceneFactory.get_template() → body_class.from_dict(body_data)
 #     Both factories remain; each handles its own layer. No merging needed.
 #
+# TODO-SCENE-04: Fix Scene.from_dict — remove hardcoded type dispatching  [DONE]
+#   SceneGroup and CompositeSceneObject are now registered in SceneObjectFactory
+#   under their scene_object_type constants ("group" / "composite") at import
+#   time.  Their __init__ also passes template_name= so new saves carry the key.
+#   SceneObject.from_dict uses template_name first, then falls back to
+#   scene_object_type for backward-compatible loading of older save files.
+#   Scene.from_dict now calls SceneObject.from_dict for every entry; groups are
+#   identified afterwards by isinstance check for the second-pass member linking.
+#   No hardcoded scene_object_type string comparisons remain in Scene.from_dict.
+#
 # IN PROGRESS / NEXT
 # -----------------------------------------------------------------------------
 #
-# TODO-SCENE-04: Fix Scene.from_dict — remove hardcoded type dispatching  [DONE]
-#   SceneObject.from_dict now checks cls is SceneObject, reads "template_name",
-#   and delegates to template.scene_object_class.from_dict(data) when a
-#   matching template is registered.  The cls-guard prevents infinite recursion
-#   when a subclass inherits the base method.  Falls back to plain SceneObject
-#   construction for generic/unregistered objects (backward compatible).
-#
-# TODO-SCENE-04: Fix Scene.from_dict — remove hardcoded type dispatching
-#   PROBLEM:  Scene.from_dict has a hardcoded conditional block that special-
-#             cases composites and groups by string-comparing scene_object_type,
-#             then routes composites to SceneObjectFactory.create_from_template
-#             using the object's runtime name as a template key (wrong — names
-#             are instance identifiers, not template identifiers).
-#             Additionally, the composite branch splats **scene_object_data
-#             which now includes the "template_name" key from SCENE-02, causing
-#             a TypeError (duplicate keyword argument) against the positional
-#             template_name param of create_from_template.
-#             Plain objects fall through to SceneObject.from_dict which still
-#             bypasses SceneObjectFactory entirely (see SCENE-03).
-#   FIX:      After SCENE-02/03: Scene.from_dict calls SceneObject.from_dict
-#             for every entry.  SceneObject.from_dict dispatches to the right
-#             subclass via SceneObjectFactory using template_name.  Groups and
-#             composites are registered templates like any other type; no
-#             special-case string checks needed.  The two-pass group-linking
-#             strategy can remain as-is.
-#
-# QUEUED
-# -----------------------------------------------------------------------------
 # TODO-SCENE-05: Remove redundant top-level "material" key from to_dict
 #   PROBLEM:  SceneObject.to_dict emits "material" at the top level AND it is
 #             already present inside "body".  One will silently diverge.
@@ -119,15 +101,15 @@
 # =============================================================================
 
 from .sceneobject import SceneObject
-from .scene import Scene
+from .scenegroup import SceneGroup
 from .factory import SceneObjectFactory, SceneObjectTemplate
+from .scene import Scene
 from .scenebridge import (
     BindingDirection,
     SceneBinding,
     SceneBridge,
 )
 from .sceneboundlayer import SceneBoundLayer
-from .scenegroup import SceneGroup
 from .compositesceneobject import CompositeSceneObject
 from .sources import KeyboardSource
 from .animation import (

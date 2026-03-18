@@ -19,9 +19,6 @@ from .logging import (
     LoggingManager
 )
 
-# Id imports
-from .id import IdGeneratorService
-
 # Theme imports
 from .theme import ThemeManager
 

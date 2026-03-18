@@ -8,6 +8,7 @@ from typing import (
     List,
     Optional
 )
+import uuid
 from pyrox.interfaces import (
     IBasePhysicsBody,
     BodyType,
@@ -15,7 +16,6 @@ from pyrox.interfaces import (
     CollisionLayer,
     IMaterial
 )
-from pyrox.services import IdGeneratorService
 from pyrox.models.protocols import Nameable, Connectable
 from pyrox.models.protocols.physics import PhysicsBody2D, Material
 from .factory import PhysicsSceneTemplate, PhysicsSceneFactory
@@ -95,7 +95,7 @@ class BasePhysicsBody(
             material: Material properties (creates default if None)
         """
         Nameable.__init__(self=self, name=name)
-        id = id or f'physics-body-{name}-{IdGeneratorService.get_id()}'
+        id = id or f'physics-body-{name}-{uuid.uuid4()}'
         Connectable.__init__(self=self, id=id)
         PhysicsBody2D.__init__(
             self=self,
