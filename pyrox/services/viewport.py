@@ -4,9 +4,9 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from enum import Enum
 from typing import Callable
-from PyQt6.QtCore import Qt, QObject, QEvent, QTimer
-from PyQt6.QtGui import QColor, QFont, QPen
-from PyQt6.QtWidgets import QFrame, QGraphicsView, QHBoxLayout, QLabel, QWidget
+from PyQt6.QtCore import Qt, QObject, QEvent, QRectF, QTimer
+from PyQt6.QtGui import QFont
+from PyQt6.QtWidgets import QFrame, QGraphicsScene, QGraphicsView, QHBoxLayout, QLabel, QWidget
 from pyrox.interfaces import IViewport
 from pyrox.services import MenuRegistry, MenuItemDescriptor, Event, EventBus, EventType
 
@@ -925,7 +925,6 @@ class ViewportGriddingService:
         self._enabled = enabled
         self._snap_enabled = snap_enabled
         self._min_spacing_pixels = min_spacing_pixels
-        self._grid_items: list = []
         self._bind_to_menu_registry()
 
     def _bind_to_menu_registry(self) -> None:
@@ -937,67 +936,24 @@ class ViewportGriddingService:
         if item:
             item.set_command(command=self.toggle_snap)
 
+    def _request_repaint(self) -> None:
+        """Ask the canvas to repaint so drawBackground redraws the grid."""
+        if self._canvas is not None:
+            vp = self._canvas.viewport()
+            if vp is not None:
+                vp.update()
+
     def render(self) -> None:
-        """Render the grid if enabled."""
-        if self._enabled:
-            self._render_grid()
+        """Request a canvas repaint so the grid is redrawn via drawBackground."""
+        self._request_repaint()
 
     def _render_grid(self) -> None:
-        """Internal method to render grid overlay on the canvas."""
-        if not self._canvas or not self._viewport:
-            return
-
-        scene = self._canvas.scene()
-        if not scene:
-            return
-
-        canvas_width = self._canvas.width()
-        canvas_height = self._canvas.height()
-
-        if canvas_width <= 1 or canvas_height <= 1:
-            # Canvas not yet rendered or minimized
-            return
-
-        # Calculate grid spacing in canvas coordinates
-        grid_spacing = self._grid_size * self._viewport.zoom
-
-        # Don't render grid if it's too dense
-        if grid_spacing < self._min_spacing_pixels:
-            return
-
-        # Calculate starting positions based on viewport offset
-        # We want the grid to align with scene coordinates (0,0)
-        start_x = self._viewport.x % grid_spacing
-        start_y = self._viewport.y % grid_spacing
-
-        pen = QPen(QColor(self._grid_color), self._grid_line_width)
-
-        # Draw vertical lines
-        x = start_x
-        while x < canvas_width:
-            item = scene.addLine(x, 0, x, canvas_height, pen)
-            if item is not None:
-                item.setZValue(-1000)
-                self._grid_items.append(item)
-            x += grid_spacing
-
-        # Draw horizontal lines
-        y = start_y
-        while y < canvas_height:
-            item = scene.addLine(0, y, canvas_width, y, pen)
-            if item is not None:
-                item.setZValue(-1000)
-                self._grid_items.append(item)
-            y += grid_spacing
+        """Deprecated — grid is now drawn by QGraphicsView.drawBackground()."""
+        self._request_repaint()
 
     def clear(self) -> None:
-        """Clear all grid lines from the canvas."""
-        if self._canvas and self._grid_items:
-            scene = self._canvas.scene()
-            if scene:
-                for item in self._grid_items:
-                    scene.removeItem(item)
-        self._grid_items.clear()
+        """Request a canvas repaint (no scene items to remove)."""
+        self._request_repaint()
 
     def toggle(self) -> None:
         """Toggle grid visibility."""
@@ -1320,25 +1276,24 @@ class ViewportHostingService:
             dx = self._viewport.x - self._last_viewport.x
             dy = self._viewport.y - self._last_viewport.y
 
-            # Redraw grid at new zoom level
-            self._viewport_gridding_service.clear()
-            self._viewport_gridding_service.render()
-
-            # Always mark for re-render after zoom to update culling
-            # Zoom changes visible area significantly
+            # Trigger a full re-render so scene items are rebuilt at the new
+            # size (canvas_w = world_w * zoom changes for every item).
             self._mark_dirty()
 
-        if dx != 0 or dy != 0:
-            # Redraw grid at new pan position
-            self._viewport_gridding_service.clear()
-            self._viewport_gridding_service.render()
+            # Invalidate the background layer so the grid repaints at the new
+            # zoom spacing for regions that contain no scene objects.
+            sc = self._canvas.scene()
+            if sc is not None:
+                sc.invalidate(QRectF(), QGraphicsScene.SceneLayer.BackgroundLayer)
 
-            # Mark for re-render to update culling after significant pan
-            # Only trigger re-cull if viewport has moved beyond threshold since last cull
-            # This avoids excessive re-renders during small mouse movements
-            pan_distance = abs(self._viewport.x - self._last_culling_viewport_x) + abs(self._viewport.y - self._last_culling_viewport_y)
-            if pan_distance > self._culling_threshold:
-                self._mark_dirty()
+        if dx != 0 or dy != 0:
+            # Invalidate the background layer so drawBackground repaints the
+            # grid everywhere, not just in regions dirtied by item movement.
+            # Without this, Qt skips repainting grid-only areas, leaving
+            # stale grid lines as visible artifacts during panning.
+            sc = self._canvas.scene()
+            if sc is not None:
+                sc.invalidate(QRectF(), QGraphicsScene.SceneLayer.BackgroundLayer)
 
         # Update viewport tracking
         self._last_viewport.update(self._viewport)

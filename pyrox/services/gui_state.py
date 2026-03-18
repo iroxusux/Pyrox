@@ -176,20 +176,30 @@ class GuiStateService:
     def capture_from_window(cls, window: object) -> None:
         """Snapshot all geometry from a ``QMainWindow`` instance.
 
+        Size and position are only updated when the window is **not** in
+        fullscreen mode so that the last non-fullscreen geometry is preserved
+        and can be correctly restored when the user exits fullscreen.
+
         Args:
             window: A ``QMainWindow`` (or any object exposing ``width()``,
                 ``height()``, ``x()``, ``y()``, ``isMaximized()``,
                 ``isMinimized()``, ``isFullScreen()``).
         """
-        cls.set_size(window.width(), window.height())  # type: ignore[attr-defined]
-        cls.set_position(window.x(), window.y())  # type: ignore[attr-defined]
-        cls.set_fullscreen(window.isFullScreen())  # type: ignore[attr-defined]
+        is_fullscreen: bool = bool(window.isFullScreen())  # type: ignore[attr-defined]
+        cls.set_fullscreen(is_fullscreen)
+
+        # Don't overwrite size/position while fullscreen — the values reported
+        # by Qt in that state are either screen dimensions or uninitialised
+        # defaults, neither of which should be restored later as a window size.
+        if not is_fullscreen:
+            cls.set_size(window.width(), window.height())  # type: ignore[attr-defined]
+            cls.set_position(window.x(), window.y())  # type: ignore[attr-defined]
 
         if window.isMaximized():  # type: ignore[attr-defined]
             cls.set_window_state('zoomed')
         elif window.isMinimized():  # type: ignore[attr-defined]
             cls.set_window_state('iconic')
-        else:
+        elif not is_fullscreen:
             cls.set_window_state('normal')
 
     @classmethod

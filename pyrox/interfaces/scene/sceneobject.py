@@ -7,16 +7,14 @@ from typing import (
     runtime_checkable,
 )
 from pyrox.interfaces import (
-    INameable,
-    IDescribable,
     IBasePhysicsBody,
+    ICoreMixin
 )
 
 
 @runtime_checkable
 class ISceneObject(
-        INameable,
-        IDescribable,
+        ICoreMixin,
         Protocol
 ):
     """Object base class for scene elements.

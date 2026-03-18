@@ -64,6 +64,13 @@ class _PyQt6MainWindow(QMainWindow):
         for cb in self._configure_callbacks:
             cb()
 
+    def keyPressEvent(self, event) -> None:  # type: ignore[override]
+        from PyQt6.QtCore import Qt
+        if event is not None and event.key() == Qt.Key.Key_F11:
+            GuiManager.toggle_fullscreen()
+        else:
+            super().keyPressEvent(event)
+
 
 # ---------------------------------------------------------------------------
 # PyQt6GuiManager
@@ -289,6 +296,27 @@ class GuiManager:
     def restore_root_geometry(cls) -> None:
         """Restore window geometry and state from GuiStateService."""
         GuiStateService.apply_to_window(cls.get_root())
+
+    @classmethod
+    def toggle_fullscreen(cls) -> None:
+        """Toggle the root window between fullscreen and its previous state.
+
+        Pressing F11 calls this method.  When leaving fullscreen the window
+        is restored to its previous maximized-or-normal state as recorded in
+        :class:`GuiStateService`, and the updated state is saved to disk.
+        """
+        root = cls.get_root()
+        if root.isFullScreen():
+            GuiStateService.set_fullscreen(False)
+            # Restore to whichever state was active before going fullscreen.
+            if GuiStateService.get_window_state() == 'zoomed':
+                root.showMaximized()
+            else:
+                root.showNormal()
+        else:
+            GuiStateService.set_fullscreen(True)
+            root.showFullScreen()
+        GuiStateService.save()
 
     # --------------------------------------------------
     # Root Menu Management

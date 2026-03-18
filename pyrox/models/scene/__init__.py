@@ -1,5 +1,6 @@
 from .sceneobject import SceneObject
 from .scene import Scene
+from .factory import SceneObjectFactory, SceneObjectTemplate
 from .scenebridge import (
     BindingDirection,
     SceneBinding,
@@ -17,12 +18,14 @@ from .animation import (
     Keyframe,
     SceneAnimator,
 )
-from . import sources
+from . import assets, sources
 
 
 __all__ = [
     "SceneObject",
     "Scene",
+    "SceneObjectFactory",
+    "SceneObjectTemplate",
     "BindingDirection",
     "SceneBinding",
     "SceneBridge",
@@ -36,5 +39,6 @@ __all__ = [
     "AnimationTrack",
     "Keyframe",
     "SceneAnimator",
+    "assets",
     "sources",
 ]
