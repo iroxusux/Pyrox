@@ -21,16 +21,6 @@ class SceneObject(
     """Base class for scene objects.
     """
 
-    def __getattribute__(self, name: str) -> Any:
-        # Override to allow dynamic properties from physics body
-        try:
-            return super().__getattribute__(name)
-        except AttributeError:
-            physics_body = super().__getattribute__("_physics_body")
-            if hasattr(physics_body, name):
-                return getattr(physics_body, name)
-            raise AttributeError(f"'{type(self).__name__}' object has no attribute '{name}'")
-
     def __init__(
         self,
         name: str,
@@ -78,7 +68,6 @@ class SceneObject(
 
         # Group membership — ID of the SceneGroup this object belongs to, or None
         self._group_id: str | None = None
-
     # ------------------------------------------------------------------
     # Visual properties
     # ------------------------------------------------------------------

@@ -43,22 +43,56 @@ class Velocity2D(
 
 
 class Velocity3D(
-    Velocity2D,
     IVelocity3D,
+    Spatial3D
 ):
     """Protocol for 3D velocity."""
 
     def __init__(
         self,
+        x: float = 0.0,
+        y: float = 0.0,
+        z: float = 0.0,
+        width: float = 0.0,
+        height: float = 0.0,
+        depth: float = 0.0,
+        roll: float = 0.0,
+        pitch: float = 0.0,
+        yaw: float = 0.0,
         velocity_x: float = 0.0,
         velocity_y: float = 0.0,
         velocity_z: float = 0.0,
     ) -> None:
         super().__init__(
-            velocity_x=velocity_x,
-            velocity_y=velocity_y,
+            x=x,
+            y=y,
+            z=z,
+            width=width,
+            height=height,
+            depth=depth,
+            roll=roll,
+            pitch=pitch,
+            yaw=yaw,
         )
+        self._velocity_x: float = velocity_x
+        self._velocity_y: float = velocity_y
         self._velocity_z: float = velocity_z
+
+    def get_velocity_x(self) -> float:
+        return self._velocity_x
+
+    def set_velocity_x(self, value: float) -> None:
+        self._velocity_x = value
+
+    def get_velocity_y(self) -> float:
+        return self._velocity_y
+
+    def set_velocity_y(self, value: float) -> None:
+        self._velocity_y = value
+
+    def set_linear_velocity(self, vx: float, vy: float) -> None:
+        self._velocity_x = vx
+        self._velocity_y = vy
 
     def get_velocity_z(self) -> float:
         return self._velocity_z

@@ -544,7 +544,7 @@ class TestSceneObjectAnimator(unittest.TestCase):
         obj.animator.play("gate_open")
 
         _obj_advance(obj, 0.5)  # half-way through 1 s clip → yaw = 45
-        self.assertAlmostEqual(obj.yaw, 45.0, places=1)
+        self.assertAlmostEqual(obj.physics_body.yaw, 45.0, places=1)
 
     def test_update_at_full_duration_stops_once_clip(self):
         from pyrox.models.scene.animation import AnimationMode
@@ -554,13 +554,13 @@ class TestSceneObjectAnimator(unittest.TestCase):
 
         _obj_advance(obj, 2.0)  # past end
         self.assertFalse(obj.animator.is_playing)
-        self.assertAlmostEqual(obj.yaw, 90.0, places=1)
+        self.assertAlmostEqual(obj.physics_body.yaw, 90.0, places=1)
 
     def test_update_does_nothing_when_not_playing(self):
         obj = self._make()
         obj.update(0.5)  # no clip registered → should not raise
         # yaw stays at initial value
-        self.assertAlmostEqual(obj.yaw, 0.0, places=3)
+        self.assertAlmostEqual(obj.physics_body.yaw, 0.0, places=3)
 
     def test_piston_ping_pong_returns_to_origin(self):
         from pyrox.models.scene.animation import AnimationClip, AnimationMode, AnimationTrack

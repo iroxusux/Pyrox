@@ -131,9 +131,11 @@ class ISpatial2D(
     """Protocol for 2D spatial objects."""
 
 
+@runtime_checkable
 class ISpatial3D(
     IArea3D,
-    ISpatial2D,
+    IRotatable,
+    Protocol
 ):
     """Protocol for 3D spatial objects."""
 

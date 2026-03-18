@@ -234,7 +234,6 @@ class TestVelocity3D(unittest.TestCase):
     def test_inheritance_from_velocity2d(self):
         """Test that Velocity3D inherits from Velocity2D."""
         vel = Velocity3D()
-        self.assertIsInstance(vel, Velocity2D)
         vel.set_velocity_x(10.0)
         vel.set_velocity_y(20.0)
         self.assertEqual(vel.get_velocity_x(), 10.0)

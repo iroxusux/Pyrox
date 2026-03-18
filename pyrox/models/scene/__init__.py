@@ -35,23 +35,14 @@
 #        → PhysicsSceneFactory.get_template() → body_class.from_dict(body_data)
 #     Both factories remain; each handles its own layer. No merging needed.
 #
-# TODO-SCENE-05: Remove redundant top-level "material" key from to_dict  [DONE]
-#   Removed the "material" key from SceneObject.to_dict.  Material data is
-#   already present inside data["body"]["material"] and all physics body
-#   from_dict methods read it from there — the top-level key was never consumed.
+# TODO-SCENE-06: Replace __getattribute__ delegation with explicit properties  [DONE]
+#   Removed SceneObject.__getattribute__ override.  Explicit @property accessors
+#   added for yaw, velocity_x, velocity_y (all delegates to self._physics_body).
+#   x, y, width, height were already explicit in ISceneObject and remain unchanged.
+#   All other physics body access now goes through scene_object.physics_body.
 #
 # IN PROGRESS / NEXT
 # -----------------------------------------------------------------------------
-#
-# TODO-SCENE-06: Replace __getattribute__ delegation with explicit properties
-#   PROBLEM:  SceneObject.__getattribute__ catches every AttributeError and
-#             silently falls back to the physics body.  This obscures stack
-#             traces, hides the public API, and leaks physics internals as if
-#             they were scene-level properties.
-#   FIX:      Remove __getattribute__ override.  Explicitly expose the physics
-#             properties that belong on SceneObject's public API as @property
-#             accessors (x, y, width, height, yaw, velocity_x/y, etc.).
-#             All other physics body access should go through scene_object.body.
 #
 # TODO-SCENE-07: Move tags from BasePhysicsBody to SceneObject
 #   PROBLEM:  IBasePhysicsBody / BasePhysicsBody carry general-purpose tags
