@@ -379,6 +379,36 @@ class TestCompositeSerializtion(unittest.TestCase):
         self.assertIsInstance(restored_comp, CompositeSceneObject)
         self.assertTrue(restored_comp.has_component("led"))  # type: ignore
 
+    def test_from_dict_restores_tags(self):
+        """Tags set on the composite survive a to_dict / from_dict round-trip."""
+        comp = _make_composite()
+        comp.set_tags(["machine", "active"])
+        d = comp.to_dict()
+        restored = CompositeSceneObject.from_dict(d)
+        self.assertEqual(sorted(restored.get_tags()), ["active", "machine"])
+
+    def test_from_dict_restores_group_id(self):
+        """group_id set on the composite survives a to_dict / from_dict round-trip."""
+        comp = _make_composite()
+        comp.set_group_id("group-abc123")
+        d = comp.to_dict()
+        restored = CompositeSceneObject.from_dict(d)
+        self.assertEqual(restored.get_group_id(), "group-abc123")
+
+    def test_from_dict_group_id_none_when_absent(self):
+        """group_id is None when not set."""
+        comp = _make_composite()
+        d = comp.to_dict()
+        restored = CompositeSceneObject.from_dict(d)
+        self.assertIsNone(restored.get_group_id())
+
+    def test_from_dict_tags_empty_list_when_absent(self):
+        """Tags default to an empty list when not set."""
+        comp = _make_composite()
+        d = comp.to_dict()
+        restored = CompositeSceneObject.from_dict(d)
+        self.assertEqual(restored.get_tags(), [])
+
 
 if __name__ == "__main__":
     unittest.main()

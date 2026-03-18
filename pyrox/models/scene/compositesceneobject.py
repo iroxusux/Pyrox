@@ -215,9 +215,12 @@ class CompositeSceneObject(SceneObject, ICompositeSceneObject):
             physics_body=body,
             description=data.get("description", ""),
             scene_object_type=data.get("scene_object_type", SCENE_OBJECT_TYPE_COMPOSITE),
+            template_name=data.get("template_name", SCENE_OBJECT_TYPE_COMPOSITE),
             id=data.get("id", None),
+            group_id=data.get("group_id", None),
             properties=data.get("properties", {}),
             layer=data.get("layer", 0),
+            tags=data.get("tags", []),
         )
 
         for comp_data in data.get("components", []):
