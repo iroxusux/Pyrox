@@ -171,9 +171,16 @@ class CompositeSceneObject(SceneObject, ICompositeSceneObject):
     # ------------------------------------------------------------------
 
     def update(self, dt: float) -> None:
-        """Update the composite and all its components."""
+        """Update the composite and all its components.
+
+        Each component's physics body position is synchronised to its world
+        position (composite origin + component offset) before the component
+        is ticked, so the collision/spatial systems always see correct bounds.
+        """
         super().update(dt)
-        for obj, _, _ in self._components.values():
+        for obj, offset_x, offset_y in self._components.values():
+            obj.x = self.x + offset_x
+            obj.y = self.y + offset_y
             obj.update(dt)
 
     # ------------------------------------------------------------------
@@ -197,7 +204,6 @@ class CompositeSceneObject(SceneObject, ICompositeSceneObject):
     def from_dict(cls, data: dict) -> "CompositeSceneObject":
         """Reconstruct a CompositeSceneObject from a serialized dictionary."""
         from pyrox.models.physics.factory import PhysicsSceneFactory
-        from pyrox.models.scene.sceneobject import SceneObject
 
         body_data: dict = data.get("body", {})
         body_template = PhysicsSceneFactory.get_template(
@@ -210,7 +216,7 @@ class CompositeSceneObject(SceneObject, ICompositeSceneObject):
             )
         body = body_template.body_class.from_dict(body_data)
 
-        composite = cls(
+        return cls(
             name=data["name"],
             physics_body=body,
             description=data.get("description", ""),
@@ -223,17 +229,6 @@ class CompositeSceneObject(SceneObject, ICompositeSceneObject):
             tags=data.get("tags", []),
         )
 
-        for comp_data in data.get("components", []):
-            child_obj = SceneObject.from_dict(comp_data["object"])
-            composite.add_component(
-                name=comp_data["name"],
-                obj=child_obj,
-                offset_x=comp_data.get("offset_x", 0.0),
-                offset_y=comp_data.get("offset_y", 0.0),
-            )
-
-        return composite
-
 
 # ---------------------------------------------------------------------------
 # Factory registration — done once at import time so SceneObject.from_dict
@@ -243,7 +238,6 @@ class CompositeSceneObject(SceneObject, ICompositeSceneObject):
 from pyrox.models.scene.factory import SceneObjectFactory, SceneObjectTemplate  # noqa: E402
 
 SceneObjectFactory.register_template(
-    SCENE_OBJECT_TYPE_COMPOSITE,
     SceneObjectTemplate(
         name=SCENE_OBJECT_TYPE_COMPOSITE,
         scene_object_class=CompositeSceneObject,

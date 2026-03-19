@@ -204,6 +204,11 @@ class SceneAnimator:
         """Register *clip* by its name."""
         self._clips[clip.name] = clip
 
+    def add_clips(self, clips: list[AnimationClip]) -> None:
+        """Register multiple clips at once."""
+        for clip in clips:
+            self.add_clip(clip)
+
     def remove_clip(self, name: str) -> None:
         """Unregister *name*, stopping playback if it is currently active."""
         self._clips.pop(name, None)

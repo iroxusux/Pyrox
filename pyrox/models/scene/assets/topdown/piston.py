@@ -5,19 +5,6 @@ A piston consists of two components:
 * **rod** — a rectangle that grows/shrinks along the piston axis.
 * **head** — a square that sits flush at the tip of the rod.
 
-The :attr:`extended` property drives the animation:
-
-* ``True``  → plays the ``"extend"`` clip (rod grows, head moves outward).
-* ``False`` → plays the ``"retract"`` clip (rod shrinks, head moves inward).
-
-The piston can face any of the four cardinal directions.  The composite's
-origin is the **base** (mounting point) of the piston:
-
-    RIGHT  →  rod grows toward +X
-    LEFT   →  rod grows toward -X
-    DOWN   →  rod grows toward +Y  (screen-down)
-    UP     →  rod grows toward -Y  (screen-up)
-
 Example::
 
     piston = PistonSceneObject.create(
@@ -30,42 +17,19 @@ Example::
     )
     scene.add_scene_object(piston)
 
-    # Extend the piston (triggers the "extend" animation):
-    piston.extended = True
-
     # In the render / update loop:
     piston.update(dt)
 """
-from __future__ import annotations
-
-from enum import Enum, auto
-
-from pyrox.interfaces import IBasePhysicsBody
+from pyrox.interfaces import IBasePhysicsBody, BodyType, CardinalDirection, CollisionLayer
 from pyrox.models.physics.base import BasePhysicsBody
-from pyrox.models.scene.animation import (
-    AnimationClip,
-    AnimationEasing,
-    AnimationMode,
-    AnimationTrack,
-)
-from pyrox.models.scene.compositesceneobject import CompositeSceneObject
-from pyrox.models.scene.sceneobject import SceneObject
+from pyrox.models.scene.assets.topdown._compkinemetic import ActivatableCompositeKinematicSceneObject
 from pyrox.models.scene.factory import SceneObjectFactory, SceneObjectTemplate
 
 SCENE_OBJECT_TYPE_PISTON = "piston"
 SCENE_OBJECT_TEMPLATE_NAME_PISTON = "Top-Down Piston"
 
 
-class PistonDirection(Enum):
-    """Direction in which the piston rod extends from its base."""
-
-    RIGHT = auto()  # rod grows toward +X
-    LEFT = auto()   # rod grows toward −X
-    DOWN = auto()   # rod grows toward +Y
-    UP = auto()     # rod grows toward −Y
-
-
-class PistonSceneObject(CompositeSceneObject):
+class PistonSceneObject(ActivatableCompositeKinematicSceneObject):
     """Top-down composite piston with animated rod and head.
 
     The composite's origin is the **base** (mounting point) of the piston.
@@ -78,20 +42,14 @@ class PistonSceneObject(CompositeSceneObject):
 
     Both components are centred on the perpendicular axis relative to the
     piston head size, so the rod appears centred inside the head footprint.
-
-    Attributes:
-        CLIP_EXTEND:  Name of the extend animation clip registered on the rod.
-        CLIP_RETRACT: Name of the retract animation clip registered on the rod.
     """
-
-    CLIP_EXTEND = "extend"
-    CLIP_RETRACT = "retract"
 
     def __init__(
         self,
         name: str,
         physics_body: IBasePhysicsBody,
-        direction: PistonDirection = PistonDirection.RIGHT,
+        description: str = "",
+        direction: CardinalDirection = CardinalDirection.RIGHT,
         retracted_length: float = 20.0,
         extended_length: float = 60.0,
         rod_thickness: float = 8.0,
@@ -100,6 +58,8 @@ class PistonSceneObject(CompositeSceneObject):
         rod_color: str = "#888888",
         head_color: str = "#555555",
         layer: int = 0,
+        properties: dict = dict(),
+        **kwargs,
     ) -> None:
         """Initialise the piston with the given parameters.
 
@@ -121,57 +81,68 @@ class PistonSceneObject(CompositeSceneObject):
             head_color:         CSS hex fill colour for the head.
             layer:              Render layer (z-order).
         """
-        super().__init__(
-            name=name,
-            physics_body=physics_body,
-            scene_object_type=SCENE_OBJECT_TYPE_PISTON,
-            template_name=SCENE_OBJECT_TEMPLATE_NAME_PISTON,
-            layer=layer,
-        )
-
-        self._direction = direction
         self._retracted_length = float(retracted_length)
         self._extended_length = float(extended_length)
         self._rod_thickness = float(rod_thickness)
         self._head_size = float(head_size)
-        self._extended = False
-        self._is_horizontal = direction in (PistonDirection.RIGHT, PistonDirection.LEFT)
+        self._rod_color = rod_color
+        self._head_color = head_color
+        self._tracking_rod_length = self._retracted_length  # For driving the rod animation
+        self._prev_head_world_pos: tuple[float, float] | None = None
+        super().__init__(
+            name=name,
+            physics_body=physics_body,
+            description=description,
+            scene_object_type=SCENE_OBJECT_TYPE_PISTON,
+            template_name=SCENE_OBJECT_TEMPLATE_NAME_PISTON,
+            layer=layer,
+            direction=direction,
+            animation_duration=animation_duration,
+            properties=properties,
+        )
 
+    def current_animator_position(self) -> float:
+        return self._tracking_rod_length
+
+    # ------------------------------------------------------------------
+    # Build Methods
+    # ------------------------------------------------------------------
+
+    def build_components(self):
+        """Override this method in derived classes to build the kinematic components and register them as children."""
         # ------------------------------------------------------------------
         # Rod component
         # ------------------------------------------------------------------
-        rod_w = self._retracted_length if self._is_horizontal else self._rod_thickness
-        rod_h = self._rod_thickness if self._is_horizontal else self._retracted_length
+        rod_w = self._retracted_length if self.is_horizontal else self._rod_thickness
+        rod_h = self._rod_thickness if self.is_horizontal else self._retracted_length
 
-        rod_body = BasePhysicsBody(
-            name=f"{name}_rod",
-            template_name='Base Physics Body',
+        self._rod = self.create_simple_component(
+            name="rod",
+            template_name="Piston Rod",
+            body_type=BodyType.KINEMATIC,
             width=rod_w,
             height=rod_h,
-        )
-        self._rod = SceneObject(
-            name=f"{name}_rod",
+            collision_layer=CollisionLayer.TERRAIN,
+            collision_mask=self.default_collision_mask,
             scene_object_type="piston_rod",
-            physics_body=rod_body,
-            bg_color=rod_color,
-            layer=layer,
+            bg_color=self._rod_color,
+            layer=self._layer,
         )
 
         # ------------------------------------------------------------------
         # Head component
         # ------------------------------------------------------------------
-        head_body = BasePhysicsBody(
-            name=f"{name}_head",
-            template_name='Base Physics Body',
-            width=head_size,
-            height=head_size,
-        )
-        self._head = SceneObject(
-            name=f"{name}_head",
+        self._head = self.create_simple_component(
+            name="head",
+            template_name="Base Physics Body",
+            body_type=BodyType.KINEMATIC,
+            width=self._head_size,
+            height=self._head_size,
+            collision_layer=CollisionLayer.TERRAIN,
+            collision_mask=self.default_collision_mask,
             scene_object_type="piston_head",
-            physics_body=head_body,
-            bg_color=head_color,
-            layer=layer,
+            bg_color=self._head_color,
+            layer=self._layer,
         )
 
         # ------------------------------------------------------------------
@@ -179,26 +150,13 @@ class PistonSceneObject(CompositeSceneObject):
         # The animated property is "width" for horizontal pistons and
         # "height" for vertical pistons.
         # ------------------------------------------------------------------
-        length_prop = "width" if self._is_horizontal else "height"
 
-        extend_clip = (
-            AnimationClip(self.CLIP_EXTEND, animation_duration, AnimationMode.ONCE)
-            .add_track(
-                AnimationTrack(length_prop, easing=AnimationEasing.EASE_IN_OUT)
-                .add_keyframe(0.0, self._retracted_length)
-                .add_keyframe(animation_duration, self._extended_length)
-            )
+        self.create_clips_on_property(
+            tracking_property='_tracking_rod_length',
+            target1=self._retracted_length,
+            target2=self._extended_length,
+            animation_duration=self._animation_duration,
         )
-        retract_clip = (
-            AnimationClip(self.CLIP_RETRACT, animation_duration, AnimationMode.ONCE)
-            .add_track(
-                AnimationTrack(length_prop, easing=AnimationEasing.EASE_IN_OUT)
-                .add_keyframe(0.0, self._extended_length)
-                .add_keyframe(animation_duration, self._retracted_length)
-            )
-        )
-        self._rod.animator.add_clip(extend_clip)
-        self._rod.animator.add_clip(retract_clip)
 
         # ------------------------------------------------------------------
         # Register components at initial (retracted) offsets
@@ -209,37 +167,6 @@ class PistonSceneObject(CompositeSceneObject):
         self.add_component("head", self._head, offset_x=head_ox, offset_y=head_oy)
 
     # ------------------------------------------------------------------
-    # Public API
-    # ------------------------------------------------------------------
-
-    @property
-    def direction(self) -> PistonDirection:
-        """The direction in which the piston extends."""
-        return self._direction
-
-    @property
-    def extended(self) -> bool:
-        """``True`` when the piston is extended (or in the process of extending)."""
-        return self._extended
-
-    @extended.setter
-    def extended(self, value: bool) -> None:
-        """Trigger the extend or retract animation.
-
-        If called mid-animation the new clip starts from the current rod length
-        so transitions are always smooth regardless of timing.
-
-        Args:
-            value: ``True`` to extend, ``False`` to retract.
-        """
-        if value == self._extended:
-            return
-        self._extended = value
-        clip_name = self.CLIP_EXTEND if value else self.CLIP_RETRACT
-        self._snap_animation_start(clip_name)
-        self._rod.animator.play(clip_name)
-
-    # ------------------------------------------------------------------
     # Update
     # ------------------------------------------------------------------
 
@@ -248,15 +175,43 @@ class PistonSceneObject(CompositeSceneObject):
 
         Calls :meth:`CompositeSceneObject.update` (which ticks both the rod
         and head animators) then re-calculates component offsets based on the
-        rod's current animated length.
+        rod's current animated length.  World positions are written directly
+        to each component's physics body so the spatial grid and collision
+        detection always see up-to-date bounds.  The head's kinematic velocity
+        is derived from its per-frame position delta so the impulse solver can
+        compute the correct push force against dynamic objects.
 
         Args:
             dt: Elapsed wall-clock seconds since the last call.
         """
         super().update(dt)
-        current_len = self._current_rod_length()
+        current_len = self._tracking_rod_length
+
+        if self.is_horizontal:
+            self._rod.width = current_len
+        else:
+            self._rod.height = current_len
+
         rod_ox, rod_oy = self._rod_offset(current_len)
         head_ox, head_oy = self._head_offset(current_len)
+
+        # Sync physics body world positions immediately (eliminates the
+        # 1-frame lag left by CompositeSceneObject.update using stale offsets).
+        self._rod.x = self.x + rod_ox
+        self._rod.y = self.y + rod_oy
+        head_world_x = self.x + head_ox
+        head_world_y = self.y + head_oy
+        self._head.x = head_world_x
+        self._head.y = head_world_y
+
+        # Propagate animation-driven head velocity so the impulse solver sees
+        # the effective kinematic speed and can push dynamic bodies correctly.
+        if dt > 0 and self._prev_head_world_pos is not None:
+            vx = (head_world_x - self._prev_head_world_pos[0]) / dt
+            vy = (head_world_y - self._prev_head_world_pos[1]) / dt
+            self._head.physics_body.set_linear_velocity(vx, vy)
+        self._prev_head_world_pos = (head_world_x, head_world_y)
+
         # Mutate in-place so existing external references to _components remain valid
         self._components["rod"] = (self._rod, rod_ox, rod_oy)
         self._components["head"] = (self._head, head_ox, head_oy)
@@ -271,7 +226,7 @@ class PistonSceneObject(CompositeSceneObject):
         name: str,
         x: float = 0.0,
         y: float = 0.0,
-        direction: PistonDirection = PistonDirection.RIGHT,
+        direction: CardinalDirection = CardinalDirection.RIGHT,
         retracted_length: float = 20.0,
         extended_length: float = 60.0,
         rod_thickness: float = 8.0,
@@ -280,8 +235,7 @@ class PistonSceneObject(CompositeSceneObject):
         rod_color: str = "#888888",
         head_color: str = "#555555",
         layer: int = 0,
-        body_dict: dict | None = None,
-        **kwargs,
+        body: dict | None = None,
     ) -> "PistonSceneObject":
         """Create a :class:`PistonSceneObject` without manually building a physics body.
 
@@ -305,29 +259,30 @@ class PistonSceneObject(CompositeSceneObject):
         Returns:
             A fully-initialised :class:`PistonSceneObject`.
         """
-        body_dict = body_dict or kwargs.get("body")
-        if body_dict:
-            body = BasePhysicsBody.from_dict(body_dict)
+        physics_body = cls.get_composite_body_from_dict(body or {})
 
-        else:
-            is_horizontal = direction in (PistonDirection.RIGHT, PistonDirection.LEFT)
+        if not physics_body:
+            is_horizontal = direction in (CardinalDirection.RIGHT, CardinalDirection.LEFT)
             if is_horizontal:
                 body_w = extended_length + head_size
                 body_h = head_size
             else:
                 body_w = head_size
                 body_h = extended_length + head_size
-            body = BasePhysicsBody(
+            physics_body = BasePhysicsBody(
                 name=f"{name}_body",
                 template_name='Base Physics Body',
                 x=float(x),
                 y=float(y),
                 width=body_w,
                 height=body_h,
+                collision_layer=CollisionLayer.TRANSPARENT,
+                collision_mask=[],
             )
+
         return cls(
             name=name,
-            physics_body=body,
+            physics_body=physics_body,
             direction=direction,
             retracted_length=retracted_length,
             extended_length=extended_length,
@@ -347,16 +302,11 @@ class PistonSceneObject(CompositeSceneObject):
         super()._compile_properties()
         self._properties.update({
             "direction": self._direction.name,
-            "extended": self._extended,
             "retracted_length": self._retracted_length,
             "extended_length": self._extended_length,
             "rod_thickness": self._rod_thickness,
             "head_size": self._head_size,
         })
-
-    def _current_rod_length(self) -> float:
-        """Return the rod's current animated length (width or height)."""
-        return self._rod.width if self._is_horizontal else self._rod.height
 
     def _rod_offset(self, current_length: float) -> tuple[float, float]:
         """Composite-relative offset for the rod's top-left corner.
@@ -372,14 +322,15 @@ class PistonSceneObject(CompositeSceneObject):
         # Centre the rod cross-section within the head square
         perp_offset = (self._head_size - self._rod_thickness) / 2.0
         match self._direction:
-            case PistonDirection.RIGHT:
+            case CardinalDirection.RIGHT:
                 return (0.0, perp_offset)
-            case PistonDirection.LEFT:
+            case CardinalDirection.LEFT:
                 return (-current_length, perp_offset)
-            case PistonDirection.DOWN:
+            case CardinalDirection.DOWN:
                 return (perp_offset, 0.0)
-            case PistonDirection.UP:
+            case CardinalDirection.UP:
                 return (perp_offset, -current_length)
+        raise ValueError(f"Invalid piston direction: {self._direction}")
 
     def _head_offset(self, current_length: float) -> tuple[float, float]:
         """Composite-relative offset for the head's top-left corner.
@@ -394,38 +345,18 @@ class PistonSceneObject(CompositeSceneObject):
         """
         hs = self._head_size
         match self._direction:
-            case PistonDirection.RIGHT:
+            case CardinalDirection.RIGHT:
                 return (current_length, 0.0)
-            case PistonDirection.LEFT:
+            case CardinalDirection.LEFT:
                 return (-hs, 0.0)
-            case PistonDirection.DOWN:
+            case CardinalDirection.DOWN:
                 return (0.0, current_length)
-            case PistonDirection.UP:
+            case CardinalDirection.UP:
                 return (0.0, -hs)
-
-    def _snap_animation_start(self, clip_name: str) -> None:
-        """Update the first keyframe of *clip_name* to the current rod length.
-
-        This ensures smooth mid-stroke transitions — the new animation always
-        starts from where the rod currently is rather than jumping to the
-        clip's original start value.
-
-        Args:
-            clip_name: ``CLIP_EXTEND`` or ``CLIP_RETRACT``.
-        """
-        clip = self._rod.animator.get_clip(clip_name)
-        if clip is None:
-            return
-        current_len = self._current_rod_length()
-        # clip.tracks returns a shallow-copy list; the AnimationTrack objects
-        # are shared references so mutating keyframes[0].value is safe.
-        for track in clip.tracks:
-            if track.keyframes:
-                track.keyframes[0].value = current_len
+        raise ValueError(f"Invalid piston direction: {self._direction}")
 
 
 SceneObjectFactory.register_template(
-    "Top-Down Piston",
     SceneObjectTemplate(
         name=SCENE_OBJECT_TEMPLATE_NAME_PISTON,
         scene_object_class=PistonSceneObject,
@@ -433,7 +364,7 @@ SceneObjectFactory.register_template(
         factory_func=PistonSceneObject.create,
         default_kwargs={
             "name": SCENE_OBJECT_TEMPLATE_NAME_PISTON,
-            "direction": PistonDirection.RIGHT,
+            "direction": CardinalDirection.RIGHT,
             "retracted_length": 20.0,
             "extended_length": 60.0,
             "rod_thickness": 8.0,

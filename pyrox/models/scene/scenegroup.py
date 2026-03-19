@@ -236,7 +236,6 @@ class SceneGroup(SceneObject, ISceneGroup):
 from pyrox.models.scene.factory import SceneObjectFactory, SceneObjectTemplate  # noqa: E402
 
 SceneObjectFactory.register_template(
-    SCENE_OBJECT_TYPE_GROUP,
     SceneObjectTemplate(
         name=SCENE_OBJECT_TYPE_GROUP,
         scene_object_class=SceneGroup,

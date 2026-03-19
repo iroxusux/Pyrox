@@ -118,7 +118,6 @@ class SceneObjectFactory:
     @classmethod
     def register_template(
         cls,
-        template_name: str,
         template: SceneObjectTemplate,
     ) -> None:
         """Register a scene object template.
@@ -127,10 +126,10 @@ class SceneObjectFactory:
             template_name: Unique name for the template
             template: SceneObjectTemplate instance
         """
-        if template_name in cls._templates:
-            log(cls).warning(f"Template '{template_name}' already registered, overwriting.")
-        cls._templates[template_name] = template
-        log(cls).debug(f"Registered scene object template: {template_name}")
+        if template.name in cls._templates:
+            log(cls).warning(f"Template '{template.name}' already registered, overwriting.")
+        cls._templates[template.name] = template
+        log(cls).debug(f"Registered scene object template: {template.name}")
 
     @classmethod
     def unregister_template(cls, template_name: str) -> bool:

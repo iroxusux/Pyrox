@@ -1,6 +1,9 @@
-from pyrox.models.scene.assets.topdown.piston import PistonDirection, PistonSceneObject
+from ._compkinemetic import CompositeKinematicSceneObject
+from .piston import PistonSceneObject
+from .sliding_door import SlidingDoorSceneObject
 
 __all__ = [
-    "PistonDirection",
+    "CompositeKinematicSceneObject",
     "PistonSceneObject",
+    "SlidingDoorSceneObject",
 ]

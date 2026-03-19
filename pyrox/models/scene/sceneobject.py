@@ -196,10 +196,10 @@ class SceneObject(
             name (str): The property key.
             value (Any): The property value.
         """
-        if hasattr(self.physics_body, name):
-            setattr(self.physics_body, name, value)
-        elif hasattr(self, name):
+        if hasattr(self, name):
             setattr(self, name, value)
+        elif hasattr(self.physics_body, name):
+            setattr(self.physics_body, name, value)
         else:
             self._properties[name] = value
 

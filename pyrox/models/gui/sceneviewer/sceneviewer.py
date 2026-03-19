@@ -1152,10 +1152,14 @@ class SceneViewerFrame(TaskFrame):
         # reflect those offset changes, so clear the stale items and re-render
         # the composite from scratch whenever any component is animating.
         if isinstance(scene_obj, CompositeSceneObject):
-            has_animating_component = any(
-                getattr(comp, 'animator', None) is not None
-                and getattr(comp, 'animator').is_playing
-                for comp, _, _ in scene_obj.get_components().values()
+            composite_animator = getattr(scene_obj, 'animator', None)
+            has_animating_component = (
+                (composite_animator is not None and composite_animator.is_playing)
+                or any(
+                    getattr(comp, 'animator', None) is not None
+                    and getattr(comp, 'animator').is_playing
+                    for comp, _, _ in scene_obj.get_components().values()
+                )
             )
             if has_animating_component:
                 for item in self._gfx_items.pop(obj_id, []):

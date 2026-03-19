@@ -27,6 +27,9 @@ Interface Categories:
 # Environment constants
 from .constants import EnvironmentKeys
 
+# Enums
+from .enums import CardinalDirection
+
 # Protocols
 from .protocols import (
     # Meta imports to describe the base of everything
@@ -133,6 +136,9 @@ from .scene import (
 __all__ = (
     # Environment Constants
     'EnvironmentKeys',
+
+    # Enums
+    'CardinalDirection',
 
     # Protocols
     # Meta protocols

@@ -5,6 +5,7 @@ from typing import Any, Callable
 import json
 from pathlib import Path
 from pyrox.interfaces import (
+    ICompositeSceneObject,
     IPhysicsBody2D,
     IScene,
     ISceneBridge,
@@ -633,6 +634,11 @@ class SceneRunnerService(
                 cls._physics_engine.register_body(scene_object.physics_body)
             else:
                 raise TypeError("Scene object physics body does not implement IPhysicsBody2D protocol")
+            # For composite objects, also register each component's physics body
+            if isinstance(scene_object, ICompositeSceneObject):
+                for comp_obj, _, _ in scene_object.get_components().values():
+                    if isinstance(comp_obj.physics_body, IPhysicsBody2D):
+                        cls._physics_engine.register_body(comp_obj.physics_body)
 
     @classmethod
     def run(cls) -> int:
@@ -725,6 +731,17 @@ class SceneRunnerService(
         Args:
             body: Object implementing IPhysicsBody protocol
         """
+        if isinstance(body, ICompositeSceneObject):
+            # Register the composite's own body
+            if isinstance(body.physics_body, IPhysicsBody2D) and cls._physics_engine:
+                cls._physics_engine.register_body(body.physics_body)
+            # Register each component's physics body
+            if cls._physics_engine:
+                for comp_obj, _, _ in body.get_components().values():
+                    if isinstance(comp_obj.physics_body, IPhysicsBody2D):
+                        cls._physics_engine.register_body(comp_obj.physics_body)
+            return
+
         if isinstance(body, ISceneObject):
             if not isinstance(body.physics_body, IPhysicsBody2D):
                 raise TypeError("SceneObject does not have a valid physics body")
@@ -740,8 +757,18 @@ class SceneRunnerService(
         Args:
             body: Object to remove
         """
-        if cls._physics_engine:
-            cls._physics_engine.unregister_body(body)
+        if not cls._physics_engine:
+            return
+
+        if isinstance(body, ICompositeSceneObject):
+            if isinstance(body.physics_body, IPhysicsBody2D):
+                cls._physics_engine.unregister_body(body.physics_body)
+            for comp_obj, _, _ in body.get_components().values():
+                if isinstance(comp_obj.physics_body, IPhysicsBody2D):
+                    cls._physics_engine.unregister_body(comp_obj.physics_body)
+            return
+
+        cls._physics_engine.unregister_body(body)
 
     @classmethod
     def get_physics_stats(cls) -> dict:
