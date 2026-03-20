@@ -1,5 +1,6 @@
 """Unit tests for CompositeSceneObject (Type 2 grouping)."""
 import unittest
+from unittest.mock import patch
 
 from pyrox.interfaces import (
     BodyType,
@@ -11,7 +12,6 @@ from pyrox.models import (
     SceneObject,
     BasePhysicsBody,
 )
-from pyrox.models.connection import ConnectionRegistry
 from pyrox.models.scene.compositesceneobject import (
     CompositeSceneObject,
     SCENE_OBJECT_TYPE_COMPOSITE,
@@ -357,7 +357,7 @@ class TestCompositeSerializtion(unittest.TestCase):
         d = comp.to_dict()
         restored = CompositeSceneObject.from_dict(d)
         self.assertEqual(restored.id, original_id)
-        
+
     def test_composite_connections_restored_in_registry(self):
         """Regression: composite id must be preserved on load so connections
         targeting the composite do not raise KeyError.
@@ -370,27 +370,36 @@ class TestCompositeSerializtion(unittest.TestCase):
         that the composite is accessible by its original id after the round-trip.
         """
         from pyrox.models.scene.assets.topdown.sensor import SensorSceneObject
+        from pyrox.models.scene.assets.topdown._compkinemetic import ActivatableCompositeKinematicSceneObject
+        from pyrox.models.connection import ConnectionRegistry
 
         sensor = SensorSceneObject.create(name="Prox", x=0, y=0, width=10, height=10)
         comp, _, _ = self._make_populated()
+        comp_dict = comp.to_dict()
+
+        with patch("pyrox.models.scene.assets.topdown._compkinemetic.ActivatableCompositeKinematicSceneObject.build_components", return_value=None):
+            comp = ActivatableCompositeKinematicSceneObject.from_dict(comp_dict)
+
         original_comp_id = comp.id
 
         scene = Scene()
         scene.add_scene_object(sensor)
         scene.add_scene_object(comp)
+        reg = scene.connection_registry
+        reg.register_object(sensor.id, sensor)
+        reg.register_object(comp.id, comp)
+        reg.connect(
+            source_id=sensor.id,
+            output_name="on_activate_callbacks",
+            target_id=comp.id,
+            input_name="activate",
+        )
 
         # Inject a connection record directly into the serialized form.
         # CompositeSceneObject has no 'activate' input, so wiring will hit the
         # AttributeError fallback — but that should NOT crash, and the record
         # must be stored.
         d = scene.to_dict()
-        d["connections"].append({
-            "source": sensor.id,
-            "output": "on_activate_callbacks",
-            "target": original_comp_id,
-            "input": "activate",
-            "enabled": True,
-        })
 
         # Must not raise KeyError — composite id must be preserved during load.
         restored = Scene.from_dict(d)

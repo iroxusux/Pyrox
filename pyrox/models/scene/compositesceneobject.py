@@ -85,11 +85,11 @@ class CompositeSceneObject(SceneObject, ICompositeSceneObject):
                 obj = SceneObject.from_dict(obj_data)
                 self._components[name] = (obj, offset_x, offset_y)
 
-        # name -> (scene_object, offset_x, offset_y)
-        if isinstance(components, list):
-            self._components = self._decompile_components_list(components)
+        elif isinstance(components, dict):
+            # Assume already in internal dict format
+            self._components = components
         else:
-            self._components: dict[str, tuple[ISceneObject, float, float]] = components or {}
+            self._components = {}
 
     # ------------------------------------------------------------------
     # ICompositeSceneObject — component management
@@ -244,26 +244,6 @@ class CompositeSceneObject(SceneObject, ICompositeSceneObject):
             tags=data.get("tags", []),
             components=data.get("components", None),
         )
-
-    # ------------------------------------------------------------------
-    # Private helpers
-    # ------------------------------------------------------------------
-
-    def _decompile_components_list(self, comp_list: list[dict]) -> dict[str, tuple[ISceneObject, float, float]]:
-        """Helper to convert a list of component dicts to internal dict format."""
-        components = {}
-        for comp_data in comp_list:
-            name = comp_data["name"]
-            components[name] = self._make_component_from_dict(comp_data)
-        return components
-
-    def _make_component_from_dict(self, comp_data: dict) -> Tuple[ISceneObject, float, float]:
-        """Helper to construct a component tuple from its serialized dict."""
-        offset_x = comp_data.get("offset_x", 0.0)
-        offset_y = comp_data.get("offset_y", 0.0)
-        obj_data = comp_data.get("object", {})
-        obj = SceneObject.from_dict(obj_data)
-        return (obj, offset_x, offset_y)
 
 
 # ---------------------------------------------------------------------------

@@ -95,6 +95,7 @@ class SlidingDoorSceneObject(ActivatableCompositeKinematicSceneObject):
         door_color: str = "#888888",
         layer: int = 0,
         properties: dict = dict(),
+        id: str | None = None,
         **kwargs,
     ) -> None:
         """Initialise the sliding door with the given parameters.
@@ -133,6 +134,7 @@ class SlidingDoorSceneObject(ActivatableCompositeKinematicSceneObject):
             direction=direction,
             animation_duration=animation_duration,
             properties=properties,
+            id=id,
         )
 
     def current_animator_position(self) -> float:

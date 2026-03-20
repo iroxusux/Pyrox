@@ -38,6 +38,7 @@ class CompositeKinematicSceneObject(CompositeSceneObject):
         direction: CardinalDirection = CardinalDirection.RIGHT,
         layer: int = 0,
         properties: dict = dict(),
+        components: list[dict] | dict | None = None,
         id: str | None = None,
         group_id: str | None = None,
         tags: list[str] | None = None,
@@ -59,6 +60,7 @@ class CompositeKinematicSceneObject(CompositeSceneObject):
             tags=tags,
             layer=layer,
             properties=properties,
+            components=components,
         )
         self._direction = CardinalDirection.from_str(properties.get('direction', 'RIGHT')) or direction
         self.build_components()
@@ -193,6 +195,7 @@ class ActivatableCompositeKinematicSceneObject(CompositeKinematicSceneObject):
         layer: int = 0,
         animation_duration: float = 0.5,
         properties: dict = dict(),
+        components: list[dict] | dict | None = None,
         id: str | None = None,
         group_id: str | None = None,
         tags: list[str] | None = None,
@@ -211,6 +214,7 @@ class ActivatableCompositeKinematicSceneObject(CompositeKinematicSceneObject):
             tags=tags,
             layer=layer,
             properties=properties,
+            components=components,
         )
 
         # ------------------------------------------------------------------
@@ -263,6 +267,25 @@ class ActivatableCompositeKinematicSceneObject(CompositeKinematicSceneObject):
         for track in clip.tracks:
             if track.keyframes:
                 track.keyframes[0].value = current_pos
+
+    def update_activate_deactivate_targets(self, target_active: float, target_inactive: float):
+        """Helper method to update the target values of the activate and deactivate clips.
+        This can be used to dynamically adjust the animation targets based on the current state of the component or other factors.
+        """
+        self.update_animation_start_end(self.CLIP_ACTIVATE, target_inactive, target_active)
+        self.update_animation_start_end(self.CLIP_DEACTIVATE, target_active, target_inactive)
+
+    def update_animation_start_end(self, clip_name: str, target_start: float, target_end: float):
+        """Helper method to update the start and end keyframe values of an animation clip.
+        This can be used to dynamically adjust the animation targets based on the current state of the component.
+        """
+        clip = self.animator.get_clip(clip_name)
+        if not clip:
+            return  # Clip not found; cannot update keyframes.
+        for track in clip.tracks:
+            if track.keyframes and len(track.keyframes) >= 2:
+                track.keyframes[0].value = target_start
+                track.keyframes[1].value = target_end
 
     # ------------------------------------------------------------------
     # Helpers

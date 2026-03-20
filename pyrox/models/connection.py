@@ -55,6 +55,14 @@ class ConnectionRegistry(IConnectionRegistry):
 
         self._objects.pop(obj_id, None)
 
+    def get_object(self, obj_id: str) -> Any:
+        """Get a registered object by ID."""
+        return self._objects.get(obj_id)
+
+    def get_objects(self) -> dict[str, Any]:
+        """Get all registered objects."""
+        return self._objects
+
     # ------------------------------------------------------------------
     # Internal wiring helpers
     # ------------------------------------------------------------------
@@ -165,6 +173,10 @@ class ConnectionRegistry(IConnectionRegistry):
             if (c.source_id, c.source_output, c.target_id, c.target_input) != key
         ]
         return True
+
+    def get_connections(self) -> list[Connection]:
+        """Get all registered connections."""
+        return self._connections
 
     # ------------------------------------------------------------------
     # Serialisation

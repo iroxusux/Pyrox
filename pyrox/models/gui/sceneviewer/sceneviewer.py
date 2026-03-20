@@ -31,7 +31,6 @@ from pyrox.models.physics.base import BasePhysicsBody
 from pyrox.models.gui.frame import TaskFrame
 from pyrox.models.gui import PropertyPanel
 from pyrox.models.gui.contextmenu import PyroxContextMenu, MenuItem
-from pyrox.models.gui.connectioneditor import ConnectionEditor
 from pyrox.models.physics import PhysicsSceneFactory
 from pyrox.models.scene import Scene, SceneGroup, SceneObject, SceneObjectFactory, CompositeSceneObject
 from pyrox.services import (
@@ -45,6 +44,7 @@ from pyrox.services import (
 )
 from pyrox.services.viewport import ViewportEventBus, ViewportEvent, ViewportEventType
 from pyrox.models.gui.sceneviewer._bridge import _SceneViewerBridgePanel
+from pyrox.models.gui.sceneviewer._connectioneditor import _SceneViewerConnectionEditorPanel
 from pyrox.models.gui.sceneviewer._explorer import _SceneViewerObjectExplorerPanel
 from pyrox.models.gui.sceneviewer._objectpallet import _SceneViewerObjectPalettePanel
 from pyrox.models.gui.sceneviewer._properties import _SceneViewerPropertiesPanel
@@ -254,8 +254,6 @@ class SceneViewerFrame(TaskFrame):
         self._gfx_items: dict[str, list] = {}
 
         # Drawing and manipulation state
-        self._draw_start_x: float | None = None
-        self._draw_start_y: float | None = None
         self._drag_start_x: float | None = None
         self._drag_start_y: float | None = None
         self._is_dragging: bool = False
@@ -296,6 +294,7 @@ class SceneViewerFrame(TaskFrame):
             self._paned_window, self._on_object_explorer_selection
         ).build(scene=self._scene)
         self._bridge_panel = _SceneViewerBridgePanel(self._paned_window)
+        self._connection_editor_panel = _SceneViewerConnectionEditorPanel(self._paned_window)
         self._object_palette = _SceneViewerObjectPalettePanel(
             self.content_frame, self._on_palette_template_selected
         ).build()
@@ -376,6 +375,7 @@ class SceneViewerFrame(TaskFrame):
 
         # Propagate the new scene to panels.
         self._bridge_panel.update_scene(scene, SceneBridgeService.get_bridge())
+        self._connection_editor_panel.update_scene(scene)
         self._object_explorer.set_scene(scene)
         self._enable_menu_entries(enable=scene is not None)
         self.render_scene()
@@ -531,30 +531,9 @@ class SceneViewerFrame(TaskFrame):
 
         log(self).info(f"Entity names {'shown' if self._entity_names_visible else 'hidden'}")
 
-    def open_connection_editor(self) -> None:
-        """Open the connection editor in a new window."""
-        if not self._scene:
-            log().warning("No scene loaded. Cannot open connection editor.")
-            return
-
-        self._connection_editor_window = QMainWindow()
-        self._connection_editor_window.setWindowTitle("Connection Editor")
-        self._connection_editor_window.resize(1200, 800)
-        self._connection_editor_window.setWindowFlag(Qt.WindowType.Window)
-
-        layout = QVBoxLayout(self._connection_editor_window)
-        layout.setContentsMargins(0, 0, 0, 0)
-
-        connection_registry = self._scene.get_connection_registry()
-        editor = ConnectionEditor(
-            parent=self._connection_editor_window,
-            scene=self._scene,
-            connection_registry=connection_registry  # type: ignore[arg-type]
-        )
-        layout.addWidget(editor)
-        self._connection_editor_window.setCentralWidget(editor)
-        self._connection_editor_window.show()
-        self._connection_editor_window.raise_()
+    def toggle_connection_editor(self) -> None:
+        """Toggle the connection editor panel."""
+        self._connection_editor_panel.toggle(scene=self._scene)
 
     def clear_canvas(self) -> None:
         """Clear all items from the canvas without affecting the scene."""
@@ -1278,10 +1257,12 @@ class SceneViewerFrame(TaskFrame):
 
     def _build_context_menus(self) -> None:
         """Build context menus for different contexts."""
-        self._canvas_context_menu = PyroxContextMenu(self._canvas_view)
-        self._object_context_menu = PyroxContextMenu(self._canvas_view)
+        self._build_canvas_context_menu()
+        self._build_object_context_menu()
 
-        # Populate canvas context menu
+    def _build_canvas_context_menu(self) -> None:
+        self._canvas_context_menu = PyroxContextMenu(self._canvas_view)
+
         self._canvas_context_menu.add_item(MenuItem(
             id="paste",
             label="Paste",
@@ -1348,8 +1329,15 @@ class SceneViewerFrame(TaskFrame):
             command=self.toggle_bridge_panel,
             icon="🔗"
         ))
+        self._canvas_context_menu.add_item(MenuItem(
+            id="toggle_connection_editor",
+            label="Toggle Connection Editor",
+            command=self.toggle_connection_editor,
+            icon="🔌"
+        ))
 
-        # Populate object context menu
+    def _build_object_context_menu(self) -> None:
+        self._object_context_menu = PyroxContextMenu(self._canvas_view)
         self._object_context_menu.add_item(MenuItem(
             id="copy",
             label="Copy",
@@ -1463,7 +1451,7 @@ class SceneViewerFrame(TaskFrame):
         MenuRegistry.set_command("scene.view.object_palette", self.toggle_object_palette)
         MenuRegistry.set_command("scene.view.properties_panel", self.toggle_properties_panel)
         MenuRegistry.set_command("scene.view.bridge_panel", self.toggle_bridge_panel)
-        MenuRegistry.set_command("scene.view.connection_editor", self.open_connection_editor)
+        MenuRegistry.set_command("scene.view.connection_editor", self.toggle_connection_editor)
         MenuRegistry.set_command("scene.view.entity_names", self.toggle_entity_names)
 
     def _bind(self, *_) -> None:
@@ -1596,7 +1584,7 @@ class SceneViewerFrame(TaskFrame):
         # Connection editor command
         self._enable_entry(
             menu_id="scene.view.connection_editor",
-            command=self.open_connection_editor,
+            command=self.toggle_connection_editor,
             enable=enable
         )
 

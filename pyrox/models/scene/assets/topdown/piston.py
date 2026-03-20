@@ -396,6 +396,22 @@ class PistonSceneObject(ActivatableCompositeKinematicSceneObject):
                 return (0.0, -hs)
         raise ValueError(f"Invalid piston direction: {self._direction}")
 
+    # ------------------------------------------------------------------
+    # Public API for external control
+    # ------------------------------------------------------------------
+
+    @property
+    def extended_length(self) -> float:
+        """Target rod length when fully extended."""
+        return self._extended_length
+
+    @extended_length.setter
+    def extended_length(self, value: float) -> None:
+        """Set the target rod length when fully extended."""
+        self._extended_length = float(value)
+        self.update_activate_deactivate_targets(target_active=self._extended_length, target_inactive=self._retracted_length)
+        self._compile_properties()  # Update the properties dict for serialization
+
 
 SceneObjectFactory.register_template(
     SceneObjectTemplate(

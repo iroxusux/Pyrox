@@ -5,13 +5,10 @@ from pyrox.interfaces import Connection
 class IConnectionRegistry:
     """Connection registry interface"""
 
-    def register_object(self, obj_id: str, obj: Any):
-        """Register an object that can be connected."""
-        ...
-
-    def unregister_object(self, obj_id: str):
-        """Unregister an object, unwire all its callbacks, and remove its connection records."""
-        ...
+    def register_object(self, obj_id: str, obj: Any): ...
+    def unregister_object(self, obj_id: str): ...
+    def get_object(self, obj_id: str) -> Any: ...
+    def get_objects(self) -> dict[str, Any]: ...
 
     def connect(
         self,
@@ -20,14 +17,7 @@ class IConnectionRegistry:
         target_id: str,
         input_name: str,
         enabled: bool = True,
-    ) -> Connection:
-        """Wire a connection between two registered objects.
-
-        Raises:
-            KeyError:   If either object is not registered.
-            ValueError: If an identical connection already exists.
-        """
-        ...
+    ) -> Connection: ...
 
     def disconnect(
         self,
@@ -35,14 +25,18 @@ class IConnectionRegistry:
         output_name: str,
         target_id: str,
         input_name: str,
-    ) -> bool:
-        """Remove a single connection and unwire its callback.
+    ) -> bool: ...
 
-        Returns:
-            True if the connection was found and removed, False otherwise.
-        """
-        ...
+    def get_connections(self) -> list[Connection]: ...
 
-    def serialize(self) -> dict:
-        """Serialize connections for saving."""
-        ...
+    def serialize(self) -> dict: ...
+
+    @property
+    def connections(self) -> list[Connection]:
+        """Get the list of connections."""
+        return self.get_connections()
+
+    @property
+    def objects(self) -> dict[str, Any]:
+        """Get the registered objects."""
+        return self.get_objects()

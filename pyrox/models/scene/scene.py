@@ -397,4 +397,11 @@ class Scene(CoreMixin):
     on_scene_object_added = property(get_on_scene_object_added)
     on_scene_object_removed = property(get_on_scene_object_removed)
     on_scene_updated = property(get_on_scene_updated)
-    connection_registry = property(get_connection_registry, set_connection_registry)
+
+    @property
+    def connection_registry(self) -> "IConnectionRegistry":
+        return self.get_connection_registry()
+
+    @connection_registry.setter
+    def connection_registry(self, registry: "IConnectionRegistry") -> None:
+        self.set_connection_registry(registry)
