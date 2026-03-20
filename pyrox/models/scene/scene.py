@@ -17,7 +17,6 @@ from pyrox.models.protocols import CoreMixin
 from pyrox.models.connection import ConnectionRegistry
 from pyrox.models.scene.sceneobject import SceneObject
 from pyrox.models.scene.scenegroup import SceneGroup
-from pyrox.models.scene.factory import SceneObjectFactory
 
 
 class Scene(CoreMixin):
@@ -205,12 +204,7 @@ class Scene(CoreMixin):
         for scene_object_data in data.get("scene_objects", []):
             assert isinstance(scene_object_data, dict), "Each scene object must be a dictionary"
 
-            build_args = scene_object_data.copy()  # avoid mutating original dict
-            template_name = build_args.pop("template_name", None)
-            obj = SceneObjectFactory.create_from_template(template_name, **build_args)
-
-            if not obj:
-                obj = SceneObject.from_dict(scene_object_data)
+            obj = SceneObject.from_dict(scene_object_data)
 
             if isinstance(obj, SceneGroup):
                 groups.append(obj)
@@ -239,12 +233,14 @@ class Scene(CoreMixin):
                     input_name=conn_data["input"],
                     enabled=conn_data.get("enabled", True),
                 )
-            except AttributeError:
-                # The loaded object type doesn't expose the expected callback
-                # interface (e.g. a base SceneObject loaded in place of a
-                # specialised subclass).  Store the Connection record so it
-                # round-trips faithfully even though the callback can't be wired
-                # right now.
+            except (AttributeError, KeyError) as exc:
+                log(cls).warning(
+                    f"Could not wire connection "
+                    f"{conn_data.get('source')}."
+                    f"{conn_data.get('output')} → "
+                    f"{conn_data.get('target')}."
+                    f"{conn_data.get('input')}: {exc}"
+                )
                 from pyrox.interfaces import Connection as _Connection
                 scene._connection_registry._connections.append(
                     _Connection(

@@ -11,6 +11,7 @@ from pyrox.models import (
     SceneObject,
     BasePhysicsBody,
 )
+from pyrox.models.connection import ConnectionRegistry
 from pyrox.models.scene.compositesceneobject import (
     CompositeSceneObject,
     SCENE_OBJECT_TYPE_COMPOSITE,
@@ -349,6 +350,110 @@ class TestCompositeSerializtion(unittest.TestCase):
         self.assertEqual(restored.name, "Panel")
         self.assertTrue(restored.has_component("btn_a"))
         self.assertTrue(restored.has_component("btn_b"))
+
+    def test_id_preserved_through_serialization(self):
+        comp, _, _ = self._make_populated()
+        original_id = comp.id
+        d = comp.to_dict()
+        restored = CompositeSceneObject.from_dict(d)
+        self.assertEqual(restored.id, original_id)
+        
+    def test_composite_connections_restored_in_registry(self):
+        """Regression: composite id must be preserved on load so connections
+        targeting the composite do not raise KeyError.
+
+        Scenario (matches the crash reported):
+          sensor.on_activate_callbacks → composite.activate (not a real method)
+
+        Even though the attribute wiring falls back (AttributeError), the key
+        assertion is that Scene.from_dict does NOT crash with KeyError, and
+        that the composite is accessible by its original id after the round-trip.
+        """
+        from pyrox.models.scene.assets.topdown.sensor import SensorSceneObject
+
+        sensor = SensorSceneObject.create(name="Prox", x=0, y=0, width=10, height=10)
+        comp, _, _ = self._make_populated()
+        original_comp_id = comp.id
+
+        scene = Scene()
+        scene.add_scene_object(sensor)
+        scene.add_scene_object(comp)
+
+        # Inject a connection record directly into the serialized form.
+        # CompositeSceneObject has no 'activate' input, so wiring will hit the
+        # AttributeError fallback — but that should NOT crash, and the record
+        # must be stored.
+        d = scene.to_dict()
+        d["connections"].append({
+            "source": sensor.id,
+            "output": "on_activate_callbacks",
+            "target": original_comp_id,
+            "input": "activate",
+            "enabled": True,
+        })
+
+        # Must not raise KeyError — composite id must be preserved during load.
+        restored = Scene.from_dict(d)
+
+        # The composite is findable by its original id.
+        restored_comp = restored.get_scene_object(original_comp_id)
+        self.assertIsNotNone(restored_comp, "Composite must be found by original id")
+        self.assertIsInstance(restored_comp, CompositeSceneObject)
+        self.assertEqual(restored_comp.id, original_comp_id)
+
+        # The connection record was persisted despite no live wiring.
+        connections = restored.get_connection_registry().serialize()["connections"]
+        self.assertTrue(
+            any(c["target"] == original_comp_id for c in connections),
+            "Connection record targeting the composite must be preserved",
+        )
+
+    def test_sensor_to_composite_connection_is_fully_wired_when_input_exists(self):
+        """Full end-to-end: a SensorSceneObject connected to another sensor
+        (which has 'activate' as a valid input) is re-wired and callable after
+        a scene round-trip, even when the target happens to be a composite-housed
+        sensor in a real scene.
+
+        Here we use sensor → sensor to prove wiring works across the registry
+        for two registered-factory types with matching output / input names.
+        """
+        from pyrox.models.scene.assets.topdown.sensor import SensorSceneObject
+
+        source = SensorSceneObject.create(name="Source", x=0, y=0, width=10, height=10)
+        target = SensorSceneObject.create(name="Target", x=20, y=20, width=10, height=10)
+        original_source_id = source.id
+        original_target_id = target.id
+
+        scene = Scene()
+        scene.add_scene_object(source)
+        scene.add_scene_object(target)
+        scene.get_connection_registry().connect(
+            source_id=source.id,
+            output_name="on_activate_callbacks",
+            target_id=target.id,
+            input_name="activate",
+        )
+
+        # Round-trip.
+        restored = Scene.from_dict(scene.to_dict())
+
+        # IDs preserved.
+        restored_source = restored.get_scene_object(original_source_id)
+        restored_target = restored.get_scene_object(original_target_id)
+        self.assertIsNotNone(restored_source)
+        self.assertIsNotNone(restored_target)
+        self.assertEqual(restored_source.id, original_source_id)
+        self.assertEqual(restored_target.id, original_target_id)
+
+        # Connection is live: firing the source's callbacks triggers the target.
+        received: list[bool] = []
+        restored_target.on_activate_callbacks.append(lambda state: received.append(state))
+
+        # The restored wiring should have placed target.activate in source's list.
+        for cb in list(restored_source.on_activate_callbacks):
+            cb(True)
+
+        self.assertIn(True, received, "Signal must propagate through the re-wired connection")
 
     def test_from_dict_offsets_preserved(self):
         comp, _, _ = self._make_populated()

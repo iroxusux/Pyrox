@@ -32,6 +32,11 @@ class PlatformDirectoryService:
         raise TypeError("PlatformDirectoryService is a static class and cannot be instantiated")
 
     @classmethod
+    def initialize(cls) -> None:
+        """Initialize the PlatformDirectoryService by building necessary directories."""
+        cls.build_directory()
+
+    @classmethod
     def all_directories(cls) -> dict:
         """All directories for this service manager.
 
@@ -431,3 +436,6 @@ def transform_file_to_dict(
     if not os.path.isfile(file_path):
         raise FileNotFoundError(f'File not found: {file_path}')
     return transform_function(file_path)
+
+
+PlatformDirectoryService.initialize()

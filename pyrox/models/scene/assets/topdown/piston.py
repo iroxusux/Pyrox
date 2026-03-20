@@ -59,6 +59,9 @@ class PistonSceneObject(ActivatableCompositeKinematicSceneObject):
         head_color: str = "#555555",
         layer: int = 0,
         properties: dict = dict(),
+        id: str | None = None,
+        group_id: str | None = None,
+        tags: list[str] | None = None,
         **kwargs,
     ) -> None:
         """Initialise the piston with the given parameters.
@@ -95,6 +98,9 @@ class PistonSceneObject(ActivatableCompositeKinematicSceneObject):
             description=description,
             scene_object_type=SCENE_OBJECT_TYPE_PISTON,
             template_name=SCENE_OBJECT_TEMPLATE_NAME_PISTON,
+            id=id,
+            group_id=group_id,
+            tags=tags,
             layer=layer,
             direction=direction,
             animation_duration=animation_duration,
@@ -236,6 +242,7 @@ class PistonSceneObject(ActivatableCompositeKinematicSceneObject):
         head_color: str = "#555555",
         layer: int = 0,
         body: dict | None = None,
+        **kwargs,
     ) -> "PistonSceneObject":
         """Create a :class:`PistonSceneObject` without manually building a physics body.
 
@@ -292,6 +299,40 @@ class PistonSceneObject(ActivatableCompositeKinematicSceneObject):
             rod_color=rod_color,
             head_color=head_color,
             layer=layer,
+            id=kwargs.get("id"),
+            description=kwargs.get("description", ""),
+            group_id=kwargs.get("group_id"),
+            tags=kwargs.get("tags"),
+            properties=kwargs.get("properties") or {},
+        )
+
+    @classmethod
+    def from_dict(cls, data: dict) -> "PistonSceneObject":
+        """Restore a :class:`PistonSceneObject` from a serialised dictionary."""
+        props = data.get("properties", {})
+        direction = CardinalDirection.from_str(props.get("direction", "RIGHT")) or CardinalDirection.RIGHT
+        physics_body = cls.get_composite_body_from_dict(data.get("body", {}))
+        if not physics_body:
+            raise ValueError(
+                f"PistonSceneObject.from_dict: could not reconstruct physics body from data: {data.get('body')}"
+            )
+        return cls(
+            name=data["name"],
+            physics_body=physics_body,
+            description=data.get("description", ""),
+            direction=direction,
+            retracted_length=float(props.get("retracted_length", 20.0)),
+            extended_length=float(props.get("extended_length", 60.0)),
+            rod_thickness=float(props.get("rod_thickness", 8.0)),
+            head_size=float(props.get("head_size", 14.0)),
+            animation_duration=float(props.get("animation_duration", 0.5)),
+            rod_color=props.get("rod_color", "#888888"),
+            head_color=props.get("head_color", "#555555"),
+            layer=data.get("layer", 0),
+            properties=props,
+            id=data.get("id"),
+            group_id=data.get("group_id"),
+            tags=data.get("tags", []),
         )
 
     # ------------------------------------------------------------------

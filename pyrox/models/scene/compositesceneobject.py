@@ -13,7 +13,6 @@ Example::
     panel.add_component("run_btn",  run_btn_obj, offset_x=10,  offset_y=60)
     scene.add_scene_object(panel)
 """
-from __future__ import annotations
 
 from typing import (
     Dict,
@@ -59,6 +58,7 @@ class CompositeSceneObject(SceneObject, ICompositeSceneObject):
         parent: Optional[SceneObject] = None,
         layer: int = 0,
         tags: list[str] | None = None,
+        components: list[dict] | dict | None = None,
     ):
         super().__init__(
             name=name,
@@ -73,8 +73,23 @@ class CompositeSceneObject(SceneObject, ICompositeSceneObject):
             layer=layer,
             tags=tags,
         )
+
+        if isinstance(components, list):
+            # Convert list of dicts to internal dict format
+            self._components = {}
+            for comp in components:
+                name = comp["name"]
+                offset_x = comp.get("offset_x", 0.0)
+                offset_y = comp.get("offset_y", 0.0)
+                obj_data = comp["object"]
+                obj = SceneObject.from_dict(obj_data)
+                self._components[name] = (obj, offset_x, offset_y)
+
         # name -> (scene_object, offset_x, offset_y)
-        self._components: Dict[str, Tuple[ISceneObject, float, float]] = {}
+        if isinstance(components, list):
+            self._components = self._decompile_components_list(components)
+        else:
+            self._components: dict[str, tuple[ISceneObject, float, float]] = components or {}
 
     # ------------------------------------------------------------------
     # ICompositeSceneObject — component management
@@ -227,7 +242,28 @@ class CompositeSceneObject(SceneObject, ICompositeSceneObject):
             properties=data.get("properties", {}),
             layer=data.get("layer", 0),
             tags=data.get("tags", []),
+            components=data.get("components", None),
         )
+
+    # ------------------------------------------------------------------
+    # Private helpers
+    # ------------------------------------------------------------------
+
+    def _decompile_components_list(self, comp_list: list[dict]) -> dict[str, tuple[ISceneObject, float, float]]:
+        """Helper to convert a list of component dicts to internal dict format."""
+        components = {}
+        for comp_data in comp_list:
+            name = comp_data["name"]
+            components[name] = self._make_component_from_dict(comp_data)
+        return components
+
+    def _make_component_from_dict(self, comp_data: dict) -> Tuple[ISceneObject, float, float]:
+        """Helper to construct a component tuple from its serialized dict."""
+        offset_x = comp_data.get("offset_x", 0.0)
+        offset_y = comp_data.get("offset_y", 0.0)
+        obj_data = comp_data.get("object", {})
+        obj = SceneObject.from_dict(obj_data)
+        return (obj, offset_x, offset_y)
 
 
 # ---------------------------------------------------------------------------

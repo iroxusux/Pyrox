@@ -38,6 +38,9 @@ class CompositeKinematicSceneObject(CompositeSceneObject):
         direction: CardinalDirection = CardinalDirection.RIGHT,
         layer: int = 0,
         properties: dict = dict(),
+        id: str | None = None,
+        group_id: str | None = None,
+        tags: list[str] | None = None,
     ):
 
         if physics_body:
@@ -51,6 +54,9 @@ class CompositeKinematicSceneObject(CompositeSceneObject):
             description=description,
             scene_object_type=scene_object_type,
             template_name=template_name,
+            id=id,
+            group_id=group_id,
+            tags=tags,
             layer=layer,
             properties=properties,
         )
@@ -187,6 +193,9 @@ class ActivatableCompositeKinematicSceneObject(CompositeKinematicSceneObject):
         layer: int = 0,
         animation_duration: float = 0.5,
         properties: dict = dict(),
+        id: str | None = None,
+        group_id: str | None = None,
+        tags: list[str] | None = None,
     ):
         self._active = properties.get('active', False)
         self._animation_duration = animation_duration
@@ -197,6 +206,9 @@ class ActivatableCompositeKinematicSceneObject(CompositeKinematicSceneObject):
             template_name=template_name,
             description=description,
             direction=direction,
+            id=id,
+            group_id=group_id,
+            tags=tags,
             layer=layer,
             properties=properties,
         )
@@ -290,15 +302,15 @@ class ActivatableCompositeKinematicSceneObject(CompositeKinematicSceneObject):
     # Input/Output Connections
     # ------------------------------------------------------------------
 
-    def activate(self):
+    def activate(self, *args, **kwargs):
         """Input method to activate the component."""
         self.active = True
 
-    def deactivate(self):
+    def deactivate(self, *args, **kwargs):
         """Input method to deactivate the component."""
         self.active = False
 
-    def toggle(self):
+    def toggle(self, *args, **kwargs):
         """Input method to toggle the active state of the component."""
         self.active = not self.active
 
