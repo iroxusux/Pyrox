@@ -13,7 +13,6 @@ from PyQt6.QtWidgets import (
     QVBoxLayout,
     QWidget,
 )
-from pyrox.models.physics import PhysicsSceneFactory
 from pyrox.models.scene import SceneObjectFactory
 
 
@@ -68,7 +67,7 @@ class _SceneViewerObjectPalettePanel:
         """Build the floating palette tool window."""
         self._frame = QWidget(
             None,
-            Qt.WindowType.Tool | Qt.WindowType.WindowStaysOnTopHint,
+            Qt.WindowType.Tool,
         )
         self._frame.setWindowTitle("Object Palette")
         self._frame.setMinimumSize(200, 300)
@@ -124,7 +123,7 @@ class _SceneViewerObjectPalettePanel:
         if self._palette_content_layout is None or self._palette_content_widget is None:
             return
 
-        self._templates = PhysicsSceneFactory.get_all_templates()
+        # self._templates = PhysicsSceneFactory.get_all_templates()
         self._scene_object_templates = SceneObjectFactory.get_all_templates()
 
         # Clear any previously built buttons
@@ -135,17 +134,17 @@ class _SceneViewerObjectPalettePanel:
                 if widget is not None:
                     widget.deleteLater()  # type: ignore[union-attr]
 
-        if self._templates:
-            physics_label = QLabel("Physics Objects")
-            physics_label.setFont(QFont("Arial", 9, QFont.Weight.Bold))
-            self._palette_content_layout.addWidget(physics_label)
+        # if self._templates:
+        #     physics_label = QLabel("Physics Objects")
+        #     physics_label.setFont(QFont("Arial", 9, QFont.Weight.Bold))
+        #     self._palette_content_layout.addWidget(physics_label)
 
-            for template_name in self._templates:
-                btn = QPushButton(text=template_name, parent=self._palette_content_widget)
-                btn.clicked.connect(
-                    lambda _checked, name=template_name: self._on_template_button_clicked(name, False)
-                )
-                self._palette_content_layout.addWidget(btn)
+        #     for template_name in self._templates:
+        #         btn = QPushButton(text=template_name, parent=self._palette_content_widget)
+        #         btn.clicked.connect(
+        #             lambda _checked, name=template_name: self._on_template_button_clicked(name, False)
+        #         )
+        #         self._palette_content_layout.addWidget(btn)
 
         if self._scene_object_templates:
             scene_label = QLabel("Scene Objects")

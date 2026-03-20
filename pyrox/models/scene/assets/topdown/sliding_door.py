@@ -266,28 +266,6 @@ class SlidingDoorSceneObject(ActivatableCompositeKinematicSceneObject):
         """The direction the door panel slides when opening."""
         return self._direction
 
-    @property
-    def is_open(self) -> bool:
-        """``True`` when the door is open (or in the process of opening)."""
-        return self._is_open_state
-
-    @is_open.setter
-    def is_open(self, value: bool) -> None:
-        """Trigger the open or close animation.
-
-        If called mid-animation the new clip starts from the current panel
-        position so transitions are always smooth regardless of timing.
-
-        Args:
-            value: ``True`` to open, ``False`` to close.
-        """
-        if value == self._is_open_state:
-            return
-        self._is_open_state = value
-        clip_name = self.CLIP_OPEN if value else self.CLIP_CLOSE
-        self._snap_animation_start(clip_name)
-        self.animator.play(clip_name)
-
     # ------------------------------------------------------------------
     # Update
     # ------------------------------------------------------------------
@@ -404,23 +382,6 @@ class SlidingDoorSceneObject(ActivatableCompositeKinematicSceneObject):
             "door_height": self._door_height,
             "post_size":   self._post_size,
         })
-
-    def _snap_animation_start(self, clip_name: str) -> None:
-        """Snap the first keyframe of *clip_name* to the current door position.
-
-        Ensures smooth mid-stroke reversals — the new animation always starts
-        from where the panel currently is rather than jumping to a preset value.
-
-        Args:
-            clip_name: ``CLIP_OPEN`` or ``CLIP_CLOSE``.
-        """
-        clip = self.animator.get_clip(clip_name)
-        if clip is None:
-            return
-        current_pos = self._door_slide_pos
-        for track in clip.tracks:
-            if track.keyframes:
-                track.keyframes[0].value = current_pos
 
 
 SceneObjectFactory.register_template(
