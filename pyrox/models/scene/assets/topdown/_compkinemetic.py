@@ -1,8 +1,9 @@
 """Composite kinematic scene object Mixin class.
 """
 from typing import Callable
+
 from pyrox.interfaces import IBasePhysicsBody, BodyType, CardinalDirection, CollisionLayer
-from pyrox.models.physics import BasePhysicsBody
+from pyrox.models.physics import BasePhysicsBody, PhysicsSceneFactory
 from pyrox.models.scene.sceneobject import SceneObject
 from pyrox.models.scene.compositesceneobject import CompositeSceneObject
 from pyrox.models.scene.animation import (
@@ -114,8 +115,8 @@ class CompositeKinematicSceneObject(CompositeSceneObject):
         layer: int = 0,
     ) -> SceneObject:
         """Helper method to create a simple kinematic component with a rectangular physics body."""
-        physics_body = BasePhysicsBody(
-            name=f"{self.name}_{name}_body",
+        from pyrox.models.physics.factory import PhysicsSceneFactory
+        physics_body = PhysicsSceneFactory.create_from_template(
             template_name=template_name,
             body_type=body_type,
             width=width,
@@ -123,6 +124,17 @@ class CompositeKinematicSceneObject(CompositeSceneObject):
             collision_layer=collision_layer,
             collision_mask=collision_mask,
         )
+        if not physics_body:
+            print(f"Warning: Physics body template '{template_name}' not found. Creating BasePhysicsBody instead.")
+            physics_body = BasePhysicsBody(
+                name=f"{self.name}_{name}_body",
+                template_name=template_name,
+                body_type=body_type,
+                width=width,
+                height=height,
+                collision_layer=collision_layer,
+                collision_mask=collision_mask,
+            )
         return SceneObject(
             name=f"{self.name}_{name}",
             scene_object_type=scene_object_type,
@@ -140,7 +152,16 @@ class CompositeKinematicSceneObject(CompositeSceneObject):
         This method ensures that the created physics body has the correct collision layer and mask for kinematic components.
         """
         if comp_body_dict:
-            comp_body = BasePhysicsBody.from_dict(comp_body_dict)
+
+            template = PhysicsSceneFactory.get_registered_type(comp_body_dict.get("template_name"))
+            if not template:
+                comp_body = BasePhysicsBody.from_dict(comp_body_dict)
+            else:
+                comp_body = template.from_dict(comp_body_dict)
+
+            if not isinstance(comp_body, BasePhysicsBody) and not issubclass(type(comp_body), BasePhysicsBody):
+                raise ValueError(f"Expected comp_body to be a BasePhysicsBody or subclass of BasePhysicsBody, got {type(comp_body)}")
+            # comp_body = BasePhysicsBody.from_dict(comp_body_dict)
             comp_body.get_collider().set_collision_layer(CollisionLayer.TERRAIN)
             comp_body.get_collider().set_collision_mask(cls.default_collision_mask)
             return comp_body
@@ -242,6 +263,11 @@ class ActivatableCompositeKinematicSceneObject(CompositeKinematicSceneObject):
         clip_name = self.CLIP_ACTIVATE if value else self.CLIP_DEACTIVATE
         self.snap_animation_start(clip_name)
         self.animator.play(clip_name)
+
+    @property
+    def is_animating(self) -> bool:
+        """True while the conveyor is active and belt stripes are scrolling."""
+        return self.active
 
     # ------------------------------------------------------------------
     # Active State Management

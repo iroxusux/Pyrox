@@ -207,17 +207,10 @@ class SceneObjectFactory:
             **kwargs: Arguments to override template defaults
 
         Returns:
-            New scene object instance, or None if the template is not found /
-            instantiation fails
+            New scene object instance, or None if the template is not found
         """
         template = cls._templates.get(template_name)
         if not template:
             log(cls).warning(f"Template '{template_name}' not found in SceneObjectFactory.")
             return None
-        try:
-            return template.create(**kwargs)
-        except Exception as exc:
-            log(cls).error(
-                f"Failed to create scene object from template '{template_name}': {exc}"
-            )
-            return None
+        return template.create(**kwargs)

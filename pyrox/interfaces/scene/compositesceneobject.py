@@ -13,16 +13,13 @@ from typing import (
     Dict,
     List,
     Optional,
-    Protocol,
     Tuple,
-    runtime_checkable,
 )
 
 from pyrox.interfaces.scene.sceneobject import ISceneObject
 
 
-@runtime_checkable
-class ICompositeSceneObject(ISceneObject, Protocol):
+class ICompositeSceneObject(ISceneObject):
     """A design-locked scene object that owns child components at fixed offsets.
 
     The composite itself is the only object registered in the Scene.
@@ -135,6 +132,28 @@ class ICompositeSceneObject(ISceneObject, Protocol):
             True if the component exists, False otherwise.
         """
         ...
+
+    # ---------- Rendering contract ----------
+
+    @property
+    def is_animating(self) -> bool:
+        """Return True if this composite changes component positions every frame.
+
+        The renderer uses this flag to decide whether to rebuild the
+        QGraphicsItems for this composite on every tick.  Override and return
+        ``True`` in any composite whose ``update()`` method mutates component
+        offsets directly (i.e. does **not** use the SceneAnimator system).
+
+        Composites that only animate via SceneAnimator clips do **not** need to
+        override this — the renderer already detects ``animator.is_playing``.
+        This property exists specifically for custom per-frame update logic
+        (e.g. scrolling belt stripes, rotating parts, progress indicators).
+
+        Returns:
+            False by default; override to return True for continuously
+            animated composites.
+        """
+        return False
 
 
 __all__ = ["ICompositeSceneObject"]

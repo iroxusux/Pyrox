@@ -1130,10 +1130,19 @@ class SceneViewerFrame(TaskFrame):
         # offsets* rather than the composite's own x/y.  A simple moveBy won't
         # reflect those offset changes, so clear the stale items and re-render
         # the composite from scratch whenever any component is animating.
+        #
+        # Two mechanisms signal that a composite needs per-frame re-render:
+        #   1. animator.is_playing  — a SceneAnimator clip is active (piston, gate, etc.)
+        #   2. scene_obj.is_animating — composite overrides this property to True,
+        #      used by assets whose update() mutates component offsets directly
+        #      without going through the SceneAnimator system (e.g. conveyor belt
+        #      stripes).  New composite assets that do custom per-frame position
+        #      updates must override is_animating to avoid this rendering gap.
         if isinstance(scene_obj, CompositeSceneObject):
             composite_animator = getattr(scene_obj, 'animator', None)
             has_animating_component = (
-                (composite_animator is not None and composite_animator.is_playing)
+                getattr(scene_obj, 'is_animating', False)
+                or (composite_animator is not None and composite_animator.is_playing)
                 or any(
                     getattr(comp, 'animator', None) is not None
                     and getattr(comp, 'animator').is_playing

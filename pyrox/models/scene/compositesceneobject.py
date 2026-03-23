@@ -127,6 +127,14 @@ class CompositeSceneObject(SceneObject, ICompositeSceneObject):
     def has_component(self, name: str) -> bool:
         return name in self._components
 
+    @property
+    def is_animating(self) -> bool:
+        """False by default.  Override in subclasses that mutate component
+        offsets directly in their ``update()`` method (i.e. do not use the
+        SceneAnimator system) so the renderer re-renders their components
+        every frame rather than relying on ``animator.is_playing``."""
+        return False
+
     def get_component_world_position(
         self, name: str
     ) -> Optional[Tuple[float, float]]:

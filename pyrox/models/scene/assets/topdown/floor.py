@@ -2,8 +2,6 @@
 """
 from __future__ import annotations
 
-from typing import cast
-
 from pyrox.interfaces import CollisionLayer
 from pyrox.models.physics.floor import FloorBody
 from pyrox.models.scene.factory import SceneObjectFactory, SceneObjectTemplate
@@ -86,7 +84,7 @@ class FloorSceneObject(SceneObject):
             A fully-initialised :class:`SensorSceneObject`.
         """
         if body:
-            physics_body = cast(FloorBody, FloorBody.from_dict(body))
+            physics_body = FloorBody.from_dict(body)
         else:
             physics_body = FloorBody(
                 name=f"{name}_body",
@@ -120,7 +118,7 @@ class FloorSceneObject(SceneObject):
     def from_dict(cls, data: dict) -> "FloorSceneObject":
         """Restore a :class:`SensorSceneObject` from a serialised dictionary."""
         body_data = data.get("body", {})
-        physics_body = cast(FloorBody, FloorBody.from_dict(body_data))
+        physics_body = FloorBody.from_dict(body_data)
         props = data.get("properties", {})
         return cls(
             name=data["name"],

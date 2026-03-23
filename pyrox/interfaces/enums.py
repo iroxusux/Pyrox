@@ -23,3 +23,7 @@ class CardinalDirection(_FromStrMixin):
     DOWN = auto()   # +Y
     LEFT = auto()   # -X
     UP = auto()     # -Y
+    NORTH = UP
+    SOUTH = DOWN
+    EAST = RIGHT
+    WEST = LEFT
