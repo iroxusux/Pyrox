@@ -1429,6 +1429,20 @@ class SceneViewerFrame(TaskFrame):
             accelerator="Ctrl+Shift+[",
             icon="⏬"
         ))
+        self._object_context_menu.add_item(MenuItem(
+            id="rotate_cw",
+            label="Rotate Clockwise",
+            command=self._context_rotate_cw,
+            accelerator="Ctrl+R",
+            icon="🔄"
+        ))
+        self._object_context_menu.add_item(MenuItem(
+            id="rotate_ccw",
+            label="Rotate Counter-Clockwise",
+            command=self._context_rotate_ccw,
+            accelerator="Ctrl+Shift+R",
+            icon="🔄"
+        ))
 
     # ==================== Event Binding ====================
 
@@ -2068,6 +2082,32 @@ class SceneViewerFrame(TaskFrame):
         self.render_scene()
         log(self).info(f"Sent {len(self._canvas_object_management_service.selected_objects)} object(s) to back")
 
+    def _context_rotate_cw(self) -> None:
+        """Rotate selected objects 15 degrees clockwise."""
+        if not self._scene or not self._canvas_object_management_service.selected_objects:
+            return
+
+        for obj_id in self._canvas_object_management_service.selected_objects:
+            obj = self._scene.get_scene_object(obj_id)
+            if obj:
+                obj.rotate_clockwise()
+
+        self.render_scene()
+        log(self).info(f"Rotated {len(self._canvas_object_management_service.selected_objects)} object(s) 90° clockwise")
+
+    def _context_rotate_ccw(self) -> None:
+        """Rotate selected objects 15 degrees counter-clockwise."""
+        if not self._scene or not self._canvas_object_management_service.selected_objects:
+            return
+
+        for obj_id in self._canvas_object_management_service.selected_objects:
+            obj = self._scene.get_scene_object(obj_id)
+            if obj:
+                obj.rotate_counterclockwise()
+
+        self.render_scene()
+        log(self).info(f"Rotated {len(self._canvas_object_management_service.selected_objects)} object(s) 90° counter-clockwise")
+
     def _paste_object_data(self, obj_data: dict) -> ISceneObject | None:
         """Helper to paste object data into scene.
 
@@ -2220,14 +2260,14 @@ class SceneViewerFrame(TaskFrame):
             for obj_id in self._canvas_object_management_service.selected_objects:
                 self._update_object_appearance(obj_id)
 
-                if property_name in ('x', 'y', 'width', 'height', 'radius', 'name', 'color'):
-                    if self._scene:
-                        scene_obj = self._scene.scene_objects.get(obj_id)
-                        if scene_obj:
-                            for item in self._gfx_items.pop(obj_id, []):
-                                if item.scene() == self._gfx_scene:
-                                    self._gfx_scene.removeItem(item)
-                            self._render_scene_object(obj_id, scene_obj)
+                # For certain properties (e.g. color, shape) we need to re-render the object to reflect the change.
+                if self._scene:
+                    scene_obj = self._scene.scene_objects.get(obj_id)
+                    if scene_obj:
+                        for item in self._gfx_items.pop(obj_id, []):
+                            if item.scene() == self._gfx_scene:
+                                self._gfx_scene.removeItem(item)
+                        self._render_scene_object(obj_id, scene_obj)
 
         log(self).debug(f"Property '{property_name}' changed to: {new_value}")
 

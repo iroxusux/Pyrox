@@ -6,16 +6,7 @@ A CompositeSceneObject is the sole scene-registered object.  Its children
 the composite's origin.  Components cannot be extracted or ungrouped —
 the composition is intentional by design (e.g. a control panel with buttons).
 """
-from __future__ import annotations
-
-from abc import abstractmethod
-from typing import (
-    Dict,
-    List,
-    Optional,
-    Tuple,
-)
-
+from pyrox.interfaces.enums import CardinalDirection
 from pyrox.interfaces.scene.sceneobject import ISceneObject
 
 
@@ -33,9 +24,77 @@ class ICompositeSceneObject(ISceneObject):
     by the composite.
     """
 
-    # ---------- Component management ----------
+    # ------------------------------------------------------------------
+    # Overloads
+    # ------------------------------------------------------------------
 
-    @abstractmethod
+    def set_direction(self, direction: CardinalDirection | str | int | None) -> None:
+        if self._direction == direction:
+            return  # No change, skip
+
+        old_direction = self._direction
+        old_w = self.width
+        old_h = self.height
+        super().set_direction(direction)
+        # If a perpendicular rotation occurred, rotate all component offsets and
+        # dimensions in-place so physics body identity is never broken.
+        if (old_direction is not None and self._direction is not None
+                and CardinalDirection.is_perpendicular(old_direction, self._direction)):
+            clockwise = CardinalDirection.next_clockwise(old_direction) == self._direction
+            self._rotate_components_in_place(old_w, old_h, clockwise)
+
+    def _rotate_components_in_place(
+        self,
+        old_composite_w: float,
+        old_composite_h: float,
+        clockwise: bool,
+    ) -> None:
+        """Rotate all component offsets and physics body dimensions in-place by 90°.
+
+        Uses standard 2D rectangle rotation within the composite bounding box so
+        that the component layout mirrors the composite's own rotation.  Physics
+        body *identity* is preserved — no new bodies are created and the physics
+        engine needs no updates.
+
+        Derived classes may override this to handle direction-dependent component
+        properties (e.g. animation axes on a conveyor belt).
+
+        Args:
+            old_composite_w: Composite width *before* the rotation.
+            old_composite_h: Composite height *before* the rotation.
+            clockwise:        True for 90° CW, False for 90° CCW.
+        """
+        new_components: dict = {}
+        for name, (obj, off_x, off_y) in self._components.items():
+            old_cw = obj.width
+            old_ch = obj.height
+            # Swap component dimensions via set_direction → rotate_area.
+            # old_cw / old_ch are kept purely for the offset math below;
+            # the dimension swap itself is handled by the set_direction call.
+            obj.set_direction(
+                CardinalDirection.next_clockwise(obj.direction)
+                if clockwise else CardinalDirection.next_counterclockwise(obj.direction)
+            )
+            # Rotate offset within the old composite bounding box
+            if clockwise:
+                # CW: (off_x, off_y) -> (off_y, old_W - off_x - old_cw)
+                new_off_x = off_y
+                new_off_y = old_composite_w - off_x - old_cw
+            else:
+                # CCW: (off_x, off_y) -> (old_H - off_y - old_ch, off_x)
+                new_off_x = old_composite_h - off_y - old_ch
+                new_off_y = off_x
+            new_components[name] = (obj, new_off_x, new_off_y)
+        self._components = new_components
+
+    # ------------------------------------------------------------------
+    # ICompositeSceneObject — component management
+    # ------------------------------------------------------------------
+
+    def build_components(self):
+        """Override this method in derived classes to build the kinematic components and register them as children."""
+        ...
+
     def add_component(
         self,
         name: str,
@@ -43,95 +102,66 @@ class ICompositeSceneObject(ISceneObject):
         offset_x: float = 0.0,
         offset_y: float = 0.0,
     ) -> None:
-        """Register a child component at a relative offset.
+        """Register a child component at a relative offset."""
+        if name in self._components:
+            raise ValueError(
+                f"A component named '{name}' already exists in '{self.name}'."
+            )
+        self._components[name] = (obj, offset_x, offset_y)
 
-        Args:
-            name:     Logical name used to retrieve this component later.
-            obj:      The scene object acting as the component.
-            offset_x: Horizontal offset from the composite's origin.
-            offset_y: Vertical offset from the composite's origin.
-        """
-        ...
-
-    @abstractmethod
     def remove_component(self, name: str) -> None:
-        """Remove a component by name.
+        """Remove a component by logical name."""
+        if name in self._components:
+            del self._components[name]
 
-        Args:
-            name: The logical name of the component to remove.
-        """
-        ...
+    def get_component(self, name: str) -> ISceneObject | None:
+        entry = self._components.get(name)
+        return entry[0] if entry else None
 
-    @abstractmethod
-    def get_component(self, name: str) -> Optional[ISceneObject]:
-        """Retrieve a component by its logical name.
+    def get_components(self) -> dict[str, tuple[ISceneObject, float, float]]:
+        return dict(self._components)
 
-        Args:
-            name: The logical name of the component.
+    def get_component_names(self) -> list[str]:
+        return list(self._components.keys())
 
-        Returns:
-            The component scene object, or None if not found.
-        """
-        ...
-
-    @abstractmethod
-    def get_components(self) -> Dict[str, Tuple[ISceneObject, float, float]]:
-        """Get all components with their offsets.
-
-        Returns:
-            Dict mapping component name to (scene_object, offset_x, offset_y).
-        """
-        ...
-
-    @abstractmethod
-    def get_component_world_position(self, name: str) -> Optional[Tuple[float, float]]:
-        """Get the world-space position of a component.
-
-        Computed as (composite.x + offset_x, composite.y + offset_y).
-
-        Args:
-            name: The logical name of the component.
-
-        Returns:
-            (world_x, world_y), or None if component not found.
-        """
-        ...
-
-    @abstractmethod
-    def get_component_at_point(self, x: float, y: float) -> Optional[ISceneObject]:
-        """Find the topmost component that contains the given world-space point.
-
-        Args:
-            x: World-space X coordinate.
-            y: World-space Y coordinate.
-
-        Returns:
-            The matching component, or None if no component is at that point.
-        """
-        ...
-
-    # ---------- Component listing ----------
-
-    @abstractmethod
-    def get_component_names(self) -> List[str]:
-        """Get the logical names of all registered components.
-
-        Returns:
-            List of component names.
-        """
-        ...
-
-    @abstractmethod
     def has_component(self, name: str) -> bool:
-        """Check whether a component with the given name exists.
+        return name in self._components
 
-        Args:
-            name: The logical name to check.
+    def set_components(self, components: dict[str, tuple[ISceneObject, float, float]]) -> None:
+        self._components = dict(components)
 
-        Returns:
-            True if the component exists, False otherwise.
+    def clear_components(self) -> None:
+        self._components.clear()
+
+    def get_component_world_position(
+        self, name: str
+    ) -> tuple[float, float] | None:
+        """Return the world-space position of the named component."""
+        entry = self._components.get(name)
+        if not entry:
+            return None
+        _, offset_x, offset_y = entry
+        return (self.x + offset_x, self.y + offset_y)
+
+    def get_component_at_point(
+        self, x: float, y: float
+    ) -> ISceneObject | None:
+        """Find the topmost component whose bounds contain the given point.
+
+        Components are checked in descending layer order (foreground first).
         """
-        ...
+        # Sort by component layer descending for foreground-first hit-testing
+        candidates = sorted(
+            self._components.values(),
+            key=lambda entry: entry[0].get_layer(),
+            reverse=True,
+        )
+        for obj, offset_x, offset_y in candidates:
+            wx = self.x + offset_x
+            wy = self.y + offset_y
+            if wx <= x <= wx + obj.width and wy <= y <= wy + obj.height:
+                return obj
+        return None
 
     # ---------- Rendering contract ----------
 

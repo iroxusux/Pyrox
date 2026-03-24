@@ -13,21 +13,15 @@ Example::
     panel.add_component("run_btn",  run_btn_obj, offset_x=10,  offset_y=60)
     scene.add_scene_object(panel)
 """
-
-from typing import (
-    Dict,
-    List,
-    Optional,
-    Tuple,
-)
 import uuid
 
 from pyrox.interfaces import (
+    CardinalDirection,
     IBasePhysicsBody,
-    ISceneObject,
 )
 from pyrox.interfaces.scene.compositesceneobject import ICompositeSceneObject
 from pyrox.models.scene.sceneobject import SceneObject
+from pyrox.models.scene.factory import SceneObjectFactory, SceneObjectTemplate
 
 SCENE_OBJECT_TYPE_COMPOSITE = "composite"
 
@@ -54,8 +48,9 @@ class CompositeSceneObject(SceneObject, ICompositeSceneObject):
         template_name: str = SCENE_OBJECT_TYPE_COMPOSITE,
         id: str | None = None,
         group_id: str | None = None,
-        properties: Optional[Dict] = None,
-        parent: Optional[SceneObject] = None,
+        properties: dict | None = None,
+        parent: SceneObject | None = None,
+        direction: CardinalDirection | None = None,
         layer: int = 0,
         tags: list[str] | None = None,
         components: list[dict] | dict | None = None,
@@ -70,6 +65,7 @@ class CompositeSceneObject(SceneObject, ICompositeSceneObject):
             group_id=group_id,
             properties=properties,
             parent=parent,
+            direction=direction,
             layer=layer,
             tags=tags,
         )
@@ -90,80 +86,6 @@ class CompositeSceneObject(SceneObject, ICompositeSceneObject):
             self._components = components
         else:
             self._components = {}
-
-    # ------------------------------------------------------------------
-    # ICompositeSceneObject — component management
-    # ------------------------------------------------------------------
-
-    def add_component(
-        self,
-        name: str,
-        obj: ISceneObject,
-        offset_x: float = 0.0,
-        offset_y: float = 0.0,
-    ) -> None:
-        """Register a child component at a relative offset."""
-        if name in self._components:
-            raise ValueError(
-                f"A component named '{name}' already exists in '{self.name}'."
-            )
-        self._components[name] = (obj, offset_x, offset_y)
-
-    def remove_component(self, name: str) -> None:
-        """Remove a component by logical name."""
-        if name in self._components:
-            del self._components[name]
-
-    def get_component(self, name: str) -> Optional[ISceneObject]:
-        entry = self._components.get(name)
-        return entry[0] if entry else None
-
-    def get_components(self) -> Dict[str, Tuple[ISceneObject, float, float]]:
-        return dict(self._components)
-
-    def get_component_names(self) -> List[str]:
-        return list(self._components.keys())
-
-    def has_component(self, name: str) -> bool:
-        return name in self._components
-
-    @property
-    def is_animating(self) -> bool:
-        """False by default.  Override in subclasses that mutate component
-        offsets directly in their ``update()`` method (i.e. do not use the
-        SceneAnimator system) so the renderer re-renders their components
-        every frame rather than relying on ``animator.is_playing``."""
-        return False
-
-    def get_component_world_position(
-        self, name: str
-    ) -> Optional[Tuple[float, float]]:
-        """Return the world-space position of the named component."""
-        entry = self._components.get(name)
-        if not entry:
-            return None
-        _, offset_x, offset_y = entry
-        return (self.x + offset_x, self.y + offset_y)
-
-    def get_component_at_point(
-        self, x: float, y: float
-    ) -> Optional[ISceneObject]:
-        """Find the topmost component whose bounds contain the given point.
-
-        Components are checked in descending layer order (foreground first).
-        """
-        # Sort by component layer descending for foreground-first hit-testing
-        candidates = sorted(
-            self._components.values(),
-            key=lambda entry: entry[0].get_layer(),
-            reverse=True,
-        )
-        for obj, offset_x, offset_y in candidates:
-            wx = self.x + offset_x
-            wy = self.y + offset_y
-            if wx <= x <= wx + obj.width and wy <= y <= wy + obj.height:
-                return obj
-        return None
 
     # ------------------------------------------------------------------
     # Event routing
@@ -253,13 +175,6 @@ class CompositeSceneObject(SceneObject, ICompositeSceneObject):
             components=data.get("components", None),
         )
 
-
-# ---------------------------------------------------------------------------
-# Factory registration — done once at import time so SceneObject.from_dict
-# can dispatch to CompositeSceneObject when it sees template_name /
-# scene_object_type equal to SCENE_OBJECT_TYPE_COMPOSITE ("composite").
-# ---------------------------------------------------------------------------
-from pyrox.models.scene.factory import SceneObjectFactory, SceneObjectTemplate  # noqa: E402
 
 SceneObjectFactory.register_template(
     SceneObjectTemplate(

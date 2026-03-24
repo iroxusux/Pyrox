@@ -46,9 +46,8 @@ class CompositeKinematicSceneObject(CompositeSceneObject):
     ):
 
         if physics_body:
-            # Composite itself doesn't collide; the rod and head do.
             physics_body.get_collider().set_collision_layer(CollisionLayer.TRANSPARENT)
-            physics_body.get_collider().set_collision_mask([])
+            physics_body.get_collider().set_collision_mask(self.default_collision_mask)
 
         super().__init__(
             name=name,
@@ -59,20 +58,13 @@ class CompositeKinematicSceneObject(CompositeSceneObject):
             id=id,
             group_id=group_id,
             tags=tags,
+            direction=direction,
             layer=layer,
             properties=properties,
             components=components,
         )
-        self._direction = CardinalDirection.from_str(properties.get('direction', 'RIGHT')) or direction
+
         self.build_components()
-
-    # ------------------------------------------------------------------
-    # Build Methods
-    # ------------------------------------------------------------------
-
-    def build_components(self):
-        """Override this method in derived classes to build the kinematic components and register them as children."""
-        raise NotImplementedError("Derived classes must implement build_components() to create and register their kinematic components.")
 
     # ------------------------------------------------------------------
     # Helper Methods
@@ -171,20 +163,15 @@ class CompositeKinematicSceneObject(CompositeSceneObject):
     # Private Helpers
     # ------------------------------------------------------------------
 
-    def _compile_properties(self) -> None:
-        super()._compile_properties()
+    def compile_properties(self) -> None:
+        super().compile_properties()
         self._properties.update({
-            'direction': self._direction.name,
+            'direction': self.direction.name,
         })
 
     # ------------------------------------------------------------------
     # Public API
     # ------------------------------------------------------------------
-
-    @property
-    def direction(self) -> CardinalDirection:
-        """The direction in which the piston extends."""
-        return self._direction
 
     @property
     def is_horizontal(self) -> bool:
@@ -249,6 +236,19 @@ class ActivatableCompositeKinematicSceneObject(CompositeKinematicSceneObject):
     # Public API
     # ------------------------------------------------------------------
 
+    def get_active_state(self) -> bool:
+        """Get the current active state of the component."""
+        return self._active
+
+    def set_active_state(self, value: bool):
+        """Set the active state of the component."""
+        if value == self._active:
+            return
+        self._active = value
+        clip_name = self.CLIP_ACTIVATE if value else self.CLIP_DEACTIVATE
+        self.snap_animation_start(clip_name)
+        self.animator.play(clip_name)
+
     @property
     def active(self) -> bool:
         """Whether the component is currently active (e.g. piston is extended)."""
@@ -257,12 +257,7 @@ class ActivatableCompositeKinematicSceneObject(CompositeKinematicSceneObject):
     @active.setter
     def active(self, value: bool):
         """Set the active state of the component."""
-        if value == self._active:
-            return
-        self._active = value
-        clip_name = self.CLIP_ACTIVATE if value else self.CLIP_DEACTIVATE
-        self.snap_animation_start(clip_name)
-        self.animator.play(clip_name)
+        self.set_active_state(value)
 
     @property
     def is_animating(self) -> bool:
@@ -363,11 +358,6 @@ class ActivatableCompositeKinematicSceneObject(CompositeKinematicSceneObject):
         """Input method to toggle the active state of the component."""
         self.active = not self.active
 
-    def set_direction(self, direction: CardinalDirection):
-        """Input method to set the direction of the component."""
-        self._direction = direction
-        self._compile_properties()  # Update properties to reflect new direction
-
     def get_inputs(self) -> dict[str, Callable[..., None]]:
         """Get available input connections.
 
@@ -384,8 +374,8 @@ class ActivatableCompositeKinematicSceneObject(CompositeKinematicSceneObject):
     # Private Helpers
     # ------------------------------------------------------------------
 
-    def _compile_properties(self) -> None:
-        super()._compile_properties()
+    def compile_properties(self) -> None:
+        super().compile_properties()
         self._properties.update({
             'active': self._active,
         })

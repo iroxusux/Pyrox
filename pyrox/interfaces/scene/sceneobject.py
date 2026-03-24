@@ -5,6 +5,7 @@ from typing import (
     Any,
 )
 from pyrox.interfaces import (
+    ICardinalRotateable2D,
     IBasePhysicsBody,
     ICoreMixin,
     Connection,
@@ -13,6 +14,7 @@ from pyrox.interfaces import (
 
 class ISceneObject(
         ICoreMixin,
+        ICardinalRotateable2D,
 ):
     """Object base class for scene elements.
     """
@@ -80,12 +82,10 @@ class ISceneObject(
             name (str): The property key.
             value (Any): The property value.
         """
-        if hasattr(self.physics_body, name):
-            setattr(self.physics_body, name, value)
-        elif hasattr(self, name):
+        if hasattr(self, name):
             setattr(self, name, value)
         else:
-            self._properties[name] = value
+            raise AttributeError(f"SceneObject has no attribute '{name}' to set. Use get_properties/set_properties for custom properties.")
 
     def get_properties(self) -> dict:
         """Get the properties of the scene object.
@@ -544,6 +544,18 @@ class ISceneObject(
             value (float): The width to set.
         """
         self.physics_body.set_width(value)
+
+    def rotate_area(self) -> None:
+        """Swap width and height via the physics-body property accessors.
+
+        Overrides ``ICardinalRotateable2D.rotate_area`` which calls the
+        abstract ``get_width``/``set_width`` protocol stubs (returning
+        ``None``).  Using the concrete ``width``/``height`` properties
+        ensures the physics body dimensions are actually updated.
+        """
+        w = self.width
+        self.width = self.height
+        self.height = w
 
 
 class ISceneObjectFactory:

@@ -263,7 +263,7 @@ class SensorSceneObject(SceneObject):
     # ------------------------------------------------------------------
 
     def _compile_properties(self) -> None:
-        super()._compile_properties()
+        super().compile_properties()
         self._properties["sensor_color"] = self._bg_color
 
     @classmethod

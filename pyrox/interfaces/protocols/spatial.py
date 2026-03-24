@@ -1,7 +1,80 @@
 """Spacial object protocols that extend coordinate protocols.
 """
 from typing import Protocol, runtime_checkable
+from pyrox.interfaces import CardinalDirection
 from pyrox.interfaces.protocols.coord import IArea2D, IArea3D
+
+
+class ICardinalRotateable2D(IArea2D):
+    """Protocol for 2D rotatable spatial objects. (Cardinal directions only)"""
+
+    # ------------------------------------------------------------------
+    # Resize methods
+    # ------------------------------------------------------------------
+
+    def rotate_area(self) -> None:
+        """Rotate the area dimensions (swap width and height)."""
+        current_width = self.get_width()
+        current_height = self.get_height()
+        self.set_width(current_height)
+        self.set_height(current_width)
+
+    # ------------------------------------------------------------------
+    # Direction and rotation
+    # ------------------------------------------------------------------
+
+    def get_direction(self) -> CardinalDirection:
+        """Get the direction of this object in degrees."""
+        if not self._direction:
+            self._direction = CardinalDirection.NORTH  # Default to NORTH if not set
+        return self._direction  # type: ignore[return-value]
+
+    def set_direction(
+        self,
+        direction: CardinalDirection | str | int | None,
+    ) -> None:
+        """Set the direction of this object."""
+        if direction:
+            direction = CardinalDirection.try_parse(direction)
+            assert direction is not None, f"Invalid direction: {direction}"
+            if CardinalDirection.is_perpendicular(self._direction or CardinalDirection.NORTH, direction):
+                self._direction = direction
+                self.rotate_area()  # Rotate area dimensions when changing to a perpendicular direction
+        else:
+            self._direction = None
+
+    @property
+    def direction(self) -> CardinalDirection:
+        """Get the rotation of this object in degrees."""
+        return self.get_direction()
+
+    @direction.setter
+    def direction(self, direction: CardinalDirection) -> None:
+        """Set the rotation of this object in degrees."""
+        self.set_direction(direction)
+
+    # ------------------------------------------------------------------
+    # Rotation convenience methods
+    # ------------------------------------------------------------------
+
+    def rotate_clockwise(self) -> None:
+        """Rotate the object 90 degrees clockwise."""
+        if self._direction:
+            self.set_direction(CardinalDirection.next_clockwise(self._direction))
+
+    def rotate_counterclockwise(self) -> None:
+        """Rotate the object 90 degrees counterclockwise."""
+        if self._direction:
+            self.set_direction(CardinalDirection.next_counterclockwise(self._direction))
+
+    def rotate_180(self) -> None:
+        """Rotate the object 180 degrees."""
+        if self._direction:
+            self.set_direction(CardinalDirection(((self._direction.value + 1) % 4) + 1))
+
+    def rotate_to(self, direction: CardinalDirection | str | int) -> None:
+        """Rotate the object to a specific cardinal direction."""
+        self.set_direction(CardinalDirection.try_parse(direction))
 
 
 @runtime_checkable
@@ -144,5 +217,6 @@ __all__ = [
     "ISpatial2D",
     "ISpatial3D",
     "IRotatable",
+    "ICardinalRotateable2D",
     "IZoomable",
 ]

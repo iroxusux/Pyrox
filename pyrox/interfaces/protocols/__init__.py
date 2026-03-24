@@ -32,6 +32,7 @@ from .spatial import (
     ISpatial2D,
     ISpatial3D,
     IRotatable,
+    ICardinalRotateable2D,
     IZoomable,
 )
 
@@ -101,6 +102,7 @@ __all__ = [
     "ISpatial2D",
     "ISpatial3D",
     "IRotatable",
+    "ICardinalRotateable2D",
     "IZoomable",
 
     # Kinematic protocols

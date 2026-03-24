@@ -154,36 +154,44 @@ class SlidingDoorSceneObject(ActivatableCompositeKinematicSceneObject):
             post_w, post_h = self._post_size, self._door_height
             door_panel_w = opening
             door_panel_h = self._door_height
-            post_b_ox = self._total_width - self._post_size
-            post_b_oy = 0.0
         else:  # UP / DOWN
             post_w, post_h = self._door_height, self._post_size
             door_panel_w = self._door_height
             door_panel_h = opening
-            post_b_ox = 0.0
-            post_b_oy = self._total_width - self._post_size
 
         # ------------------------------------------------------------------
-        # Slide-axis offsets
+        # Slide-axis offsets — all non-negative relative to the bounding box
+        # origin, which always covers the full range of panel motion.
         #
-        # closed: door fills the opening (inner face of Post A → inner face of Post B)
-        # open  : door is entirely outside Post A (or Post B for RIGHT/DOWN)
+        # LEFT / UP : bounding box starts at the fully-open panel position
+        #             (further out from Post A), so Post A and both offsets
+        #             are shifted inward by `opening`.
+        #   post_a   = opening
+        #   post_b   = opening + total_width - post_size
+        #   closed   = opening + post_size   (panel in the opening)
+        #   open     = 0                     (panel clears past Post A)
         #
-        # For LEFT  : closed = post_size, open = -opening  (door clears past Post A)
-        # For RIGHT : closed = post_size, open = total_width  (door clears past Post B)
-        # For UP    : closed = post_size, open = -opening
-        # For DOWN  : closed = post_size, open = total_width
+        # RIGHT / DOWN : bounding box starts at Post A; open panel extends
+        #                past Post B, so no shift is required.
+        #   post_a   = 0
+        #   post_b   = total_width - post_size
+        #   closed   = post_size
+        #   open     = total_width            (panel clears past Post B)
         # ------------------------------------------------------------------
         match self.direction:
             case CardinalDirection.LEFT | CardinalDirection.UP:
-                closed_offset = self._post_size
-                open_offset = -opening
+                post_a_axis = opening
+                post_b_axis = opening + self._total_width - self._post_size
+                door_closed_axis = opening + self._post_size
+                door_open_axis = 0.0
             case CardinalDirection.RIGHT | CardinalDirection.DOWN:
-                closed_offset = self._post_size
-                open_offset = self._total_width
+                post_a_axis = 0.0
+                post_b_axis = self._total_width - self._post_size
+                door_closed_axis = self._post_size
+                door_open_axis = self._total_width
 
-        self._door_closed_offset = float(closed_offset)
-        self._door_open_offset = float(open_offset)
+        self._door_closed_offset = float(door_closed_axis)
+        self._door_open_offset = float(door_open_axis)
 
         # Mutable slide position — written each frame by self.animator via
         # set_property("_door_slide_pos", value).
@@ -249,22 +257,13 @@ class SlidingDoorSceneObject(ActivatableCompositeKinematicSceneObject):
         # Register components at initial (closed) offsets
         # ------------------------------------------------------------------
         if self.is_horizontal:
-            door_init_ox, door_init_oy = self._door_closed_offset, 0.0
+            self.add_component("post_a", self._post_a, post_a_axis,      0.0)
+            self.add_component("post_b", self._post_b, post_b_axis,      0.0)
+            self.add_component("door",   self._door,   door_closed_axis, 0.0)
         else:
-            door_init_ox, door_init_oy = 0.0, self._door_closed_offset
-
-        self.add_component("post_a", self._post_a, 0.0,          0.0)
-        self.add_component("post_b", self._post_b, post_b_ox,    post_b_oy)
-        self.add_component("door",   self._door,   door_init_ox, door_init_oy)
-
-    # ------------------------------------------------------------------
-    # Public API
-    # ------------------------------------------------------------------
-
-    @property
-    def direction(self) -> CardinalDirection:
-        """The direction the door panel slides when opening."""
-        return self._direction
+            self.add_component("post_a", self._post_a, 0.0, post_a_axis)
+            self.add_component("post_b", self._post_b, 0.0, post_b_axis)
+            self.add_component("door",   self._door,   0.0, door_closed_axis)
 
     # ------------------------------------------------------------------
     # Update
@@ -345,14 +344,30 @@ class SlidingDoorSceneObject(ActivatableCompositeKinematicSceneObject):
             body.get_collider().set_collision_layer(CollisionLayer.TRANSPARENT)
             body.get_collider().set_collision_mask([])
         else:
+            opening = total_width - 2 * post_size
+            # The bounding box must span the full range of panel motion:
+            #   frame width + opening (panel fully retracted on one side)
+            bounding_span = total_width + opening
             is_horizontal = direction in (CardinalDirection.LEFT, CardinalDirection.RIGHT)
-            bw = total_width if is_horizontal else door_height
-            bh = door_height if is_horizontal else total_width
+            if is_horizontal:
+                bw = bounding_span
+                bh = door_height
+                # LEFT: body origin shifts left by `opening` so the open panel
+                #       (at world x = x - opening) lands at offset 0 inside the bbox.
+                body_x = float(x) - opening if direction == CardinalDirection.LEFT else float(x)
+                body_y = float(y)
+            else:  # UP / DOWN
+                bw = door_height
+                bh = bounding_span
+                body_x = float(x)
+                # UP: body origin shifts up by `opening` so the open panel lands at
+                #     offset 0 (top of bbox).
+                body_y = float(y) - opening if direction == CardinalDirection.UP else float(y)
             body = BasePhysicsBody(
                 name=f"{name}_body",
                 template_name='Base Physics Body',
-                x=float(x),
-                y=float(y),
+                x=body_x,
+                y=body_y,
                 width=bw,
                 height=bh,
                 collision_layer=CollisionLayer.TRANSPARENT,
@@ -375,8 +390,8 @@ class SlidingDoorSceneObject(ActivatableCompositeKinematicSceneObject):
     # Private helpers
     # ------------------------------------------------------------------
 
-    def _compile_properties(self) -> None:
-        super()._compile_properties()
+    def compile_properties(self) -> None:
+        super().compile_properties()
         self._properties.update({
             "total_width": self._total_width,
             "door_height": self._door_height,

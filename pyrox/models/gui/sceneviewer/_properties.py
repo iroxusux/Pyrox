@@ -116,18 +116,7 @@ class _SceneViewerPropertiesPanel:
         if obj_id != self._current_object_id or force_refresh:
             self._panel.set_title(f"Properties: {scene_obj.name}")
             readonly_props = {"id", "type", "scene_object_type"}
-            all_props = scene_obj.get_properties()
-            physics_keys = set(scene_obj.physics_body.get_properties().keys())
-            scene_obj_props = {k: v for k, v in all_props.items() if k not in physics_keys}
-            physics_props = {k: v for k, v in all_props.items() if k in physics_keys}
-            self._panel.set_sections(
-                {"Scene Object": scene_obj_props, "Physics Body": physics_props},
-                readonly_properties=readonly_props,
-                section_objects={
-                    "Scene Object": scene_obj,
-                    "Physics Body": scene_obj,  # SceneObject.set_property delegates to physics_body
-                },
-            )
+            self._panel.set_object(scene_obj, readonly_properties=readonly_props)
             self._current_object_id = obj_id
         else:
             self._panel.update_values()

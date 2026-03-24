@@ -58,7 +58,7 @@ class ConveyorBody(BasePhysicsBody):
         y: float = 0.0,
         width: float = 100.0,
         height: float = 20.0,
-        direction: CardinalDirection | str = CardinalDirection.RIGHT,
+        direction: CardinalDirection = CardinalDirection.RIGHT,
         belt_speed: float = 50.0,  # units per second
         is_active: bool = True,
         body_type: BodyType = BodyType.STATIC,
@@ -175,11 +175,11 @@ class ConveyorBody(BasePhysicsBody):
         return self.get_direction()
 
     @direction.setter
-    def direction(self, direction: CardinalDirection | str) -> None:
+    def direction(self, direction: CardinalDirection) -> None:
         """Set the belt direction.
 
         Args:
-            direction: Direction enum or string ("north", "south", "east", "west")
+            direction: Direction enum
         """
         self.set_direction(direction)
 
@@ -193,20 +193,17 @@ class ConveyorBody(BasePhysicsBody):
             raise ValueError("Direction is not set")
         return self._direction
 
-    def set_direction(self, direction: CardinalDirection | str | int) -> None:
+    def set_direction(self, direction: CardinalDirection) -> None:
         """Set the belt direction.
 
         Args:
             direction: Direction enum, int or string ("north", "south", "east", "west")
         """
-        if isinstance(direction, int):
-            self._direction = CardinalDirection(direction)
-        if isinstance(direction, str):
-            self._direction = CardinalDirection.from_str(direction)
-        elif isinstance(direction, CardinalDirection):
-            self._direction = direction
-        if not direction or not isinstance(self._direction, CardinalDirection):
-            raise ValueError(f"Invalid direction: {direction}")
+        if not isinstance(direction, CardinalDirection):
+            direction = CardinalDirection.try_parse(direction)
+            if direction is None:
+                raise ValueError(f"Invalid direction: {direction}")
+        self._direction = direction
 
     def set_belt_speed(self, belt_speed: float) -> None:
         """Set the belt speed.

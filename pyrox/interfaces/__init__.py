@@ -58,6 +58,7 @@ from .protocols import (
     ISpatial2D,
     ISpatial3D,
     IRotatable,
+    ICardinalRotateable2D,
     IZoomable,
 
     # Kinematic imports for protocols that support kinematic objects.
@@ -165,6 +166,7 @@ __all__ = (
     'ISpatial2D',
     'ISpatial3D',
     'IRotatable',
+    'ICardinalRotateable2D',
     'IZoomable',
     # Kinematic protocols
     'IVelocity2D',

@@ -6,6 +6,7 @@ from typing import (
 )
 import uuid
 from pyrox.interfaces import (
+    CardinalDirection,
     IBasePhysicsBody,
     ISceneObject,
     Connection,
@@ -34,6 +35,7 @@ class SceneObject(
         properties: dict | None = None,
         parent: 'SceneObject | None' = None,
         layer: int = 0,
+        direction: CardinalDirection | None = None,
         sprite_path: str | None = None,
         bg_color: str = "#4a9eff",
         tags: list[str] | None = None,
@@ -44,6 +46,7 @@ class SceneObject(
         self._properties: dict[str, Any] = properties if properties is not None else dict()
         self._physics_body = physics_body
         self._group_id: str | None = group_id
+        self._direction = CardinalDirection.try_parse(direction) if direction else properties.get("direction") if properties else None
 
         # Parent-child hierarchy
         self._parent: 'SceneObject | None' = parent

@@ -121,9 +121,12 @@ class ConveyorSceneObject(ActivatableCompositeKinematicSceneObject):
         """Get the current position of the belt animation (0 to belt_length)."""
         return self._belt_position
 
-    # ------------------------------------------------------------------
-    # Build Methods
-    # ------------------------------------------------------------------
+    def set_active_state(self, value: bool):
+        if value:
+            self._get_belt_physics_body().set_belt_speed(self._conveyor_speed)
+        else:
+            self._get_belt_physics_body().set_belt_speed(0.0)
+        return super().set_active_state(value)
 
     def build_components(self):
         is_h = self.is_horizontal
@@ -137,11 +140,11 @@ class ConveyorSceneObject(ActivatableCompositeKinematicSceneObject):
         self._base = self.create_simple_component(
             name="base",
             template_name="Base Physics Body",
-            body_type=BodyType.KINEMATIC,
+            body_type=BodyType.STATIC,
             width=base_w,
             height=base_h,
             collision_layer=CollisionLayer.TRANSPARENT,
-            collision_mask=[],
+            collision_mask=self.default_collision_mask,
             scene_object_type=SCENE_OBJECT_TYPE,
             bg_color=self._conveyor_color,
             layer=self._layer,
@@ -166,11 +169,11 @@ class ConveyorSceneObject(ActivatableCompositeKinematicSceneObject):
             stripe = self.create_simple_component(
                 name=f"belt_{i}",
                 template_name="Base Physics Body",
-                body_type=BodyType.KINEMATIC,
+                body_type=BodyType.STATIC,
                 width=stripe_w,
                 height=stripe_h,
                 collision_layer=CollisionLayer.TRANSPARENT,
-                collision_mask=[],
+                collision_mask=self.default_collision_mask,
                 scene_object_type=SCENE_OBJECT_TYPE,
                 bg_color=self._belt_color,
                 layer=self._layer + 1,
@@ -197,7 +200,7 @@ class ConveyorSceneObject(ActivatableCompositeKinematicSceneObject):
         )
         belt = self._get_belt_physics_body()
         belt.set_belt_speed(self._conveyor_speed if self._active else 0.0)
-        belt.set_direction(self._direction)
+        belt.set_direction(self.direction)
 
         # ------------------------------------------------------------------
         # Register components — base at origin, stripes evenly distributed
@@ -216,6 +219,18 @@ class ConveyorSceneObject(ActivatableCompositeKinematicSceneObject):
             self.add_component("physics", self._physics_conveyor, offset_x=0.0, offset_y=cross_offset)
         else:
             self.add_component("physics", self._physics_conveyor, offset_x=cross_offset, offset_y=0.0)
+
+    def clear_components(self) -> None:
+        super().clear_components()
+        self._belt_stripes.clear()
+
+    def _rotate_components_in_place(self, old_composite_w: float, old_composite_h: float, clockwise: bool) -> None:
+        # Rotate all component geometry in-place (swaps dims + recalculates offsets).
+        super()._rotate_components_in_place(old_composite_w, old_composite_h, clockwise)
+        # After the geometry rotation the composite's direction is already updated,
+        # so tell the belt physics body its new axis so kinematic friction is applied
+        # along the correct direction from this point forward.
+        self._get_belt_physics_body().set_direction(self.direction)
 
     # ------------------------------------------------------------------
     # Update
@@ -364,8 +379,8 @@ class ConveyorSceneObject(ActivatableCompositeKinematicSceneObject):
     # Private helpers
     # ------------------------------------------------------------------
 
-    def _compile_properties(self) -> None:
-        super()._compile_properties()
+    def compile_properties(self) -> None:
+        super().compile_properties()
         self._properties.update({
             "conveyor_length": self._conveyor_length,
             "conveyor_width": self._conveyor_width,
@@ -384,6 +399,15 @@ class ConveyorSceneObject(ActivatableCompositeKinematicSceneObject):
     # Public API for external control
     # ------------------------------------------------------------------
 
+    def get_conveyor_speed(self) -> float:
+        """Get the current speed of the conveyor belt."""
+        return self._conveyor_speed
+
+    def set_conveyor_speed(self, speed: float) -> None:
+        """Set the speed of the conveyor belt."""
+        self._conveyor_speed = speed
+        self._get_belt_physics_body().set_belt_speed(speed if self._active else 0.0)
+
     @property
     def conveyor_speed(self) -> float:
         """Get the current speed of the conveyor belt."""
@@ -393,15 +417,6 @@ class ConveyorSceneObject(ActivatableCompositeKinematicSceneObject):
     def conveyor_speed(self, speed: float) -> None:
         """Set the speed of the conveyor belt."""
         return self.set_conveyor_speed(speed)
-
-    def get_conveyor_speed(self) -> float:
-        """Get the current speed of the conveyor belt."""
-        return self._conveyor_speed
-
-    def set_conveyor_speed(self, speed: float) -> None:
-        """Set the speed of the conveyor belt."""
-        self._conveyor_speed = speed
-        self._get_belt_physics_body().set_belt_speed(speed if self._active else 0.0)
 
     def get_conveyor_width(self) -> float:
         """Get the current width of the conveyor base."""
@@ -414,14 +429,27 @@ class ConveyorSceneObject(ActivatableCompositeKinematicSceneObject):
         stripe_cross = max(1.0, width - self._belt_size_slice)
         if is_h:
             self._base.width = width
+            self.set_width(width)
             for stripe in self._belt_stripes:
                 stripe.height = stripe_cross
         else:
             self._base.height = width
+            self.set_height(width)
             for stripe in self._belt_stripes:
                 stripe.width = stripe_cross
         self._physics_conveyor.width = width - self._belt_size_slice if not is_h else self._physics_conveyor.width
         self._physics_conveyor.height = width - self._belt_size_slice if is_h else self._physics_conveyor.height
+        self.compile_properties()
+
+    @property
+    def conveyor_width(self) -> float:
+        """Get the current width of the conveyor base."""
+        return self.get_conveyor_width()
+
+    @conveyor_width.setter
+    def conveyor_width(self, width: float) -> None:
+        """Set the width of the conveyor base and resize all belt stripes accordingly."""
+        return self.set_conveyor_width(width)
 
     def get_conveyor_length(self) -> float:
         """Get the current length of the conveyor."""
@@ -434,12 +462,16 @@ class ConveyorSceneObject(ActivatableCompositeKinematicSceneObject):
         if is_h:
             self._base.width = length
             self._physics_conveyor.width = length
+            self.set_width(length)
         else:
             self._base.height = length
             self._physics_conveyor.height = length
+            self.set_height(length)
+
         # Rebuild stripe count and re-register all belt components
         for i in range(len(self._belt_stripes)):
             self.remove_component(f"belt_{i}")
+
         self._belt_stripes.clear()
         n_stripes = max(1, math.ceil(length / self._belt_length))
         stripe_along = max(1.0, self._belt_length - self._belt_size_slice)
@@ -466,7 +498,17 @@ class ConveyorSceneObject(ActivatableCompositeKinematicSceneObject):
                 self.add_component(f"belt_{i}", stripe, offset_x=initial, offset_y=cross_offset)
             else:
                 self.add_component(f"belt_{i}", stripe, offset_x=cross_offset, offset_y=initial)
-        self._compile_properties()
+        self.compile_properties()
+
+    @property
+    def conveyor_length(self) -> float:
+        """Get the current length of the conveyor."""
+        return self.get_conveyor_length()
+
+    @conveyor_length.setter
+    def conveyor_length(self, length: float) -> None:
+        """Set the length of the conveyor and rebuild the tiling belt stripes."""
+        return self.set_conveyor_length(length)
 
 
 SceneObjectFactory.register_template(

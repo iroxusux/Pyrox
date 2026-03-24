@@ -273,14 +273,21 @@ class PistonSceneObject(ActivatableCompositeKinematicSceneObject):
             if is_horizontal:
                 body_w = extended_length + head_size
                 body_h = head_size
+                # For LEFT the base is the RIGHT edge of the bbox, so shift the
+                # origin left so that (x, y) == the mounting point in world space.
+                body_x = float(x) - body_w if direction == CardinalDirection.LEFT else float(x)
+                body_y = float(y)
             else:
                 body_w = head_size
                 body_h = extended_length + head_size
+                body_x = float(x)
+                # For UP the base is the BOTTOM edge; shift the origin up.
+                body_y = float(y) - body_h if direction == CardinalDirection.UP else float(y)
             physics_body = BasePhysicsBody(
                 name=f"{name}_body",
                 template_name='Base Physics Body',
-                x=float(x),
-                y=float(y),
+                x=body_x,
+                y=body_y,
                 width=body_w,
                 height=body_h,
                 collision_layer=CollisionLayer.TRANSPARENT,
@@ -339,8 +346,8 @@ class PistonSceneObject(ActivatableCompositeKinematicSceneObject):
     # Private helpers
     # ------------------------------------------------------------------
 
-    def _compile_properties(self) -> None:
-        super()._compile_properties()
+    def compile_properties(self) -> None:
+        super().compile_properties()
         self._properties.update({
             "direction": self._direction.name,
             "retracted_length": self._retracted_length,
@@ -362,15 +369,19 @@ class PistonSceneObject(ActivatableCompositeKinematicSceneObject):
         """
         # Centre the rod cross-section within the head square
         perp_offset = (self._head_size - self._rod_thickness) / 2.0
+        # For RIGHT/DOWN the composite origin is the base; components extend in the
+        # positive direction.  For LEFT/UP the origin is the far tip of the head;
+        # components extend back toward the base (right/bottom edge of bbox), so
+        # offsets are mirrored using extended_length + head_size as the pivot.
         match self._direction:
             case CardinalDirection.RIGHT:
                 return (0.0, perp_offset)
             case CardinalDirection.LEFT:
-                return (-current_length, perp_offset)
+                return (self._extended_length + self._head_size - current_length, perp_offset)
             case CardinalDirection.DOWN:
                 return (perp_offset, 0.0)
             case CardinalDirection.UP:
-                return (perp_offset, -current_length)
+                return (perp_offset, self._extended_length + self._head_size - current_length)
         raise ValueError(f"Invalid piston direction: {self._direction}")
 
     def _head_offset(self, current_length: float) -> tuple[float, float]:
@@ -384,16 +395,17 @@ class PistonSceneObject(ActivatableCompositeKinematicSceneObject):
         Returns:
             ``(offset_x, offset_y)`` relative to the composite origin.
         """
-        hs = self._head_size
         match self._direction:
             case CardinalDirection.RIGHT:
                 return (current_length, 0.0)
             case CardinalDirection.LEFT:
-                return (-hs, 0.0)
+                # Head sits at the tip (left side) of the rod.  Bounding box
+                # origin is the far-left tip, so offset decreases as rod retracts.
+                return (self._extended_length - current_length, 0.0)
             case CardinalDirection.DOWN:
                 return (0.0, current_length)
             case CardinalDirection.UP:
-                return (0.0, -hs)
+                return (0.0, self._extended_length - current_length)
         raise ValueError(f"Invalid piston direction: {self._direction}")
 
     # ------------------------------------------------------------------
@@ -410,7 +422,7 @@ class PistonSceneObject(ActivatableCompositeKinematicSceneObject):
         """Set the target rod length when fully extended."""
         self._extended_length = float(value)
         self.update_activate_deactivate_targets(target_active=self._extended_length, target_inactive=self._retracted_length)
-        self._compile_properties()  # Update the properties dict for serialization
+        self.compile_properties()  # Update the properties dict for serialization
 
 
 SceneObjectFactory.register_template(
