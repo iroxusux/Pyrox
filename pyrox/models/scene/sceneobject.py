@@ -111,6 +111,33 @@ class SceneObject(
     # Properties and serialization
     # ------------------------------------------------------------------
 
+    def compile_properties(self) -> None:
+        """Public method to trigger properties compilation.
+
+        This is called by consumer code before serializing or accessing the
+        properties dict to ensure that the snapshot is up to date with the
+        current state of the object.
+        """
+        # Scene object properties
+        self._properties.update({
+            "id": self.id,
+            "name": self.name,
+            "description": self.description,
+            "scene_object_type": self._scene_object_type,
+            "layer": self._layer,
+            "group_id": self._group_id,
+        })
+
+        # Visual properties
+        self._properties.update({
+            "sprite_path": self._sprite_path,
+            "bg_color": self._bg_color,
+            "color": self._bg_color,  # backward-compat alias
+        })
+
+        # Physics body properties
+        self._properties.update(self.physics_body.get_properties())
+
     def to_dict(self) -> dict:
         """Convert scene object to dictionary for JSON serialization."""
         # Use physics body's to_dict if available, otherwise construct manually
@@ -253,98 +280,3 @@ class SceneObject(
             self.x <= x <= self.x + self.width and
             self.y <= y <= self.y + self.height
         )
-
-    # Layer/z-order methods
-
-    def get_layer(self) -> int:
-        """Get the rendering layer (z-order) of this object.
-
-        Returns:
-            Layer number. Lower values render first (background),
-            higher values render last (foreground).
-        """
-        return self._layer
-
-    def set_layer(self, layer: int) -> None:
-        """Set the rendering layer (z-order) of this object.
-
-        Args:
-            layer: Layer number. Common values:
-                   -100: Floor/background
-                   0: Default
-                   50: Conveyors/platforms
-                   100: Objects/items
-                   200: Foreground/UI elements
-        """
-        self._layer = layer
-
-    def move_layer_up(self) -> None:
-        """Move this object one layer up (toward foreground)."""
-        self._layer += 1
-
-    def move_layer_down(self) -> None:
-        """Move this object one layer down (toward background)."""
-        self._layer -= 1
-
-    def bring_to_front(self) -> None:
-        """Bring this object to the front (highest layer)."""
-        # Scene will need to determine max layer if we want to be relative
-        # For now, use a large value
-        self._layer = 1000
-
-    def send_to_back(self) -> None:
-        """Send this object to the back (lowest layer)."""
-        # Use a very low value for back
-        self._layer = -1000
-
-    # ------------------------------------------------------------------
-    # IGroupable — group membership
-    # ------------------------------------------------------------------
-
-    def get_group_id(self) -> str | None:
-        """Get the ID of the SceneGroup this object belongs to, or None."""
-        return self._group_id
-
-    def set_group_id(self, group_id: str | None) -> None:
-        """Set the group ID for this object.
-
-        Args:
-            group_id: The owning SceneGroup's scene object ID, or None.
-        """
-        self._group_id = group_id
-
-    def _compile_properties(self) -> None:
-        """Build the serialisation snapshot from live attributes.
-
-        ``self._properties`` is a *lazy snapshot*: it is only populated here
-        (and in the ``else`` branch of :meth:`set_property` for custom
-        properties that have no corresponding live attribute).  Consumer code
-        should always obtain properties through :meth:`get_properties`, which
-        calls this method before returning the dict.
-
-        **Subclass contract**: overrides MUST call
-        ``super()._compile_properties()`` before adding their own keys so that
-        all base-class fields are present in the snapshot.  See
-        :class:`~pyrox.models.scene.assets.topdown.piston.PistonSceneObject`
-        for a reference implementation.
-        """
-
-        # Scene object properties
-        self._properties.update({
-            "id": self.id,
-            "name": self.name,
-            "description": self.description,
-            "scene_object_type": self._scene_object_type,
-            "layer": self._layer,
-            "group_id": self._group_id,
-        })
-
-        # Visual properties
-        self._properties.update({
-            "sprite_path": self._sprite_path,
-            "bg_color": self._bg_color,
-            "color": self._bg_color,  # backward-compat alias
-        })
-
-        # Physics body properties
-        self._properties.update(self.physics_body.get_properties())

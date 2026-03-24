@@ -19,11 +19,13 @@ class _FromStrMixin(Enum):
 class CardinalDirection(_FromStrMixin):
     """Cardinal directions for 2D movement and orientation.
     """
-    RIGHT = auto()  # +X
-    DOWN = auto()   # +Y
-    LEFT = auto()   # -X
-    UP = auto()     # -Y
-    NORTH = UP
-    SOUTH = DOWN
-    EAST = RIGHT
-    WEST = LEFT
+    EAST = auto()  # +X
+    SOUTH = auto()   # +Y
+    WEST = auto()   # -X
+    NORTH = auto()     # -Y
+
+    # Extensions for convenience
+    UP = NORTH
+    DOWN = SOUTH
+    LEFT = WEST
+    RIGHT = EAST

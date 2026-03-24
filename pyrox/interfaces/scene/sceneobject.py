@@ -17,9 +17,40 @@ class ISceneObject(
     """Object base class for scene elements.
     """
 
+    @abstractmethod
+    def update(self, dt: float) -> None:
+        """
+        Update the scene object.
+
+        Args:
+            delta_time: Time elapsed since last update in seconds
+        """
+        ...
+
     # ------------------------------------------------------------------
     # Properties and serialization
     # ------------------------------------------------------------------
+
+    def compile_properties(self) -> None:
+        """Compile the properties of the scene object.
+
+        This method gathers properties from the physics body and any other
+        relevant sources to create a complete snapshot of the scene object's
+        state for serialization. It should be called before accessing or
+        serializing the properties to ensure they are up to date.
+        """
+        # Scene object properties
+        self.properties.update({
+            "id": self.id,
+            "name": self.name,
+            "description": self.description,
+            "scene_object_type": self._scene_object_type,
+            "layer": self._layer,
+            "group_id": self._group_id,
+        })
+
+        # Physics body properties
+        self.properties.update(self.physics_body.get_properties())
 
     def get_property(self, name: str) -> object:
         """Get a property by name.
@@ -30,18 +61,31 @@ class ISceneObject(
         Returns:
             object: The value of the property.
         """
+        self.compile_properties()
         return self.get_properties().get(name)
 
-    def set_property(self, name: str, value: object) -> None:
-        """Set a property by name.
+    def set_property(self, name: str, value: Any) -> None:
+        """Set a single property of the scene object.
+
+        For properties that correspond to a live attribute on the physics body
+        or on this object, only the live attribute is updated; the serialisation
+        snapshot (``self._properties``) will reflect the change the next time
+        :meth:`get_properties` is called.
+
+        For truly custom properties that have no live attribute, the value is
+        stored directly in ``self._properties`` so that it survives
+        serialisation.
 
         Args:
-            name (str): The name of the property.
-            value (object): The value to set the property to.
+            name (str): The property key.
+            value (Any): The property value.
         """
-        props = self.get_properties()
-        props[name] = value
-        self.set_properties(props)
+        if hasattr(self.physics_body, name):
+            setattr(self.physics_body, name, value)
+        elif hasattr(self, name):
+            setattr(self, name, value)
+        else:
+            self._properties[name] = value
 
     def get_properties(self) -> dict:
         """Get the properties of the scene object.
@@ -49,6 +93,7 @@ class ISceneObject(
         Returns:
             dict: The properties of the scene object.
         """
+        self.compile_properties()
         return self._properties
 
     def set_properties(self, properties: dict) -> None:
@@ -198,10 +243,6 @@ class ISceneObject(
     # Connections
     # ------------------------------------------------------------------
 
-    @property
-    def connections(self) -> list[Connection]:
-        return self._connections
-
     def get_connections(self) -> list[Connection]:
         return self._connections
 
@@ -216,14 +257,13 @@ class ISceneObject(
         """Delegate to the physics body's output endpoints."""
         return self._physics_body.get_outputs()
 
+    @property
+    def connections(self) -> list[Connection]:
+        return self._connections
+
     # ------------------------------------------------------------------
     # Tags
     # ------------------------------------------------------------------
-
-    @property
-    def tags(self) -> list[str]:
-        """Tags used for gameplay / logic categorisation."""
-        return self._tags
 
     def get_tags(self) -> list[str]:
         return self._tags
@@ -241,6 +281,11 @@ class ISceneObject(
     def remove_tag(self, tag: str) -> None:
         if tag in self._tags:
             self._tags.remove(tag)
+
+    @property
+    def tags(self) -> list[str]:
+        """Tags used for gameplay / logic categorisation."""
+        return self._tags
 
     # ------------------------------------------------------------------
     # Parent-child relationships
@@ -341,75 +386,90 @@ class ISceneObject(
         """
         return self.get_children()
 
-    # ---------- Layer methods ----------
+    # ------------------------------------------------------------------
+    # Layering and rendering order
+    # ------------------------------------------------------------------
 
-    @abstractmethod
     def get_layer(self) -> int:
-        """Get the layer of the scene object.
+        """Get the rendering layer (z-order) of this object.
 
         Returns:
-            int: The layer of the scene object.
+            Layer number. Lower values render first (background),
+            higher values render last (foreground).
         """
-        ...
+        return self._layer
 
-    @abstractmethod
     def set_layer(self, layer: int) -> None:
-        """Set the layer of the scene object.
+        """Set the rendering layer (z-order) of this object.
 
         Args:
-            layer (int): The layer to set for the scene object.
+            layer: Layer number. Common values:
+                   -100: Floor/background
+                   0: Default
+                   50: Conveyors/platforms
+                   100: Objects/items
+                   200: Foreground/UI elements
         """
-        ...
+        self._layer = layer
 
-    @abstractmethod
     def move_layer_up(self) -> None:
-        """Move the scene object up one layer."""
-        ...
+        """Move this object one layer up (toward foreground)."""
+        self._layer += 1
 
-    @abstractmethod
     def move_layer_down(self) -> None:
-        """Move the scene object down one layer."""
-        ...
+        """Move this object one layer down (toward background)."""
+        self._layer -= 1
 
-    @abstractmethod
     def bring_to_front(self) -> None:
-        """Bring the scene object to the front layer."""
-        ...
+        """Bring this object to the front (highest layer)."""
+        # Scene will need to determine max layer if we want to be relative
+        # For now, use a large value
+        self._layer = 1000
 
-    @abstractmethod
     def send_to_back(self) -> None:
-        """Send the scene object to the back layer."""
-        ...
+        """Send this object to the back (lowest layer)."""
+        # Use a very low value for back
+        self._layer = -1000
 
-    @abstractmethod
-    def update(self, dt: float) -> None:
-        """
-        Update the scene object.
+    @property
+    def layer(self) -> int:
+        """Get the rendering layer (z-order) of this object."""
+        return self.get_layer()
 
-        Args:
-            delta_time: Time elapsed since last update in seconds
-        """
-        ...
+    @layer.setter
+    def layer(self, layer: int) -> None:
+        """Set the rendering layer (z-order) of this object."""
+        self.set_layer(layer)
 
-    # ---------- Group Methods ----------
+    # ------------------------------------------------------------------
+    # Grouping
+    # ------------------------------------------------------------------
 
-    @abstractmethod
     def get_group_id(self) -> str | None:
-        """Get the group this scene object belongs to, if any.
+        """Get the ID of the SceneGroup this object belongs to, or None."""
+        return self._group_id
 
-        Returns:
-            str | None: The ID of the group, or None if not in a group.
-        """
-        ...
-
-    @abstractmethod
     def set_group_id(self, group_id: str | None) -> None:
-        """Set the group this scene object belongs to.
+        """Set the group ID for this object.
 
         Args:
-            group_id (str | None): The ID of the group to set, or None to ungroup.
+            group_id: The owning SceneGroup's scene object ID, or None.
         """
-        ...
+        self._group_id = group_id
+
+    @property
+    def group_id(self) -> str | None:
+        """Get the ID of the SceneGroup this object belongs to, or None."""
+        return self.get_group_id()
+
+    @group_id.setter
+    def group_id(self, group_id: str | None) -> None:
+        """Set the group ID for this object.
+
+        Args:
+            group_id: The owning SceneGroup's scene object ID, or None.
+        """
+        self.set_group_id(group_id)
 
     # ---------- Physics body convenience methods ----------
 
