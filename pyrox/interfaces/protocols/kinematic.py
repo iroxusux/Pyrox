@@ -5,15 +5,19 @@ from typing import (
     runtime_checkable,
     Protocol,
 )
-from .spatial import ISpatial2D, ISpatial3D
+from pyrox.interfaces.protocols.spatial import ISpatial2D
 
 
-@runtime_checkable
-class IVelocity2D(
-    ISpatial2D,
-    Protocol
-):
+class IVelocity2D(ISpatial2D):
     """Protocol for 2D velocity (linear motion)."""
+    _velocity_x: float
+    _velocity_y: float
+
+    def get_velocity_x(self) -> float:
+        return self._velocity_x
+
+    def set_velocity_x(self, value: float) -> None:
+        self._velocity_x = value
 
     @property
     def velocity_x(self) -> float:
@@ -29,6 +33,12 @@ class IVelocity2D(
         """
         self.set_velocity_x(value)
 
+    def get_velocity_y(self) -> float:
+        return self._velocity_y
+
+    def set_velocity_y(self, value: float) -> None:
+        self._velocity_y = value
+
     @property
     def velocity_y(self) -> float:
         """Get the Y component of velocity."""
@@ -42,6 +52,13 @@ class IVelocity2D(
             value (float): The Y component of velocity.
         """
         self.set_velocity_y(value)
+
+    def get_linear_velocity(self) -> tuple[float, float]:
+        return self.get_velocity_x(), self.get_velocity_y()
+
+    def set_linear_velocity(self, vx: float, vy: float) -> None:
+        self.set_velocity_x(vx)
+        self.set_velocity_y(vy)
 
     @property
     def linear_velocity(self) -> tuple[float, float]:
@@ -57,43 +74,15 @@ class IVelocity2D(
         """
         self.set_linear_velocity(value[0], value[1])
 
+    def get_speed(self) -> float:
+        """Get scalar speed (magnitude of velocity)."""
+        vx, vy = self.get_linear_velocity()
+        return (vx**2 + vy**2) ** 0.5
+
     @property
     def speed(self) -> float:
         """Get scalar speed (magnitude of velocity)."""
         return self.get_speed()
-
-    def get_velocity_x(self) -> float: ...
-    def set_velocity_x(self, value: float) -> None: ...
-    def get_velocity_y(self) -> float: ...
-    def set_velocity_y(self, value: float) -> None: ...
-    def get_linear_velocity(self) -> tuple[float, float]: ...
-    def set_linear_velocity(self, vx: float, vy: float) -> None: ...
-    def get_speed(self) -> float: ...
-
-
-class IVelocity3D(
-    IVelocity2D,
-    ISpatial3D
-):
-    """Protocol for 3D velocity."""
-
-    @property
-    def velocity_z(self) -> float:
-        """Get the Z component of velocity."""
-        return self.get_velocity_z()
-
-    @velocity_z.setter
-    def velocity_z(self, value: float) -> None:
-        """Set the Z component of velocity.
-
-        Args:
-            value (float): The Z component of velocity.
-        """
-        self.set_velocity_z(value)
-
-    def get_velocity_z(self) -> float: ...
-    def set_velocity_z(self, value: float) -> None: ...
-    def get_linear_velocity(self) -> tuple[float, float, float]: ...  # type: ignore
 
 
 @runtime_checkable
@@ -109,12 +98,16 @@ class IAngularVelocity(Protocol):
     def set_angular_velocity(self, velocity: tuple[float, float, float]) -> None: ...
 
 
-@runtime_checkable
-class IKinematic2D(
-    IVelocity2D,
-    Protocol,
-):
+class IKinematic2D(IVelocity2D):
     """Protocol for full 2D kinematic state (velocity + acceleration)."""
+    _acceleration_x: float
+    _acceleration_y: float
+
+    def get_acceleration_x(self) -> float:
+        return self._acceleration_x
+
+    def set_acceleration_x(self, value: float) -> None:
+        self._acceleration_x = value
 
     @property
     def acceleration_x(self) -> float:
@@ -124,6 +117,12 @@ class IKinematic2D(
     def acceleration_x(self, value: float) -> None:
         self.set_acceleration_x(value)
 
+    def get_acceleration_y(self) -> float:
+        return self._acceleration_y
+
+    def set_acceleration_y(self, value: float) -> None:
+        self._acceleration_y = value
+
     @property
     def acceleration_y(self) -> float:
         return self.get_acceleration_y()
@@ -132,51 +131,30 @@ class IKinematic2D(
     def acceleration_y(self, value: float) -> None:
         self.set_acceleration_y(value)
 
+    def get_acceleration(self) -> float:
+        """Get scalar acceleration (magnitude of acceleration vector)."""
+        ax, ay = self.get_linear_acceleration()
+        return (ax**2 + ay**2) ** 0.5
+
     @property
     def acceleration(self) -> float:
         return self.get_acceleration()
+
+    def get_linear_acceleration(self) -> tuple[float, float]:
+        return self.get_acceleration_x(), self.get_acceleration_y()
+
+    def set_linear_acceleration(self, ax: float, ay: float) -> None:
+        self.set_acceleration_x(ax)
+        self.set_acceleration_y(ay)
 
     @property
     def linear_acceleration(self) -> tuple[float, float]:
         """Linear acceleration (ax, ay) in m/s²."""
         return self.get_linear_acceleration()
 
-    def get_acceleration_x(self) -> float: ...
-    def set_acceleration_x(self, value: float) -> None: ...
-    def get_acceleration_y(self) -> float: ...
-    def set_acceleration_y(self, value: float) -> None: ...
-    def get_linear_acceleration(self) -> tuple[float, float]: ...
-    def set_linear_acceleration(self, ax: float, ay: float) -> None: ...
-    def get_acceleration(self) -> float: ...
-
-
-class IKinematic3D(
-    IKinematic2D,
-    IVelocity3D,
-):
-    """Protocol for full 3D kinematic state."""
-
-    @property
-    def acceleration_z(self) -> float:
-        return self.get_acceleration_z()
-
-    @acceleration_z.setter
-    def acceleration_z(self, value: float) -> None:
-        self.set_acceleration_z(value)
-
-    @property
-    def acceleration(self) -> tuple[float, float, float]:  # type: ignore
-        return self.get_acceleration()
-
-    def get_acceleration_z(self) -> float: ...
-    def set_acceleration_z(self, value: float) -> None: ...
-    def get_acceleration(self) -> tuple[float, float, float]: ...  # type: ignore
-
 
 __all__ = [
     "IVelocity2D",
-    "IVelocity3D",
     "IAngularVelocity",
     "IKinematic2D",
-    "IKinematic3D",
 ]

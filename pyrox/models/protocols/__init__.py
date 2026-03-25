@@ -21,14 +21,11 @@ from .meta import (
 from .coord import (
     Coord2D,
     Area2D,
-    Coord3D,
-    Area3D,
 )
 
 # Spatial imports for protocols that support spatial objects.
 from .spatial import (
     Spatial2D,
-    Spatial3D,
     Rotatable,
     Zoomable,
 )
@@ -65,12 +62,9 @@ __all__ = [
     # Coordinate protocols
     "Coord2D",
     "Area2D",
-    "Coord3D",
-    "Area3D",
 
     # Spatial protocols
     "Spatial2D",
-    "Spatial3D",
     "Rotatable",
     "Zoomable",
 

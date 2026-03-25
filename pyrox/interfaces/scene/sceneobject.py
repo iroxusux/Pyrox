@@ -5,7 +5,7 @@ from typing import (
     Any,
 )
 from pyrox.interfaces import (
-    ICardinalRotateable2D,
+    IDirectional2D,
     IBasePhysicsBody,
     ICoreMixin,
     Connection,
@@ -14,7 +14,7 @@ from pyrox.interfaces import (
 
 class ISceneObject(
         ICoreMixin,
-        ICardinalRotateable2D,
+        IDirectional2D,
 ):
     """Object base class for scene elements.
     """
@@ -42,7 +42,7 @@ class ISceneObject(
         serializing the properties to ensure they are up to date.
         """
         # Scene object properties
-        self.properties.update({
+        self._properties.update({
             "id": self.id,
             "name": self.name,
             "description": self.description,
@@ -52,7 +52,7 @@ class ISceneObject(
         })
 
         # Physics body properties
-        self.properties.update(self.physics_body.get_properties())
+        self._properties.update(self.physics_body.get_properties())
 
     def get_property(self, name: str) -> object:
         """Get a property by name.
@@ -473,6 +473,22 @@ class ISceneObject(
 
     # ---------- Physics body convenience methods ----------
 
+    def get_x(self) -> float:
+        """Get the x position of the physics body.
+
+        Returns:
+            float | None: The x position, or None if no physics body.
+        """
+        return self.physics_body.x
+
+    def set_x(self, x: float) -> None:
+        """Set the x position of the physics body.
+
+        Args:
+            value (float): The x position to set.
+        """
+        self.physics_body.set_x(x)
+
     @property
     def x(self) -> float:
         """Get the x position of the physics body.
@@ -480,7 +496,7 @@ class ISceneObject(
         Returns:
             float | None: The x position, or None if no physics body.
         """
-        return self.physics_body.x
+        return self.get_x()
 
     @x.setter
     def x(self, value: float) -> None:
@@ -489,7 +505,23 @@ class ISceneObject(
         Args:
             value (float): The x position to set.
         """
-        self.physics_body.set_x(value)
+        self.set_x(value)
+
+    def get_y(self) -> float:
+        """Get the y position of the physics body.
+
+        Returns:
+            float | None: The y position, or None if no physics body.
+        """
+        return self.physics_body.y
+
+    def set_y(self, y: float) -> None:
+        """Set the y position of the physics body.
+
+        Args:
+            value (float): The y position to set.
+        """
+        self.physics_body.set_y(y)
 
     @property
     def y(self) -> float:
@@ -498,7 +530,7 @@ class ISceneObject(
         Returns:
             float | None: The y position, or None if no physics body.
         """
-        return self.physics_body.y
+        return self.get_y()
 
     @y.setter
     def y(self, value: float) -> None:
@@ -507,7 +539,23 @@ class ISceneObject(
         Args:
             value (float): The y position to set.
         """
-        self.physics_body.set_y(value)
+        self.set_y(value)
+
+    def get_height(self) -> float:
+        """Get the height of the physics body.
+
+        Returns:
+            float | None: The height, or None if no physics body.
+        """
+        return self.physics_body.height
+
+    def set_height(self, height: float) -> None:
+        """Set the height of the physics body.
+
+        Args:
+            value (float): The height to set.
+        """
+        self.physics_body.set_height(height)
 
     @property
     def height(self) -> float:
@@ -516,7 +564,7 @@ class ISceneObject(
         Returns:
             float | None: The height, or None if no physics body.
         """
-        return self.physics_body.height
+        return self.get_height()
 
     @height.setter
     def height(self, value: float) -> None:
@@ -525,7 +573,23 @@ class ISceneObject(
         Args:
             value (float): The height to set.
         """
-        self.physics_body.set_height(value)
+        return self.set_height(value)
+
+    def get_width(self) -> float:
+        """Get the width of the physics body.
+
+        Returns:
+            float | None: The width, or None if no physics body.
+        """
+        return self.physics_body.width
+
+    def set_width(self, width: float) -> None:
+        """Set the width of the physics body.
+
+        Args:
+            value (float): The width to set.
+        """
+        self.physics_body.set_width(width)
 
     @property
     def width(self) -> float:
@@ -534,7 +598,7 @@ class ISceneObject(
         Returns:
             float | None: The width, or None if no physics body.
         """
-        return self.physics_body.width
+        return self.get_width()
 
     @width.setter
     def width(self, value: float) -> None:
@@ -543,19 +607,41 @@ class ISceneObject(
         Args:
             value (float): The width to set.
         """
-        self.physics_body.set_width(value)
+        self.set_width(value)
 
-    def rotate_area(self) -> None:
-        """Swap width and height via the physics-body property accessors.
+    def get_yaw(self) -> float:
+        """Get the yaw (rotation) of the physics body.
 
-        Overrides ``ICardinalRotateable2D.rotate_area`` which calls the
-        abstract ``get_width``/``set_width`` protocol stubs (returning
-        ``None``).  Using the concrete ``width``/``height`` properties
-        ensures the physics body dimensions are actually updated.
+        Returns:
+            float | None: The yaw, or None if no physics body.
         """
-        w = self.width
-        self.width = self.height
-        self.height = w
+        return self.physics_body.yaw
+
+    def set_yaw(self, yaw: float) -> None:
+        """Set the yaw (rotation) of the physics body.
+
+        Args:
+            value (float): The yaw to set.
+        """
+        self.physics_body.set_yaw(yaw)
+
+    @property
+    def yaw(self) -> float:
+        """Get the yaw (rotation) of the physics body.
+
+        Returns:
+            float | None: The yaw, or None if no physics body.
+        """
+        return self.get_yaw()
+
+    @yaw.setter
+    def yaw(self, value: float) -> None:
+        """Set the yaw (rotation) of the physics body.
+
+        Args:
+            value (float): The yaw to set.
+        """
+        self.set_yaw(value)
 
 
 class ISceneObjectFactory:

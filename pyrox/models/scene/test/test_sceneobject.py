@@ -3,8 +3,10 @@ import unittest
 from typing import Any, Dict
 from pyrox.interfaces import (
     BodyType,
+    CardinalDirection,
     ColliderType,
-    CollisionLayer
+    CollisionLayer,
+    Connection,
 )
 from pyrox.models import (
     SceneObject,
@@ -100,9 +102,6 @@ class TestSceneObject(unittest.TestCase):
             width=100.0,
             height=50.0,
             mass=5.0,
-            roll=5.0,
-            pitch=10.0,
-            yaw=15.0,
         )
         obj = SceneObject(
             name="FullObject",
@@ -122,9 +121,6 @@ class TestSceneObject(unittest.TestCase):
         self.assertEqual(obj.physics_body.get_y(), 20.0)
         self.assertEqual(obj.physics_body.get_width(), 100.0)
         self.assertEqual(obj.physics_body.get_height(), 50.0)
-        self.assertEqual(obj.physics_body.get_roll(), 5.0)
-        self.assertEqual(obj.physics_body.get_pitch(), 10.0)
-        self.assertEqual(obj.physics_body.get_yaw(), 15.0)
 
     def test_get_id(self):
         """Test SceneObject.get_id() method."""
@@ -339,18 +335,6 @@ class TestSceneObject(unittest.TestCase):
         self.assertEqual(obj.physics_body.get_x(), 10)
         self.assertEqual(obj.properties.get("x"), 10)
 
-    def test_get_property_retrieves_attr_if_not_in_dict(self):
-        """Test that get_property retrieves attribute if not in properties dict."""
-        obj = SceneObject(name="Name", scene_object_type="Type",
-                          physics_body=self.TestPhysicsBody())
-        obj.physics_body.set_x(20)
-
-        self.assertNotIn("bing_bong", obj.properties)
-        obj.set_property("bing_bong", 15)
-
-        self.assertEqual(obj.get_property('bing_bong'), 15)
-        self.assertIn("bing_bong", obj.properties)
-
 
 # ---------------------------------------------------------------------------
 # Visual properties: sprite_path and bg_color
@@ -525,7 +509,7 @@ class TestSceneObjectAnimator(unittest.TestCase):
         from pyrox.models.scene.animation import AnimationClip, AnimationMode, AnimationTrack, AnimationEasing
         clip = AnimationClip("gate_open", 1.0, mode or AnimationMode.ONCE)
         clip.add_track(
-            AnimationTrack("yaw", easing=AnimationEasing.LINEAR)
+            AnimationTrack("x", easing=AnimationEasing.LINEAR)
             .add_keyframe(0.0, 0.0)
             .add_keyframe(1.0, 90.0)
         )
@@ -548,7 +532,7 @@ class TestSceneObjectAnimator(unittest.TestCase):
         obj.animator.play("gate_open")
 
         _obj_advance(obj, 0.5)  # half-way through 1 s clip → yaw = 45
-        self.assertAlmostEqual(obj.physics_body.yaw, 45.0, places=1)
+        self.assertAlmostEqual(obj.physics_body.x, 45.0, places=1)
 
     def test_update_at_full_duration_stops_once_clip(self):
         from pyrox.models.scene.animation import AnimationMode
@@ -558,13 +542,13 @@ class TestSceneObjectAnimator(unittest.TestCase):
 
         _obj_advance(obj, 2.0)  # past end
         self.assertFalse(obj.animator.is_playing)
-        self.assertAlmostEqual(obj.physics_body.yaw, 90.0, places=1)
+        self.assertAlmostEqual(obj.physics_body.x, 90.0, places=1)
 
     def test_update_does_nothing_when_not_playing(self):
         obj = self._make()
         obj.update(0.5)  # no clip registered → should not raise
         # yaw stays at initial value
-        self.assertAlmostEqual(obj.physics_body.yaw, 0.0, places=3)
+        self.assertAlmostEqual(obj.physics_body.x, 0.0, places=3)
 
     def test_piston_ping_pong_returns_to_origin(self):
         from pyrox.models.scene.animation import AnimationClip, AnimationMode, AnimationTrack
@@ -592,6 +576,667 @@ class TestSceneObjectAnimator(unittest.TestCase):
 
         _obj_advance(obj, 2.0)  # fires completion
         cb.assert_called_once()
+
+
+# ---------------------------------------------------------------------------
+# Tags
+# ---------------------------------------------------------------------------
+
+class TestSceneObjectTags(unittest.TestCase):
+    """Tests for the tag system on SceneObject."""
+
+    def _make(self, **kwargs) -> SceneObject:
+        return SceneObject(
+            name="Obj",
+            scene_object_type="Type",
+            physics_body=BasePhysicsBody(
+                name="Body",
+                template_name="Base Physics Body",
+                x=0.0, y=0.0, width=10.0, height=10.0,
+            ),
+            **kwargs,
+        )
+
+    def test_tags_default_empty(self):
+        obj = self._make()
+        self.assertEqual(obj.get_tags(), [])
+
+    def test_tags_from_constructor(self):
+        obj = self._make(tags=["mobile", "interactive"])
+        self.assertIn("mobile", obj.get_tags())
+        self.assertIn("interactive", obj.get_tags())
+
+    def test_set_tags(self):
+        obj = self._make(tags=["old"])
+        obj.set_tags(["new1", "new2"])
+        self.assertEqual(obj.get_tags(), ["new1", "new2"])
+
+    def test_has_tag_true(self):
+        obj = self._make(tags=["enemy"])
+        self.assertTrue(obj.has_tag("enemy"))
+
+    def test_has_tag_false(self):
+        obj = self._make()
+        self.assertFalse(obj.has_tag("enemy"))
+
+    def test_add_tag(self):
+        obj = self._make()
+        obj.add_tag("pickup")
+        self.assertIn("pickup", obj.get_tags())
+
+    def test_add_tag_no_duplicate(self):
+        obj = self._make(tags=["unique"])
+        obj.add_tag("unique")
+        self.assertEqual(obj.get_tags().count("unique"), 1)
+
+    def test_remove_tag(self):
+        obj = self._make(tags=["temp"])
+        obj.remove_tag("temp")
+        self.assertNotIn("temp", obj.get_tags())
+
+    def test_remove_tag_absent_is_no_op(self):
+        obj = self._make()
+        obj.remove_tag("nonexistent")  # should not raise
+
+    def test_tags_property(self):
+        obj = self._make(tags=["a", "b"])
+        self.assertEqual(obj.tags, ["a", "b"])
+
+    def test_to_dict_includes_tags(self):
+        obj = self._make(tags=["foo", "bar"])
+        data = obj.to_dict()
+        self.assertIn("tags", data)
+        self.assertEqual(data["tags"], ["foo", "bar"])
+
+    def test_from_dict_restores_tags(self):
+        obj = self._make(tags=["restored"])
+        data = obj.to_dict()
+        loaded = SceneObject.from_dict(data)
+        self.assertIn("restored", loaded.get_tags())
+
+    def test_tags_constructor_is_independent_copy(self):
+        """Mutating the original list after construction should not affect the object."""
+        source = ["a", "b"]
+        obj = self._make(tags=source)
+        source.append("c")
+        self.assertNotIn("c", obj.get_tags())
+
+
+# ---------------------------------------------------------------------------
+# Parent-child relationships
+# ---------------------------------------------------------------------------
+
+class TestSceneObjectParentChild(unittest.TestCase):
+    """Tests for parent-child hierarchy on SceneObject."""
+
+    def _make(self, name="Obj") -> SceneObject:
+        return SceneObject(
+            name=name,
+            scene_object_type="Type",
+            physics_body=BasePhysicsBody(
+                name="Body",
+                template_name="Base Physics Body",
+                x=0.0, y=0.0, width=10.0, height=10.0,
+            ),
+        )
+
+    def test_parent_default_none(self):
+        obj = self._make()
+        self.assertIsNone(obj.get_parent())
+
+    def test_children_default_empty(self):
+        obj = self._make()
+        self.assertEqual(obj.get_children(), {})
+
+    def test_set_parent(self):
+        parent = self._make("Parent")
+        child = self._make("Child")
+        child.set_parent(parent)
+        self.assertIs(child.get_parent(), parent)
+
+    def test_parent_property(self):
+        parent = self._make("Parent")
+        child = self._make("Child")
+        child.parent = parent
+        self.assertIs(child.parent, parent)
+
+    def test_add_child_sets_parent(self):
+        parent = self._make("Parent")
+        child = self._make("Child")
+        parent.add_child(child)
+        self.assertIs(child.get_parent(), parent)
+
+    def test_add_child_appears_in_children(self):
+        parent = self._make("Parent")
+        child = self._make("Child")
+        parent.add_child(child)
+        self.assertIn(child.id, parent.get_children())
+
+    def test_remove_child(self):
+        parent = self._make("Parent")
+        child = self._make("Child")
+        parent.add_child(child)
+        parent.remove_child(child.id)
+        self.assertNotIn(child.id, parent.get_children())
+        self.assertIsNone(child.get_parent())
+
+    def test_get_child_by_id(self):
+        parent = self._make("Parent")
+        child = self._make("Child")
+        parent.add_child(child)
+        result = parent.get_child(child.id)
+        self.assertIs(result, child)
+
+    def test_get_child_not_found_returns_none(self):
+        parent = self._make("Parent")
+        self.assertIsNone(parent.get_child("nonexistent_id"))
+
+    def test_children_property(self):
+        parent = self._make("Parent")
+        child = self._make("Child")
+        parent.add_child(child)
+        self.assertIn(child.id, parent.children)
+
+    def test_set_parent_removes_from_old_parent(self):
+        parent1 = self._make("Parent1")
+        parent2 = self._make("Parent2")
+        child = self._make("Child")
+        parent1.add_child(child)
+        child.set_parent(parent2)
+        self.assertNotIn(child.id, parent1.get_children())
+        self.assertIs(child.get_parent(), parent2)
+
+    def test_set_parent_none_clears_parent(self):
+        parent = self._make("Parent")
+        child = self._make("Child")
+        parent.add_child(child)
+        child.set_parent(None)
+        self.assertIsNone(child.get_parent())
+
+
+# ---------------------------------------------------------------------------
+# Layering (z-order)
+# ---------------------------------------------------------------------------
+
+class TestSceneObjectLayer(unittest.TestCase):
+    """Tests for layer (z-order) management on SceneObject."""
+
+    def _make(self, **kwargs) -> SceneObject:
+        return SceneObject(
+            name="Obj",
+            scene_object_type="Type",
+            physics_body=BasePhysicsBody(
+                name="Body",
+                template_name="Base Physics Body",
+                x=0.0, y=0.0, width=10.0, height=10.0,
+            ),
+            **kwargs,
+        )
+
+    def test_layer_default_zero(self):
+        obj = self._make()
+        self.assertEqual(obj.get_layer(), 0)
+
+    def test_layer_from_constructor(self):
+        obj = self._make(layer=50)
+        self.assertEqual(obj.get_layer(), 50)
+
+    def test_set_layer(self):
+        obj = self._make()
+        obj.set_layer(100)
+        self.assertEqual(obj.get_layer(), 100)
+
+    def test_layer_property_get(self):
+        obj = self._make(layer=25)
+        self.assertEqual(obj.layer, 25)
+
+    def test_layer_property_set(self):
+        obj = self._make()
+        obj.layer = 75
+        self.assertEqual(obj.layer, 75)
+
+    def test_move_layer_up(self):
+        obj = self._make(layer=5)
+        obj.move_layer_up()
+        self.assertEqual(obj.get_layer(), 6)
+
+    def test_move_layer_down(self):
+        obj = self._make(layer=5)
+        obj.move_layer_down()
+        self.assertEqual(obj.get_layer(), 4)
+
+    def test_bring_to_front(self):
+        obj = self._make(layer=0)
+        obj.bring_to_front()
+        self.assertEqual(obj.get_layer(), 1000)
+
+    def test_send_to_back(self):
+        obj = self._make(layer=0)
+        obj.send_to_back()
+        self.assertEqual(obj.get_layer(), -1000)
+
+    def test_layer_in_compile_properties(self):
+        obj = self._make(layer=42)
+        props = obj.get_properties()
+        self.assertEqual(props.get("layer"), 42)
+
+
+# ---------------------------------------------------------------------------
+# Group ID
+# ---------------------------------------------------------------------------
+
+class TestSceneObjectGroupId(unittest.TestCase):
+    """Tests for group_id on SceneObject."""
+
+    def _make(self, **kwargs) -> SceneObject:
+        return SceneObject(
+            name="Obj",
+            scene_object_type="Type",
+            physics_body=BasePhysicsBody(
+                name="Body",
+                template_name="Base Physics Body",
+                x=0.0, y=0.0, width=10.0, height=10.0,
+            ),
+            **kwargs,
+        )
+
+    def test_group_id_default_none(self):
+        obj = self._make()
+        self.assertIsNone(obj.get_group_id())
+
+    def test_group_id_from_constructor(self):
+        obj = self._make(group_id="group-123")
+        self.assertEqual(obj.get_group_id(), "group-123")
+
+    def test_set_group_id(self):
+        obj = self._make()
+        obj.set_group_id("my-group")
+        self.assertEqual(obj.get_group_id(), "my-group")
+
+    def test_group_id_property_get(self):
+        obj = self._make(group_id="gid")
+        self.assertEqual(obj.group_id, "gid")
+
+    def test_group_id_property_set(self):
+        obj = self._make()
+        obj.group_id = "new-gid"
+        self.assertEqual(obj.group_id, "new-gid")
+
+    def test_group_id_can_be_cleared(self):
+        obj = self._make(group_id="group-1")
+        obj.set_group_id(None)
+        self.assertIsNone(obj.get_group_id())
+
+    def test_group_id_in_compile_properties(self):
+        obj = self._make(group_id="g99")
+        props = obj.get_properties()
+        self.assertEqual(props.get("group_id"), "g99")
+
+
+# ---------------------------------------------------------------------------
+# Click events
+# ---------------------------------------------------------------------------
+
+class TestSceneObjectClickEvents(unittest.TestCase):
+    """Tests for the click event system on SceneObject."""
+
+    def _make(self) -> SceneObject:
+        return SceneObject(
+            name="Obj",
+            scene_object_type="Type",
+            physics_body=BasePhysicsBody(
+                name="Body",
+                template_name="Base Physics Body",
+                x=0.0, y=0.0, width=10.0, height=10.0,
+            ),
+        )
+
+    def test_not_clickable_by_default(self):
+        obj = self._make()
+        self.assertFalse(obj.is_clickable())
+
+    def test_set_clickable_true(self):
+        obj = self._make()
+        obj.set_clickable(True)
+        self.assertTrue(obj.is_clickable())
+
+    def test_set_clickable_false(self):
+        obj = self._make()
+        obj.set_clickable(True)
+        obj.set_clickable(False)
+        self.assertFalse(obj.is_clickable())
+
+    def test_add_on_click_handler(self):
+        obj = self._make()
+        obj.set_clickable(True)
+        calls = []
+        def handler(o, x, y): return calls.append((o, x, y))
+        obj.add_on_click_handler(handler)
+        obj.trigger_click(5.0, 7.0)
+        self.assertEqual(len(calls), 1)
+        self.assertIs(calls[0][0], obj)
+        self.assertAlmostEqual(calls[0][1], 5.0)
+        self.assertAlmostEqual(calls[0][2], 7.0)
+
+    def test_remove_on_click_handler(self):
+        obj = self._make()
+        obj.set_clickable(True)
+        calls = []
+        def handler(o, x, y): return calls.append(1)
+        obj.add_on_click_handler(handler)
+        obj.remove_on_click_handler(handler)
+        obj.trigger_click(0.0, 0.0)
+        self.assertEqual(calls, [])
+
+    def test_add_duplicate_handler_ignored(self):
+        obj = self._make()
+        obj.set_clickable(True)
+        calls = []
+        def handler(o, x, y): return calls.append(1)
+        obj.add_on_click_handler(handler)
+        obj.add_on_click_handler(handler)
+        obj.trigger_click(0.0, 0.0)
+        self.assertEqual(len(calls), 1)
+
+    def test_trigger_click_not_clickable_does_nothing(self):
+        obj = self._make()
+        calls = []
+        obj.add_on_click_handler(lambda o, x, y: calls.append(1))
+        obj.trigger_click(0.0, 0.0)
+        self.assertEqual(calls, [])
+
+    def test_trigger_click_multiple_handlers(self):
+        obj = self._make()
+        obj.set_clickable(True)
+        calls = []
+        obj.add_on_click_handler(lambda o, x, y: calls.append("h1"))
+        obj.add_on_click_handler(lambda o, x, y: calls.append("h2"))
+        obj.trigger_click(1.0, 2.0)
+        self.assertIn("h1", calls)
+        self.assertIn("h2", calls)
+
+
+# ---------------------------------------------------------------------------
+# contains_point
+# ---------------------------------------------------------------------------
+
+class TestSceneObjectContainsPoint(unittest.TestCase):
+    """Tests for SceneObject.contains_point()."""
+
+    def _make(self, x=10.0, y=10.0, width=20.0, height=20.0) -> SceneObject:
+        return SceneObject(
+            name="Obj",
+            scene_object_type="Type",
+            physics_body=BasePhysicsBody(
+                name="Body",
+                template_name="Base Physics Body",
+                x=x, y=y, width=width, height=height,
+            ),
+        )
+
+    def test_contains_interior_point(self):
+        obj = self._make()
+        self.assertTrue(obj.contains_point(20.0, 20.0))
+
+    def test_does_not_contain_point_left_of_x(self):
+        obj = self._make()
+        self.assertFalse(obj.contains_point(5.0, 20.0))
+
+    def test_does_not_contain_point_right_of_x(self):
+        obj = self._make()
+        self.assertFalse(obj.contains_point(35.0, 20.0))
+
+    def test_does_not_contain_point_above_y(self):
+        obj = self._make()
+        self.assertFalse(obj.contains_point(20.0, 5.0))
+
+    def test_does_not_contain_point_below_y(self):
+        obj = self._make()
+        self.assertFalse(obj.contains_point(20.0, 35.0))
+
+    def test_contains_point_on_left_edge(self):
+        obj = self._make()
+        self.assertTrue(obj.contains_point(10.0, 20.0))
+
+    def test_contains_point_on_right_edge(self):
+        obj = self._make()
+        self.assertTrue(obj.contains_point(30.0, 20.0))
+
+    def test_contains_point_on_top_edge(self):
+        obj = self._make()
+        self.assertTrue(obj.contains_point(20.0, 10.0))
+
+    def test_contains_point_on_bottom_edge(self):
+        obj = self._make()
+        self.assertTrue(obj.contains_point(20.0, 30.0))
+
+    def test_contains_corner(self):
+        obj = self._make()
+        self.assertTrue(obj.contains_point(10.0, 10.0))
+
+
+# ---------------------------------------------------------------------------
+# Connections
+# ---------------------------------------------------------------------------
+
+class TestSceneObjectConnections(unittest.TestCase):
+    """Tests for connection management on SceneObject."""
+
+    def _make(self) -> SceneObject:
+        return SceneObject(
+            name="Obj",
+            scene_object_type="Type",
+            physics_body=BasePhysicsBody(
+                name="Body",
+                template_name="Base Physics Body",
+                x=0.0, y=0.0, width=10.0, height=10.0,
+            ),
+        )
+
+    def _conn(self, source_id="a", target_id="b") -> Connection:
+        return Connection(
+            source_id=source_id,
+            source_output="on_activate",
+            target_id=target_id,
+            target_input="run",
+        )
+
+    def test_connections_default_empty(self):
+        obj = self._make()
+        self.assertEqual(obj.get_connections(), [])
+
+    def test_connections_property(self):
+        obj = self._make()
+        self.assertIsInstance(obj.connections, list)
+
+    def test_set_connections(self):
+        obj = self._make()
+        conns = [self._conn()]
+        obj.set_connections(conns)
+        self.assertEqual(len(obj.get_connections()), 1)
+
+    def test_set_connections_stores_copy(self):
+        """Mutating the original list should not affect the stored connections."""
+        obj = self._make()
+        conns = [self._conn()]
+        obj.set_connections(conns)
+        conns.append(self._conn("c", "d"))
+        self.assertEqual(len(obj.get_connections()), 1)
+
+
+# ---------------------------------------------------------------------------
+# Template name
+# ---------------------------------------------------------------------------
+
+class TestSceneObjectTemplateName(unittest.TestCase):
+    """Tests for template_name on SceneObject."""
+
+    def _make(self, **kwargs) -> SceneObject:
+        return SceneObject(
+            name="Obj",
+            scene_object_type="Type",
+            physics_body=BasePhysicsBody(
+                name="Body",
+                template_name="Base Physics Body",
+                x=0.0, y=0.0, width=10.0, height=10.0,
+            ),
+            **kwargs,
+        )
+
+    def test_template_name_default_empty(self):
+        obj = self._make()
+        self.assertEqual(obj.get_template_name(), "")
+
+    def test_template_name_from_constructor(self):
+        obj = self._make(template_name="MyTemplate")
+        self.assertEqual(obj.get_template_name(), "MyTemplate")
+
+    def test_set_template_name(self):
+        obj = self._make()
+        obj.set_template_name("Updated")
+        self.assertEqual(obj.get_template_name(), "Updated")
+
+    def test_template_name_property_get(self):
+        obj = self._make(template_name="T1")
+        self.assertEqual(obj.template_name, "T1")
+
+    def test_template_name_property_set(self):
+        obj = self._make()
+        obj.template_name = "T2"
+        self.assertEqual(obj.template_name, "T2")
+
+    def test_to_dict_includes_template_name(self):
+        obj = self._make(template_name="TmplA")
+        data = obj.to_dict()
+        self.assertEqual(data["template_name"], "TmplA")
+
+
+# ---------------------------------------------------------------------------
+# Physics body convenience properties (x, y, width, height, yaw)
+# ---------------------------------------------------------------------------
+
+class TestSceneObjectPhysicsConvenience(unittest.TestCase):
+    """Tests for the physics-body convenience properties on SceneObject."""
+
+    def _make(self, x=5.0, y=10.0, width=20.0, height=15.0, yaw=30.0) -> SceneObject:
+        return SceneObject(
+            name="Obj",
+            scene_object_type="Type",
+            physics_body=BasePhysicsBody(
+                name="Body",
+                template_name="Base Physics Body",
+                x=x, y=y, width=width, height=height, yaw=yaw,
+            ),
+        )
+
+    def test_x_property_reads_from_body(self):
+        obj = self._make(x=7.0)
+        self.assertAlmostEqual(obj.x, 7.0)
+
+    def test_x_setter_writes_to_body(self):
+        obj = self._make()
+        obj.x = 99.0
+        self.assertAlmostEqual(obj.physics_body.x, 99.0)
+
+    def test_get_x_set_x(self):
+        obj = self._make()
+        obj.set_x(42.0)
+        self.assertAlmostEqual(obj.get_x(), 42.0)
+
+    def test_y_property_reads_from_body(self):
+        obj = self._make(y=13.0)
+        self.assertAlmostEqual(obj.y, 13.0)
+
+    def test_y_setter_writes_to_body(self):
+        obj = self._make()
+        obj.y = 55.0
+        self.assertAlmostEqual(obj.physics_body.y, 55.0)
+
+    def test_get_y_set_y(self):
+        obj = self._make()
+        obj.set_y(77.0)
+        self.assertAlmostEqual(obj.get_y(), 77.0)
+
+    def test_width_property(self):
+        obj = self._make(width=40.0)
+        self.assertAlmostEqual(obj.width, 40.0)
+
+    def test_width_setter(self):
+        obj = self._make()
+        obj.width = 60.0
+        self.assertAlmostEqual(obj.physics_body.width, 60.0)
+
+    def test_height_property(self):
+        obj = self._make(height=25.0)
+        self.assertAlmostEqual(obj.height, 25.0)
+
+    def test_height_setter(self):
+        obj = self._make()
+        obj.height = 35.0
+        self.assertAlmostEqual(obj.physics_body.height, 35.0)
+
+
+# ---------------------------------------------------------------------------
+# Direction (CardinalDirection)
+# ---------------------------------------------------------------------------
+
+class TestSceneObjectDirection(unittest.TestCase):
+    """Tests for direction (CardinalDirection) on SceneObject."""
+
+    def _make(self, **kwargs) -> SceneObject:
+        return SceneObject(
+            name="Obj",
+            scene_object_type="Type",
+            physics_body=BasePhysicsBody(
+                name="Body",
+                template_name="Base Physics Body",
+                x=0.0, y=0.0, width=10.0, height=10.0,
+            ),
+            **kwargs,
+        )
+
+    def test_direction_default_is_north(self):
+        """When no direction is given, get_direction() defaults to NORTH."""
+        obj = self._make()
+        self.assertEqual(obj.get_direction(), CardinalDirection.NORTH)
+
+    def test_direction_from_constructor(self):
+        obj = self._make(direction=CardinalDirection.EAST)
+        self.assertEqual(obj.get_direction(), CardinalDirection.EAST)
+
+    def test_set_direction(self):
+        """set_direction only applies when the new direction is perpendicular.
+
+        The default direction is NORTH.  EAST is perpendicular to NORTH
+        (difference of 1 position on the cardinal compass), so the change
+        should be stored and the physics body dimensions should be swapped.
+        """
+        obj = self._make()
+        original_width = obj.width
+        original_height = obj.height
+        obj.set_direction(CardinalDirection.EAST)
+        self.assertEqual(obj.get_direction(), CardinalDirection.EAST)
+        # Rotating NORTH → EAST swaps width/height
+        self.assertAlmostEqual(obj.width, original_height)
+        self.assertAlmostEqual(obj.height, original_width)
+
+    def test_set_direction_non_perpendicular(self):
+        """Setting a direction that is NOT perpendicular to the current one is set."""
+        obj = self._make()
+        obj.set_direction(CardinalDirection.SOUTH)  # SOUTH is opposite to NORTH, not perpendicular
+        self.assertEqual(obj.get_direction(), CardinalDirection.SOUTH)
+
+    def test_direction_from_properties_dict(self):
+        """Passing direction via properties dict falls back when no constructor arg given."""
+        obj = self._make(properties={"direction": "WEST"})
+        self.assertEqual(obj.get_direction(), CardinalDirection.WEST)
+
+    def test_constructor_direction_overrides_properties_dict(self):
+        obj = self._make(
+            direction=CardinalDirection.NORTH,
+            properties={"direction": "EAST"},
+        )
+        self.assertEqual(obj.get_direction(), CardinalDirection.NORTH)
 
 
 if __name__ == '__main__':

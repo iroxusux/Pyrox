@@ -309,7 +309,7 @@ class PhysicsEngineService(IPhysicsEngine):
             body.x += vx * dt
             body.y += vy * dt
 
-            # Integrate torque -> angular acceleration -> angular velocity -> rotation
+            # Integrate torque -> angular acceleration -> angular velocity
             if hasattr(body, 'torque') and hasattr(body, 'moment_of_inertia'):
                 torque = body.torque
                 moi = body.moment_of_inertia
@@ -322,17 +322,12 @@ class PhysicsEngineService(IPhysicsEngine):
                     angular_vel = body.angular_velocity
                     angular_vel += angular_accel * dt
                     body.set_angular_velocity(angular_vel)
-
-                    # Update rotation
-                    body.roll += angular_vel * dt
                 else:
                     # No moment of inertia - just update rotation from current velocity
                     angular_vel = body.angular_velocity
-                    body.roll += angular_vel * dt
             else:
                 # Fallback for bodies without torque support
                 angular_vel = body.angular_velocity
-                body.roll += angular_vel * dt
 
     def _update_sleep_state(self) -> None:
         """Update sleep state for bodies to optimize performance.

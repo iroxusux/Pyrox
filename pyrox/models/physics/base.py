@@ -156,9 +156,6 @@ class BasePhysicsBody(
             "y": self.y,
             "width": self.width,
             "height": self.height,
-            "roll": self.roll,
-            "pitch": self.pitch,
-            "yaw": self.yaw,
             "velocity_x": self.velocity_x,
             "velocity_y": self.velocity_y,
             "acceleration_x": self.acceleration_x,
@@ -210,9 +207,6 @@ class BasePhysicsBody(
             y=data.get('y', 0.0),
             width=data.get('width', 10.0),
             height=data.get('height', 10.0),
-            roll=data.get('roll', 0.0),
-            pitch=data.get('pitch', 0.0),
-            yaw=data.get('yaw', 0.0),
             material=Material.from_dict(data['material']) if data.get('material') else None,
         )
 
@@ -244,9 +238,6 @@ class BasePhysicsBody(
             "y": self.y,
             "width": self.width,
             "height": self.height,
-            "roll": self.roll,
-            "pitch": self.pitch,
-            "yaw": self.yaw,
             "material": {
                 "density": self.material.density,
                 "restitution": self.material.restitution,

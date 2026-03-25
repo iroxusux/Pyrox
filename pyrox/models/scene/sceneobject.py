@@ -18,7 +18,7 @@ from pyrox.models.scene.animation import SceneAnimator
 
 class SceneObject(
         ISceneObject,
-        CoreMixin
+        CoreMixin,
 ):
     """Base class for scene objects.
     """
@@ -46,7 +46,13 @@ class SceneObject(
         self._properties: dict[str, Any] = properties if properties is not None else dict()
         self._physics_body = physics_body
         self._group_id: str | None = group_id
-        self._direction = CardinalDirection.try_parse(direction) if direction else properties.get("direction") if properties else None
+
+        if direction:
+            self._direction = CardinalDirection.try_parse(direction)
+        elif properties:
+            self._direction = CardinalDirection.try_parse(properties.get("direction", 'NORTH'))
+        else:
+            self._direction = CardinalDirection.NORTH  # Default direction
 
         # Parent-child hierarchy
         self._parent: 'SceneObject | None' = parent

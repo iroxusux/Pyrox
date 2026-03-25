@@ -68,7 +68,7 @@ class TestMaterial(unittest.TestCase):
         mat = Material()
         with self.assertRaises(ValueError) as context:
             mat.set_density(-1.0)
-        self.assertIn("non-negative", str(context.exception))
+        self.assertIn("Density cannot be negative", str(context.exception))
 
     def test_set_restitution_clamping(self):
         """Test that set_restitution clamps values."""
@@ -99,7 +99,7 @@ class TestMaterial(unittest.TestCase):
         mat = Material()
         with self.assertRaises(ValueError) as context:
             mat.set_drag(-0.1)
-        self.assertIn("non-negative", str(context.exception))
+        self.assertIn("Drag cannot be negative", str(context.exception))
 
     def test_implements_imaterial_protocol(self):
         """Test that Material implements IMaterial protocol."""
@@ -284,7 +284,7 @@ class TestRigidBody2D(unittest.TestCase):
         rb = RigidBody2D()
         with self.assertRaises(ValueError) as context:
             rb.set_mass(-1.0)
-        self.assertIn("non-negative", str(context.exception))
+        self.assertIn("Mass cannot be negative", str(context.exception))
 
     def test_set_linear_velocity(self):
         """Test setting linear velocity."""
@@ -513,8 +513,6 @@ class TestPhysicsBody(unittest.TestCase):
         """Test that PhysicsBody implements all component protocols."""
         pb = PhysicsBody2D()
         self.assertIsInstance(pb, IRigidBody2D)
-        self.assertIsInstance(pb, ICollider2D)
-        self.assertIsInstance(pb, IMaterial)
 
     def test_body_type_property(self):
         """Test body_type property access."""

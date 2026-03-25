@@ -19,11 +19,8 @@ from .protocols import (
     # Coordinate components
     Coord2D,
     Area2D,
-    Coord3D,
-    Area3D,
     # Spacial components
     Spatial2D,
-    Spatial3D,
     Rotatable,
     Zoomable,
     # Physics components
@@ -110,11 +107,8 @@ __all__ = [
     # Coordinate protocols
     'Coord2D',
     'Area2D',
-    'Coord3D',
-    'Area3D',
     # Spatial protocols
     'Spatial2D',
-    'Spatial3D',
     'Rotatable',
     'Zoomable',
 

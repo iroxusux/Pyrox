@@ -2,14 +2,14 @@
 
 import unittest
 
+from pyrox.interfaces import CardinalDirection, IDirectional2D, IRotatable
 from pyrox.models.protocols.spatial import (
     Rotatable,
     Spatial2D,
-    Spatial3D,
+    Zoomable,
 )
 from pyrox.models.protocols.coord import (
     Area2D,
-    Area3D,
 )
 
 
@@ -88,7 +88,7 @@ class TestRotatable(unittest.TestCase):
         self.assertEqual(rot.roll, 60.0)
 
     def test_get_rotation(self):
-        """Test getting rotation as tuple."""
+        """Test get_rotation returns (pitch, yaw, roll) tuple."""
         rot = Rotatable(roll=10.0, pitch=20.0, yaw=30.0)
         rotation = rot.get_rotation()
         self.assertEqual(rotation, (20.0, 30.0, 10.0))  # (pitch, yaw, roll)
@@ -96,22 +96,22 @@ class TestRotatable(unittest.TestCase):
         self.assertEqual(len(rotation), 3)
 
     def test_set_rotation(self):
-        """Test setting rotation from individual values."""
+        """Test set_rotation with positional arguments."""
         rot = Rotatable()
-        rot.set_rotation(pitch=45.0, yaw=90.0, roll=135.0)
+        rot.set_rotation(45.0, 90.0, 135.0)  # pitch, yaw, roll
         self.assertEqual(rot.get_pitch(), 45.0)
         self.assertEqual(rot.get_yaw(), 90.0)
         self.assertEqual(rot.get_roll(), 135.0)
 
     def test_rotation_property(self):
-        """Test rotation property access."""
+        """Test rotation property returns (pitch, yaw, roll) tuple."""
         rot = Rotatable(roll=5.0, pitch=10.0, yaw=15.0)
         self.assertEqual(rot.rotation, (10.0, 15.0, 5.0))
 
     def test_set_rotation_updates_all(self):
-        """Test that set_rotation updates all rotation values."""
+        """Test that set_rotation updates all three axes."""
         rot = Rotatable(roll=1.0, pitch=2.0, yaw=3.0)
-        rot.set_rotation(pitch=100.0, yaw=200.0, roll=300.0)
+        rot.set_rotation(100.0, 200.0, 300.0)  # pitch, yaw, roll
         self.assertEqual(rot.get_pitch(), 100.0)
         self.assertEqual(rot.get_yaw(), 200.0)
         self.assertEqual(rot.get_roll(), 300.0)
@@ -131,7 +131,7 @@ class TestRotatable(unittest.TestCase):
         self.assertEqual(rot.get_yaw(), 1440.0)
 
     def test_rotation_independence(self):
-        """Test that pitch, yaw, and roll are independent."""
+        """Test that pitch, yaw, and roll are independent axes."""
         rot = Rotatable()
         rot.set_pitch(10.0)
         self.assertEqual(rot.get_pitch(), 10.0)
@@ -142,6 +142,55 @@ class TestRotatable(unittest.TestCase):
         self.assertEqual(rot.get_pitch(), 10.0)
         self.assertEqual(rot.get_yaw(), 20.0)
         self.assertEqual(rot.get_roll(), 0.0)
+
+    def test_inherits_irotatable(self):
+        """Test that Rotatable satisfies the IRotatable interface."""
+        rot = Rotatable()
+        self.assertIsInstance(rot, IRotatable)
+
+
+class TestZoomable(unittest.TestCase):
+    """Test cases for Zoomable class."""
+
+    def test_init_default_zoom(self):
+        """Test initialization with default zoom level."""
+        z = Zoomable()
+        self.assertEqual(z.get_zoom(), 1.0)
+
+    def test_init_with_zoom(self):
+        """Test initialization with a specific zoom level."""
+        z = Zoomable(zoom=2.5)
+        self.assertEqual(z.get_zoom(), 2.5)
+
+    def test_set_zoom(self):
+        """Test setting zoom level."""
+        z = Zoomable()
+        z.set_zoom(3.0)
+        self.assertEqual(z.get_zoom(), 3.0)
+
+    def test_zoom_property_getter(self):
+        """Test zoom property getter."""
+        z = Zoomable(zoom=0.5)
+        self.assertEqual(z.zoom, 0.5)
+
+    def test_zoom_property_setter(self):
+        """Test zoom property setter."""
+        z = Zoomable()
+        z.zoom = 4.0
+        self.assertEqual(z.zoom, 4.0)
+
+    def test_zoom_fractional(self):
+        """Test fractional zoom values."""
+        z = Zoomable(zoom=0.25)
+        self.assertEqual(z.get_zoom(), 0.25)
+
+    def test_multiple_instances_independent(self):
+        """Test that multiple Zoomable instances are independent."""
+        z1 = Zoomable(zoom=1.0)
+        z2 = Zoomable(zoom=2.0)
+        z1.set_zoom(5.0)
+        self.assertEqual(z1.get_zoom(), 5.0)
+        self.assertEqual(z2.get_zoom(), 2.0)
 
 
 class TestSpatial2D(unittest.TestCase):
@@ -154,9 +203,7 @@ class TestSpatial2D(unittest.TestCase):
         self.assertEqual(spatial.get_y(), 0.0)
         self.assertEqual(spatial.get_width(), 0.0)
         self.assertEqual(spatial.get_height(), 0.0)
-        self.assertEqual(spatial.get_pitch(), 0.0)
-        self.assertEqual(spatial.get_yaw(), 0.0)
-        self.assertEqual(spatial.get_roll(), 0.0)
+        self.assertIsNone(spatial._direction)
 
     def test_init_with_position_values(self):
         """Test initialization with position values."""
@@ -170,40 +217,36 @@ class TestSpatial2D(unittest.TestCase):
         self.assertEqual(spatial.get_width(), 100.0)
         self.assertEqual(spatial.get_height(), 50.0)
 
-    def test_init_with_rotation_values(self):
-        """Test initialization with rotation values."""
-        spatial = Spatial2D(roll=10.0, pitch=20.0, yaw=30.0)
-        self.assertEqual(spatial.get_roll(), 10.0)
-        self.assertEqual(spatial.get_pitch(), 20.0)
-        self.assertEqual(spatial.get_yaw(), 30.0)
+    def test_init_with_direction(self):
+        """Test initialization with a cardinal direction."""
+        spatial = Spatial2D(direction=CardinalDirection.NORTH)
+        self.assertEqual(spatial._direction, CardinalDirection.NORTH)
 
     def test_init_with_all_values(self):
-        """Test initialization with all values."""
+        """Test initialization with all supported values."""
         spatial = Spatial2D(
             x=10.0, y=20.0,
             width=100.0, height=50.0,
-            roll=15.0, pitch=25.0, yaw=35.0
+            direction=CardinalDirection.EAST,
         )
         self.assertEqual(spatial.get_x(), 10.0)
         self.assertEqual(spatial.get_y(), 20.0)
         self.assertEqual(spatial.get_width(), 100.0)
         self.assertEqual(spatial.get_height(), 50.0)
-        self.assertEqual(spatial.get_roll(), 15.0)
-        self.assertEqual(spatial.get_pitch(), 25.0)
-        self.assertEqual(spatial.get_yaw(), 35.0)
+        self.assertEqual(spatial._direction, CardinalDirection.EAST)
 
     def test_inheritance_from_area2d(self):
         """Test that Spatial2D inherits from Area2D."""
         spatial = Spatial2D()
         self.assertIsInstance(spatial, Area2D)
 
-    def test_inheritance_from_rotatable(self):
-        """Test that Spatial2D inherits from Rotatable."""
+    def test_inherits_idirectional2d(self):
+        """Test that Spatial2D satisfies the IDirectional2D interface."""
         spatial = Spatial2D()
-        self.assertIsInstance(spatial, Rotatable)
+        self.assertIsInstance(spatial, IDirectional2D)
 
     def test_area2d_methods_work(self):
-        """Test that Area2D methods work."""
+        """Test that Area2D position/size methods work on Spatial2D."""
         spatial = Spatial2D()
         spatial.set_x(100.0)
         spatial.set_y(200.0)
@@ -215,17 +258,6 @@ class TestSpatial2D(unittest.TestCase):
         self.assertEqual(spatial.get_width(), 50.0)
         self.assertEqual(spatial.get_height(), 25.0)
 
-    def test_rotatable_methods_work(self):
-        """Test that Rotatable methods work."""
-        spatial = Spatial2D()
-        spatial.set_roll(45.0)
-        spatial.set_pitch(90.0)
-        spatial.set_yaw(135.0)
-
-        self.assertEqual(spatial.get_roll(), 45.0)
-        self.assertEqual(spatial.get_pitch(), 90.0)
-        self.assertEqual(spatial.get_yaw(), 135.0)
-
     def test_position_property(self):
         """Test position property from Area2D."""
         spatial = Spatial2D(x=10.0, y=20.0)
@@ -235,11 +267,6 @@ class TestSpatial2D(unittest.TestCase):
         """Test size property from Area2D."""
         spatial = Spatial2D(width=100.0, height=50.0)
         self.assertEqual(spatial.size, (100.0, 50.0))
-
-    def test_rotation_property(self):
-        """Test rotation property from Rotatable."""
-        spatial = Spatial2D(roll=10.0, pitch=20.0, yaw=30.0)
-        self.assertEqual(spatial.rotation, (20.0, 30.0, 10.0))
 
     def test_center_calculation(self):
         """Test center calculation from Area2D."""
@@ -261,227 +288,107 @@ class TestSpatial2D(unittest.TestCase):
         self.assertEqual(spatial.get_width(), 200.0)
         self.assertEqual(spatial.get_height(), 150.0)
 
-    def test_set_rotation_method(self):
-        """Test setting rotation via method."""
+    def test_get_direction_defaults_to_north(self):
+        """Test that get_direction returns NORTH when no direction was set."""
         spatial = Spatial2D()
-        spatial.set_rotation(pitch=60.0, yaw=120.0, roll=180.0)
-        self.assertEqual(spatial.get_pitch(), 60.0)
-        self.assertEqual(spatial.get_yaw(), 120.0)
-        self.assertEqual(spatial.get_roll(), 180.0)
+        self.assertIsNone(spatial._direction)
+        self.assertEqual(spatial.get_direction(), CardinalDirection.NORTH)
 
+    def test_set_direction(self):
+        """Test setting direction explicitly."""
+        spatial = Spatial2D()
+        spatial.set_direction(CardinalDirection.EAST)
+        self.assertEqual(spatial.get_direction(), CardinalDirection.EAST)
 
-class TestSpatial3D(unittest.TestCase):
-    """Test cases for Spatial3D class."""
+    def test_direction_property(self):
+        """Test direction property getter and setter."""
+        spatial = Spatial2D(direction=CardinalDirection.SOUTH)
+        self.assertEqual(spatial.direction, CardinalDirection.SOUTH)
+        spatial.direction = CardinalDirection.WEST
+        self.assertEqual(spatial.direction, CardinalDirection.WEST)
 
-    def test_init_default_values(self):
-        """Test initialization with default values."""
-        spatial = Spatial3D()
-        self.assertEqual(spatial.get_x(), 0.0)
-        self.assertEqual(spatial.get_y(), 0.0)
-        self.assertEqual(spatial.get_z(), 0.0)
-        self.assertEqual(spatial.get_width(), 0.0)
-        self.assertEqual(spatial.get_height(), 0.0)
-        self.assertEqual(spatial.get_depth(), 0.0)
-        self.assertEqual(spatial.get_pitch(), 0.0)
-        self.assertEqual(spatial.get_yaw(), 0.0)
-        self.assertEqual(spatial.get_roll(), 0.0)
+    def test_set_direction_from_string(self):
+        """Test setting direction using a string value."""
+        spatial = Spatial2D()
+        spatial.set_direction("EAST")
+        self.assertEqual(spatial.get_direction(), CardinalDirection.EAST)
 
-    def test_init_with_position_values(self):
-        """Test initialization with position values."""
-        spatial = Spatial3D(x=10.0, y=20.0, z=30.0)
-        self.assertEqual(spatial.get_x(), 10.0)
-        self.assertEqual(spatial.get_y(), 20.0)
-        self.assertEqual(spatial.get_z(), 30.0)
+    def test_set_direction_none_clears_direction(self):
+        """Test that setting direction to None clears it."""
+        spatial = Spatial2D(direction=CardinalDirection.NORTH)
+        spatial.set_direction(None)
+        self.assertIsNone(spatial._direction)
 
-    def test_init_with_size_values(self):
-        """Test initialization with size values."""
-        spatial = Spatial3D(width=100.0, height=50.0, depth=75.0)
-        self.assertEqual(spatial.get_width(), 100.0)
-        self.assertEqual(spatial.get_height(), 50.0)
-        self.assertEqual(spatial.get_depth(), 75.0)
+    def test_rotate_area_swaps_dimensions(self):
+        """Test that rotate_area swaps width and height."""
+        spatial = Spatial2D(width=100.0, height=40.0)
+        spatial.rotate_area()
+        self.assertEqual(spatial.get_width(), 40.0)
+        self.assertEqual(spatial.get_height(), 100.0)
 
-    def test_init_with_rotation_values(self):
-        """Test initialization with rotation values."""
-        spatial = Spatial3D(roll=10.0, pitch=20.0, yaw=30.0)
-        self.assertEqual(spatial.get_roll(), 10.0)
-        self.assertEqual(spatial.get_pitch(), 20.0)
-        self.assertEqual(spatial.get_yaw(), 30.0)
+    def test_rotate_clockwise(self):
+        """Test rotating clockwise changes direction correctly."""
+        spatial = Spatial2D(direction=CardinalDirection.NORTH, width=10.0, height=20.0)
+        spatial.rotate_clockwise()
+        self.assertEqual(spatial.get_direction(), CardinalDirection.EAST)
 
-    def test_init_with_all_values(self):
-        """Test initialization with all values."""
-        spatial = Spatial3D(
-            x=10.0, y=20.0, z=30.0,
-            width=100.0, height=50.0, depth=75.0,
-            roll=15.0, pitch=25.0, yaw=35.0
+    def test_rotate_counterclockwise(self):
+        """Test rotating counter-clockwise changes direction correctly."""
+        spatial = Spatial2D(direction=CardinalDirection.NORTH, width=10.0, height=20.0)
+        spatial.rotate_counterclockwise()
+        self.assertEqual(spatial.get_direction(), CardinalDirection.WEST)
+
+    def test_rotate_180(self):
+        """Test rotating 180 degrees reaches the opposite direction."""
+        # NORTH(4) → formula: ((4+1)%4)+1 = 2 = SOUTH
+        spatial = Spatial2D(direction=CardinalDirection.NORTH)
+        spatial.rotate_180()
+        self.assertEqual(spatial.get_direction(), CardinalDirection.SOUTH)
+
+    def test_rotate_to(self):
+        """Test rotating to a specific direction."""
+        spatial = Spatial2D(direction=CardinalDirection.NORTH)
+        spatial.rotate_to(CardinalDirection.SOUTH)
+        self.assertEqual(spatial.get_direction(), CardinalDirection.SOUTH)
+
+    def test_perpendicular_rotation_swaps_area(self):
+        """Test that rotating to a perpendicular direction swaps area dimensions."""
+        spatial = Spatial2D(
+            direction=CardinalDirection.NORTH,
+            width=10.0,
+            height=20.0,
         )
-        self.assertEqual(spatial.get_x(), 10.0)
-        self.assertEqual(spatial.get_y(), 20.0)
-        self.assertEqual(spatial.get_z(), 30.0)
-        self.assertEqual(spatial.get_width(), 100.0)
-        self.assertEqual(spatial.get_height(), 50.0)
-        self.assertEqual(spatial.get_depth(), 75.0)
-        self.assertEqual(spatial.get_roll(), 15.0)
-        self.assertEqual(spatial.get_pitch(), 25.0)
-        self.assertEqual(spatial.get_yaw(), 35.0)
+        spatial.rotate_clockwise()  # NORTH → EAST (perpendicular)
+        self.assertEqual(spatial.get_width(), 20.0)
+        self.assertEqual(spatial.get_height(), 10.0)
 
-    def test_inheritance_from_area3d(self):
-        """Test that Spatial3D inherits from Area3D."""
-        spatial = Spatial3D()
-        self.assertIsInstance(spatial, Area3D)
-
-    def test_inheritance_from_rotatable(self):
-        """Test that Spatial3D inherits from Rotatable."""
-        spatial = Spatial3D()
-        self.assertIsInstance(spatial, Rotatable)
-
-    def test_area3d_methods_work(self):
-        """Test that Area3D methods work."""
-        spatial = Spatial3D()
-        spatial.set_x(100.0)
-        spatial.set_y(200.0)
-        spatial.set_z(300.0)
-        spatial.set_width(50.0)
-        spatial.set_height(25.0)
-        spatial.set_depth(75.0)
-
-        self.assertEqual(spatial.get_x(), 100.0)
-        self.assertEqual(spatial.get_y(), 200.0)
-        self.assertEqual(spatial.get_z(), 300.0)
-        self.assertEqual(spatial.get_width(), 50.0)
-        self.assertEqual(spatial.get_height(), 25.0)
-        self.assertEqual(spatial.get_depth(), 75.0)
-
-    def test_rotatable_methods_work(self):
-        """Test that Rotatable methods work."""
-        spatial = Spatial3D()
-        spatial.set_roll(45.0)
-        spatial.set_pitch(90.0)
-        spatial.set_yaw(135.0)
-
-        self.assertEqual(spatial.get_roll(), 45.0)
-        self.assertEqual(spatial.get_pitch(), 90.0)
-        self.assertEqual(spatial.get_yaw(), 135.0)
-
-    def test_position_property(self):
-        """Test 3D position property from Area3D."""
-        spatial = Spatial3D(x=10.0, y=20.0, z=30.0)
-        self.assertEqual(spatial.position, (10.0, 20.0, 30.0))
-
-    def test_size_property(self):
-        """Test 3D size property from Area3D."""
-        spatial = Spatial3D(width=100.0, height=50.0, depth=75.0)
-        self.assertEqual(spatial.size, (100.0, 50.0, 75.0))
-
-    def test_rotation_property(self):
-        """Test rotation property from Rotatable."""
-        spatial = Spatial3D(roll=10.0, pitch=20.0, yaw=30.0)
-        self.assertEqual(spatial.rotation, (20.0, 30.0, 10.0))
-
-    def test_center_calculation(self):
-        """Test 3D center calculation from Area3D."""
-        spatial = Spatial3D(
-            x=0.0, y=0.0, z=0.0,
-            width=100.0, height=50.0, depth=80.0
+    def test_non_perpendicular_rotation_preserves_area(self):
+        """Test that rotating to the same or opposite direction preserves area dimensions."""
+        spatial = Spatial2D(
+            direction=CardinalDirection.NORTH,
+            width=10.0,
+            height=20.0,
         )
-        center = spatial.get_center()
-        self.assertEqual(center, (50.0, 25.0, 40.0))
-
-    def test_set_position(self):
-        """Test setting 3D position via tuple."""
-        spatial = Spatial3D()
-        spatial.set_position((30.0, 40.0, 50.0))
-        self.assertEqual(spatial.get_x(), 30.0)
-        self.assertEqual(spatial.get_y(), 40.0)
-        self.assertEqual(spatial.get_z(), 50.0)
-
-    def test_set_size(self):
-        """Test setting 3D size via tuple."""
-        spatial = Spatial3D()
-        spatial.set_size((200.0, 150.0, 100.0))
-        self.assertEqual(spatial.get_width(), 200.0)
-        self.assertEqual(spatial.get_height(), 150.0)
-        self.assertEqual(spatial.get_depth(), 100.0)
-
-    def test_set_rotation_method(self):
-        """Test setting rotation via method."""
-        spatial = Spatial3D()
-        spatial.set_rotation(pitch=60.0, yaw=120.0, roll=180.0)
-        self.assertEqual(spatial.get_pitch(), 60.0)
-        self.assertEqual(spatial.get_yaw(), 120.0)
-        self.assertEqual(spatial.get_roll(), 180.0)
-
-    def test_all_properties_together(self):
-        """Test all properties working together."""
-        spatial = Spatial3D(
-            x=100.0, y=200.0, z=300.0,
-            width=50.0, height=60.0, depth=70.0,
-            roll=10.0, pitch=20.0, yaw=30.0
-        )
-
-        # Position
-        self.assertEqual(spatial.get_position(), (100.0, 200.0, 300.0))
-
-        # Size
-        self.assertEqual(spatial.get_size(), (50.0, 60.0, 70.0))
-
-        # Rotation
-        self.assertEqual(spatial.get_rotation(), (20.0, 30.0, 10.0))
-
-        # Center
-        center = spatial.get_center()
-        self.assertEqual(center[0], 125.0)  # 100 + 50/2
-        self.assertEqual(center[1], 230.0)  # 200 + 60/2
-        self.assertEqual(center[2], 335.0)  # 300 + 70/2
+        spatial.set_direction(CardinalDirection.SOUTH)  # NORTH → SOUTH (opposite, not perpendicular)
+        self.assertEqual(spatial.get_width(), 10.0)
+        self.assertEqual(spatial.get_height(), 20.0)
 
 
 class TestSpatialIntegration(unittest.TestCase):
     """Integration tests for spatial classes."""
 
-    def test_spatial2d_to_spatial3d_conversion(self):
-        """Test converting 2D spatial to 3D spatial."""
-        spatial2d = Spatial2D(
-            x=10.0, y=20.0,
-            width=100.0, height=50.0,
-            roll=5.0, pitch=10.0, yaw=15.0
-        )
-
-        spatial3d = Spatial3D(
-            x=spatial2d.get_x(),
-            y=spatial2d.get_y(),
-            z=30.0,
-            width=spatial2d.get_width(),
-            height=spatial2d.get_height(),
-            depth=75.0,
-            roll=spatial2d.get_roll(),
-            pitch=spatial2d.get_pitch(),
-            yaw=spatial2d.get_yaw()
-        )
-
-        self.assertEqual(spatial3d.get_x(), 10.0)
-        self.assertEqual(spatial3d.get_y(), 20.0)
-        self.assertEqual(spatial3d.get_z(), 30.0)
-        self.assertEqual(spatial3d.get_width(), 100.0)
-        self.assertEqual(spatial3d.get_height(), 50.0)
-        self.assertEqual(spatial3d.get_depth(), 75.0)
-        self.assertEqual(spatial3d.get_roll(), 5.0)
-        self.assertEqual(spatial3d.get_pitch(), 10.0)
-        self.assertEqual(spatial3d.get_yaw(), 15.0)
-
-    def test_multiple_instances_independence(self):
-        """Test that multiple instances are independent."""
-        spatial1 = Spatial2D(x=10.0, y=20.0, roll=30.0)
-        spatial2 = Spatial2D(x=40.0, y=50.0, roll=60.0)
+    def test_multiple_spatial_instances_independence(self):
+        """Test that multiple Spatial2D instances are independent."""
+        spatial1 = Spatial2D(x=10.0, y=20.0)
+        spatial2 = Spatial2D(x=40.0, y=50.0)
 
         spatial1.set_x(100.0)
-        spatial1.set_roll(90.0)
 
         self.assertEqual(spatial1.get_x(), 100.0)
-        self.assertEqual(spatial1.get_roll(), 90.0)
         self.assertEqual(spatial2.get_x(), 40.0)
-        self.assertEqual(spatial2.get_roll(), 60.0)
 
-    def test_rotatable_independence(self):
-        """Test that rotatable instances are independent."""
+    def test_rotatable_instances_independence(self):
+        """Test that Rotatable instances are independent."""
         rot1 = Rotatable(pitch=10.0, yaw=20.0, roll=30.0)
         rot2 = Rotatable(pitch=40.0, yaw=50.0, roll=60.0)
 
@@ -490,52 +397,43 @@ class TestSpatialIntegration(unittest.TestCase):
         self.assertEqual(rot1.get_pitch(), 100.0)
         self.assertEqual(rot2.get_pitch(), 40.0)
 
-    def test_combined_operations(self):
-        """Test combined position, size, and rotation operations."""
-        spatial = Spatial3D()
-
-        # Set all properties
-        spatial.set_position((10.0, 20.0, 30.0))
-        spatial.set_size((100.0, 50.0, 75.0))
-        spatial.set_rotation(pitch=45.0, yaw=90.0, roll=135.0)
-
-        # Verify all properties
-        self.assertEqual(spatial.get_position(), (10.0, 20.0, 30.0))
-        self.assertEqual(spatial.get_size(), (100.0, 50.0, 75.0))
-        self.assertEqual(spatial.get_rotation(), (45.0, 90.0, 135.0))
-
-    def test_spatial_transformations(self):
-        """Test spatial transformations (move and rotate)."""
-        spatial = Spatial2D(x=0.0, y=0.0, roll=0.0)
-
-        # Move
+    def test_spatial_move(self):
+        """Test moving a Spatial2D object."""
+        spatial = Spatial2D(x=0.0, y=0.0)
         spatial.set_x(100.0)
         spatial.set_y(200.0)
-
-        # Rotate
-        spatial.set_roll(45.0)
-
         self.assertEqual(spatial.get_position(), (100.0, 200.0))
-        self.assertEqual(spatial.get_roll(), 45.0)
 
-    def test_zero_rotation_valid(self):
-        """Test that zero rotation is valid and distinct from uninitialized."""
-        spatial = Spatial2D(roll=0.0, pitch=0.0, yaw=0.0)
-
-        self.assertEqual(spatial.get_roll(), 0.0)
-        self.assertEqual(spatial.get_pitch(), 0.0)
-        self.assertEqual(spatial.get_yaw(), 0.0)
-        self.assertEqual(spatial.get_rotation(), (0.0, 0.0, 0.0))
-
-    def test_rotatable_with_no_area(self):
-        """Test rotatable without associated area (pure rotation)."""
+    def test_rotatable_pure_rotation(self):
+        """Test Rotatable without any area (pure rotation object)."""
         rot = Rotatable(roll=30.0, pitch=60.0, yaw=90.0)
-
         self.assertEqual(rot.get_rotation(), (60.0, 90.0, 30.0))
 
-        # Modify rotation
-        rot.set_rotation(pitch=120.0, yaw=180.0, roll=240.0)
+        rot.set_rotation(120.0, 180.0, 240.0)  # pitch, yaw, roll
         self.assertEqual(rot.get_rotation(), (120.0, 180.0, 240.0))
+
+    def test_zoomable_instances_independence(self):
+        """Test that multiple Zoomable instances have independent state."""
+        z1 = Zoomable(zoom=1.0)
+        z2 = Zoomable(zoom=2.0)
+        z1.zoom = 10.0
+        self.assertEqual(z1.zoom, 10.0)
+        self.assertEqual(z2.zoom, 2.0)
+
+    def test_full_clockwise_rotation_cycle(self):
+        """Test a full 4-step clockwise rotation returns to original dimensions."""
+        spatial = Spatial2D(
+            direction=CardinalDirection.NORTH,
+            width=10.0,
+            height=20.0,
+        )
+        # Each 90° clockwise step swaps dimensions (perpendicular each time)
+        for _ in range(4):
+            spatial.rotate_clockwise()
+        # After 4 rotations we're back to NORTH with original dimensions
+        self.assertEqual(spatial.get_direction(), CardinalDirection.NORTH)
+        self.assertEqual(spatial.get_width(), 10.0)
+        self.assertEqual(spatial.get_height(), 20.0)
 
 
 if __name__ == '__main__':

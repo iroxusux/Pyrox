@@ -493,11 +493,8 @@ class TestPhysicsEngineService(unittest.TestCase):
         body.set_force(0.0, 0.0)
         body.set_linear_velocity(0.0, 0.0)
         body.set_angular_velocity(1.0)  # radians/sec
-        body.roll = 0.0
         body.x = 0.0
         body.y = 0.0
-
-        initial_roll = body.roll
 
         self.engine.register_body(body)
 
@@ -505,9 +502,8 @@ class TestPhysicsEngineService(unittest.TestCase):
         dt = 0.016
         self.engine._integrate(dt)
 
-        # Roll should update based on angular velocity
-        expected_roll = initial_roll + 1.0 * dt
-        self.assertAlmostEqual(body.roll, expected_roll, places=5)
+        # No body roll exists, so we can't check that, but we can check that angular velocity is unchanged
+        self.assertEqual(body.angular_velocity, 1.0)
 
     def test_collision_integration(self):
         """Test that collision service is properly integrated."""

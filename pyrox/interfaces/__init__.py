@@ -51,22 +51,17 @@ from .protocols import (
     # Coordinate imports for protocols that support points in a space.
     ICoord2D,
     IArea2D,
-    ICoord3D,
-    IArea3D,
 
     # Spatial imports for protocols that support spatial objects.
     ISpatial2D,
-    ISpatial3D,
     IRotatable,
-    ICardinalRotateable2D,
+    IDirectional2D,
     IZoomable,
 
     # Kinematic imports for protocols that support kinematic objects.
     IVelocity2D,
-    IVelocity3D,
     IAngularVelocity,
     IKinematic2D,
-    IKinematic3D,
 
     # Physics imports for protocols that support physical objects.
     BodyType,
@@ -76,7 +71,6 @@ from .protocols import (
     ICollider2D,
     IPhysicsBody2D,
     IRigidBody2D,
-    IRigidBody3D,
     IPhysicsEngine,
 
     # Property imports for protocols that support properties.
@@ -160,20 +154,15 @@ __all__ = (
     # Coordinate protocols
     'ICoord2D',
     'IArea2D',
-    'ICoord3D',
-    'IArea3D',
     # Spatial protocols
     'ISpatial2D',
-    'ISpatial3D',
     'IRotatable',
-    'ICardinalRotateable2D',
+    'IDirectional2D',
     'IZoomable',
     # Kinematic protocols
     'IVelocity2D',
-    'IVelocity3D',
     'IAngularVelocity',
     'IKinematic2D',
-    'IKinematic3D',
     # Physics protocols
     'BodyType',
     'ColliderType',
@@ -182,7 +171,6 @@ __all__ = (
     'ICollider2D',
     'IPhysicsBody2D',
     'IRigidBody2D',
-    'IRigidBody3D',
     'IPhysicsEngine',
     # Property protocols
     'IHasProperties',

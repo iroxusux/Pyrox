@@ -1,12 +1,12 @@
 """Spacial object protocols that extend coordinate protocols.
 """
-from typing import Protocol, runtime_checkable
 from pyrox.interfaces import CardinalDirection
-from pyrox.interfaces.protocols.coord import IArea2D, IArea3D
+from pyrox.interfaces.protocols.coord import IArea2D
 
 
-class ICardinalRotateable2D(IArea2D):
-    """Protocol for 2D rotatable spatial objects. (Cardinal directions only)"""
+class IDirectional2D(IArea2D):
+    """Protocol for 2D directional objects. (Cardinal directions only)"""
+    _direction: CardinalDirection | None
 
     # ------------------------------------------------------------------
     # Resize methods
@@ -37,9 +37,12 @@ class ICardinalRotateable2D(IArea2D):
         if direction:
             direction = CardinalDirection.try_parse(direction)
             assert direction is not None, f"Invalid direction: {direction}"
+
             if CardinalDirection.is_perpendicular(self._direction or CardinalDirection.NORTH, direction):
                 self._direction = direction
                 self.rotate_area()  # Rotate area dimensions when changing to a perpendicular direction
+            else:
+                self._direction = direction
         else:
             self._direction = None
 
@@ -77,11 +80,19 @@ class ICardinalRotateable2D(IArea2D):
         self.set_direction(CardinalDirection.try_parse(direction))
 
 
-@runtime_checkable
-class IRotatable(
-    Protocol
-):
+class IRotatable:
     """Protocol for rotatable spatial objects."""
+    _pitch: float
+    _yaw: float
+    _roll: float
+
+    def get_pitch(self) -> float:
+        """Get the pitch rotation of the scene object."""
+        return self._pitch
+
+    def set_pitch(self, pitch: float) -> None:
+        """Set the pitch rotation of the scene object."""
+        self._pitch = pitch
 
     @property
     def pitch(self) -> float:
@@ -93,6 +104,14 @@ class IRotatable(
         """Set the pitch rotation of the scene object."""
         self.set_pitch(pitch)
 
+    def get_yaw(self) -> float:
+        """Get the yaw rotation of the scene object."""
+        return self._yaw
+
+    def set_yaw(self, yaw: float) -> None:
+        """Set the yaw rotation of the scene object."""
+        self._yaw = yaw
+
     @property
     def yaw(self) -> float:
         """Get the yaw rotation of the scene object."""
@@ -102,6 +121,14 @@ class IRotatable(
     def yaw(self, yaw: float) -> None:
         """Set the yaw rotation of the scene object."""
         self.set_yaw(yaw)
+
+    def get_roll(self) -> float:
+        """Get the roll rotation of the scene object."""
+        return self._roll
+
+    def set_roll(self, roll: float) -> None:
+        """Set the roll rotation of the scene object."""
+        self._roll = roll
 
     @property
     def roll(self) -> float:
@@ -128,7 +155,7 @@ class IRotatable(
         Returns:
             tuple[float, float, float]: The rotation of this object in degrees.
         """
-        ...
+        return self.get_pitch(), self.get_yaw(), self.get_roll()
 
     def set_rotation(
         self,
@@ -143,38 +170,22 @@ class IRotatable(
             yaw (float): The yaw rotation to set in degrees.
             roll (float): The roll rotation to set in degrees.
         """
-        ...
-
-    def get_pitch(self) -> float:
-        """Get the pitch rotation of the scene object."""
-        ...
-
-    def get_yaw(self) -> float:
-        """Get the yaw rotation of the scene object."""
-        ...
-
-    def get_roll(self) -> float:
-        """Get the roll rotation of the scene object."""
-        ...
-
-    def set_pitch(self, pitch: float) -> None:
-        """Set the pitch rotation of the scene object."""
-        ...
-
-    def set_yaw(self, yaw: float) -> None:
-        """Set the yaw rotation of the scene object."""
-        ...
-
-    def set_roll(self, roll: float) -> None:
-        """Set the roll rotation of the scene object."""
-        ...
+        self.set_pitch(pitch)
+        self.set_yaw(yaw)
+        self.set_roll(roll)
 
 
-@runtime_checkable
-class IZoomable(
-    Protocol
-):
+class IZoomable:
     """Protocol for zoomable spatial objects."""
+    _zoom: float
+
+    def get_zoom(self) -> float:
+        """Get the zoom level of the spatial object."""
+        return self._zoom
+
+    def set_zoom(self, zoom: float) -> None:
+        """Set the zoom level of the spatial object."""
+        self._zoom = zoom
 
     @property
     def zoom(self) -> float:
@@ -186,37 +197,17 @@ class IZoomable(
         """Set the zoom level of the spatial object."""
         self.set_zoom(zoom)
 
-    def get_zoom(self) -> float:
-        """Get the zoom level of the spatial object."""
-        ...
 
-    def set_zoom(self, zoom: float) -> None:
-        """Set the zoom level of the spatial object."""
-        ...
-
-
-@runtime_checkable
 class ISpatial2D(
-    IArea2D,
+    IDirectional2D,
     IRotatable,
-    Protocol,
 ):
     """Protocol for 2D spatial objects."""
 
 
-@runtime_checkable
-class ISpatial3D(
-    IArea3D,
-    IRotatable,
-    Protocol
-):
-    """Protocol for 3D spatial objects."""
-
-
 __all__ = [
     "ISpatial2D",
-    "ISpatial3D",
     "IRotatable",
-    "ICardinalRotateable2D",
+    "IDirectional2D",
     "IZoomable",
 ]
