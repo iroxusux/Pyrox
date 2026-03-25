@@ -34,6 +34,8 @@ class SceneObject(
         group_id: str | None = None,
         properties: dict | None = None,
         parent: 'SceneObject | None' = None,
+        parent_offset_x: float = 0.0,
+        parent_offset_y: float = 0.0,
         layer: int = 0,
         direction: CardinalDirection | None = None,
         sprite_path: str | None = None,
@@ -55,8 +57,11 @@ class SceneObject(
             self._direction = CardinalDirection.NORTH  # Default direction
 
         # Parent-child hierarchy
-        self._parent: 'SceneObject | None' = parent
-        self._children: dict[str, 'SceneObject'] = {}
+        self._parent: 'ISceneObject | None' = parent
+        self._parent_offset_x = parent_offset_x
+        self._parent_offset_y = parent_offset_y
+
+        self._children: dict[str, 'ISceneObject'] = {}
 
         # Rendering layer (z-order)
         # Lower values render first (background), higher values render last (foreground)
@@ -163,6 +168,8 @@ class SceneObject(
             "properties": self.properties,
             "layer": self._layer,
             "body": body,
+            "parent_offset_x": self._parent_offset_x,
+            "parent_offset_y": self._parent_offset_y,
         }
 
     @classmethod
@@ -213,6 +220,8 @@ class SceneObject(
             properties=data.get("properties", {}),
             layer=data.get("layer", 0),
             tags=data.get("tags", []),
+            parent_offset_x=data.get("parent_offset_x", 0.0),
+            parent_offset_y=data.get("parent_offset_y", 0.0),
         )
         # Restore visual properties explicitly so they survive _compile_properties
         props = data.get("properties", {})

@@ -69,3 +69,13 @@ class CardinalDirection(_FromStrMixin, _FromIntMixin):
     def is_perpendicular(cls, dir1: 'CardinalDirection', dir2: 'CardinalDirection') -> bool:
         """Check if two cardinal directions are perpendicular."""
         return (dir1.value - dir2.value) % 4 in (1, 3)
+
+    @classmethod
+    def is_horizontal(cls, direction: 'CardinalDirection') -> bool:
+        """Check if a cardinal direction is horizontal (EAST or WEST)."""
+        return direction in (cls.EAST, cls.WEST)
+
+    @classmethod
+    def is_vertical(cls, direction: 'CardinalDirection') -> bool:
+        """Check if a cardinal direction is vertical (NORTH or SOUTH)."""
+        return direction in (cls.NORTH, cls.SOUTH)

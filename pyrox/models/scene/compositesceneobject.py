@@ -18,6 +18,7 @@ import uuid
 from pyrox.interfaces import (
     CardinalDirection,
     IBasePhysicsBody,
+    ISceneObject,
 )
 from pyrox.interfaces.scene.compositesceneobject import ICompositeSceneObject
 from pyrox.models.scene.sceneobject import SceneObject
@@ -50,7 +51,7 @@ class CompositeSceneObject(SceneObject, ICompositeSceneObject):
         group_id: str | None = None,
         properties: dict | None = None,
         parent: SceneObject | None = None,
-        direction: CardinalDirection | None = None,
+        direction: CardinalDirection = CardinalDirection.NORTH,
         layer: int = 0,
         tags: list[str] | None = None,
         components: list[dict] | dict | None = None,
@@ -72,20 +73,21 @@ class CompositeSceneObject(SceneObject, ICompositeSceneObject):
 
         if isinstance(components, list):
             # Convert list of dicts to internal dict format
-            self._components = {}
+            self._components: dict[str, ISceneObject] = {}
             for comp in components:
-                name = comp["name"]
-                offset_x = comp.get("offset_x", 0.0)
-                offset_y = comp.get("offset_y", 0.0)
+                comp_name = comp["name"]
                 obj_data = comp["object"]
                 obj = SceneObject.from_dict(obj_data)
-                self._components[name] = (obj, offset_x, offset_y)
+                self._components[comp_name] = obj
 
         elif isinstance(components, dict):
             # Assume already in internal dict format
             self._components = components
         else:
-            self._components = {}
+            self._components: dict[str, ISceneObject] = {}
+
+        # Tracking for velocity-based position updates (e.g. physics body)
+        self._component_world_position_cache = {}
 
     # ------------------------------------------------------------------
     # Event routing
@@ -123,9 +125,16 @@ class CompositeSceneObject(SceneObject, ICompositeSceneObject):
         is ticked, so the collision/spatial systems always see correct bounds.
         """
         super().update(dt)
-        for obj, offset_x, offset_y in self._components.values():
-            obj.x = self.x + offset_x
-            obj.y = self.y + offset_y
+        for obj in self._components.values():
+            ox, oy = obj.parent_offset
+
+            if self.direction.is_horizontal(self.direction):
+                obj.x = self.x + ox
+                obj.y = self.y + oy
+            else:
+                obj.x = self.x + oy
+                obj.y = self.y + ox
+
             obj.update(dt)
 
     # ------------------------------------------------------------------
@@ -135,11 +144,9 @@ class CompositeSceneObject(SceneObject, ICompositeSceneObject):
     def to_dict(self) -> dict:
         base = super().to_dict()
         components_data = []
-        for name, (obj, offset_x, offset_y) in self._components.items():
+        for name, obj in self._components.items():
             components_data.append({
                 "name": name,
-                "offset_x": offset_x,
-                "offset_y": offset_y,
                 "object": obj.to_dict(),
             })
         base["components"] = components_data

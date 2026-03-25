@@ -18,6 +18,18 @@ class ISceneObject(
 ):
     """Object base class for scene elements.
     """
+    _properties: dict
+    _scene_object_type: str
+    _template_name: str
+    _physics_body: IBasePhysicsBody
+    _connections: list[Connection]
+    _tags: list[str]
+    _parent: 'ISceneObject | None'
+    _parent_offset_x: float
+    _parent_offset_y: float
+    _children: dict[str, 'ISceneObject']
+    _layer: int
+    _group_id: str | None
 
     @abstractmethod
     def update(self, dt: float) -> None:
@@ -259,7 +271,7 @@ class ISceneObject(
 
     @property
     def connections(self) -> list[Connection]:
-        return self._connections
+        return self.get_connections()
 
     # ------------------------------------------------------------------
     # Tags
@@ -285,7 +297,7 @@ class ISceneObject(
     @property
     def tags(self) -> list[str]:
         """Tags used for gameplay / logic categorisation."""
-        return self._tags
+        return self.get_tags()
 
     # ------------------------------------------------------------------
     # Parent-child relationships
@@ -324,6 +336,36 @@ class ISceneObject(
             parent: The parent scene object, or None to remove parent
         """
         self.set_parent(parent)
+
+    def get_parent_offset(self) -> tuple[float, float]:
+        """Get the offset from the parent scene object, if any."""
+        return (self._parent_offset_x, self._parent_offset_y)
+
+    def set_parent_offset(self, offset_x: float, offset_y: float) -> None:
+        """Set the offset from the parent scene object.
+
+        Args:
+            offset_x: The x offset from the parent
+            offset_y: The y offset from the parent
+        """
+        if not self._parent:
+            raise ValueError("Cannot set parent offset when there is no parent.")
+        self._parent_offset_x = offset_x
+        self._parent_offset_y = offset_y
+
+    @property
+    def parent_offset(self) -> tuple[float, float]:
+        """Get the offset from the parent scene object, if any."""
+        return self.get_parent_offset()
+
+    @parent_offset.setter
+    def parent_offset(self, offset: tuple[float, float]) -> None:
+        """Set the offset from the parent scene object.
+
+        Args:
+            offset: Tuple of (offset_x, offset_y) from the parent
+        """
+        self.set_parent_offset(offset[0], offset[1])
 
     def add_child(self, child: 'ISceneObject') -> None:
         """Add a child scene object.

@@ -169,8 +169,8 @@ class PistonSceneObject(ActivatableCompositeKinematicSceneObject):
         # ------------------------------------------------------------------
         rod_ox, rod_oy = self._rod_offset(self._retracted_length)
         head_ox, head_oy = self._head_offset(self._retracted_length)
-        self.add_component("rod",  self._rod,  offset_x=rod_ox,  offset_y=rod_oy)
-        self.add_component("head", self._head, offset_x=head_ox, offset_y=head_oy)
+        self.add_component("rod",  self._rod)
+        self.add_component("head", self._head)
 
     # ------------------------------------------------------------------
     # Update

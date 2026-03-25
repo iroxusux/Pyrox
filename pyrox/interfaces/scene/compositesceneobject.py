@@ -6,6 +6,7 @@ A CompositeSceneObject is the sole scene-registered object.  Its children
 the composite's origin.  Components cannot be extracted or ungrouped —
 the composition is intentional by design (e.g. a control panel with buttons).
 """
+from abc import abstractmethod
 from pyrox.interfaces.enums import CardinalDirection
 from pyrox.interfaces.scene.sceneobject import ISceneObject
 
@@ -29,7 +30,8 @@ class ICompositeSceneObject(ISceneObject):
     # ------------------------------------------------------------------
 
     def set_direction(self, direction: CardinalDirection | str | int | None) -> None:
-        if self._direction == direction:
+        parsed = CardinalDirection.try_parse(direction) if direction is not None else None
+        if self._direction == parsed:
             return  # No change, skip
 
         old_direction = self._direction
@@ -65,7 +67,7 @@ class ICompositeSceneObject(ISceneObject):
             clockwise:        True for 90° CW, False for 90° CCW.
         """
         new_components: dict = {}
-        for name, (obj, off_x, off_y) in self._components.items():
+        for name, obj in self._components.items():
             old_cw = obj.width
             old_ch = obj.height
             # Swap component dimensions via set_direction → rotate_area.
@@ -78,13 +80,16 @@ class ICompositeSceneObject(ISceneObject):
             # Rotate offset within the old composite bounding box
             if clockwise:
                 # CW: (off_x, off_y) -> (off_y, old_W - off_x - old_cw)
-                new_off_x = off_y
-                new_off_y = old_composite_w - off_x - old_cw
+                new_off_x = obj._parent_offset_y
+                new_off_y = old_composite_w - obj._parent_offset_x - old_cw
             else:
                 # CCW: (off_x, off_y) -> (old_H - off_y - old_ch, off_x)
-                new_off_x = old_composite_h - off_y - old_ch
-                new_off_y = off_x
-            new_components[name] = (obj, new_off_x, new_off_y)
+                new_off_x = old_composite_h - obj._parent_offset_y - old_ch
+                new_off_y = obj._parent_offset_x
+            new_components[name] = obj
+            # apply offsets to components
+            obj.set_x(self.x + new_off_x)
+            obj.set_y(self.y + new_off_y)
         self._components = new_components
 
     # ------------------------------------------------------------------
@@ -98,16 +103,14 @@ class ICompositeSceneObject(ISceneObject):
     def add_component(
         self,
         name: str,
-        obj: ISceneObject,
-        offset_x: float = 0.0,
-        offset_y: float = 0.0,
+        obj: ISceneObject
     ) -> None:
         """Register a child component at a relative offset."""
         if name in self._components:
             raise ValueError(
                 f"A component named '{name}' already exists in '{self.name}'."
             )
-        self._components[name] = (obj, offset_x, offset_y)
+        self._components[name] = obj
 
     def remove_component(self, name: str) -> None:
         """Remove a component by logical name."""
@@ -116,9 +119,9 @@ class ICompositeSceneObject(ISceneObject):
 
     def get_component(self, name: str) -> ISceneObject | None:
         entry = self._components.get(name)
-        return entry[0] if entry else None
+        return entry
 
-    def get_components(self) -> dict[str, tuple[ISceneObject, float, float]]:
+    def get_components(self) -> dict[str, ISceneObject]:
         return dict(self._components)
 
     def get_component_names(self) -> list[str]:
@@ -127,7 +130,7 @@ class ICompositeSceneObject(ISceneObject):
     def has_component(self, name: str) -> bool:
         return name in self._components
 
-    def set_components(self, components: dict[str, tuple[ISceneObject, float, float]]) -> None:
+    def set_components(self, components: dict[str, ISceneObject]) -> None:
         self._components = dict(components)
 
     def clear_components(self) -> None:
@@ -140,8 +143,7 @@ class ICompositeSceneObject(ISceneObject):
         entry = self._components.get(name)
         if not entry:
             return None
-        _, offset_x, offset_y = entry
-        return (self.x + offset_x, self.y + offset_y)
+        return (self.x + entry._parent_offset_x, self.y + entry._parent_offset_y)
 
     def get_component_at_point(
         self, x: float, y: float
@@ -153,15 +155,29 @@ class ICompositeSceneObject(ISceneObject):
         # Sort by component layer descending for foreground-first hit-testing
         candidates = sorted(
             self._components.values(),
-            key=lambda entry: entry[0].get_layer(),
+            key=lambda entry: entry.get_layer(),
             reverse=True,
         )
-        for obj, offset_x, offset_y in candidates:
-            wx = self.x + offset_x
-            wy = self.y + offset_y
+        for obj in candidates:
+            wx = self.x + obj._parent_offset_x
+            wy = self.y + obj._parent_offset_y
             if wx <= x <= wx + obj.width and wy <= y <= wy + obj.height:
                 return obj
         return None
+
+    # ------------------------------------------------------------------
+    # Update
+    # ------------------------------------------------------------------
+
+    @abstractmethod
+    def update(self, dt: float) -> None:
+        """Update the composite and all its components.
+
+        Each component's physics body position is synchronised to its world
+        position (composite origin + component offset) before the component
+        is ticked, so the collision/spatial systems always see correct bounds.
+        """
+        ...
 
     # ---------- Rendering contract ----------
 

@@ -108,25 +108,21 @@ class CompositeKinematicSceneObject(CompositeSceneObject):
     ) -> SceneObject:
         """Helper method to create a simple kinematic component with a rectangular physics body."""
         from pyrox.models.physics.factory import PhysicsSceneFactory
-        physics_body = PhysicsSceneFactory.create_from_template(
-            template_name=template_name,
-            body_type=body_type,
-            width=width,
-            height=height,
-            collision_layer=collision_layer,
-            collision_mask=collision_mask,
-        )
+
+        args = {
+            "template_name": template_name,
+            "body_type": body_type,
+            "width": width,
+            "height": height,
+            "collision_layer": collision_layer,
+            "collision_mask": collision_mask,
+        }
+
+        physics_body = PhysicsSceneFactory.create_from_template(**args)
         if not physics_body:
             print(f"Warning: Physics body template '{template_name}' not found. Creating BasePhysicsBody instead.")
-            physics_body = BasePhysicsBody(
-                name=f"{self.name}_{name}_body",
-                template_name=template_name,
-                body_type=body_type,
-                width=width,
-                height=height,
-                collision_layer=collision_layer,
-                collision_mask=collision_mask,
-            )
+            physics_body = BasePhysicsBody(name=f"{self.name}_{name}_body", **args)
+
         return SceneObject(
             name=f"{self.name}_{name}",
             scene_object_type=scene_object_type,

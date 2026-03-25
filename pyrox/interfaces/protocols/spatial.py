@@ -13,7 +13,9 @@ class IDirectional2D(IArea2D):
     # ------------------------------------------------------------------
 
     def rotate_area(self) -> None:
-        """Rotate the area dimensions (swap width and height)."""
+        """Rotate the area dimensions (swap width and height).
+        Additionally, move components to maintain their relative positions within the bounding box.
+        """
         current_width = self.get_width()
         current_height = self.get_height()
         self.set_width(current_height)
