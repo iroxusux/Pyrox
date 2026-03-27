@@ -21,7 +21,7 @@ The physics conveyor is a transparent kinematic body that sits on top of the bel
 """
 import math
 from typing import Self
-from pyrox.interfaces import BodyType, CardinalDirection, CollisionLayer
+from pyrox.interfaces import IBasePhysicsBody, BodyType, CardinalDirection, CollisionLayer
 from pyrox.models.physics.conveyor import ConveyorBody
 from pyrox.models.scene.assets.topdown._compkinemetic import ActivatableCompositeKinematicSceneObject
 from pyrox.models.scene.factory import SceneObjectFactory, SceneObjectTemplate
@@ -54,10 +54,13 @@ class ConveyorSceneObject(ActivatableCompositeKinematicSceneObject):
         dynamic objects to be pushed by the conveyor.
     """
 
+    _scene_object_type: str = SCENE_OBJECT_TYPE
+    _template_name: str = SCENE_OBJECT_TEMPLATE_NAME
+
     def __init__(
         self,
         name: str,
-        physics_body: ConveyorBody,
+        physics_body: IBasePhysicsBody,
         description: str = "",
         direction: CardinalDirection = CardinalDirection.RIGHT,
         conveyor_length: float = 60.0,
@@ -67,7 +70,7 @@ class ConveyorSceneObject(ActivatableCompositeKinematicSceneObject):
         belt_length: float = 10.0,  # A small rectangle that serves as the repeating pattern for the belt animation
         belt_color: str = "#555555",
         layer: int = 0,
-        properties: dict = dict(),
+        properties: dict | None = None,
         id: str | None = None,
         group_id: str | None = None,
         tags: list[str] | None = None,
@@ -104,14 +107,12 @@ class ConveyorSceneObject(ActivatableCompositeKinematicSceneObject):
             name=name,
             physics_body=physics_body,
             description=description,
-            scene_object_type=SCENE_OBJECT_TYPE,
-            template_name=SCENE_OBJECT_TEMPLATE_NAME,
             id=id,
             group_id=group_id,
             tags=tags,
             layer=layer,
             direction=direction,
-            properties=properties,
+            properties=properties or {},
         )
 
     # ------------------------------------------------------------------
@@ -145,7 +146,6 @@ class ConveyorSceneObject(ActivatableCompositeKinematicSceneObject):
             height=base_h,
             collision_layer=CollisionLayer.TRANSPARENT,
             collision_mask=self.default_collision_mask,
-            scene_object_type=SCENE_OBJECT_TYPE,
             bg_color=self._conveyor_color,
             layer=self._layer,
         )
@@ -174,7 +174,6 @@ class ConveyorSceneObject(ActivatableCompositeKinematicSceneObject):
                 height=stripe_h,
                 collision_layer=CollisionLayer.TRANSPARENT,
                 collision_mask=self.default_collision_mask,
-                scene_object_type=SCENE_OBJECT_TYPE,
                 bg_color=self._belt_color,
                 layer=self._layer + 1,
             )
@@ -194,7 +193,6 @@ class ConveyorSceneObject(ActivatableCompositeKinematicSceneObject):
             height=phys_h,
             collision_layer=CollisionLayer.TERRAIN,
             collision_mask=self.default_collision_mask,
-            scene_object_type=SCENE_OBJECT_TYPE,
             bg_color="#00000000",  # Fully transparent
             layer=self._layer + 2,
         )
@@ -206,30 +204,103 @@ class ConveyorSceneObject(ActivatableCompositeKinematicSceneObject):
         # Register components — base at origin, stripes evenly distributed
         # along the scroll axis, physics conveyor inset from base edges.
         # ------------------------------------------------------------------
-        self.add_component("base", self._base, offset_x=0.0, offset_y=0.0)
+        self.add_component("base", self._base)
+        self._base.set_parent(self)
+        self._base.set_parent_offset(0.0, 0.0)
 
         for i, stripe in enumerate(self._belt_stripes):
             initial = (i * self._belt_length) % self._conveyor_length
+            self.add_component(f"belt_{i}", stripe)
+            stripe.set_parent(self)
             if is_h:
-                self.add_component(f"belt_{i}", stripe, offset_x=initial, offset_y=cross_offset)
+                stripe.set_parent_offset(initial, cross_offset)
             else:
-                self.add_component(f"belt_{i}", stripe, offset_x=cross_offset, offset_y=initial)
+                stripe.set_parent_offset(cross_offset, initial)
 
+        self.add_component("physics", self._physics_conveyor)
+        self._physics_conveyor.set_parent(self)
         if is_h:
-            self.add_component("physics", self._physics_conveyor, offset_x=0.0, offset_y=cross_offset)
+            self._physics_conveyor.set_parent_offset(0.0, cross_offset)
         else:
-            self.add_component("physics", self._physics_conveyor, offset_x=cross_offset, offset_y=0.0)
+            self._physics_conveyor.set_parent_offset(cross_offset, 0.0)
 
     def clear_components(self) -> None:
         super().clear_components()
         self._belt_stripes.clear()
 
-    def _rotate_components_in_place(self, old_composite_w: float, old_composite_h: float, clockwise: bool) -> None:
-        # Rotate all component geometry in-place (swaps dims + recalculates offsets).
-        super()._rotate_components_in_place(old_composite_w, old_composite_h, clockwise)
-        # After the geometry rotation the composite's direction is already updated,
-        # so tell the belt physics body its new axis so kinematic friction is applied
-        # along the correct direction from this point forward.
+    def rotate_components(self, prev_direction: CardinalDirection) -> None:
+        """Semantic rebuild for the new orientation.
+
+        The generic geometric rotation in :class:`ICompositeSceneObject` is not
+        appropriate here for two reasons:
+
+        1. **ConveyorBody.set_direction does not call rotate_area** — so the outer
+           bounding-box physics body (a ConveyorBody) never has its W/H swapped by
+           the base ``set_direction`` path.  We must swap it explicitly.
+        2. **Component sizes are semantically derived** — after a 90° turn, stripe
+           W/H, physics-conveyor W/H, and all parent offsets must be recalculated
+           from ``_conveyor_length``/``_conveyor_width`` rather than geometrically
+           transformed from their old values.
+
+        Args:
+            prev_direction: The direction the composite had before this call.
+        """
+        # Called during __init__ before build_components; nothing to rebuild yet.
+        if not hasattr(self, '_physics_conveyor'):
+            return
+
+        # ------------------------------------------------------------------ #
+        # 1. Fix the outer bounding-box physics body.                         #
+        #    ConveyorBody.set_direction only stores the new direction without  #
+        #    calling rotate_area, so a perpendicular turn leaves W/H stale.   #
+        # ------------------------------------------------------------------ #
+        if CardinalDirection.is_perpendicular(self.direction, prev_direction):
+            pb = self.physics_body
+            old_w = pb.get_width()
+            old_h = pb.get_height()
+            pb.set_width(old_h)
+            pb.set_height(old_w)
+
+        # ------------------------------------------------------------------ #
+        # 2. Rebuild all inner components for the new orientation.            #
+        # ------------------------------------------------------------------ #
+        is_h = self.is_horizontal
+        cross_offset = self._belt_size_slice / 2.0
+
+        # Base — full conveyor footprint
+        base_w = self._conveyor_length if is_h else self._conveyor_width
+        base_h = self._conveyor_width if is_h else self._conveyor_length
+        self._base.width = base_w
+        self._base.height = base_h
+        self._base.set_parent_offset(0.0, 0.0)
+
+        # Belt stripes — tiled along the scroll axis
+        stripe_along = max(1.0, self._belt_length - self._belt_size_slice)
+        stripe_cross = max(1.0, self._conveyor_width - self._belt_size_slice)
+        stripe_w = stripe_along if is_h else stripe_cross
+        stripe_h = stripe_cross if is_h else stripe_along
+        for i, stripe in enumerate(self._belt_stripes):
+            stripe.width = stripe_w
+            stripe.height = stripe_h
+            initial = (i * self._belt_length) % self._conveyor_length
+            if is_h:
+                stripe.set_parent_offset(initial, cross_offset)
+            else:
+                stripe.set_parent_offset(cross_offset, initial)
+
+        # Physics conveyor — inset collision surface
+        phys_w = self._conveyor_length if is_h else self._conveyor_width - self._belt_size_slice
+        phys_h = self._conveyor_width - self._belt_size_slice if is_h else self._conveyor_length
+        self._physics_conveyor.width = phys_w
+        self._physics_conveyor.height = phys_h
+        if is_h:
+            self._physics_conveyor.set_parent_offset(0.0, cross_offset)
+        else:
+            self._physics_conveyor.set_parent_offset(cross_offset, 0.0)
+
+        # ------------------------------------------------------------------ #
+        # 3. Update the ConveyorBody kinematic direction.                     #
+        # ------------------------------------------------------------------ #
         self._get_belt_physics_body().set_direction(self.direction)
 
     # ------------------------------------------------------------------
@@ -243,7 +314,7 @@ class ConveyorSceneObject(ActivatableCompositeKinematicSceneObject):
         # stripes visually scroll toward the conveyor's output end.
         speed = (
             self._conveyor_speed
-            if self._direction in (CardinalDirection.RIGHT, CardinalDirection.DOWN)
+            if self.direction in (CardinalDirection.RIGHT, CardinalDirection.DOWN)
             else -self._conveyor_speed
         )
         self._belt_position = (self._belt_position + speed * dt) % self._belt_length
@@ -254,11 +325,11 @@ class ConveyorSceneObject(ActivatableCompositeKinematicSceneObject):
         for i, stripe in enumerate(self._belt_stripes):
             scroll_offset = (self._belt_position + i * self._belt_length) % self._conveyor_length
             if self.is_horizontal:
-                self._components[f"belt_{i}"] = stripe
+                stripe.set_parent_offset(scroll_offset, cross_offset)
                 stripe.x = self.x + scroll_offset
                 stripe.y = self.y + cross_offset
             else:
-                self._components[f"belt_{i}"] = stripe
+                stripe.set_parent_offset(cross_offset, scroll_offset)
                 stripe.x = self.x + cross_offset
                 stripe.y = self.y + scroll_offset
 
@@ -326,8 +397,7 @@ class ConveyorSceneObject(ActivatableCompositeKinematicSceneObject):
                 collision_mask=[],
             )
         else:
-            if not isinstance(physics_body, ConveyorBody):
-                raise TypeError(f"Expected physics_body to be ConveyorBody, got {type(physics_body)}")
+            pass  # use provided physics body as-is
 
         return cls(
             name=name,
@@ -488,16 +558,17 @@ class ConveyorSceneObject(ActivatableCompositeKinematicSceneObject):
                 height=stripe_h,
                 collision_layer=CollisionLayer.TRANSPARENT,
                 collision_mask=[],
-                scene_object_type=SCENE_OBJECT_TYPE,
                 bg_color=self._belt_color,
                 layer=self._layer + 1,
             )
             self._belt_stripes.append(stripe)
             initial = (i * self._belt_length) % length
+            self.add_component(f"belt_{i}", stripe)
+            stripe.set_parent(self)
             if is_h:
-                self.add_component(f"belt_{i}", stripe, offset_x=initial, offset_y=cross_offset)
+                stripe.set_parent_offset(initial, cross_offset)
             else:
-                self.add_component(f"belt_{i}", stripe, offset_x=cross_offset, offset_y=initial)
+                stripe.set_parent_offset(cross_offset, initial)
         self.compile_properties()
 
     @property

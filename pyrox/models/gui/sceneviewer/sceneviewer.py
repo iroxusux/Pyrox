@@ -2088,7 +2088,7 @@ class SceneViewerFrame(TaskFrame):
         log(self).info(f"Sent {len(self._canvas_object_management_service.selected_objects)} object(s) to back")
 
     def _context_rotate_cw(self) -> None:
-        """Rotate selected objects 15 degrees clockwise."""
+        """Rotate selected objects 90 degrees clockwise."""
         if not self._scene or not self._canvas_object_management_service.selected_objects:
             return
 
@@ -2096,12 +2096,11 @@ class SceneViewerFrame(TaskFrame):
             obj = self._scene.get_scene_object(obj_id)
             if obj:
                 obj.rotate_clockwise()
-
-        self.render_scene()
+        self._mark_dirty()
         log(self).info(f"Rotated {len(self._canvas_object_management_service.selected_objects)} object(s) 90° clockwise")
 
     def _context_rotate_ccw(self) -> None:
-        """Rotate selected objects 15 degrees counter-clockwise."""
+        """Rotate selected objects 90 degrees counter-clockwise."""
         if not self._scene or not self._canvas_object_management_service.selected_objects:
             return
 
@@ -2110,7 +2109,7 @@ class SceneViewerFrame(TaskFrame):
             if obj:
                 obj.rotate_counterclockwise()
 
-        self.render_scene()
+        self._mark_dirty()
         log(self).info(f"Rotated {len(self._canvas_object_management_service.selected_objects)} object(s) 90° counter-clockwise")
 
     def _paste_object_data(self, obj_data: dict) -> ISceneObject | None:

@@ -1251,7 +1251,23 @@ def _dispatch_rotate(composite, clockwise: bool):
 # ===========================================================================
 
 class TestCompositeRotationContextMenu(unittest.TestCase):
-    """_context_rotate_cw / _context_rotate_ccw viewer dispatch and guard rails."""
+    """_context_rotate_cw / _context_rotate_ccw viewer dispatch and guard rails.
+
+    After rotation the viewer must schedule a full scene rebuild via
+    ``_mark_dirty()`` (sets ``_needs_full_render = True``) rather than calling
+    ``render_scene()`` directly.  This ensures the render occurs in the *next*
+    ``_render_loop`` tick, after the Qt event loop has had a chance to settle
+    any direction-change property updates (signals / callbacks).  The deferred
+    path is identical to the one used after a zoom operation, so rotation and
+    zoom are consistent:
+
+        rotation / zoom  →  _mark_dirty()  →  _render_loop  →  render_scene()
+
+    Calling ``render_scene()`` synchronously inside a Qt menu-action callback
+    caused stale-orientation artefacts: the first paint used the pre-rotation
+    sprite/properties, and the correct orientation only appeared after a
+    subsequent pan, zoom, or activate operation triggered the second render.
+    """
 
     def setUp(self):
         self.frame = _make_frame()
@@ -1262,33 +1278,38 @@ class TestCompositeRotationContextMenu(unittest.TestCase):
     def test_rotate_cw_no_scene_is_noop(self):
         self.frame._scene = None
         self.frame._context_rotate_cw()
+        self.assertFalse(self.frame._needs_full_render)
         self.frame.render_scene.assert_not_called()
 
     def test_rotate_ccw_no_scene_is_noop(self):
         self.frame._scene = None
         self.frame._context_rotate_ccw()
+        self.assertFalse(self.frame._needs_full_render)
         self.frame.render_scene.assert_not_called()
 
     def test_rotate_cw_no_selection_is_noop(self):
         self.frame._scene = _make_scene()
         self.frame._canvas_object_management_service.selected_objects = []
         self.frame._context_rotate_cw()
+        self.assertFalse(self.frame._needs_full_render)
         self.frame.render_scene.assert_not_called()
 
     def test_rotate_ccw_no_selection_is_noop(self):
         self.frame._scene = _make_scene()
         self.frame._canvas_object_management_service.selected_objects = []
         self.frame._context_rotate_ccw()
+        self.assertFalse(self.frame._needs_full_render)
         self.frame.render_scene.assert_not_called()
 
     def test_rotate_cw_skips_object_not_found_in_scene(self):
-        """get_scene_object returning None must not raise."""
+        """get_scene_object returning None must not raise, but dirty flag is still set."""
         scene = _make_scene()
         scene.get_scene_object.return_value = None
         self.frame._scene = scene
         self.frame._canvas_object_management_service.selected_objects = ["ghost"]
         self.frame._context_rotate_cw()  # must not raise
-        self.frame.render_scene.assert_called_once()
+        self.assertTrue(self.frame._needs_full_render)
+        self.frame.render_scene.assert_not_called()
 
     # --- dispatch ------------------------------------------------------------
 
@@ -1332,23 +1353,114 @@ class TestCompositeRotationContextMenu(unittest.TestCase):
         obj1.rotate_counterclockwise.assert_called_once()
         obj2.rotate_counterclockwise.assert_called_once()
 
-    def test_rotate_cw_triggers_render_scene(self):
+    # --- render scheduling ---------------------------------------------------
+    # Rotation must schedule a full rebuild via _mark_dirty(), NOT call
+    # render_scene() directly.  This matches the zoom code path and ensures
+    # the render occurs *after* the Qt event loop has processed any
+    # direction-change property updates.
+
+    def test_rotate_cw_marks_needs_full_render(self):
+        """CW rotation must set _needs_full_render = True."""
         obj = _make_scene_object("c1")
         scene = _make_scene([obj])
         scene.get_scene_object.return_value = obj
         self.frame._scene = scene
         self.frame._canvas_object_management_service.selected_objects = ["c1"]
         self.frame._context_rotate_cw()
-        self.frame.render_scene.assert_called_once()
+        self.assertTrue(self.frame._needs_full_render)
 
-    def test_rotate_ccw_triggers_render_scene(self):
+    def test_rotate_ccw_marks_needs_full_render(self):
+        """CCW rotation must set _needs_full_render = True."""
         obj = _make_scene_object("c1")
         scene = _make_scene([obj])
         scene.get_scene_object.return_value = obj
         self.frame._scene = scene
         self.frame._canvas_object_management_service.selected_objects = ["c1"]
         self.frame._context_rotate_ccw()
+        self.assertTrue(self.frame._needs_full_render)
+
+    def test_rotate_cw_does_not_call_render_scene_directly(self):
+        """Rotation must NOT call render_scene() synchronously (causes stale paint)."""
+        obj = _make_scene_object("c1")
+        scene = _make_scene([obj])
+        scene.get_scene_object.return_value = obj
+        self.frame._scene = scene
+        self.frame._canvas_object_management_service.selected_objects = ["c1"]
+        self.frame._context_rotate_cw()
+        self.frame.render_scene.assert_not_called()
+
+    def test_rotate_ccw_does_not_call_render_scene_directly(self):
+        obj = _make_scene_object("c1")
+        scene = _make_scene([obj])
+        scene.get_scene_object.return_value = obj
+        self.frame._scene = scene
+        self.frame._canvas_object_management_service.selected_objects = ["c1"]
+        self.frame._context_rotate_ccw()
+        self.frame.render_scene.assert_not_called()
+
+    def test_render_loop_fires_render_scene_after_cw_rotation(self):
+        """_render_loop must call render_scene() when dirty flag is set by CW rotation."""
+        obj = _make_scene_object("c1")
+        scene = _make_scene([obj])
+        scene.get_scene_object.return_value = obj
+        self.frame._scene = scene
+        self.frame._canvas_object_management_service.selected_objects = ["c1"]
+        self.frame._viewport_service.needs_render.return_value = False
+        # Rotate sets dirty flag
+        self.frame._context_rotate_cw()
+        self.assertTrue(self.frame._needs_full_render)
+        # Tick the render loop
+        self.frame._render_loop()
         self.frame.render_scene.assert_called_once()
+        self.assertFalse(self.frame._needs_full_render)
+
+    def test_render_loop_fires_render_scene_after_ccw_rotation(self):
+        """_render_loop must call render_scene() when dirty flag is set by CCW rotation."""
+        obj = _make_scene_object("c1")
+        scene = _make_scene([obj])
+        scene.get_scene_object.return_value = obj
+        self.frame._scene = scene
+        self.frame._canvas_object_management_service.selected_objects = ["c1"]
+        self.frame._viewport_service.needs_render.return_value = False
+        self.frame._context_rotate_ccw()
+        self.frame._render_loop()
+        self.frame.render_scene.assert_called_once()
+
+    def test_rotation_dirty_flag_matches_zoom_trigger_path(self):
+        """Rotation and zoom must both reach _needs_full_render=True so that
+        _render_loop treats them identically, producing a consistent render."""
+        obj = _make_scene_object("c1")
+        scene = _make_scene([obj])
+        scene.get_scene_object.return_value = obj
+        self.frame._scene = scene
+        self.frame._canvas_object_management_service.selected_objects = ["c1"]
+        # Zoom path
+        self.frame._mark_dirty()
+        zoom_flag = self.frame._needs_full_render
+        self.frame._needs_full_render = False
+        # Rotation path
+        self.frame._context_rotate_cw()
+        rotation_flag = self.frame._needs_full_render
+        self.assertEqual(zoom_flag, rotation_flag,
+                         "Rotation and zoom must both set _needs_full_render=True")
+
+    def test_fast_update_not_called_between_rotation_and_next_render(self):
+        """After CW rotation the NEXT _render_loop must use render_scene(), not
+        the fast-update path.  If the fast-update path ran with stale items the
+        object would appear in the wrong orientation."""
+        obj = _make_scene_object("c1")
+        scene = _make_scene([obj])
+        scene.get_scene_object.return_value = obj
+        self.frame._scene = scene
+        self.frame._canvas_object_management_service.selected_objects = ["c1"]
+        self.frame._viewport_service.needs_render.return_value = False
+        # Patch fast update to detect if it's called
+        self.frame._update_scene_objects_fast = MagicMock()
+        self.frame._context_rotate_cw()
+        # First render loop tick: dirty flag triggers render_scene, not fast update
+        self.frame._render_loop()
+        self.frame.render_scene.assert_called_once()
+        self.frame._update_scene_objects_fast.assert_not_called()
 
 
 class TestCompositeRotationDirection(unittest.TestCase):
