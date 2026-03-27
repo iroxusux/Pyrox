@@ -7,14 +7,16 @@ from pyrox.models.physics.floor import FloorBody
 from pyrox.models.scene.factory import SceneObjectFactory, SceneObjectTemplate
 from pyrox.models.scene.sceneobject import SceneObject
 
-SCENE_OBJECT_TYPE = "floor"
-SCENE_OBJECT_TEMPLATE_NAME = "Top-Down Floor"
+
 SCENE_OBJECT_DEF_COLOR = "#202020"
 
 
 class FloorSceneObject(SceneObject):
     """Top-down floor scene object.
     """
+
+    _scene_object_type: str = "floor"
+    _template_name: str = "Top-Down Floor"
 
     def __init__(
         self,
@@ -35,8 +37,6 @@ class FloorSceneObject(SceneObject):
             name=name,
             physics_body=physics_body,
             description=description,
-            scene_object_type=SCENE_OBJECT_TYPE,
-            template_name=SCENE_OBJECT_TEMPLATE_NAME,
             bg_color=_props.get("floor_color", floor_color),
             layer=layer,
             properties=_props,
@@ -135,12 +135,12 @@ class FloorSceneObject(SceneObject):
 
 SceneObjectFactory.register_template(
     SceneObjectTemplate(
-        name=SCENE_OBJECT_TEMPLATE_NAME,
+        name=FloorSceneObject._template_name,
         scene_object_class=FloorSceneObject,
         description="Floor scene object (top-down view)",
         factory_func=FloorSceneObject.create,
         default_kwargs={
-            "name": SCENE_OBJECT_TEMPLATE_NAME,
+            "name": FloorSceneObject._template_name,
             "width": 800.0,
             "height": 800.0,
             "floor_color": SCENE_OBJECT_DEF_COLOR,

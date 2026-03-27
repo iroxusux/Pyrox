@@ -30,67 +30,82 @@ class ICompositeSceneObject(ISceneObject):
     # ------------------------------------------------------------------
 
     def set_direction(self, direction: CardinalDirection | str | int | None) -> None:
-        parsed = CardinalDirection.try_parse(direction) if direction is not None else None
-        if self._direction == parsed:
-            return  # No change, skip
+        """Override to rotate component offsets whenever the composite changes direction.
 
-        old_direction = self._direction
-        old_w = self.width
-        old_h = self.height
-        super().set_direction(direction)
-        # If a perpendicular rotation occurred, rotate all component offsets and
-        # dimensions in-place so physics body identity is never broken.
-        if (old_direction is not None and self._direction is not None
-                and CardinalDirection.is_perpendicular(old_direction, self._direction)):
-            clockwise = CardinalDirection.next_clockwise(old_direction) == self._direction
-            self._rotate_components_in_place(old_w, old_h, clockwise)
-
-    def _rotate_components_in_place(
-        self,
-        old_composite_w: float,
-        old_composite_h: float,
-        clockwise: bool,
-    ) -> None:
-        """Rotate all component offsets and physics body dimensions in-place by 90°.
-
-        Uses standard 2D rectangle rotation within the composite bounding box so
-        that the component layout mirrors the composite's own rotation.  Physics
-        body *identity* is preserved — no new bodies are created and the physics
-        engine needs no updates.
-
-        Derived classes may override this to handle direction-dependent component
-        properties (e.g. animation axes on a conveyor belt).
-
-        Args:
-            old_composite_w: Composite width *before* the rotation.
-            old_composite_h: Composite height *before* the rotation.
-            clockwise:        True for 90° CW, False for 90° CCW.
+        ``ISceneObject.set_direction`` bypasses ``IDirectional2D.set_direction`` (and therefore
+        never calls ``rotate_area``), so we intercept here, delegate the physics-body update via
+        ``super()``, and then trigger ``rotate_components`` with the pre-rotation direction.
         """
-        new_components: dict = {}
-        for name, obj in self._components.items():
-            old_cw = obj.width
-            old_ch = obj.height
-            # Swap component dimensions via set_direction → rotate_area.
-            # old_cw / old_ch are kept purely for the offset math below;
-            # the dimension swap itself is handled by the set_direction call.
-            obj.set_direction(
-                CardinalDirection.next_clockwise(obj.direction)
-                if clockwise else CardinalDirection.next_counterclockwise(obj.direction)
-            )
-            # Rotate offset within the old composite bounding box
-            if clockwise:
-                # CW: (off_x, off_y) -> (off_y, old_W - off_x - old_cw)
-                new_off_x = obj._parent_offset_y
-                new_off_y = old_composite_w - obj._parent_offset_x - old_cw
-            else:
-                # CCW: (off_x, off_y) -> (old_H - off_y - old_ch, off_x)
-                new_off_x = old_composite_h - obj._parent_offset_y - old_ch
-                new_off_y = obj._parent_offset_x
-            new_components[name] = obj
-            # apply offsets to components
-            obj.set_x(self.x + new_off_x)
-            obj.set_y(self.y + new_off_y)
-        self._components = new_components
+        if not direction:
+            super().set_direction(None)
+            return
+        direction = CardinalDirection.try_parse(direction)
+        if direction is None:
+            return
+        if self.direction == direction:
+            return  # No change — skip rotation entirely
+        prev_direction = self.direction
+        super().set_direction(direction)  # updates physics body direction + swaps its W/H
+        self.rotate_components(prev_direction)
+
+    def rotate_area(self, prev_direction) -> None:
+        super().rotate_area(prev_direction=prev_direction)
+        self.rotate_components(prev_direction)
+
+    def rotate_components(
+        self,
+        prev_direction: CardinalDirection
+    ) -> None:
+        """Rotate component directions and recalculate their parent offsets.
+
+        At the point this is called, ``super().rotate_area()`` has already swapped
+        the composite's width and height, so:
+            self.width  == old composite height
+            self.height == old composite width
+
+        Rotation formulas (screen-space, y-down, point = top-left of component):
+            90° CW  (steps=1): new_ox = old_H − oy − h,  new_oy = ox
+            90° CCW (steps=3): new_ox = oy,               new_oy = old_W − ox − w
+            180°    (steps=2): new_ox = old_W − ox − w,   new_oy = old_H − oy − h
+        """
+        # How many 90° CW steps from prev_direction to self.direction
+        rotation_steps = (self.direction.value - prev_direction.value) % 4
+
+        for comp in self._components.values():
+            # Capture state BEFORE rotating the component (set_direction swaps its W/H)
+            ox = comp._parent_offset_x
+            oy = comp._parent_offset_y
+            w = comp.width
+            h = comp.height
+
+            # Rotate the component by the same number of CW steps as the composite
+            # rather than snapping to the composite's absolute direction.  Snapping
+            # produces a non-perpendicular transition whenever the component's own
+            # direction differs from the composite's previous direction (e.g. a rod
+            # stored at NORTH inside an EAST-facing piston), which means rotate_area
+            # never fires and the component's w/h are left un-swapped.
+            comp_new_dir = comp.direction
+            for _ in range(rotation_steps):
+                comp_new_dir = CardinalDirection.next_clockwise(comp_new_dir)
+            comp.set_direction(comp_new_dir)
+
+            if rotation_steps == 1:   # 90° clockwise
+                # After swap: self.width = old_H, self.height = old_W
+                # Transform: new_top_left = (oy,  old_W − ox − w)
+                new_ox = oy
+                new_oy = self.height - ox - w
+            elif rotation_steps == 3:  # 90° counter-clockwise
+                # Transform: new_top_left = (old_H − oy − h,  ox)
+                new_ox = self.width - oy - h
+                new_oy = ox
+            elif rotation_steps == 2:  # 180°
+                new_ox = self.height - ox - w
+                new_oy = self.width - oy - h
+            else:                      # 0° — no change
+                new_ox = ox
+                new_oy = oy
+
+            comp.set_parent_offset(new_ox, new_oy)
 
     # ------------------------------------------------------------------
     # ICompositeSceneObject — component management

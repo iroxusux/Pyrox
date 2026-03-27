@@ -1,7 +1,29 @@
 """Spacial object protocols that extend coordinate protocols.
 """
 from pyrox.models.protocols.coord import Area2D
-from pyrox.interfaces import CardinalDirection, IRotatable, ISpatial2D, IZoomable
+from pyrox.interfaces import CardinalDirection, IDirectional2D, IRotatable, ISpatial2D, IZoomable
+
+
+class Directional2D(
+    IDirectional2D,
+    Area2D,
+):
+    def __init__(
+        self,
+        x: float = 0.0,
+        y: float = 0.0,
+        width: float = 0.0,
+        height: float = 0.0,
+        direction: CardinalDirection | None = None,
+    ) -> None:
+        Area2D.__init__(
+            self,
+            x=x,
+            y=y,
+            width=width,
+            height=height,
+        )
+        self._direction = direction
 
 
 class Rotatable(IRotatable):
@@ -32,7 +54,7 @@ class Zoomable(IZoomable):
 
 class Spatial2D(
     ISpatial2D,
-    Area2D,
+    Directional2D,
 ):
     """Protocol for 2D spatial objects."""
 
@@ -44,14 +66,14 @@ class Spatial2D(
         height: float = 0.0,
         direction: CardinalDirection | None = None,
     ) -> None:
-        Area2D.__init__(
+        Directional2D.__init__(
             self,
             x=x,
             y=y,
             width=width,
             height=height,
+            direction=direction,
         )
-        self._direction = direction
 
 
 __all__ = [

@@ -6,7 +6,6 @@ from typing import (
 )
 import uuid
 from pyrox.interfaces import (
-    CardinalDirection,
     IBasePhysicsBody,
     ISceneObject,
     Connection,
@@ -22,14 +21,14 @@ class SceneObject(
 ):
     """Base class for scene objects.
     """
+    _scene_object_type: str = "Default"
+    _template_name: str = 'SceneObject'
 
     def __init__(
         self,
         name: str,
-        scene_object_type: str,
         physics_body: IBasePhysicsBody,
         description: str = "",
-        template_name: str = "",
         id: str | None = None,
         group_id: str | None = None,
         properties: dict | None = None,
@@ -37,24 +36,14 @@ class SceneObject(
         parent_offset_x: float = 0.0,
         parent_offset_y: float = 0.0,
         layer: int = 0,
-        direction: CardinalDirection | None = None,
         sprite_path: str | None = None,
         bg_color: str = "#4a9eff",
         tags: list[str] | None = None,
     ):
         CoreMixin.__init__(self, name=name, description=description, id=id or f'scene_object_{uuid.uuid4()}')
-        self._scene_object_type = scene_object_type
-        self._template_name: str = template_name
         self._properties: dict[str, Any] = properties if properties is not None else dict()
         self._physics_body = physics_body
         self._group_id: str | None = group_id
-
-        if direction:
-            self._direction = CardinalDirection.try_parse(direction)
-        elif properties:
-            self._direction = CardinalDirection.try_parse(properties.get("direction", 'NORTH'))
-        else:
-            self._direction = CardinalDirection.NORTH  # Default direction
 
         # Parent-child hierarchy
         self._parent: 'ISceneObject | None' = parent
@@ -175,23 +164,12 @@ class SceneObject(
     @classmethod
     def from_dict(cls, data: dict) -> ISceneObject:
         """Create scene object from dictionary.
-
-        When called on the base :class:`SceneObject` class and a
-        ``template_name`` is present in *data*, dispatches to the registered
-        subclass via :class:`~pyrox.models.scene.factory.SceneObjectFactory`.
-        Falls back to constructing a plain :class:`SceneObject` when no
-        matching template is found (backward-compatible with generic objects).
         """
-        # Dispatch via SceneObjectFactory — only when called on the base class
-        # to avoid infinite recursion when a subclass inherits this method.
         if cls is SceneObject:
             # Local import avoids a circular dependency between sceneobject and factory.
             from pyrox.models.scene.factory import SceneObjectFactory  # noqa: PLC0415
-            # Primary key: template_name.  Fallback: scene_object_type for files
-            # saved before the template_name field was populated (backward compat).
             template_name: str = (
                 data.get("template_name", "")
-                or data.get("scene_object_type", "")
             )
             if template_name:
                 template = SceneObjectFactory.get_template(template_name)
@@ -205,28 +183,26 @@ class SceneObject(
                 f"physics body template type '{data.get('template_name', '')}' is not registered. "
                 f"Available types: {PhysicsSceneFactory.get_all_templates().keys()}"
             )
+
         body = body_template.body_class.from_dict(data.get("body", {}))
         if not body:
             raise ValueError("Failed to create physics body from dictionary")
 
         obj = cls(
-            name=data["name"],
-            scene_object_type=data["scene_object_type"],
-            template_name=data.get("template_name", ""),
-            id=data.get("id", None),
-            group_id=data.get("group_id", None),
+            name=data.get("name", ""),
             physics_body=body,
             description=data.get("description", ""),
-            properties=data.get("properties", {}),
-            layer=data.get("layer", 0),
-            tags=data.get("tags", []),
+            id=data.get("id"),
+            group_id=data.get("group_id"),
+            properties=data.get("properties"),
+            parent=None,  # Parent-child relationships are handled separately after all objects are created
             parent_offset_x=data.get("parent_offset_x", 0.0),
             parent_offset_y=data.get("parent_offset_y", 0.0),
+            layer=data.get("layer", 0),
+            sprite_path=data.get("properties", {}).get("sprite_path"),
+            bg_color=data.get("properties", {}).get("bg_color", data.get("properties", {}).get("color", "#4a9eff")),
+            tags=data.get("tags", []),
         )
-        # Restore visual properties explicitly so they survive _compile_properties
-        props = data.get("properties", {})
-        obj._sprite_path = props.get("sprite_path")
-        obj._bg_color = props.get("bg_color", props.get("color", "#4a9eff"))
         return obj
 
     def update(self, dt: float) -> None:

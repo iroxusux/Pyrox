@@ -5,6 +5,7 @@ into scene objects to add physics simulation capabilities.
 """
 from typing import Self
 from pyrox.interfaces import (
+    CardinalDirection,
     ISpatial2D,
     IPhysicsBody2D,
     ICollider2D,
@@ -68,7 +69,7 @@ class Collider2D(ICollider2D):
         parent_body: ISpatial2D | None = None,
         collider_type: ColliderType = ColliderType.RECTANGLE,
         collision_layer: CollisionLayer = CollisionLayer.DEFAULT,
-        collision_mask: list[CollisionLayer] = list(),
+        collision_mask: list[CollisionLayer] | None = None,
         is_trigger: bool = False,
         x: float = 0.0,
         y: float = 0.0,
@@ -115,6 +116,7 @@ class RigidBody2D(
         y: float = 0.0,
         height: float = 0.0,
         width: float = 0.0,
+        direction: CardinalDirection | None = None,
         mass: float = 1.0,
         moment_of_inertia: float = 1.0,
         velocity_x: float = 0.0,
@@ -138,6 +140,7 @@ class RigidBody2D(
             y=y,
             width=width,
             height=height,
+            direction=direction,
             velocity_x=velocity_x,
             velocity_y=velocity_y,
             acceleration_x=acceleration_x,
@@ -168,9 +171,7 @@ class PhysicsBody2D(
         y: float = 0.0,
         width: float = 10.0,
         height: float = 10.0,
-        roll: float = 0.0,
-        pitch: float = 0.0,
-        yaw: float = 0.0,
+        direction: CardinalDirection | None = None,
         body_type: BodyType = BodyType.DYNAMIC,
         enabled: bool = True,
         sleeping: bool = False,
@@ -187,7 +188,7 @@ class PhysicsBody2D(
         # Collider parameters
         collider_type: ColliderType = ColliderType.RECTANGLE,
         collision_layer: CollisionLayer = CollisionLayer.DEFAULT,
-        collision_mask: list[CollisionLayer] = list(),
+        collision_mask: list[CollisionLayer] | None = None,
         is_trigger: bool = False,
 
 
@@ -227,6 +228,7 @@ class PhysicsBody2D(
             y=y,
             width=width,
             height=height,
+            direction=direction,
             mass=mass,
             moment_of_inertia=moment_of_inertia,
             velocity_x=velocity_x,

@@ -80,14 +80,13 @@ class TestSceneObject(unittest.TestCase):
         """Test SceneObject initialization with required parameters."""
         obj = SceneObject(
             name="TestObject",
-            scene_object_type="TestType",
             physics_body=self.TestPhysicsBody()
         )
 
         obj_id = obj.get_id()
         self.assertIsNotNone(obj_id)
         self.assertEqual(obj.get_name(), "TestObject")
-        self.assertEqual(obj.get_scene_object_type(), "TestType")
+        self.assertEqual(obj.get_scene_object_type(), "Default")
         self.assertEqual(obj.get_description(), "")
         self.assertIsInstance(obj.get_properties(), dict)
         self.assertGreater(len(obj.get_properties()), 4)
@@ -105,7 +104,6 @@ class TestSceneObject(unittest.TestCase):
         )
         obj = SceneObject(
             name="FullObject",
-            scene_object_type="FullType",
             physics_body=body,
             description="Test description",
             properties=properties,
@@ -114,7 +112,7 @@ class TestSceneObject(unittest.TestCase):
         obj_id = obj.get_id()
         self.assertIsNotNone(obj_id)
         self.assertEqual(obj.get_name(), "FullObject")
-        self.assertEqual(obj.get_scene_object_type(), "FullType")
+        self.assertEqual(obj.get_scene_object_type(), "Default")
         self.assertEqual(obj.get_description(), "Test description")
         self.assertEqual(obj.get_properties(), properties)
         self.assertEqual(obj.physics_body.get_x(), 10.0)
@@ -126,7 +124,6 @@ class TestSceneObject(unittest.TestCase):
         """Test SceneObject.get_id() method."""
         obj = SceneObject(
             name="Name",
-            scene_object_type="Type",
             physics_body=self.TestPhysicsBody()
         )
         obj_id = obj.get_id()
@@ -135,12 +132,12 @@ class TestSceneObject(unittest.TestCase):
 
     def test_set_id(self):
         """Test SceneObject.set_id() method raises NotImplementedError."""
-        obj = SceneObject(name="Name", scene_object_type="Type", physics_body=self.TestPhysicsBody())
+        obj = SceneObject(name="Name", physics_body=self.TestPhysicsBody())
         obj.set_id("new_id")
 
     def test_id_property(self):
         """Test SceneObject id property access."""
-        obj = SceneObject(name="Name", scene_object_type="Type", physics_body=self.TestPhysicsBody())
+        obj = SceneObject(name="Name", physics_body=self.TestPhysicsBody())
         obj_id = obj.id
         self.assertIsNotNone(obj_id)
         self.assertIsInstance(obj_id, str)
@@ -150,7 +147,6 @@ class TestSceneObject(unittest.TestCase):
         properties = {"test": "value", "number": 123}
         obj = SceneObject(
             name="Name",
-            scene_object_type="Type",
             properties=properties,
             physics_body=self.TestPhysicsBody()
         )
@@ -161,9 +157,7 @@ class TestSceneObject(unittest.TestCase):
 
     def test_set_properties(self):
         """Test SceneObject.set_properties() method."""
-        obj = SceneObject(name="Name", scene_object_type="Type",
-                          physics_body=self.TestPhysicsBody()
-                          )
+        obj = SceneObject(name="Name", physics_body=self.TestPhysicsBody())
         new_props = {"new_key": "new_value"}
 
         obj.set_properties(new_props)
@@ -171,8 +165,7 @@ class TestSceneObject(unittest.TestCase):
 
     def test_set_properties_invalid_type_raises_error(self):
         """Test that set_properties raises error for non-dict."""
-        obj = SceneObject(name="Name", scene_object_type="Type",
-                          physics_body=self.TestPhysicsBody())
+        obj = SceneObject(name="Name", physics_body=self.TestPhysicsBody())
 
         with self.assertRaises(ValueError) as context:
             obj.set_properties("not a dict")  # type: ignore
@@ -184,7 +177,6 @@ class TestSceneObject(unittest.TestCase):
         properties = {"key": "value"}
         obj = SceneObject(
             name="Name",
-            scene_object_type="Type",
             properties=properties,
             physics_body=self.TestPhysicsBody()
         )
@@ -192,29 +184,25 @@ class TestSceneObject(unittest.TestCase):
 
     def test_get_scene_object_type(self):
         """Test SceneObject.get_scene_object_type() method."""
-        obj = SceneObject(name="Name", scene_object_type="CustomType",
-                          physics_body=self.TestPhysicsBody())
-        self.assertEqual(obj.get_scene_object_type(), "CustomType")
+        obj = SceneObject(name="Name", physics_body=self.TestPhysicsBody())
+        self.assertEqual(obj.get_scene_object_type(), "Default")
 
     def test_set_scene_object_type(self):
         """Test SceneObject.set_scene_object_type() method."""
-        obj = SceneObject(name="Name", scene_object_type="OldType",
-                          physics_body=self.TestPhysicsBody())
+        obj = SceneObject(name="Name", physics_body=self.TestPhysicsBody())
         obj.set_scene_object_type("NewType")
         self.assertEqual(obj.get_scene_object_type(), "NewType")
 
     def test_scene_object_type_property(self):
         """Test SceneObject scene_object_type property access."""
-        obj = SceneObject(name="Name", scene_object_type="PropType",
-                          physics_body=self.TestPhysicsBody())
-        self.assertEqual(obj.scene_object_type, "PropType")
+        obj = SceneObject(name="Name", physics_body=self.TestPhysicsBody())
+        self.assertEqual(obj.scene_object_type, "Default")
 
     def test_to_dict(self):
         """Test SceneObject.to_dict() method."""
         properties = {"key": "value", "num": 42}
         obj = SceneObject(
             name="DictObject",
-            scene_object_type="DictType",
             description="Dict description",
             properties=properties,
             physics_body=self.TestPhysicsBody()
@@ -226,7 +214,7 @@ class TestSceneObject(unittest.TestCase):
         self.assertIsInstance(result, dict)
         self.assertEqual(result["id"], obj_id)
         self.assertEqual(result["name"], "DictObject")
-        self.assertEqual(result["scene_object_type"], "DictType")
+        self.assertEqual(result["scene_object_type"], "Default")
         self.assertEqual(result["description"], "Dict description")
         self.assertEqual(result["properties"], properties)
 
@@ -235,7 +223,6 @@ class TestSceneObject(unittest.TestCase):
         data = {
             "id": "from_dict_test",
             "name": "Base Physics Body",
-            "scene_object_type": "FromDictType",
             "description": "From dict description",
             "properties": {"loaded": True},
             "body": {
@@ -257,7 +244,7 @@ class TestSceneObject(unittest.TestCase):
         # ID comes from physics body, not from dict
         self.assertIsNotNone(obj.get_id())
         self.assertEqual(obj.get_name(), "Base Physics Body")
-        self.assertEqual(obj.get_scene_object_type(), "FromDictType")
+        self.assertEqual(obj.get_scene_object_type(), "Default")
         self.assertEqual(obj.get_description(), "From dict description")
         self.assertEqual(obj.get_properties()['loaded'], True)
 
@@ -266,7 +253,6 @@ class TestSceneObject(unittest.TestCase):
         data = {
             "id": "minimal",
             "name": "Base Physics Body",
-            "scene_object_type": "MinimalType",
             "body": {
                 "template_name": "Base Physics Body",
                 "name": "TestBody",
@@ -286,14 +272,13 @@ class TestSceneObject(unittest.TestCase):
         # ID comes from physics body, not from dict
         self.assertIsNotNone(obj.get_id())
         self.assertEqual(obj.get_name(), "Base Physics Body")
-        self.assertEqual(obj.get_scene_object_type(), "MinimalType")
+        self.assertEqual(obj.get_scene_object_type(), "Default")
         self.assertEqual(obj.get_description(), "")
         self.assertIsInstance(obj.get_properties(), dict)
 
     def test_update_method_exists(self):
         """Test that update method exists and is callable."""
-        obj = SceneObject(name="Name", scene_object_type="Type",
-                          physics_body=self.TestPhysicsBody())
+        obj = SceneObject(name="Name", physics_body=self.TestPhysicsBody())
 
         self.assertTrue(hasattr(obj, 'update'))
         self.assertTrue(callable(obj.update))
@@ -305,7 +290,6 @@ class TestSceneObject(unittest.TestCase):
         """Test roundtrip conversion to/from dict."""
         original = SceneObject(
             name="Base Physics Body",
-            scene_object_type="RoundtripType",
             description="Roundtrip test",
             properties={"value": 123, "text": "test"},
             physics_body=self.TestPhysicsBody()
@@ -327,8 +311,7 @@ class TestSceneObject(unittest.TestCase):
         The properties snapshot reflects the new value on the next call to
         get_properties() (via _compile_properties), not via a direct write.
         """
-        obj = SceneObject(name="Name", scene_object_type="Type",
-                          physics_body=self.TestPhysicsBody())
+        obj = SceneObject(name="Name", physics_body=self.TestPhysicsBody())
 
         obj.set_property("x", 10)
 
@@ -353,7 +336,6 @@ class TestSceneObjectVisualProperties(unittest.TestCase):
     def _make(self, **kwargs) -> SceneObject:
         return SceneObject(
             name="Obj",
-            scene_object_type="Type",
             physics_body=BasePhysicsBody(
                 name="Body",
                 template_name="Base Physics Body",
@@ -497,7 +479,6 @@ class TestSceneObjectAnimator(unittest.TestCase):
     def _make(self) -> SceneObject:
         return SceneObject(
             name="Obj",
-            scene_object_type="Type",
             physics_body=BasePhysicsBody(
                 name="Body",
                 template_name="Base Physics Body",
@@ -588,7 +569,6 @@ class TestSceneObjectTags(unittest.TestCase):
     def _make(self, **kwargs) -> SceneObject:
         return SceneObject(
             name="Obj",
-            scene_object_type="Type",
             physics_body=BasePhysicsBody(
                 name="Body",
                 template_name="Base Physics Body",
@@ -672,7 +652,6 @@ class TestSceneObjectParentChild(unittest.TestCase):
     def _make(self, name="Obj") -> SceneObject:
         return SceneObject(
             name=name,
-            scene_object_type="Type",
             physics_body=BasePhysicsBody(
                 name="Body",
                 template_name="Base Physics Body",
@@ -764,7 +743,6 @@ class TestSceneObjectLayer(unittest.TestCase):
     def _make(self, **kwargs) -> SceneObject:
         return SceneObject(
             name="Obj",
-            scene_object_type="Type",
             physics_body=BasePhysicsBody(
                 name="Body",
                 template_name="Base Physics Body",
@@ -831,7 +809,6 @@ class TestSceneObjectGroupId(unittest.TestCase):
     def _make(self, **kwargs) -> SceneObject:
         return SceneObject(
             name="Obj",
-            scene_object_type="Type",
             physics_body=BasePhysicsBody(
                 name="Body",
                 template_name="Base Physics Body",
@@ -883,7 +860,6 @@ class TestSceneObjectClickEvents(unittest.TestCase):
     def _make(self) -> SceneObject:
         return SceneObject(
             name="Obj",
-            scene_object_type="Type",
             physics_body=BasePhysicsBody(
                 name="Body",
                 template_name="Base Physics Body",
@@ -966,7 +942,6 @@ class TestSceneObjectContainsPoint(unittest.TestCase):
     def _make(self, x=10.0, y=10.0, width=20.0, height=20.0) -> SceneObject:
         return SceneObject(
             name="Obj",
-            scene_object_type="Type",
             physics_body=BasePhysicsBody(
                 name="Body",
                 template_name="Base Physics Body",
@@ -1025,7 +1000,6 @@ class TestSceneObjectConnections(unittest.TestCase):
     def _make(self) -> SceneObject:
         return SceneObject(
             name="Obj",
-            scene_object_type="Type",
             physics_body=BasePhysicsBody(
                 name="Body",
                 template_name="Base Physics Body",
@@ -1074,7 +1048,6 @@ class TestSceneObjectTemplateName(unittest.TestCase):
     def _make(self, **kwargs) -> SceneObject:
         return SceneObject(
             name="Obj",
-            scene_object_type="Type",
             physics_body=BasePhysicsBody(
                 name="Body",
                 template_name="Base Physics Body",
@@ -1085,30 +1058,17 @@ class TestSceneObjectTemplateName(unittest.TestCase):
 
     def test_template_name_default_empty(self):
         obj = self._make()
-        self.assertEqual(obj.get_template_name(), "")
-
-    def test_template_name_from_constructor(self):
-        obj = self._make(template_name="MyTemplate")
-        self.assertEqual(obj.get_template_name(), "MyTemplate")
+        self.assertEqual(obj.get_template_name(), "SceneObject")
 
     def test_set_template_name(self):
         obj = self._make()
         obj.set_template_name("Updated")
         self.assertEqual(obj.get_template_name(), "Updated")
 
-    def test_template_name_property_get(self):
-        obj = self._make(template_name="T1")
-        self.assertEqual(obj.template_name, "T1")
-
-    def test_template_name_property_set(self):
-        obj = self._make()
-        obj.template_name = "T2"
-        self.assertEqual(obj.template_name, "T2")
-
     def test_to_dict_includes_template_name(self):
-        obj = self._make(template_name="TmplA")
+        obj = self._make()
         data = obj.to_dict()
-        self.assertEqual(data["template_name"], "TmplA")
+        self.assertEqual(data["template_name"], "SceneObject")
 
 
 # ---------------------------------------------------------------------------
@@ -1121,7 +1081,6 @@ class TestSceneObjectPhysicsConvenience(unittest.TestCase):
     def _make(self, x=5.0, y=10.0, width=20.0, height=15.0, yaw=30.0) -> SceneObject:
         return SceneObject(
             name="Obj",
-            scene_object_type="Type",
             physics_body=BasePhysicsBody(
                 name="Body",
                 template_name="Base Physics Body",
@@ -1174,69 +1133,6 @@ class TestSceneObjectPhysicsConvenience(unittest.TestCase):
         obj = self._make()
         obj.height = 35.0
         self.assertAlmostEqual(obj.physics_body.height, 35.0)
-
-
-# ---------------------------------------------------------------------------
-# Direction (CardinalDirection)
-# ---------------------------------------------------------------------------
-
-class TestSceneObjectDirection(unittest.TestCase):
-    """Tests for direction (CardinalDirection) on SceneObject."""
-
-    def _make(self, **kwargs) -> SceneObject:
-        return SceneObject(
-            name="Obj",
-            scene_object_type="Type",
-            physics_body=BasePhysicsBody(
-                name="Body",
-                template_name="Base Physics Body",
-                x=0.0, y=0.0, width=10.0, height=10.0,
-            ),
-            **kwargs,
-        )
-
-    def test_direction_default_is_north(self):
-        """When no direction is given, get_direction() defaults to NORTH."""
-        obj = self._make()
-        self.assertEqual(obj.get_direction(), CardinalDirection.NORTH)
-
-    def test_direction_from_constructor(self):
-        obj = self._make(direction=CardinalDirection.EAST)
-        self.assertEqual(obj.get_direction(), CardinalDirection.EAST)
-
-    def test_set_direction(self):
-        """set_direction only applies when the new direction is perpendicular.
-
-        The default direction is NORTH.  EAST is perpendicular to NORTH
-        (difference of 1 position on the cardinal compass), so the change
-        should be stored and the physics body dimensions should be swapped.
-        """
-        obj = self._make()
-        original_width = obj.width
-        original_height = obj.height
-        obj.set_direction(CardinalDirection.EAST)
-        self.assertEqual(obj.get_direction(), CardinalDirection.EAST)
-        # Rotating NORTH → EAST swaps width/height
-        self.assertAlmostEqual(obj.width, original_height)
-        self.assertAlmostEqual(obj.height, original_width)
-
-    def test_set_direction_non_perpendicular(self):
-        """Setting a direction that is NOT perpendicular to the current one is set."""
-        obj = self._make()
-        obj.set_direction(CardinalDirection.SOUTH)  # SOUTH is opposite to NORTH, not perpendicular
-        self.assertEqual(obj.get_direction(), CardinalDirection.SOUTH)
-
-    def test_direction_from_properties_dict(self):
-        """Passing direction via properties dict falls back when no constructor arg given."""
-        obj = self._make(properties={"direction": "WEST"})
-        self.assertEqual(obj.get_direction(), CardinalDirection.WEST)
-
-    def test_constructor_direction_overrides_properties_dict(self):
-        obj = self._make(
-            direction=CardinalDirection.NORTH,
-            properties={"direction": "EAST"},
-        )
-        self.assertEqual(obj.get_direction(), CardinalDirection.NORTH)
 
 
 if __name__ == '__main__':

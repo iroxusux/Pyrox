@@ -2,9 +2,7 @@ from typing import Any, Optional
 from pyrox.interfaces.protocols.physics import IPhysicsBody2D
 
 
-class IBasePhysicsBody(
-    IPhysicsBody2D
-):
+class IBasePhysicsBody(IPhysicsBody2D):
     """Interface class for custom physics bodies extending IPhysicsBody2D.
     Provides additional methods and properties for common physics body
     functionality.

@@ -8,7 +8,7 @@ rendering.
 import unittest
 from pathlib import Path
 from unittest.mock import Mock, patch
-from pyrox.interfaces import ISceneObject, IPhysicsBody2D
+from pyrox.interfaces import ICompositeSceneObject, ISceneObject, IPhysicsBody2D
 from pyrox.services.scene import (
     SceneRunnerService,
     SceneEventBus,
@@ -32,6 +32,7 @@ class TestSceneRunnerService(unittest.TestCase):
         self.mock_scene.get_scene_objects = Mock(return_value={})
         self.mock_scene.on_scene_object_added = []
         self.mock_scene.on_scene_object_removed = []
+        self.mock_scene.on_scene_updated = []
 
         # Patch GuiManager to return the mock backend
         self.gui_manager_patcher = patch('pyrox.services.scene.GuiManager')
@@ -400,6 +401,46 @@ class TestSceneRunnerService(unittest.TestCase):
         # Should not raise error
         SceneRunnerService.add_physics_body(body)
 
+    def test_add_scene_object(self):
+        """Test adding a scene object dynamically."""
+        SceneRunnerService.initialize(
+            scene=self.mock_scene,
+            enable_physics=True
+        )
+        body = Mock(spec=IPhysicsBody2D)
+        body.get_bounds = Mock(return_value=(0.0, 0.0, 10.0, 10.0))
+        scene_object = Mock(spec=ISceneObject)
+        scene_object.physics_body = body
+        SceneRunnerService._enable_physics = False
+
+        # Should not raise error
+        SceneRunnerService.add_physics_body(scene_object)
+
+    def test_add_composite_physics_body(self):
+        """Test adding a composite physics body dynamically."""
+        SceneRunnerService.initialize(
+            scene=self.mock_scene,
+            enable_physics=True
+        )
+
+        bodyA = Mock(spec=IPhysicsBody2D)
+        bodyA.get_bounds = Mock(return_value=(0.0, 0.0, 10.0, 10.0))
+        bodyB = Mock(spec=IPhysicsBody2D)
+        bodyB.get_bounds = Mock(return_value=(0.0, 0.0, 5.0, 5.0))
+        scene_objectA = Mock(spec=ISceneObject)
+        scene_objectA.physics_body = bodyA
+        scene_objectB = Mock(spec=ISceneObject)
+        scene_objectB.physics_body = bodyB
+        composite = Mock(spec=ICompositeSceneObject)
+        composite.get_components = Mock(return_value={
+            'compA': scene_objectA,
+            'compB': scene_objectB
+        })
+        SceneRunnerService._enable_physics = False
+
+        # Should not raise error
+        SceneRunnerService.add_physics_body(composite)
+
     def test_remove_physics_body(self):
         """Test removing a physics body dynamically."""
         SceneRunnerService.initialize(
@@ -417,6 +458,47 @@ class TestSceneRunnerService(unittest.TestCase):
 
         # Should not raise error
         SceneRunnerService.remove_physics_body(body)
+
+    def test_remove_scene_object(self):
+        """Test removing a scene object dynamically."""
+        SceneRunnerService.initialize(
+            scene=self.mock_scene,
+            enable_physics=True
+        )
+
+        body = Mock(spec=IPhysicsBody2D)
+        body.get_bounds = Mock(return_value=(0.0, 0.0, 10.0, 10.0))
+        scene_object = Mock(spec=ISceneObject)
+        scene_object.physics_body = body
+        SceneRunnerService._enable_physics = False
+
+        # Should not raise error
+        SceneRunnerService.remove_physics_body(scene_object)
+
+    def test_remove_composite_physics_body(self):
+        """Test removing a composite physics body dynamically."""
+        SceneRunnerService.initialize(
+            scene=self.mock_scene,
+            enable_physics=True
+        )
+
+        bodyA = Mock(spec=IPhysicsBody2D)
+        bodyA.get_bounds = Mock(return_value=(0.0, 0.0, 10.0, 10.0))
+        bodyB = Mock(spec=IPhysicsBody2D)
+        bodyB.get_bounds = Mock(return_value=(0.0, 0.0, 5.0, 5.0))
+        scene_objectA = Mock(spec=ISceneObject)
+        scene_objectA.physics_body = bodyA
+        scene_objectB = Mock(spec=ISceneObject)
+        scene_objectB.physics_body = bodyB
+        composite = Mock(spec=ICompositeSceneObject)
+        composite.get_components = Mock(return_value={
+            'compA': scene_objectA,
+            'compB': scene_objectB
+        })
+        SceneRunnerService._enable_physics = False
+
+        # Should not raise error
+        SceneRunnerService.remove_physics_body(composite)
 
     def test_get_physics_stats_with_physics(self):
         """Test getting physics stats when physics is enabled."""

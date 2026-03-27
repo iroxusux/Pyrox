@@ -5,6 +5,7 @@ from typing import (
     Any,
 )
 from pyrox.interfaces import (
+    CardinalDirection,
     IDirectional2D,
     IBasePhysicsBody,
     ICoreMixin,
@@ -684,6 +685,22 @@ class ISceneObject(
             value (float): The yaw to set.
         """
         self.set_yaw(value)
+
+    def get_direction(self) -> CardinalDirection:
+        """Get the cardinal direction of the physics body.
+
+        Returns:
+            CardinalDirection | None: The direction, or None if no physics body.
+        """
+        return self.physics_body.direction
+
+    def set_direction(self, direction: CardinalDirection | int | str | None) -> None:
+        """Set the cardinal direction of the physics body.
+
+        Args:
+            direction (CardinalDirection): The direction to set.
+        """
+        self.physics_body.set_direction(direction)
 
 
 class ISceneObjectFactory:

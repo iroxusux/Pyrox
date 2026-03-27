@@ -1,7 +1,7 @@
 """Kinematic protocols for motion representation.
 Defines interfaces for velocity and acceleration in 2D and 3D space.
 """
-from pyrox.interfaces import IAngularVelocity, IKinematic2D
+from pyrox.interfaces import CardinalDirection, IAngularVelocity, IKinematic2D
 from pyrox.models.protocols.spatial import Spatial2D
 
 
@@ -35,6 +35,7 @@ class Kinematic2D(Spatial2D, IKinematic2D):
         y: float = 0.0,
         width: float = 0.0,
         height: float = 0.0,
+        direction: CardinalDirection | None = None,
         velocity_x: float = 0.0,
         velocity_y: float = 0.0,
         acceleration_x: float = 0.0,
@@ -46,6 +47,7 @@ class Kinematic2D(Spatial2D, IKinematic2D):
             y=y,
             width=width,
             height=height,
+            direction=direction,
         )
         self._velocity_x: float = velocity_x
         self._velocity_y: float = velocity_y

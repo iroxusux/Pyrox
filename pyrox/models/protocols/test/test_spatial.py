@@ -322,7 +322,7 @@ class TestSpatial2D(unittest.TestCase):
     def test_rotate_area_swaps_dimensions(self):
         """Test that rotate_area swaps width and height."""
         spatial = Spatial2D(width=100.0, height=40.0)
-        spatial.rotate_area()
+        spatial.rotate_clockwise()  # Rotate to EAST (perpendicular)
         self.assertEqual(spatial.get_width(), 40.0)
         self.assertEqual(spatial.get_height(), 100.0)
 

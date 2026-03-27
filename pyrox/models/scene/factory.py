@@ -4,12 +4,11 @@ Provides a factory pattern for managing scene object templates that can be
 instantiated directly in the scene viewer or other contexts, without needing
 to wrap a physics body first.
 """
-from __future__ import annotations
-
 from typing import Any, Callable, Dict, Optional, Type
 
 from pyrox.interfaces import ISceneObject
 from pyrox.services.logging import log
+from pyrox.models.factory import MetaFactory
 
 
 class SceneObjectTemplate:
@@ -77,7 +76,7 @@ class SceneObjectTemplate:
         return f"<SceneObjectTemplate '{self.name}' class={self.scene_object_class.__name__}>"
 
 
-class SceneObjectFactory:
+class SceneObjectFactory(MetaFactory):
     """Factory for managing scene object templates.
 
     Provides registration and creation of scene object templates using

@@ -636,7 +636,7 @@ class SceneRunnerService(
                 raise TypeError("Scene object physics body does not implement IPhysicsBody2D protocol")
             # For composite objects, also register each component's physics body
             if isinstance(scene_object, ICompositeSceneObject):
-                for comp_obj, _, _ in scene_object.get_components().values():
+                for comp_obj in scene_object.get_components().values():
                     if isinstance(comp_obj.physics_body, IPhysicsBody2D):
                         cls._physics_engine.register_body(comp_obj.physics_body)
 
@@ -737,7 +737,7 @@ class SceneRunnerService(
                 cls._physics_engine.register_body(body.physics_body)
             # Register each component's physics body
             if cls._physics_engine:
-                for comp_obj, _, _ in body.get_components().values():
+                for comp_obj in body.get_components().values():
                     if isinstance(comp_obj.physics_body, IPhysicsBody2D):
                         cls._physics_engine.register_body(comp_obj.physics_body)
             return
@@ -763,7 +763,7 @@ class SceneRunnerService(
         if isinstance(body, ICompositeSceneObject):
             if isinstance(body.physics_body, IPhysicsBody2D):
                 cls._physics_engine.unregister_body(body.physics_body)
-            for comp_obj, _, _ in body.get_components().values():
+            for comp_obj in body.get_components().values():
                 if isinstance(comp_obj.physics_body, IPhysicsBody2D):
                     cls._physics_engine.unregister_body(comp_obj.physics_body)
             return

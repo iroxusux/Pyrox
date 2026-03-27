@@ -4,8 +4,6 @@ This module provides a PyQt6-based graphics view frame for viewing and interacti
 with 2D scenes containing sprites and simple shapes. Supports panning, zooming,
 and integrates with the Scene workflow.
 """
-from __future__ import annotations
-import sys
 import time
 from pathlib import Path
 from typing import Callable
@@ -19,7 +17,6 @@ from PyQt6.QtWidgets import (
     QGraphicsEllipseItem, QGraphicsLineItem, QGraphicsPixmapItem,
     QGraphicsRectItem, QGraphicsScene, QGraphicsSimpleTextItem,
     QGraphicsView, QSplitter, QVBoxLayout, QWidget,
-    QApplication, QMainWindow
 )
 from pyrox.interfaces import (
     IScene,
@@ -27,7 +24,6 @@ from pyrox.interfaces import (
     ISceneRunnerService,
     IViewport
 )
-from pyrox.models.physics.base import BasePhysicsBody
 from pyrox.models.gui.frame import TaskFrame
 from pyrox.models.gui import PropertyPanel
 from pyrox.models.gui.contextmenu import PyroxContextMenu, MenuItem
@@ -691,11 +687,44 @@ class SceneViewerFrame(TaskFrame):
         outline_color = self._canvas_object_management_service._selection_color if is_selected else "white"
         outline_width = self._canvas_object_management_service._selection_width if is_selected else 2
 
-        all_items: list = []
+        # ----------------------------------------------------------
+        # Bounding-box anchor item — always items[0].
+        #
+        # _fast_update_item computes the per-frame pan/zoom delta by
+        # comparing composite.x/y against items[0].pos().  Component
+        # items are intentionally offset from the composite origin, so
+        # if a component were items[0] the delta would be wrong and all
+        # items would drift every frame, causing a visual "dip" when
+        # animation restores correct positions.  Placing the bounding
+        # box first anchors items[0] at (composite.x, composite.y) so
+        # the delta calculation is always correct.
+        # ----------------------------------------------------------
+        comp_canvas_x = composite.x * self.viewport.zoom + self.viewport.x
+        comp_canvas_y = composite.y * self.viewport.zoom + self.viewport.y
+        comp_canvas_w = composite.width * self.viewport.zoom
+        comp_canvas_h = composite.height * self.viewport.zoom
+        if is_selected:
+            bbox_pen = QPen(
+                QColor(self._canvas_object_management_service._selection_color),
+                self._canvas_object_management_service._selection_width,
+            )
+            bbox_pen.setDashPattern([6, 4])
+        else:
+            bbox_pen = QPen(Qt.PenStyle.NoPen)
+        bbox_item = QGraphicsRectItem(QRectF(0, 0, comp_canvas_w, comp_canvas_h))
+        bbox_item.setPen(bbox_pen)
+        bbox_item.setBrush(QBrush(Qt.BrushStyle.NoBrush))
+        bbox_item.setPos(comp_canvas_x, comp_canvas_y)
+        bbox_item.setData(0, obj_id)
+        bbox_item.setData(1, "scene_object")
+        bbox_item.setZValue(composite.get_layer() + 0.2)
+        self._gfx_scene.addItem(bbox_item)
 
-        for _comp_name, (comp_obj, offset_x, offset_y) in composite.get_components().items():
-            world_x = composite.x + offset_x
-            world_y = composite.y + offset_y
+        all_items: list = [bbox_item]
+
+        for _comp_name, comp_obj in composite.get_components().items():
+            world_x = composite.x + comp_obj._parent_offset_x
+            world_y = composite.y + comp_obj._parent_offset_y
 
             props = comp_obj.properties
             sprite_path: str | None = props.get("sprite_path")
@@ -781,29 +810,6 @@ class SceneViewerFrame(TaskFrame):
                 shape_item.setZValue(comp_obj.get_layer())
                 self._gfx_scene.addItem(shape_item)
                 all_items.append(shape_item)
-
-        # ----------------------------------------------------------
-        # Selection overlay: dashed bounding box around full composite
-        # ----------------------------------------------------------
-        if is_selected and all_items:
-            comp_canvas_x = composite.x * self.viewport.zoom + self.viewport.x
-            comp_canvas_y = composite.y * self.viewport.zoom + self.viewport.y
-            comp_canvas_w = composite.width * self.viewport.zoom
-            comp_canvas_h = composite.height * self.viewport.zoom
-            sel_pen = QPen(
-                QColor(self._canvas_object_management_service._selection_color),
-                self._canvas_object_management_service._selection_width,
-            )
-            sel_pen.setDashPattern([6, 4])
-            border = QGraphicsRectItem(QRectF(0, 0, comp_canvas_w, comp_canvas_h))
-            border.setPen(sel_pen)
-            border.setBrush(QBrush(Qt.BrushStyle.NoBrush))
-            border.setPos(comp_canvas_x, comp_canvas_y)
-            border.setData(0, obj_id)
-            border.setData(1, "scene_object")
-            border.setZValue(composite.get_layer() + 0.2)
-            self._gfx_scene.addItem(border)
-            all_items.append(border)
 
         if all_items:
             self._gfx_items[obj_id] = all_items
@@ -1146,7 +1152,7 @@ class SceneViewerFrame(TaskFrame):
                 or any(
                     getattr(comp, 'animator', None) is not None
                     and getattr(comp, 'animator').is_playing
-                    for comp, _, _ in scene_obj.get_components().values()
+                    for comp in scene_obj.get_components().values()
                 )
             )
             if has_animating_component:
@@ -1794,7 +1800,6 @@ class SceneViewerFrame(TaskFrame):
 
         scene_obj = SceneObject(
             name=template.name,
-            scene_object_type=template.body_class.__name__,
             description='',
             physics_body=physics_obj,
         )
@@ -2290,103 +2295,6 @@ class SceneViewerFrame(TaskFrame):
             self._scene,
             force_refresh=True,
         )
-
-
-# ---------------------------------------------------------------------------
-# Scene helpers
-# ---------------------------------------------------------------------------
-
-def _obj(name: str, x: float, y: float, w: float, h: float,
-         color: str = "#4a9eff", shape: str = "rectangle") -> SceneObject:
-    """Create a simple SceneObject backed by a BasePhysicsBody."""
-    body = BasePhysicsBody(name=name, x=x, y=y, width=w, height=h)
-    obj = SceneObject(
-        name=name,
-        scene_object_type="BasePhysicsBody",
-        physics_body=body,
-    )
-    obj.properties["color"] = color
-    obj.properties["shape"] = shape
-    return obj
-
-
-def _build_demo_scene() -> Scene:
-    """Return a Scene populated with demo objects."""
-    scene = Scene(name="Demo Scene", description="Sceneviewer QA demo")
-
-    # A row of coloured rectangles
-    colors = ["#e74c3c", "#e67e22", "#f1c40f", "#2ecc71", "#3498db", "#9b59b6"]
-    for i, color in enumerate(colors):
-        scene.add_scene_object(_obj(f"Box_{i+1}", 40 + i * 80, 60, 60, 40, color))
-
-    # A circle
-    circle_body = BasePhysicsBody(name="Circle", x=80, y=180, width=60, height=60)
-    circle_obj = SceneObject(name="Circle", scene_object_type="BasePhysicsBody",
-                             physics_body=circle_body)
-    circle_obj.properties["color"] = "#1abc9c"
-    circle_obj.properties["shape"] = "circle"
-    scene.add_scene_object(circle_obj)
-
-    # A line
-    line_body = BasePhysicsBody(name="Line", x=200, y=200, width=120, height=0)
-    line_obj = SceneObject(name="Line", scene_object_type="BasePhysicsBody",
-                           physics_body=line_body)
-    line_obj.properties["color"] = "#ecf0f1"
-    line_obj.properties["shape"] = "line"
-    line_obj.properties["x2"] = 320.0
-    line_obj.properties["y2"] = 260.0
-    scene.add_scene_object(line_obj)
-
-    # A group containing two members
-    m1 = _obj("GroupMember_A", 350, 180, 50, 35, "#e74c3c")
-    m2 = _obj("GroupMember_B", 420, 180, 50, 35, "#9b59b6")
-    scene.add_scene_object(m1)
-    scene.add_scene_object(m2)
-    # Build the group anchor manually (no scene.group_objects helper)
-    anchor_body = BasePhysicsBody(name="DemoGroup", x=350, y=180, width=120, height=35)
-    group = SceneGroup(name="DemoGroup", physics_body=anchor_body)
-    group.add_member(m1)
-    group.add_member(m2)
-    scene.add_scene_object(group)
-
-    return scene
-
-
-# ---------------------------------------------------------------------------
-# Main window
-# ---------------------------------------------------------------------------
-
-class DemoWindow(QMainWindow):
-    def __init__(self) -> None:
-        super().__init__()
-        self.setWindowTitle("SceneViewerFrame — PyQt6 Demo")
-        self.resize(1200, 700)
-
-        central = QWidget(self)
-        self.setCentralWidget(central)
-        layout = QVBoxLayout(central)
-        layout.setContentsMargins(0, 0, 0, 0)
-
-        scene = _build_demo_scene()
-        self._viewer = SceneViewerFrame(parent=central, name="Demo Viewer", scene=scene)
-        layout.addWidget(self._viewer.root)
-
-        # Load the scene so the render loop picks it up
-        self._viewer.set_scene(scene)
-
-
-# ---------------------------------------------------------------------------
-# Entry point
-# ---------------------------------------------------------------------------
-
-if __name__ == "__main__":
-    app = QApplication(sys.argv)
-    app.setStyle("Fusion")
-
-    window = DemoWindow()
-    window.show()
-
-    sys.exit(app.exec())
 
 
 __all__ = ['SceneViewerFrame']

@@ -12,6 +12,7 @@ import uuid
 from pyrox.interfaces import (
     IBasePhysicsBody,
     BodyType,
+    CardinalDirection,
     ColliderType,
     CollisionLayer,
     IMaterial
@@ -53,12 +54,13 @@ class BasePhysicsBody(
         angular_velocity: float = 0.0,
         collider_type: ColliderType = ColliderType.RECTANGLE,
         collision_layer: CollisionLayer = CollisionLayer.DEFAULT,
-        collision_mask: List[CollisionLayer] | None = None,
+        collision_mask: list[CollisionLayer] | None = None,
         is_trigger: bool = False,
         x: float = 0.0,
         y: float = 0.0,
         width: float = 10.0,
         height: float = 10.0,
+        direction: CardinalDirection | None = None,
         roll: float = 0.0,
         pitch: float = 0.0,
         yaw: float = 0.0,
@@ -114,9 +116,7 @@ class BasePhysicsBody(
             y=y,
             width=width,
             height=height,
-            roll=roll,
-            pitch=pitch,
-            yaw=yaw,
+            direction=direction,
             material=material,
         )
         self._template_name = template_name

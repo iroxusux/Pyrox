@@ -2,13 +2,52 @@
 
 from __future__ import annotations
 
+import os
+import shutil
 import sys
+import tempfile
 import unittest
 from unittest.mock import MagicMock, Mock, patch
 
 from pyrox.interfaces.constants import EnvironmentKeys
 from pyrox.services.gui import GuiManager
+from pyrox.services.gui_state import GuiStateService, _DEFAULT_STATE
 from pyrox.services.menu_registry import MenuRegistry
+
+
+# ---------------------------------------------------------------------------
+# Module-level GuiStateService isolation
+#
+# Redirect all GuiStateService file I/O to a temp directory for the duration
+# of this test module so tests can never corrupt the real user-data state file.
+# ---------------------------------------------------------------------------
+
+_gui_state_tmp_dir: str | None = None
+_gui_state_patcher = None
+
+
+def setUpModule() -> None:  # noqa: N802
+    global _gui_state_tmp_dir, _gui_state_patcher
+    _gui_state_tmp_dir = tempfile.mkdtemp()
+    _tmp_state_file = os.path.join(_gui_state_tmp_dir, 'test_gui_state.json')
+    _gui_state_patcher = patch.object(
+        GuiStateService,
+        'get_state_file_path',
+        return_value=_tmp_state_file,
+    )
+    _gui_state_patcher.start()
+
+
+def tearDownModule() -> None:  # noqa: N802
+    global _gui_state_tmp_dir, _gui_state_patcher
+    if _gui_state_patcher:
+        _gui_state_patcher.stop()
+        _gui_state_patcher = None
+    if _gui_state_tmp_dir:
+        shutil.rmtree(_gui_state_tmp_dir, ignore_errors=True)
+        _gui_state_tmp_dir = None
+    GuiStateService._state = dict(_DEFAULT_STATE)
+    GuiStateService._loaded = False
 
 
 # ---------------------------------------------------------------------------
@@ -24,6 +63,10 @@ def _reset_manager() -> None:
     GuiManager._scheduled_timers = {}
     GuiManager._timer_counter = 0
     GuiManager._after_id = None
+    # Reset GuiStateService in-memory state so no test bleeds window-state
+    # (e.g. 'zoomed') into the next test or into the real state file.
+    GuiStateService._state = dict(_DEFAULT_STATE)
+    GuiStateService._loaded = False
 
 
 # ---------------------------------------------------------------------------
@@ -498,15 +541,9 @@ class TestGuiManagerWindowGeometry(unittest.TestCase):
 
     # ---- restore_root_geometry ----
 
-    @patch('pyrox.services.gui.EnvManager')
-    def test_restore_root_geometry_enables_fullscreen(self, mock_env):
-        """restore_root_geometry() calls showFullScreen() when env flag is True."""
-        def _get(key, default=None, cast_type=None):
-            if key == EnvironmentKeys.ui.UI_WINDOW_FULLSCREEN:
-                return True
-            return default
-
-        mock_env.get.side_effect = _get
+    def test_restore_root_geometry_enables_fullscreen(self):
+        """restore_root_geometry() calls showFullScreen() when GuiStateService has fullscreen=True."""
+        GuiStateService.set_fullscreen(True)
 
         GuiManager.restore_root_geometry()
 

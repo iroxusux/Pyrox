@@ -44,6 +44,9 @@ class PistonSceneObject(ActivatableCompositeKinematicSceneObject):
     piston head size, so the rod appears centred inside the head footprint.
     """
 
+    _scene_object_type: str = SCENE_OBJECT_TYPE_PISTON
+    _template_name: str = SCENE_OBJECT_TEMPLATE_NAME_PISTON
+
     def __init__(
         self,
         name: str,
@@ -58,7 +61,7 @@ class PistonSceneObject(ActivatableCompositeKinematicSceneObject):
         rod_color: str = "#888888",
         head_color: str = "#555555",
         layer: int = 0,
-        properties: dict = dict(),
+        properties: dict | None = None,
         id: str | None = None,
         group_id: str | None = None,
         tags: list[str] | None = None,
@@ -96,15 +99,13 @@ class PistonSceneObject(ActivatableCompositeKinematicSceneObject):
             name=name,
             physics_body=physics_body,
             description=description,
-            scene_object_type=SCENE_OBJECT_TYPE_PISTON,
-            template_name=SCENE_OBJECT_TEMPLATE_NAME_PISTON,
             id=id,
             group_id=group_id,
             tags=tags,
             layer=layer,
             direction=direction,
             animation_duration=animation_duration,
-            properties=properties,
+            properties=properties or {},
         )
 
     def current_animator_position(self) -> float:
@@ -130,7 +131,6 @@ class PistonSceneObject(ActivatableCompositeKinematicSceneObject):
             height=rod_h,
             collision_layer=CollisionLayer.TERRAIN,
             collision_mask=self.default_collision_mask,
-            scene_object_type="piston_rod",
             bg_color=self._rod_color,
             layer=self._layer,
         )
@@ -146,15 +146,13 @@ class PistonSceneObject(ActivatableCompositeKinematicSceneObject):
             height=self._head_size,
             collision_layer=CollisionLayer.TERRAIN,
             collision_mask=self.default_collision_mask,
-            scene_object_type="piston_head",
             bg_color=self._head_color,
             layer=self._layer,
         )
 
         # ------------------------------------------------------------------
-        # Animation clips (registered on the rod)
-        # The animated property is "width" for horizontal pistons and
-        # "height" for vertical pistons.
+        # Animation clips
+        # The animated property drives the rod length each update().
         # ------------------------------------------------------------------
 
         self.create_clips_on_property(
@@ -165,12 +163,17 @@ class PistonSceneObject(ActivatableCompositeKinematicSceneObject):
         )
 
         # ------------------------------------------------------------------
-        # Register components at initial (retracted) offsets
+        # Register components and store their initial relative offsets so
+        # CompositeSceneObject.update() can sync world positions each frame.
         # ------------------------------------------------------------------
         rod_ox, rod_oy = self._rod_offset(self._retracted_length)
         head_ox, head_oy = self._head_offset(self._retracted_length)
         self.add_component("rod",  self._rod)
+        self._rod.set_parent(self)
+        self._rod.set_parent_offset(rod_ox, rod_oy)
         self.add_component("head", self._head)
+        self._head.set_parent(self)
+        self._head.set_parent_offset(head_ox, head_oy)
 
     # ------------------------------------------------------------------
     # Update
@@ -218,9 +221,10 @@ class PistonSceneObject(ActivatableCompositeKinematicSceneObject):
             self._head.physics_body.set_linear_velocity(vx, vy)
         self._prev_head_world_pos = (head_world_x, head_world_y)
 
-        # Mutate in-place so existing external references to _components remain valid
-        self._components["rod"] = (self._rod, rod_ox, rod_oy)
-        self._components["head"] = (self._head, head_ox, head_oy)
+        # Update stored relative offsets so CompositeSceneObject.update() uses
+        # the correct positions on the next frame.
+        self._rod.set_parent_offset(rod_ox, rod_oy)
+        self._head.set_parent_offset(head_ox, head_oy)
 
     # ------------------------------------------------------------------
     # Convenience factory
@@ -273,15 +277,12 @@ class PistonSceneObject(ActivatableCompositeKinematicSceneObject):
             if is_horizontal:
                 body_w = extended_length + head_size
                 body_h = head_size
-                # For LEFT the base is the RIGHT edge of the bbox, so shift the
-                # origin left so that (x, y) == the mounting point in world space.
                 body_x = float(x) - body_w if direction == CardinalDirection.LEFT else float(x)
                 body_y = float(y)
             else:
                 body_w = head_size
                 body_h = extended_length + head_size
                 body_x = float(x)
-                # For UP the base is the BOTTOM edge; shift the origin up.
                 body_y = float(y) - body_h if direction == CardinalDirection.UP else float(y)
             physics_body = BasePhysicsBody(
                 name=f"{name}_body",
@@ -293,6 +294,7 @@ class PistonSceneObject(ActivatableCompositeKinematicSceneObject):
                 collision_layer=CollisionLayer.TRANSPARENT,
                 collision_mask=[],
             )
+            physics_body._direction = direction
 
         return cls(
             name=name,
@@ -349,11 +351,13 @@ class PistonSceneObject(ActivatableCompositeKinematicSceneObject):
     def compile_properties(self) -> None:
         super().compile_properties()
         self._properties.update({
-            "direction": self._direction.name,
             "retracted_length": self._retracted_length,
             "extended_length": self._extended_length,
             "rod_thickness": self._rod_thickness,
             "head_size": self._head_size,
+            "animation_duration": self._animation_duration,
+            "rod_color": self._rod_color,
+            "head_color": self._head_color,
         })
 
     def _rod_offset(self, current_length: float) -> tuple[float, float]:
@@ -373,7 +377,7 @@ class PistonSceneObject(ActivatableCompositeKinematicSceneObject):
         # positive direction.  For LEFT/UP the origin is the far tip of the head;
         # components extend back toward the base (right/bottom edge of bbox), so
         # offsets are mirrored using extended_length + head_size as the pivot.
-        match self._direction:
+        match self.direction:
             case CardinalDirection.RIGHT:
                 return (0.0, perp_offset)
             case CardinalDirection.LEFT:
@@ -382,7 +386,7 @@ class PistonSceneObject(ActivatableCompositeKinematicSceneObject):
                 return (perp_offset, 0.0)
             case CardinalDirection.UP:
                 return (perp_offset, self._extended_length + self._head_size - current_length)
-        raise ValueError(f"Invalid piston direction: {self._direction}")
+        raise ValueError(f"Invalid piston direction: {self.direction}")
 
     def _head_offset(self, current_length: float) -> tuple[float, float]:
         """Composite-relative offset for the head's top-left corner.
@@ -395,7 +399,7 @@ class PistonSceneObject(ActivatableCompositeKinematicSceneObject):
         Returns:
             ``(offset_x, offset_y)`` relative to the composite origin.
         """
-        match self._direction:
+        match self.direction:
             case CardinalDirection.RIGHT:
                 return (current_length, 0.0)
             case CardinalDirection.LEFT:
@@ -406,7 +410,7 @@ class PistonSceneObject(ActivatableCompositeKinematicSceneObject):
                 return (0.0, current_length)
             case CardinalDirection.UP:
                 return (0.0, self._extended_length - current_length)
-        raise ValueError(f"Invalid piston direction: {self._direction}")
+        raise ValueError(f"Invalid piston direction: {self.direction}")
 
     # ------------------------------------------------------------------
     # Public API for external control

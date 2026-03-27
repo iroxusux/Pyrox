@@ -34,9 +34,6 @@ from pyrox.models.physics.sensor import ProximitySensorBody
 from pyrox.models.scene.factory import SceneObjectFactory, SceneObjectTemplate
 from pyrox.models.scene.sceneobject import SceneObject
 
-SCENE_OBJECT_TYPE_SENSOR = "sensor"
-SCENE_OBJECT_TEMPLATE_NAME_SENSOR = "Top-Down Proximity Sensor"
-
 
 class SensorSceneObject(SceneObject):
     """Top-down proximity sensor scene object.
@@ -62,6 +59,9 @@ class SensorSceneObject(SceneObject):
         clear:      Reset detected objects and deactivate the sensor body.
     """
 
+    _scene_object_type: str = "sensor"
+    _template_name: str = "Top-Down Proximity Sensor"
+
     def __init__(
         self,
         name: str,
@@ -86,8 +86,6 @@ class SensorSceneObject(SceneObject):
             name=name,
             physics_body=physics_body,
             description=description,
-            scene_object_type=SCENE_OBJECT_TYPE_SENSOR,
-            template_name=SCENE_OBJECT_TEMPLATE_NAME_SENSOR,
             bg_color=_props.get("sensor_color", sensor_color),
             layer=layer,
             properties=_props,
@@ -287,12 +285,12 @@ class SensorSceneObject(SceneObject):
 
 SceneObjectFactory.register_template(
     SceneObjectTemplate(
-        name=SCENE_OBJECT_TEMPLATE_NAME_SENSOR,
+        name=SensorSceneObject._template_name,
         scene_object_class=SensorSceneObject,
         description="Proximity sensor that fires signals when objects enter or exit the detection zone (top-down view)",
         factory_func=SensorSceneObject.create,
         default_kwargs={
-            "name": SCENE_OBJECT_TEMPLATE_NAME_SENSOR,
+            "name": SensorSceneObject._template_name,
             "width": 10.0,
             "height": 10.0,
             "sensor_color": "#00ffff",

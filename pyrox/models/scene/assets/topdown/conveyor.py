@@ -254,11 +254,11 @@ class ConveyorSceneObject(ActivatableCompositeKinematicSceneObject):
         for i, stripe in enumerate(self._belt_stripes):
             scroll_offset = (self._belt_position + i * self._belt_length) % self._conveyor_length
             if self.is_horizontal:
-                self._components[f"belt_{i}"] = (stripe, scroll_offset, cross_offset)
+                self._components[f"belt_{i}"] = stripe
                 stripe.x = self.x + scroll_offset
                 stripe.y = self.y + cross_offset
             else:
-                self._components[f"belt_{i}"] = (stripe, cross_offset, scroll_offset)
+                self._components[f"belt_{i}"] = stripe
                 stripe.x = self.x + cross_offset
                 stripe.y = self.y + scroll_offset
 

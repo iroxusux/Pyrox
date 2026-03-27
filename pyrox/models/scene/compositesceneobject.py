@@ -16,15 +16,13 @@ Example::
 import uuid
 
 from pyrox.interfaces import (
-    CardinalDirection,
     IBasePhysicsBody,
     ISceneObject,
 )
 from pyrox.interfaces.scene.compositesceneobject import ICompositeSceneObject
 from pyrox.models.scene.sceneobject import SceneObject
 from pyrox.models.scene.factory import SceneObjectFactory, SceneObjectTemplate
-
-SCENE_OBJECT_TYPE_COMPOSITE = "composite"
+from pyrox.models.physics.factory import PhysicsSceneFactory
 
 
 class CompositeSceneObject(SceneObject, ICompositeSceneObject):
@@ -40,37 +38,37 @@ class CompositeSceneObject(SceneObject, ICompositeSceneObject):
     Events (clicks, updates) are routed through the composite to components.
     """
 
+    _scene_object_type: str = "composite"
+    _template_name: str = "CompositeSceneObject"
+
     def __init__(
         self,
         name: str,
         physics_body: IBasePhysicsBody,
         description: str = "",
-        scene_object_type: str = SCENE_OBJECT_TYPE_COMPOSITE,
-        template_name: str = SCENE_OBJECT_TYPE_COMPOSITE,
         id: str | None = None,
         group_id: str | None = None,
         properties: dict | None = None,
         parent: SceneObject | None = None,
-        direction: CardinalDirection = CardinalDirection.NORTH,
         layer: int = 0,
         tags: list[str] | None = None,
         components: list[dict] | dict | None = None,
+        direction=None,
     ):
         super().__init__(
             name=name,
-            scene_object_type=scene_object_type,
-            template_name=template_name,
             physics_body=physics_body,
             description=description,
-            id=id or f'{SCENE_OBJECT_TYPE_COMPOSITE}_{uuid.uuid4()}',
+            id=id or f'{self._scene_object_type}_{uuid.uuid4()}',
             group_id=group_id,
             properties=properties,
             parent=parent,
-            direction=direction,
             layer=layer,
             tags=tags,
         )
 
+        # _components must be initialised before set_direction is called, because
+        # set_direction → rotate_components iterates self._components.
         if isinstance(components, list):
             # Convert list of dicts to internal dict format
             self._components: dict[str, ISceneObject] = {}
@@ -79,12 +77,14 @@ class CompositeSceneObject(SceneObject, ICompositeSceneObject):
                 obj_data = comp["object"]
                 obj = SceneObject.from_dict(obj_data)
                 self._components[comp_name] = obj
-
         elif isinstance(components, dict):
             # Assume already in internal dict format
             self._components = components
         else:
             self._components: dict[str, ISceneObject] = {}
+
+        if direction is not None:
+            self.set_direction(direction)
 
         # Tracking for velocity-based position updates (e.g. physics body)
         self._component_world_position_cache = {}
@@ -97,9 +97,9 @@ class CompositeSceneObject(SceneObject, ICompositeSceneObject):
         """True if the point is within the composite bounds OR any component."""
         if super().contains_point(x, y):
             return True
-        for obj, offset_x, offset_y in self._components.values():
-            wx = self.x + offset_x
-            wy = self.y + offset_y
+        for obj in self._components.values():
+            wx = self.x + obj._parent_offset_x
+            wy = self.y + obj._parent_offset_y
             if wx <= x <= wx + obj.width and wy <= y <= wy + obj.height:
                 return True
         return False
@@ -127,14 +127,8 @@ class CompositeSceneObject(SceneObject, ICompositeSceneObject):
         super().update(dt)
         for obj in self._components.values():
             ox, oy = obj.parent_offset
-
-            if self.direction.is_horizontal(self.direction):
-                obj.x = self.x + ox
-                obj.y = self.y + oy
-            else:
-                obj.x = self.x + oy
-                obj.y = self.y + ox
-
+            obj.x = self.x + ox
+            obj.y = self.y + oy
             obj.update(dt)
 
     # ------------------------------------------------------------------
@@ -155,7 +149,6 @@ class CompositeSceneObject(SceneObject, ICompositeSceneObject):
     @classmethod
     def from_dict(cls, data: dict) -> "CompositeSceneObject":
         """Reconstruct a CompositeSceneObject from a serialized dictionary."""
-        from pyrox.models.physics.factory import PhysicsSceneFactory
 
         body_data: dict = data.get("body", {})
         body_template = PhysicsSceneFactory.get_template(
@@ -172,8 +165,6 @@ class CompositeSceneObject(SceneObject, ICompositeSceneObject):
             name=data["name"],
             physics_body=body,
             description=data.get("description", ""),
-            scene_object_type=data.get("scene_object_type", SCENE_OBJECT_TYPE_COMPOSITE),
-            template_name=data.get("template_name", SCENE_OBJECT_TYPE_COMPOSITE),
             id=data.get("id", None),
             group_id=data.get("group_id", None),
             properties=data.get("properties", {}),
@@ -185,7 +176,7 @@ class CompositeSceneObject(SceneObject, ICompositeSceneObject):
 
 SceneObjectFactory.register_template(
     SceneObjectTemplate(
-        name=SCENE_OBJECT_TYPE_COMPOSITE,
+        name=CompositeSceneObject._template_name,
         scene_object_class=CompositeSceneObject,
         description="Design-locked composite that owns child components at relative offsets.",
         category="Groups",

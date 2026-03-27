@@ -24,8 +24,6 @@ from pyrox.models.physics.crate import CrateBody
 from pyrox.models.scene.factory import SceneObjectFactory, SceneObjectTemplate
 from pyrox.models.scene.sceneobject import SceneObject
 
-SCENE_OBJECT_TYPE = "crate"
-SCENE_OBJECT_TEMPLATE_NAME = "Top-Down Crate"
 SCENE_OBJECT_DEF_COLOR = "#8B6914"
 
 _CRATE_COLORS: dict[str, str] = {
@@ -45,6 +43,9 @@ class CrateSceneObject(SceneObject):
     ``crate_color``.
     """
 
+    _scene_object_type: str = "crate"
+    _template_name: str = "Top-Down Crate"
+
     def __init__(
         self,
         name: str,
@@ -63,8 +64,6 @@ class CrateSceneObject(SceneObject):
             name=name,
             physics_body=physics_body,
             description=description,
-            scene_object_type=SCENE_OBJECT_TYPE,
-            template_name=SCENE_OBJECT_TEMPLATE_NAME,
             bg_color=_props.get("crate_color", crate_color),
             layer=layer,
             properties=_props,
@@ -189,12 +188,12 @@ class CrateSceneObject(SceneObject):
 
 SceneObjectFactory.register_template(
     SceneObjectTemplate(
-        name=SCENE_OBJECT_TEMPLATE_NAME,
+        name=CrateSceneObject._template_name,
         scene_object_class=CrateSceneObject,
         description="Dynamic crate that can be pushed by conveyors, pistons and other physics objects (top-down view)",
         factory_func=CrateSceneObject.create,
         default_kwargs={
-            "name": SCENE_OBJECT_TEMPLATE_NAME,
+            "name": CrateSceneObject._template_name,
             "width": 20.0,
             "height": 20.0,
             "mass": 10.0,

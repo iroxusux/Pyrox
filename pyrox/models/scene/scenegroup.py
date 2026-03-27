@@ -19,6 +19,7 @@ from pyrox.interfaces import (
 )
 from pyrox.interfaces.scene.scenegroup import ISceneGroup
 from pyrox.models.scene.sceneobject import SceneObject
+from pyrox.models.scene.factory import SceneObjectFactory, SceneObjectTemplate
 
 SCENE_OBJECT_TYPE_GROUP = "group"
 
@@ -46,6 +47,9 @@ class SceneGroup(SceneObject, ISceneGroup):
         scene.remove_scene_object(group.id)
     """
 
+    _scene_object_type = 'group'
+    _template_name = 'SceneGroup'
+
     def __init__(
         self,
         name: str,
@@ -59,8 +63,6 @@ class SceneGroup(SceneObject, ISceneGroup):
         SceneObject.__init__(
             self=self,
             name=name,
-            scene_object_type=SCENE_OBJECT_TYPE_GROUP,
-            template_name=SCENE_OBJECT_TYPE_GROUP,
             physics_body=physics_body,
             description=description,
             id=id or f'{SCENE_OBJECT_TYPE_GROUP}_{uuid.uuid4()}',
@@ -233,11 +235,9 @@ class SceneGroup(SceneObject, ISceneGroup):
 # can dispatch to SceneGroup when it sees template_name / scene_object_type
 # equal to SCENE_OBJECT_TYPE_GROUP ("group").
 # ---------------------------------------------------------------------------
-from pyrox.models.scene.factory import SceneObjectFactory, SceneObjectTemplate  # noqa: E402
-
 SceneObjectFactory.register_template(
     SceneObjectTemplate(
-        name=SCENE_OBJECT_TYPE_GROUP,
+        name=SceneGroup._template_name,
         scene_object_class=SceneGroup,
         description="User-assembled group of independently registered scene objects.",
         category="Groups",

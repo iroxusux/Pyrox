@@ -12,14 +12,16 @@ class IDirectional2D(IArea2D):
     # Resize methods
     # ------------------------------------------------------------------
 
-    def rotate_area(self) -> None:
+    def rotate_area(self, prev_direction: CardinalDirection) -> None:
         """Rotate the area dimensions (swap width and height).
         Additionally, move components to maintain their relative positions within the bounding box.
         """
-        current_width = self.get_width()
-        current_height = self.get_height()
-        self.set_width(current_height)
-        self.set_height(current_width)
+        if CardinalDirection.is_perpendicular(self.direction, prev_direction):
+            # Swap width and height
+            current_width = self.get_width()
+            current_height = self.get_height()
+            self.set_width(current_height)
+            self.set_height(current_width)
 
     # ------------------------------------------------------------------
     # Direction and rotation
@@ -39,12 +41,12 @@ class IDirectional2D(IArea2D):
         if direction:
             direction = CardinalDirection.try_parse(direction)
             assert direction is not None, f"Invalid direction: {direction}"
+            if self.direction == direction:
+                return  # No change, skip
 
-            if CardinalDirection.is_perpendicular(self._direction or CardinalDirection.NORTH, direction):
-                self._direction = direction
-                self.rotate_area()  # Rotate area dimensions when changing to a perpendicular direction
-            else:
-                self._direction = direction
+            _last_dir = self.direction  # Store last direction for area rotation logic
+            self._direction = direction
+            self.rotate_area(_last_dir)  # Rotate area dimensions when direction changes
         else:
             self._direction = None
 
@@ -64,18 +66,18 @@ class IDirectional2D(IArea2D):
 
     def rotate_clockwise(self) -> None:
         """Rotate the object 90 degrees clockwise."""
-        if self._direction:
-            self.set_direction(CardinalDirection.next_clockwise(self._direction))
+        if self.direction:
+            self.set_direction(CardinalDirection.next_clockwise(self.direction))
 
     def rotate_counterclockwise(self) -> None:
         """Rotate the object 90 degrees counterclockwise."""
-        if self._direction:
-            self.set_direction(CardinalDirection.next_counterclockwise(self._direction))
+        if self.direction:
+            self.set_direction(CardinalDirection.next_counterclockwise(self.direction))
 
     def rotate_180(self) -> None:
         """Rotate the object 180 degrees."""
-        if self._direction:
-            self.set_direction(CardinalDirection(((self._direction.value + 1) % 4) + 1))
+        if self.direction:
+            self.set_direction(CardinalDirection(((self.direction.value + 1) % 4) + 1))
 
     def rotate_to(self, direction: CardinalDirection | str | int) -> None:
         """Rotate the object to a specific cardinal direction."""

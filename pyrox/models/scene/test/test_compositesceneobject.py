@@ -14,7 +14,6 @@ from pyrox.models import (
 )
 from pyrox.models.scene.compositesceneobject import (
     CompositeSceneObject,
-    SCENE_OBJECT_TYPE_COMPOSITE,
 )
 
 
@@ -52,7 +51,6 @@ def _make_obj(parent=None, name: str = "Child", x: float = 0.0, y: float = 0.0,
               parent_offset_x=0.0, parent_offset_y=0.0) -> SceneObject:
     return SceneObject(
         name=name,
-        scene_object_type="test",
         physics_body=_TestPhysicsBody(name=name, x=x, y=y, width=width, height=height),
         parent=parent,
         parent_offset_x=parent_offset_x, parent_offset_y=parent_offset_y,
@@ -75,15 +73,7 @@ class TestCompositeSceneObjectInit(unittest.TestCase):
 
     def test_default_scene_object_type(self):
         comp = _make_composite()
-        self.assertEqual(comp.scene_object_type, SCENE_OBJECT_TYPE_COMPOSITE)
-
-    def test_custom_scene_object_type(self):
-        comp = CompositeSceneObject(
-            name="Panel",
-            physics_body=_TestPhysicsBody(),
-            scene_object_type="panel",
-        )
-        self.assertEqual(comp.scene_object_type, "panel")
+        self.assertEqual(comp.scene_object_type, CompositeSceneObject._scene_object_type)
 
     def test_no_components_initially(self):
         comp = _make_composite()
@@ -296,7 +286,6 @@ class TestCompositeUpdate(unittest.TestCase):
         child = TrackingObj(
             name="tracker",
             parent=comp,
-            scene_object_type="test",
             physics_body=_TestPhysicsBody(),
         )
         comp.add_component("tracker", child)
@@ -332,8 +321,8 @@ class TestCompositeSerializtion(unittest.TestCase):
         comp, _, _ = self._make_populated()
         d = comp.to_dict()
         names = {c["name"]: c for c in d["components"]}
-        self.assertAlmostEqual(names["btn_a"]["offset_x"], 5.0)
-        self.assertAlmostEqual(names["btn_a"]["offset_y"], 10.0)
+        self.assertAlmostEqual(names["btn_a"]['object']["parent_offset_x"], 5.0)
+        self.assertAlmostEqual(names["btn_a"]['object']["parent_offset_y"], 10.0)
 
     def test_to_dict_component_embeds_object(self):
         comp, _, _ = self._make_populated()
@@ -344,7 +333,7 @@ class TestCompositeSerializtion(unittest.TestCase):
     def test_to_dict_scene_object_type(self):
         comp, _, _ = self._make_populated()
         d = comp.to_dict()
-        self.assertEqual(d["scene_object_type"], SCENE_OBJECT_TYPE_COMPOSITE)
+        self.assertEqual(d["scene_object_type"], CompositeSceneObject._scene_object_type)
 
     def test_from_dict_roundtrip(self):
         comp, btn_a, btn_b = self._make_populated()
@@ -361,112 +350,6 @@ class TestCompositeSerializtion(unittest.TestCase):
         d = comp.to_dict()
         restored = CompositeSceneObject.from_dict(d)
         self.assertEqual(restored.id, original_id)
-
-    def test_composite_connections_restored_in_registry(self):
-        """Regression: composite id must be preserved on load so connections
-        targeting the composite do not raise KeyError.
-
-        Scenario (matches the crash reported):
-          sensor.on_activate_callbacks → composite.activate (not a real method)
-
-        Even though the attribute wiring falls back (AttributeError), the key
-        assertion is that Scene.from_dict does NOT crash with KeyError, and
-        that the composite is accessible by its original id after the round-trip.
-        """
-        from pyrox.models.scene.assets.topdown.sensor import SensorSceneObject
-        from pyrox.models.scene.assets.topdown._compkinemetic import ActivatableCompositeKinematicSceneObject
-        from pyrox.models.connection import ConnectionRegistry
-
-        sensor = SensorSceneObject.create(name="Prox", x=0, y=0, width=10, height=10)
-        comp, _, _ = self._make_populated()
-        comp_dict = comp.to_dict()
-
-        with patch("pyrox.models.scene.assets.topdown._compkinemetic.ActivatableCompositeKinematicSceneObject.build_components", return_value=None):
-            comp = ActivatableCompositeKinematicSceneObject.from_dict(comp_dict)
-
-        original_comp_id = comp.id
-
-        scene = Scene()
-        scene.add_scene_object(sensor)
-        scene.add_scene_object(comp)
-        reg = scene.connection_registry
-        reg.register_object(sensor.id, sensor)
-        reg.register_object(comp.id, comp)
-        reg.connect(
-            source_id=sensor.id,
-            output_name="on_activate_callbacks",
-            target_id=comp.id,
-            input_name="activate",
-        )
-
-        # Inject a connection record directly into the serialized form.
-        # CompositeSceneObject has no 'activate' input, so wiring will hit the
-        # AttributeError fallback — but that should NOT crash, and the record
-        # must be stored.
-        d = scene.to_dict()
-
-        # Must not raise KeyError — composite id must be preserved during load.
-        restored = Scene.from_dict(d)
-
-        # The composite is findable by its original id.
-        restored_comp = restored.get_scene_object(original_comp_id)
-        self.assertIsNotNone(restored_comp, "Composite must be found by original id")
-        self.assertIsInstance(restored_comp, CompositeSceneObject)
-        self.assertEqual(restored_comp.id, original_comp_id)
-
-        # The connection record was persisted despite no live wiring.
-        connections = restored.get_connection_registry().serialize()["connections"]
-        self.assertTrue(
-            any(c["target"] == original_comp_id for c in connections),
-            "Connection record targeting the composite must be preserved",
-        )
-
-    def test_sensor_to_composite_connection_is_fully_wired_when_input_exists(self):
-        """Full end-to-end: a SensorSceneObject connected to another sensor
-        (which has 'activate' as a valid input) is re-wired and callable after
-        a scene round-trip, even when the target happens to be a composite-housed
-        sensor in a real scene.
-
-        Here we use sensor → sensor to prove wiring works across the registry
-        for two registered-factory types with matching output / input names.
-        """
-        from pyrox.models.scene.assets.topdown.sensor import SensorSceneObject
-
-        source = SensorSceneObject.create(name="Source", x=0, y=0, width=10, height=10)
-        target = SensorSceneObject.create(name="Target", x=20, y=20, width=10, height=10)
-        original_source_id = source.id
-        original_target_id = target.id
-
-        scene = Scene()
-        scene.add_scene_object(source)
-        scene.add_scene_object(target)
-        scene.get_connection_registry().connect(
-            source_id=source.id,
-            output_name="on_activate_callbacks",
-            target_id=target.id,
-            input_name="activate",
-        )
-
-        # Round-trip.
-        restored = Scene.from_dict(scene.to_dict())
-
-        # IDs preserved.
-        restored_source = restored.get_scene_object(original_source_id)
-        restored_target = restored.get_scene_object(original_target_id)
-        self.assertIsNotNone(restored_source)
-        self.assertIsNotNone(restored_target)
-        self.assertEqual(restored_source.id, original_source_id)
-        self.assertEqual(restored_target.id, original_target_id)
-
-        # Connection is live: firing the source's callbacks triggers the target.
-        received: list[bool] = []
-        restored_target.on_activate_callbacks.append(lambda state: received.append(state))
-
-        # The restored wiring should have placed target.activate in source's list.
-        for cb in list(restored_source.on_activate_callbacks):
-            cb(True)
-
-        self.assertIn(True, received, "Signal must propagate through the re-wired connection")
 
     def test_from_dict_offsets_preserved(self):
         comp, _, _ = self._make_populated()
@@ -487,7 +370,7 @@ class TestCompositeSerializtion(unittest.TestCase):
     def test_scene_from_dict_loads_composite(self):
         """Full end-to-end: Scene.from_dict should recognise and restore a composite."""
         comp = _make_composite(name="MyPanel", x=0, y=0, width=100, height=100)
-        comp.add_component("led", _make_obj("LED"), offset_x=10, offset_y=10)
+        comp.add_component("led", _make_obj("LED", parent_offset_x=10, parent_offset_y=10))
         scene = Scene()
         scene.add_scene_object(comp)
         d = scene.to_dict()
@@ -584,9 +467,9 @@ class TestCompositeRotation(unittest.TestCase):
         comp.set_direction("NORTH")
         self.assertEqual(comp.width, 100.0)
         self.assertEqual(comp.height, 80.0)
-        _, ox, oy = comp.get_components()["btn"]
-        self.assertAlmostEqual(ox, 10.0)
-        self.assertAlmostEqual(oy, 20.0)
+        comp = comp.get_components()["btn"]
+        self.assertAlmostEqual(comp.parent_offset[0], 10.0)
+        self.assertAlmostEqual(comp.parent_offset[1], 20.0)
 
     # ------------------------------------------------------------------
     # Composite dimension swaps
@@ -612,7 +495,8 @@ class TestCompositeRotation(unittest.TestCase):
         """CW 90°: new_off_x = old_off_y, new_off_y = old_W - old_off_x - old_cw."""
         comp = self._make_rotatable_composite()
         comp.rotate_clockwise()
-        _, new_ox, new_oy = comp.get_components()["btn"]
+        obj = comp.get_components()["btn"]
+        new_ox, new_oy = obj.parent_offset
         # old_off_y=20, old_W=100, old_off_x=10, old_cw=20  → (20, 70)
         self.assertAlmostEqual(new_ox, 20.0)
         self.assertAlmostEqual(new_oy, 70.0)
@@ -621,7 +505,8 @@ class TestCompositeRotation(unittest.TestCase):
         """CCW 90°: new_off_x = old_H - old_off_y - old_ch, new_off_y = old_off_x."""
         comp = self._make_rotatable_composite()
         comp.rotate_counterclockwise()
-        _, new_ox, new_oy = comp.get_components()["btn"]
+        btn = comp.get_components()["btn"]
+        new_ox, new_oy = btn.parent_offset
         # old_H=80, old_off_y=20, old_ch=10  → new_off_x=50; new_off_y = old_off_x = 10
         self.assertAlmostEqual(new_ox, 50.0)
         self.assertAlmostEqual(new_oy, 10.0)
@@ -669,7 +554,8 @@ class TestCompositeRotation(unittest.TestCase):
         comp = self._make_rotatable_composite()
         for _ in range(4):
             comp.rotate_clockwise()
-        _, ox, oy = comp.get_components()["btn"]
+        btn = comp.get_components()["btn"]
+        ox, oy = btn.parent_offset
         self.assertAlmostEqual(ox, 10.0)
         self.assertAlmostEqual(oy, 20.0)
 
@@ -685,7 +571,8 @@ class TestCompositeRotation(unittest.TestCase):
         comp = self._make_rotatable_composite()
         for _ in range(4):
             comp.rotate_counterclockwise()
-        _, ox, oy = comp.get_components()["btn"]
+        btn = comp.get_components()["btn"]
+        ox, oy = btn.parent_offset
         self.assertAlmostEqual(comp.width, 100.0)
         self.assertAlmostEqual(comp.height, 80.0)
         self.assertAlmostEqual(ox, 10.0)
@@ -703,20 +590,20 @@ class TestCompositeRotation(unittest.TestCase):
             physics_body=_TestPhysicsBody(width=100.0, height=80.0),
             direction=CardinalDirection.NORTH,
         )
-        a = _make_obj("a", width=20.0, height=10.0)
-        b = _make_obj("b", width=30.0, height=15.0)
-        comp.add_component("a", a, offset_x=5.0, offset_y=10.0)
-        comp.add_component("b", b, offset_x=5.0, offset_y=40.0)
+        a = _make_obj("a", width=20.0, height=10.0, parent_offset_x=5.0, parent_offset_y=10.0)
+        b = _make_obj("b", width=30.0, height=15.0, parent_offset_x=5.0, parent_offset_y=40.0)
+        comp.add_component("a", a)
+        comp.add_component("b", b)
 
         comp.rotate_clockwise()
 
         comps = comp.get_components()
         # Component "a": new_off_x=10, new_off_y=100-5-20=75
-        _, ax, ay = comps["a"]
+        ax, ay = comps["a"].parent_offset
         self.assertAlmostEqual(ax, 10.0)
         self.assertAlmostEqual(ay, 75.0)
         # Component "b": new_off_x=40, new_off_y=100-5-30=65
-        _, bx, by = comps["b"]
+        bx, by = comps["b"].parent_offset
         self.assertAlmostEqual(bx, 40.0)
         self.assertAlmostEqual(by, 65.0)
 

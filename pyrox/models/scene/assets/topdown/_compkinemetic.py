@@ -33,17 +33,16 @@ class CompositeKinematicSceneObject(CompositeSceneObject):
         self,
         name: str,
         physics_body: IBasePhysicsBody,
-        scene_object_type: str,
-        template_name: str,
         description: str = "",
         direction: CardinalDirection = CardinalDirection.RIGHT,
         layer: int = 0,
-        properties: dict = dict(),
+        properties: dict | None = None,
         components: list[dict] | dict | None = None,
         id: str | None = None,
         group_id: str | None = None,
         tags: list[str] | None = None,
     ):
+        properties = properties or {}
 
         if physics_body:
             physics_body.get_collider().set_collision_layer(CollisionLayer.TRANSPARENT)
@@ -53,8 +52,6 @@ class CompositeKinematicSceneObject(CompositeSceneObject):
             name=name,
             physics_body=physics_body,
             description=description,
-            scene_object_type=scene_object_type,
-            template_name=template_name,
             id=id,
             group_id=group_id,
             tags=tags,
@@ -102,12 +99,10 @@ class CompositeKinematicSceneObject(CompositeSceneObject):
         height: float,
         collision_layer: CollisionLayer,
         collision_mask: list[CollisionLayer],
-        scene_object_type: str = "kinematic_component",
         bg_color: str = "#888888",
         layer: int = 0,
     ) -> SceneObject:
         """Helper method to create a simple kinematic component with a rectangular physics body."""
-        from pyrox.models.physics.factory import PhysicsSceneFactory
 
         args = {
             "template_name": template_name,
@@ -125,7 +120,6 @@ class CompositeKinematicSceneObject(CompositeSceneObject):
 
         return SceneObject(
             name=f"{self.name}_{name}",
-            scene_object_type=scene_object_type,
             physics_body=physics_body,
             bg_color=bg_color,
             layer=layer,
@@ -192,25 +186,22 @@ class ActivatableCompositeKinematicSceneObject(CompositeKinematicSceneObject):
         self,
         name: str,
         physics_body: IBasePhysicsBody,
-        scene_object_type: str,
-        template_name: str,
         description: str = "",
         direction: CardinalDirection = CardinalDirection.RIGHT,
         layer: int = 0,
         animation_duration: float = 0.5,
-        properties: dict = dict(),
+        properties: dict | None = None,
         components: list[dict] | dict | None = None,
         id: str | None = None,
         group_id: str | None = None,
         tags: list[str] | None = None,
     ):
+        properties = properties or {}
         self._active = properties.get('active', False)
         self._animation_duration = animation_duration
         super().__init__(
             name=name,
             physics_body=physics_body,
-            scene_object_type=scene_object_type,
-            template_name=template_name,
             description=description,
             direction=direction,
             id=id,

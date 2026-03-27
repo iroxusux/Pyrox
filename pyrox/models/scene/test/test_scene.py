@@ -129,7 +129,6 @@ class TestScene(unittest.TestCase):
         """Test Scene.add_scene_object() method."""
         scene = Scene()
         scene_object = self.TestSceneObject(
-            scene_object_type="TestSceneObject",
             name="TestDev",
             physics_body=self.TestPhysicsBody()
         )
@@ -147,12 +146,10 @@ class TestScene(unittest.TestCase):
         # Use same physics body to force same ID
         shared_physics = self.TestPhysicsBody()
         scene_object1 = self.TestSceneObject(
-            scene_object_type="TestSceneObject",
             name="SceneObject1",
             physics_body=shared_physics
         )
         scene_object2 = self.TestSceneObject(
-            scene_object_type="TestSceneObject",
             name="SceneObject2",
             physics_body=shared_physics
         )
@@ -171,7 +168,6 @@ class TestScene(unittest.TestCase):
         """Test Scene.remove_scene_object() method."""
         scene = Scene()
         scene_object = self.TestSceneObject(
-            scene_object_type="TestSceneObject",
             name="TestDev",
             physics_body=self.TestPhysicsBody()
         )
@@ -194,7 +190,6 @@ class TestScene(unittest.TestCase):
         """Test Scene.get_scene_object() method."""
         scene = Scene()
         scene_object = self.TestSceneObject(
-            scene_object_type="TestSceneObject",
             name="TestDev",
             physics_body=self.TestPhysicsBody()
         )
@@ -218,7 +213,6 @@ class TestScene(unittest.TestCase):
 
         # Create scene_object that tracks updates
         scene_object = self.TestSceneObject(
-            scene_object_type="TestSceneObject",
             name="TestDev",
             physics_body=self.TestPhysicsBody()
         )
@@ -244,12 +238,10 @@ class TestScene(unittest.TestCase):
         scene = Scene()
 
         scene_object1 = self.TestSceneObject(
-            scene_object_type="TestSceneObject",
             name="SceneObject1",
             physics_body=self.TestPhysicsBody()
         )
         scene_object2 = self.TestSceneObject(
-            scene_object_type="TestSceneObject",
             name="SceneObject2",
             physics_body=self.TestPhysicsBody()
         )
@@ -279,7 +271,6 @@ class TestScene(unittest.TestCase):
         scene = Scene(name="DictScene", description="Test dict conversion")
 
         scene_object = self.TestSceneObject(
-            scene_object_type="TestSceneObject",
             name="TestDev",
             physics_body=self.TestPhysicsBody()
         )
@@ -298,7 +289,6 @@ class TestScene(unittest.TestCase):
         scene = Scene(name="SaveScene", description="Test save")
 
         scene_object = self.TestSceneObject(
-            scene_object_type="TestSceneObject",
             name="SaveDev",
             physics_body=self.TestPhysicsBody()
         )
@@ -331,7 +321,6 @@ class TestScene(unittest.TestCase):
         # Create and save a scene
         original_scene = Scene(name="LoadScene", description="Test load")
         scene_object = self.TestSceneObject(
-            scene_object_type="TestSceneObject",
             name="Base Physics Body",
             physics_body=self.TestPhysicsBody()
         )
@@ -355,7 +344,6 @@ class TestScene(unittest.TestCase):
 
         # Add scene_object with tags
         scene_object = self.TestSceneObject(
-            scene_object_type="TestSceneObject",
             name="Base Physics Body",
             properties={"value": 123},
             physics_body=self.TestPhysicsBody()
@@ -386,7 +374,6 @@ class TestScene(unittest.TestCase):
         scene = Scene(name="ReprScene")
 
         scene_object = self.TestSceneObject(
-            scene_object_type="TestSceneObject",
             name="Dev",
             physics_body=self.TestPhysicsBody()
         )
@@ -401,12 +388,10 @@ class TestScene(unittest.TestCase):
         """Test Scene.get_scene_objects() method."""
         scene = Scene()
         scene_object1 = self.TestSceneObject(
-            scene_object_type="TestSceneObject",
             name="Object1",
             physics_body=self.TestPhysicsBody()
         )
         scene_object2 = self.TestSceneObject(
-            scene_object_type="TestSceneObject",
             name="Object2",
             physics_body=self.TestPhysicsBody()
         )
@@ -427,7 +412,6 @@ class TestScene(unittest.TestCase):
         """Test Scene.set_scene_objects() method."""
         scene = Scene()
         scene_object1 = self.TestSceneObject(
-            scene_object_type="TestSceneObject",
             name="Object3",
             physics_body=self.TestPhysicsBody()
         )
@@ -492,7 +476,6 @@ class TestScene(unittest.TestCase):
         scene.get_on_scene_object_added().append(callback)
 
         scene_object = self.TestSceneObject(
-            scene_object_type="TestSceneObject",
             name="CallbackDev",
             physics_body=self.TestPhysicsBody()
         )
@@ -521,7 +504,6 @@ class TestScene(unittest.TestCase):
         scene.get_on_scene_object_removed().append(callback)
 
         scene_object = self.TestSceneObject(
-            scene_object_type="TestSceneObject",
             name="CallbackDev",
             physics_body=self.TestPhysicsBody()
         )
@@ -537,7 +519,6 @@ class TestScene(unittest.TestCase):
         scene = Scene()
 
         scene_object = self.TestSceneObject(
-            scene_object_type="TestSceneObject",
             name="RegDev",
             physics_body=self.TestPhysicsBody()
         )
@@ -554,7 +535,6 @@ class TestScene(unittest.TestCase):
         scene = Scene()
 
         scene_object = self.TestSceneObject(
-            scene_object_type="TestSceneObject",
             name="UnregDev",
             physics_body=self.TestPhysicsBody()
         )
@@ -1045,12 +1025,10 @@ class TestSceneConnectionRegistry(unittest.TestCase):
         scene = Scene()
 
         source_obj = self.ConnectableObj(
-            scene_object_type="ConnectableObj",
             name="ProxSensor",
             physics_body=self.TestPhysicsBody(),
         )
         target_obj = self.ConnectableObj(
-            scene_object_type="ConnectableObj",
             name="IoBlock",
             physics_body=self.TestPhysicsBody(),
         )
@@ -1111,12 +1089,10 @@ class TestSceneConnectionRegistry(unittest.TestCase):
         # direct from_dict simulation (no file I/O required).
         scene = Scene()
         source_obj = self.ConnectableObj(
-            scene_object_type="ConnectableObj",
             name="ProxSensor",
             physics_body=self.TestPhysicsBody(),
         )
         target_obj = self.ConnectableObj(
-            scene_object_type="ConnectableObj",
             name="IoBlock",
             physics_body=self.TestPhysicsBody(),
         )
@@ -1148,12 +1124,10 @@ class TestSceneConnectionRegistry(unittest.TestCase):
         """
         scene = Scene()
         source_obj = self.ConnectableObj(
-            scene_object_type="ConnectableObj",
             name="ProxSensor",
             physics_body=self.TestPhysicsBody(),
         )
         target_obj = self.ConnectableObj(
-            scene_object_type="ConnectableObj",
             name="IoBlock",
             physics_body=self.TestPhysicsBody(),
         )
@@ -1183,17 +1157,14 @@ class TestSceneConnectionRegistry(unittest.TestCase):
         """Multiple connections survive a full save/load cycle (records preserved)."""
         scene = Scene()
         a = self.ConnectableObj(
-            scene_object_type="ConnectableObj",
             name="A",
             physics_body=self.TestPhysicsBody(),
         )
         b = self.ConnectableObj(
-            scene_object_type="ConnectableObj",
             name="B",
             physics_body=self.TestPhysicsBody(),
         )
         c_obj = self.ConnectableObj(
-            scene_object_type="ConnectableObj",
             name="C",
             physics_body=self.TestPhysicsBody(),
         )
@@ -1231,12 +1202,10 @@ class TestSceneConnectionRegistry(unittest.TestCase):
         # Build a minimal scene
         scene = Scene()
         source_obj = self.ConnectableObj(
-            scene_object_type="ConnectableObj",
             name="ProxSensor",
             physics_body=self.TestPhysicsBody(),
         )
         target_obj = self.ConnectableObj(
-            scene_object_type="ConnectableObj",
             name="IoBlock",
             physics_body=self.TestPhysicsBody(),
         )
@@ -1288,7 +1257,6 @@ class TestSceneConnectionRegistry(unittest.TestCase):
         """Scene.add_scene_object() must register the object in the registry."""
         scene = Scene()
         obj = self.ConnectableObj(
-            scene_object_type="ConnectableObj",
             name="AutoReg",
             physics_body=self.TestPhysicsBody(),
         )
@@ -1300,12 +1268,10 @@ class TestSceneConnectionRegistry(unittest.TestCase):
         and unwire any callbacks it participated in."""
         scene = Scene()
         source_obj = self.ConnectableObj(
-            scene_object_type="ConnectableObj",
             name="Src",
             physics_body=self.TestPhysicsBody(),
         )
         target_obj = self.ConnectableObj(
-            scene_object_type="ConnectableObj",
             name="Tgt",
             physics_body=self.TestPhysicsBody(),
         )
