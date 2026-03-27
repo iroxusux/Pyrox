@@ -1024,23 +1024,23 @@ class TestSlidingDoorFactoryTemplate(unittest.TestCase):
 _RIGHT_POST_A_AXIS = 0.0
 _RIGHT_POST_B_AXIS = _TOTAL_WIDTH - _POST_SIZE          # 90.0
 _RIGHT_DOOR_CLOSED = _POST_SIZE                         # 10.0
-_RIGHT_DOOR_OPEN   = _TOTAL_WIDTH                       # 100.0
+_RIGHT_DOOR_OPEN = _TOTAL_WIDTH                       # 100.0
 
 _DOWN_POST_A_AXIS = 0.0
 _DOWN_POST_B_AXIS = _TOTAL_WIDTH - _POST_SIZE           # 90.0
-_DOWN_DOOR_CLOSED  = _POST_SIZE                         # 10.0
-_DOWN_DOOR_OPEN    = _TOTAL_WIDTH                       # 100.0
+_DOWN_DOOR_CLOSED = _POST_SIZE                         # 10.0
+_DOWN_DOOR_OPEN = _TOTAL_WIDTH                       # 100.0
 
 # LEFT / UP  ("negative axis" cases) ────────────────────────────────────────
 _LEFT_POST_A_AXIS = _OPENING                            # 80.0
 _LEFT_POST_B_AXIS = _OPENING + _TOTAL_WIDTH - _POST_SIZE  # 170.0
 _LEFT_DOOR_CLOSED = _OPENING + _POST_SIZE               # 90.0
-_LEFT_DOOR_OPEN   = 0.0
+_LEFT_DOOR_OPEN = 0.0
 
 _UP_POST_A_AXIS = _OPENING                              # 80.0
 _UP_POST_B_AXIS = _OPENING + _TOTAL_WIDTH - _POST_SIZE  # 170.0
-_UP_DOOR_CLOSED  = _OPENING + _POST_SIZE                # 90.0
-_UP_DOOR_OPEN    = 0.0
+_UP_DOOR_CLOSED = _OPENING + _POST_SIZE                # 90.0
+_UP_DOOR_OPEN = 0.0
 
 
 class TestSlidingDoorRotationLayout(unittest.TestCase):

@@ -1,6 +1,5 @@
 """Unit tests for CompositeSceneObject (Type 2 grouping)."""
 import unittest
-from unittest.mock import patch
 
 from pyrox.interfaces import (
     BodyType,

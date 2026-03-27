@@ -5,7 +5,6 @@ shared behavior and utilities.
 """
 from typing import (
     Any,
-    List,
     Optional
 )
 import uuid

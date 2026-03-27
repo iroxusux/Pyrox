@@ -3,7 +3,6 @@ import unittest
 from typing import Any, Dict
 from pyrox.interfaces import (
     BodyType,
-    CardinalDirection,
     ColliderType,
     CollisionLayer,
     Connection,

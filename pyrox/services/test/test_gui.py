@@ -9,7 +9,6 @@ import tempfile
 import unittest
 from unittest.mock import MagicMock, Mock, patch
 
-from pyrox.interfaces.constants import EnvironmentKeys
 from pyrox.services.gui import GuiManager
 from pyrox.services.gui_state import GuiStateService, _DEFAULT_STATE
 from pyrox.services.menu_registry import MenuRegistry

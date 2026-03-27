@@ -1220,7 +1220,6 @@ def _make_real_composite_with_component(comp_w: float = 20.0,
                                         offset_x: float = 10.0,
                                         offset_y: float = 20.0):
     """100×80 composite NORTH with one component at the given offset / size."""
-    from pyrox.models.scene.compositesceneobject import CompositeSceneObject
     from pyrox.models import SceneObject
     composite = _make_real_composite(width=100.0, height=80.0)
     child = SceneObject(
@@ -1387,7 +1386,6 @@ class TestCompositeRotationDirection(unittest.TestCase):
         self.assertEqual(comp.direction, CardinalDirection.WEST)
 
     def test_four_cw_rotations_restore_direction(self):
-        from pyrox.interfaces import CardinalDirection
         comp = _make_real_composite()
         original_dir = comp.direction
         for _ in range(4):
@@ -1437,7 +1435,6 @@ class TestCompositeRotationDirection(unittest.TestCase):
 
     def test_cw_rotation_is_not_same_as_ccw(self):
         """A single CW and a single CCW step must produce different directions."""
-        from pyrox.interfaces import CardinalDirection
         cw = _make_real_composite()
         ccw = _make_real_composite()
         _dispatch_rotate(cw, clockwise=True)
