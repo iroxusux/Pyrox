@@ -344,7 +344,7 @@ class Workspace(QWidget):
         log_height = self.get_log_window_height()
 
         state = GuiStateService.get_geometry_state()
-        if sidebar_width is not None and self._sidebar_visible:
+        if sidebar_width is not None and sidebar_width > 0 and self._sidebar_visible:
             state['sidebar_width'] = sidebar_width
         if log_height is not None:
             state['log_height'] = log_height
@@ -678,12 +678,15 @@ class Workspace(QWidget):
 
     def show_sidebar(self) -> None:
         """Show the sidebar panel."""
-        if self._sidebar_visible or not self._main_splitter or not self._sidebar_organizer:
+        # TODO: There is a bug where storing and retrieving the sidebar will start to shrink the bar.
+        # Need to look at this later.
+        if self._main_splitter is None or self._sidebar_organizer is None:
             return
-        original_width = float(GuiStateService.get_geometry_state().get('sidebar_width', 0.33))
+        self._sidebar_visible = True
+        original_width = max(float(GuiStateService.get_geometry_state().get('sidebar_width', 0.33)), 0.10)
         self._sidebar_organizer.setVisible(True)
         self._sidebar_visible = True
-        self.set_sidebar_width(original_width)
+        QTimer.singleShot(0, lambda: self.set_sidebar_width(original_width))
         self.set_status("Sidebar shown")
         if self.on_sidebar_toggle:
             try:
@@ -693,8 +696,9 @@ class Workspace(QWidget):
 
     def hide_sidebar(self) -> None:
         """Hide the sidebar panel."""
-        if not self._sidebar_visible or not self._main_splitter:
+        if not self._main_splitter:
             return
+        self._sidebar_visible = False
         # Persist current width before hiding so it can be restored accurately.
         sidebar_width = self.get_sidebar_width()
         if sidebar_width is not None:
