@@ -154,6 +154,20 @@ class ApplicationTask(
 
         return submenu
 
+    def get_submenu(self, registry_id: str) -> QMenu | None:
+        """Get a submenu by its registry ID.
+
+        Args:
+            registry_id: The registry ID of the submenu to retrieve.
+
+        Returns:
+            IGuiMenu | None: The submenu instance if found, otherwise None.
+        """
+        menu_item = MenuRegistry.get_item(registry_id)
+        if menu_item and isinstance(menu_item.menu_widget, QMenu):
+            return menu_item.menu_widget
+        return None
+
     # --------------------------------------------------------------
     # Getters and Setters
     # --------------------------------------------------------------
