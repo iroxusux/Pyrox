@@ -230,5 +230,29 @@ class GuiStateService:
         elif state == 'iconic':
             window.showMinimized()  # type: ignore[attr-defined]
 
+    # ------------------------------------------------------------------
+    # Convenience: Capture additional GUI states as needed
+    # ------------------------------------------------------------------
+
+    @classmethod
+    def capture_geometry_state(cls, geometry: dict[str, Any]) -> None:
+        """Capture additional geometry-related state from a custom dictionary.
+
+        This can be used to persist extra window states like sidebar visibility
+        or dock widget arrangements without coupling the service to specific
+        GUI components.
+
+        Args:
+            geometry: A dictionary of arbitrary key-value pairs representing
+                additional geometry state.  This will be merged into the main
+                state file under a "geometry" key.
+        """
+        cls._state['geometry'] = geometry
+
+    @classmethod
+    def get_geometry_state(cls) -> dict[str, Any]:
+        """Return the additional geometry state dictionary, or an empty dict if not set."""
+        return cls._state.get('geometry', {})
+
 
 __all__ = ('GuiStateService',)
