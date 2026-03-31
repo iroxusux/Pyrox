@@ -36,6 +36,7 @@ class SceneObject(
         parent_offset_x: float = 0.0,
         parent_offset_y: float = 0.0,
         layer: int = 0,
+        sublayer: int = 0,
         sprite_path: str | None = None,
         bg_color: str = "#4a9eff",
         tags: list[str] | None = None,
@@ -56,6 +57,7 @@ class SceneObject(
         # Lower values render first (background), higher values render last (foreground)
         # Common layers: -100 (floor), 0 (default), 50 (conveyors), 100 (objects), 200 (UI)
         self._layer: int = layer
+        self._sublayer: int = sublayer  # For finer control within the same layer
 
         # Visual properties
         # sprite_path / bg_color can also be supplied via the properties dict

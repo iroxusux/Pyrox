@@ -1,7 +1,7 @@
 """Canvas Services.
 """
-import tkinter as tk
-from typing import Optional
+from PyQt6.QtCore import QPointF, QRectF
+from PyQt6.QtWidgets import QGraphicsItem, QGraphicsScene
 from pyrox.interfaces import IHasCanvas, IScene
 from pyrox.services.scene import (
     HasSceneMixin
@@ -11,18 +11,22 @@ from pyrox.services.scene import (
 """
 
 
-class HasCanvasMixin(IHasCanvas):
+class HasCanvasMixin(IHasCanvas[QGraphicsScene]):
     def __init__(
         self,
-        canvas: Optional[tk.Canvas] = None,
+        canvas: QGraphicsScene | None = None,
     ):
         self._canvas = canvas
 
-    def get_canvas(self) -> Optional[tk.Canvas]:
+    def get_canvas(self) -> QGraphicsScene | None:
         return self._canvas
 
-    def set_canvas(self, canvas: tk.Canvas) -> None:
+    def set_canvas(self, canvas: QGraphicsScene) -> None:
         self._canvas = canvas
+
+    @property
+    def canvas(self) -> QGraphicsScene | None:
+        return self.get_canvas()
 
 
 class CanvasObjectManagmenentService(
@@ -31,8 +35,8 @@ class CanvasObjectManagmenentService(
 ):
     def __init__(
         self,
-        canvas: Optional[tk.Canvas] = None,
-        scene: Optional[IScene] = None,
+        canvas: QGraphicsScene | None = None,
+        scene: IScene | None = None,
         objects: dict[str, int] | None = None
     ):
         HasCanvasMixin.__init__(self, canvas)
@@ -49,10 +53,9 @@ class CanvasObjectManagmenentService(
         if not self._canvas:
             return
 
-        # Delete all scene objects and labels by their tags
-        # This is more efficient than deleting by individual IDs and catches labels too
-        self._canvas.delete("scene_object")
-        self._canvas.delete("scene_object_label")
+        for item in list(self._canvas.items()):
+            if item.data(0) in ("scene_object", "scene_object_label"):
+                self._canvas.removeItem(item)
         self._objects.clear()
 
     def clear_selection(self):
@@ -61,7 +64,7 @@ class CanvasObjectManagmenentService(
     def get_from_canvas_id(
         self,
         canvas_id: int
-    ) -> Optional[str]:
+    ) -> str | None:
         for obj_id, c_id in self._objects.items():
             if c_id == canvas_id:
                 return obj_id
@@ -69,18 +72,12 @@ class CanvasObjectManagmenentService(
 
     def get_non_grid_objects(
         self,
-        event: tk.Event
-    ) -> list[int]:
+        pos: QPointF
+    ) -> list[QGraphicsItem]:
         if not self._canvas:
             return []
-        # Find all items at location
-        canvas_items = self._canvas.find_overlapping(
-            event.x - 2, event.y - 2,
-            event.x + 2, event.y + 2
-        )
-        # Filter out grid items efficiently using set operations
-        grid_items = set(self._canvas.find_withtag("grid"))
-        return [item for item in canvas_items if item not in grid_items]
+        rect = QRectF(pos.x() - 2, pos.y() - 2, 4, 4)
+        return [item for item in self._canvas.items(rect) if item.data(0) != "grid"]
 
     def set_object(
         self,
@@ -92,7 +89,7 @@ class CanvasObjectManagmenentService(
     def get_object(
         self,
         scene_object_id: str
-    ) -> Optional[int]:
+    ) -> int | None:
         return self._objects.get(scene_object_id)
 
     def get_objects(self) -> dict[str, int]:

@@ -30,6 +30,7 @@ class ISceneObject(
     _parent_offset_y: float
     _children: dict[str, 'ISceneObject']
     _layer: int
+    _sublayer: int
     _group_id: str | None
 
     @abstractmethod
@@ -474,6 +475,14 @@ class ISceneObject(
         # Use a very low value for back
         self._layer = -1000
 
+    def get_sublayer(self) -> int:
+        """Get the sublayer for finer control within the same layer."""
+        return self._sublayer
+
+    def set_sublayer(self, sublayer: int) -> None:
+        """Set the sublayer for finer control within the same layer."""
+        self._sublayer = sublayer
+
     @property
     def layer(self) -> int:
         """Get the rendering layer (z-order) of this object."""
@@ -483,6 +492,16 @@ class ISceneObject(
     def layer(self, layer: int) -> None:
         """Set the rendering layer (z-order) of this object."""
         self.set_layer(layer)
+
+    @property
+    def sublayer(self) -> int:
+        """Get the sublayer for finer control within the same layer."""
+        return self.get_sublayer()
+
+    @sublayer.setter
+    def sublayer(self, sublayer: int) -> None:
+        """Set the sublayer for finer control within the same layer."""
+        self.set_sublayer(sublayer)
 
     # ------------------------------------------------------------------
     # Grouping
