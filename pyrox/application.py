@@ -17,6 +17,7 @@ from pyrox.services import (
 from pyrox.models import (
     ApplicationTaskFactory,
     ServicesRunnableMixin,
+    SplashScreen,
     Workspace,
 )
 
@@ -62,8 +63,16 @@ class Application(
             'A Pyrox Application',
             str))
 
-        # Initialize GUI backend
-        self._root = self.gui.create_root()
+        # Initialize GUI backend (defer show until splash is dismissed)
+        self._root = self.gui.create_root(show=False)
+
+        # Show splash screen while loading
+        _splash = SplashScreen(
+            app_name=self.get_name(),
+            app_description=self.get_description(),
+        )
+
+        _splash.set_status('Configuring interface')
         self.gui.create_root_menu()
         self.gui.config_from_env()
         self.gui.subscribe_to_window_change_event(self.gui.save_root_geometry)
@@ -71,12 +80,14 @@ class Application(
         self.gui.subscribe_to_window_close_event(self.on_close)
 
         # Set up logging
+        _splash.set_status('Setting up logging')
         self.logging.register_callback_to_captured_streams(self.directory.get_log_file_stream().write)
 
         # Initialize tasks list
         self._tasks: list[IApplicationTask] = []
 
         # Initialize workspace
+        _splash.set_status('Building workspace')
         self._workspace = Workspace(parent=self._root)
         self._root.setCentralWidget(self._workspace)
         StatusUpdateEventBus.subscribe(
@@ -85,7 +96,12 @@ class Application(
         )
 
         # Build default tasks
+        _splash.set_status('Loading tasks')
         ApplicationTaskFactory.build_tasks(self)
+
+        # Reveal main window and dismiss splash
+        _splash.close_splash()
+        self._root.show()
 
     def get_author(self) -> str:
         """Get the application author.

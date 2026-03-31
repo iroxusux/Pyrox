@@ -5,6 +5,7 @@ from .frame import TaskFrame
 from .logframe import LogFrame
 from .objectexplorer import ObjectExplorer
 from .propertypanel import PropertyPanel
+from .splash import SplashScreen
 from .treeview import AttributeTreeView
 from .workspace import Workspace
 from .sceneviewer.sceneviewer import SceneViewerFrame
@@ -21,6 +22,7 @@ __all__ = (
     'TaskFrame',
     'PyroxContextMenu',
     'PyroxYamlEditor',
+    'SplashScreen',
     'Workspace',
     'SceneViewerFrame',
     'ObjectExplorer',

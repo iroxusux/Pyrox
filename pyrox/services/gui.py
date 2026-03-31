@@ -243,8 +243,14 @@ class GuiManager:
     # --------------------------------------------------
 
     @classmethod
-    def create_root(cls, **kwargs) -> _PyQt6MainWindow:
-        """Create (or return existing) QApplication + root QMainWindow."""
+    def create_root(cls, show: bool = True, **kwargs) -> _PyQt6MainWindow:
+        """Create (or return existing) QApplication + root QMainWindow.
+
+        Args:
+            show: Whether to call ``show()`` on the root window immediately.
+                  Pass ``False`` when a splash screen will be displayed first
+                  and the caller will call ``show()`` manually later.
+        """
         if cls._root_window is not None:
             return cls._root_window
 
@@ -255,7 +261,8 @@ class GuiManager:
 
         cls._root_window = _PyQt6MainWindow()
         cls.config_from_env(**kwargs)
-        cls._root_window.show()
+        if show:
+            cls._root_window.show()
         return cls._root_window
 
     @classmethod
