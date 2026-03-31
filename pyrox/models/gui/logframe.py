@@ -6,9 +6,10 @@ from collections import deque
 import logging
 from typing import Callable
 
-from PyQt6.QtCore import QTimer
+from PyQt6.QtCore import QElapsedTimer, QEventLoop, QTimer
 from PyQt6.QtGui import QColor, QTextCharFormat, QTextCursor
 from PyQt6.QtWidgets import (
+    QApplication,
     QComboBox,
     QFrame,
     QHBoxLayout,
@@ -35,6 +36,7 @@ class LogFrame(QFrame):
     """
 
     TRIM_LENGTH = 1000  # Max number of lines to keep in the visual log
+    FLUSH_INTERVAL_MS = 100  # Min ms between event-loop pumps on the main thread
 
     def __init__(
         self,
@@ -46,6 +48,8 @@ class LogFrame(QFrame):
         self.setFrameShape(QFrame.Shape.StyledPanel)
 
         self._pending: deque[tuple[str, str]] = deque()
+        self._flush_elapsed = QElapsedTimer()
+        self._flush_elapsed.start()
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
@@ -335,8 +339,13 @@ class LogFrame(QFrame):
         message: str | list[str],
         **kwargs,
     ) -> None:
-        """Enqueue *message* for display. Actual rendering is deferred to the
-        next timer tick so the event loop stays responsive during long operations.
+        """Enqueue *message* for display.
+
+        Messages are written to the text area in batches. When this is called
+        from a long-running main-thread operation the event loop is blocked, so
+        we also pump ``processEvents`` (excluding user-input to avoid
+        reentrancy) at most every ``FLUSH_INTERVAL_MS`` milliseconds. This
+        keeps the window responsive and shows messages incrementally.
 
         Args:
             message: A single string or a list of strings to log.
@@ -346,3 +355,8 @@ class LogFrame(QFrame):
         for msg in messages:
             levelname = kwargs.get('levelname', self._get_msg_tag(msg))
             self._pending.append((msg, levelname))
+
+        if self._flush_elapsed.elapsed() >= self.FLUSH_INTERVAL_MS:
+            self._flush_pending()
+            QApplication.processEvents(QEventLoop.ProcessEventsFlag.ExcludeUserInputEvents)
+            self._flush_elapsed.restart()
