@@ -10,7 +10,7 @@ This module provides a workspace widget that mimics the VSCode interface with:
 """
 from typing import Callable, Any
 
-from PyQt6.QtCore import Qt, QTimer, QSize, QRect, QPoint
+from PyQt6.QtCore import Qt, QTimer, QSize
 
 from PyQt6.QtWidgets import (
     QDialog,
@@ -66,18 +66,11 @@ class _VerticalTabBar(QTabBar):
         for i in range(self.count()):
             self.initStyleOption(opt, i)
             painter.drawControl(QStyle.ControlElement.CE_TabBarTabShape, opt)
-            painter.save()
-            s = opt.rect.size()
-            s.transpose()
-            r = QRect(QPoint(), s)
-            r.moveCenter(opt.rect.center())
-            opt.rect = r
-            c = self.tabRect(i).center()
-            painter.translate(c)
-            painter.rotate(90)
-            painter.translate(-c)
-            painter.drawControl(QStyle.ControlElement.CE_TabBarTabLabel, opt)
-            painter.restore()
+            painter.drawText(
+                self.tabRect(i),
+                Qt.AlignmentFlag.AlignCenter,
+                self.tabText(i),
+            )
 
 
 class _SidebarTabWidget(QTabWidget):

@@ -4,6 +4,7 @@ This module provides a PyQt6-based equivalent of TkGuiManager, wrapping a
 QApplication + QMainWindow pair with the same static-class interface.
 """
 from __future__ import annotations
+from pathlib import Path
 import sys
 from typing import Callable
 
@@ -22,6 +23,9 @@ from pyrox.services.env import EnvManager
 from pyrox.services.gui_state import GuiStateService
 from pyrox.services.menu_registry import MenuRegistry
 from pyrox.interfaces import EnvironmentKeys
+
+
+DEF_ICON = Path(__file__).resolve().parents[2] / "ui" / "icons" / "_def.ico"
 
 
 # ---------------------------------------------------------------------------
@@ -202,8 +206,13 @@ class GuiManager:
 
     @classmethod
     def get_default_icon_path(cls) -> str | None:
-        """Return the default icon path from the environment."""
-        return EnvManager.get(EnvironmentKeys.core.APP_ICON, None, str)
+        """Return the default icon path from the environment, falling back to the bundled default."""
+        env_icon = EnvManager.get(EnvironmentKeys.core.APP_ICON, None, str)
+        if env_icon:
+            return env_icon
+        if DEF_ICON.exists():
+            return str(DEF_ICON)
+        return None
 
     @classmethod
     def set_icon(

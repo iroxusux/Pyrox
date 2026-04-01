@@ -6,6 +6,7 @@ from .logframe import LogFrame
 from .objectexplorer import ObjectExplorer
 from .propertypanel import PropertyPanel
 from .splash import SplashScreen
+from .terminal import PythonTerminalFrame
 from .treeview import AttributeTreeView
 from .workspace import Workspace
 from .sceneviewer.sceneviewer import SceneViewerFrame
@@ -19,6 +20,7 @@ __all__ = (
     'ContextMenuItem',
     'DefaultTheme',
     'LogFrame',
+    'PythonTerminalFrame',
     'TaskFrame',
     'PyroxContextMenu',
     'PyroxYamlEditor',

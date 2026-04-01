@@ -15,6 +15,7 @@ from pyrox.models.factory import MetaFactory, FactoryTypeMeta
 
 class ApplicationTaskFactory(MetaFactory):
     """Factory for creating Application Task instances."""
+    _tasks: dict[str, IApplicationTask] = {}
 
     @classmethod
     def build_tasks(
@@ -29,7 +30,33 @@ class ApplicationTaskFactory(MetaFactory):
         tasks = cls.get_registered_types().values()
         log(cls).debug(f'Building {len(tasks)} tasks for application {application.name}')
         for task in tasks:
-            task(application=application)
+            cls._tasks[task.__name__] = task(application=application)
+
+    @classmethod
+    def get_task(cls, task_name: str) -> IApplicationTask | None:
+        """Get a registered task by name.
+
+        Args:
+            task_name: The name of the task to retrieve.
+
+        Returns:
+            IApplicationTask | None: The task instance if found, otherwise None.
+        """
+        return cls._tasks.get(task_name)
+
+    @classmethod
+    def get_tasks(cls) -> dict[str, IApplicationTask]:
+        """Get all registered tasks.
+
+        Returns:
+            dict[str, IApplicationTask]: A dictionary of task names to task instances.
+        """
+        return cls._tasks
+
+    @classmethod
+    def clear_tasks(cls) -> None:
+        """Clear all registered tasks."""
+        cls._tasks.clear()
 
 
 class ApplicationTask(
