@@ -294,8 +294,8 @@ class HashList(Subscribable, Generic[T]):
 
     def insert(
         self,
+        index: int,
         item: T,
-        index: int
     ) -> None:
         """Insert item at specific index in this hash.
 
@@ -303,8 +303,8 @@ class HashList(Subscribable, Generic[T]):
             This operation may reorder the internal dictionary to maintain insertion order.
 
         Args:
-            item: Object to insert into this hash list.
             index: Index at which to insert the object.
+            item: Object to insert into this hash list.
         """
         # Convert to list, insert, and rebuild the dictionary
         items = list(self._hashes.values())
