@@ -10,7 +10,7 @@ from pyrox.interfaces import IApplication, IApplicationTask
 from pyrox.models import ServicesRunnableMixin
 from pyrox.services import log, MenuRegistry, GuiManager
 from pyrox.models.gui.frame import TaskFrame
-from pyrox.models.factory import MetaFactory, FactoryTypeMeta
+from pyrox.models.factory import MetaFactory, FactoryTypeABC
 
 
 class ApplicationTaskFactory(MetaFactory):
@@ -62,7 +62,7 @@ class ApplicationTaskFactory(MetaFactory):
 class ApplicationTask(
     IApplicationTask,
     ServicesRunnableMixin,
-    metaclass=FactoryTypeMeta[ApplicationTaskFactory]
+    FactoryTypeABC[ApplicationTaskFactory]
 ):
     """Application task to add additional functionality to the application.
     Args:

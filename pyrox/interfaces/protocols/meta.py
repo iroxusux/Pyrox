@@ -1,19 +1,16 @@
 """Protocols module for PLC interfaces."""
 from abc import ABCMeta
 from typing import (
-    _ProtocolMeta,
     Any,
     Protocol,
-    runtime_checkable,
 )
 
 
-class IFactoryMixinProtocolMeta(_ProtocolMeta, ABCMeta):
+class IFactoryMixinProtocolMeta(ABCMeta):
     """Metaclass for factory mixin protocols."""
-    pass
+    ...
 
 
-@runtime_checkable
 class IConfigurable(Protocol):
     """Protocol for objects that support configuration."""
 
@@ -51,7 +48,6 @@ class IConfigurable(Protocol):
         ...
 
 
-@runtime_checkable
 class IAuthored(Protocol):
     """Protocol for objects that have an author."""
 
@@ -81,7 +77,6 @@ class IAuthored(Protocol):
         ...
 
 
-@runtime_checkable
 class IVersioned(Protocol):
     """Protocol for objects that have a version."""
 
@@ -111,7 +106,6 @@ class IVersioned(Protocol):
         ...
 
 
-@runtime_checkable
 class IHasId(Protocol):
     """Protocol for objects that have an ID."""
 
@@ -141,7 +135,6 @@ class IHasId(Protocol):
         ...
 
 
-@runtime_checkable
 class INameable(Protocol):
     """Protocol for objects that have a name."""
 
@@ -180,7 +173,6 @@ class INameable(Protocol):
         ...
 
 
-@runtime_checkable
 class IDescribable(Protocol):
     """Protocol for objects that have a description."""
 
@@ -219,7 +211,6 @@ class IDescribable(Protocol):
         ...
 
 
-@runtime_checkable
 class IRefreshable(Protocol):
     """Protocol for objects that support refreshing."""
 
@@ -228,7 +219,6 @@ class IRefreshable(Protocol):
         ...
 
 
-@runtime_checkable
 class IResettable(Protocol):
     """Protocol for objects that support resetting."""
 
@@ -237,7 +227,6 @@ class IResettable(Protocol):
         ...
 
 
-@runtime_checkable
 class IBuildable(Protocol):
     """Protocol for objects that support building."""
 
@@ -267,7 +256,6 @@ class IBuildable(Protocol):
         ...
 
 
-@runtime_checkable
 class IRunnable(Protocol):
     """Protocol for objects that support running."""
 
@@ -313,7 +301,6 @@ class ICoreMixin(
     IHasId,
     INameable,
     IDescribable,
-    Protocol,
 ):
     """Mixin class that acts as a core with name and description.
     """
@@ -329,7 +316,6 @@ class ICoreRunnableMixin(
     """
 
 
-@runtime_checkable
 class IHasFileLocation(Protocol):
     """Protocol for objects that support file location."""
 
@@ -337,7 +323,6 @@ class IHasFileLocation(Protocol):
     def set_file_location(self, location: str) -> None: ...
 
 
-@runtime_checkable
 class IHasDictMetaData(Protocol):
     """Protocol for objects that support metadata."""
 

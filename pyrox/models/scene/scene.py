@@ -12,6 +12,7 @@ from pyrox.interfaces import (
     ISceneObject,
     ICompositeSceneObject,
     ISceneGroup,
+    IScene
 )
 from pyrox.models.protocols import CoreMixin
 from pyrox.models.connection import ConnectionRegistry
@@ -19,7 +20,7 @@ from pyrox.models.scene.sceneobject import SceneObject
 from pyrox.models.scene.scenegroup import SceneGroup
 
 
-class Scene(CoreMixin):
+class Scene(IScene, CoreMixin):
     """Class representing a scene containing scene_objects and tags.
     """
 

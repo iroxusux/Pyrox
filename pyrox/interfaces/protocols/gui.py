@@ -1,12 +1,11 @@
 """Gui Protocol Interfaces.
 """
-from typing import Generic, Optional, Protocol, runtime_checkable, TypeVar
+from typing import Generic, Optional, Protocol, TypeVar
 
 
 T = TypeVar('T')
 
 
-@runtime_checkable
 class IHasCanvas(
     Generic[T],
     Protocol

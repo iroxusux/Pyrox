@@ -1,10 +1,7 @@
 """Kinematic protocols for motion representation.
 Defines interfaces for velocity and acceleration in 2D and 3D space.
 """
-from typing import (
-    runtime_checkable,
-    Protocol,
-)
+from typing import (Protocol)
 from pyrox.interfaces.protocols.spatial import ISpatial2D
 
 
@@ -85,7 +82,6 @@ class IVelocity2D(ISpatial2D):
         return self.get_speed()
 
 
-@runtime_checkable
 class IAngularVelocity(Protocol):
     """Protocol for rotational velocity."""
 

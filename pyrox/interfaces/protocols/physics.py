@@ -3,7 +3,6 @@
 Defines interfaces for physics bodies, colliders, materials, and rigid body dynamics.
 """
 from typing import (
-    runtime_checkable,
     Protocol,
     Self,
 )
@@ -701,7 +700,6 @@ class IPhysicsBody2D(IRigidBody2D):
         self.set_drag(value)
 
 
-@runtime_checkable
 class IPhysicsEngine(Protocol):
     """Protocol for the physics simulation engine."""
 

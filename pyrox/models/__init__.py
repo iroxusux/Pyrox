@@ -42,8 +42,8 @@ from .list import (
 
 # Factory components
 from .factory import (
-    FactoryTypeMeta,
     MetaFactory,
+    FactoryTypeABC
 )
 
 # Concrete physics body implementations
@@ -117,8 +117,8 @@ __all__ = [
     'PyroxObject',
 
     # Factory components
-    'FactoryTypeMeta',
     'MetaFactory',
+    'FactoryTypeABC',
 
     # List components
     'HashList',

@@ -7,7 +7,6 @@ from typing import (
     Callable,
     Protocol,
     TypeVar,
-    runtime_checkable
 )
 from pyrox.interfaces import (
     ICoreMixin,
@@ -23,19 +22,11 @@ from pyrox.interfaces.scene.scenegroup import ISceneGroup
 T = TypeVar("T", bound=ISceneObject | ICompositeSceneObject | ISceneGroup)
 
 
-@runtime_checkable
-class IScene(
-    ICoreMixin,
-    Protocol
-):
+class IScene(ICoreMixin):
     """
     Scene Interface for managing scene objects within a scene.
     """
 
-    def get_name(self) -> str: ...
-    def set_name(self, name: str) -> None: ...
-    def get_description(self) -> str: ...
-    def set_description(self, description: str) -> None: ...
     def get_scene_object(self, scene_object_id: str) -> ISceneObject | ICompositeSceneObject | ISceneGroup | None: ...
     def get_scene_objects(self) -> dict[str, ISceneObject | ICompositeSceneObject | ISceneGroup]: ...
     def set_scene_objects(self, scene_objects: dict[str, T]) -> None: ...
@@ -78,9 +69,7 @@ class IScene(
         self.set_connection_registry(registry)
 
 
-class ISceneRunnerService(
-    Protocol
-):
+class ISceneRunnerService(Protocol):
     """ Service interface for running and managing scenes.
     """
 
