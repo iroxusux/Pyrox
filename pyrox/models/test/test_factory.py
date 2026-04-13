@@ -537,17 +537,12 @@ class TestFactoryTypeABC(unittest.TestCase):
 
         self.assertEqual(len(self.TestFactory.get_registered_types()), 0)
 
-    # ------------------------------------------------------------------
-    # Abstract vs concrete registration via __init_subclass__
-    # ------------------------------------------------------------------
-
-    def test_abstract_base_not_registered_but_anchors_base_type(self):
-        """The first abstract subclass sets _base_type but is not itself registered."""
+    def test_base_registered_and_anchors_base_type(self):
+        """The first subclass sets _base_type and is itself registered."""
         class AbstractBase(FactoryTypeABC[self.TestFactory]):
-            @abstractmethod
-            def run(self): ...
+            def run(self): pass
 
-        self.assertNotIn('AbstractBase', self.TestFactory.get_registered_types())
+        self.assertIn('AbstractBase', self.TestFactory.get_registered_types())
         self.assertIs(self.TestFactory._base_type, AbstractBase)
 
     def test_concrete_subclass_auto_registered(self):
@@ -572,24 +567,24 @@ class TestFactoryTypeABC(unittest.TestCase):
 
     def test_multiple_concrete_subclasses_all_registered(self):
         """Every concrete subclass of the abstract base is registered."""
-        class AbstractBase(FactoryTypeABC[self.TestFactory]):
-            @abstractmethod
-            def run(self): ...
-
-        class Impl1(AbstractBase):
+        class Base(FactoryTypeABC[self.TestFactory]):
             def run(self): pass
 
-        class Impl2(AbstractBase):
+        class Impl1(Base):
             def run(self): pass
 
-        class Impl3(AbstractBase):
+        class Impl2(Base):
+            def run(self): pass
+
+        class Impl3(Base):
             def run(self): pass
 
         registered = self.TestFactory.get_registered_types()
+        self.assertIn('Base', registered)
         self.assertIn('Impl1', registered)
         self.assertIn('Impl2', registered)
         self.assertIn('Impl3', registered)
-        self.assertEqual(len(registered), 3)
+        self.assertEqual(len(registered), 4)
 
     def test_binding_container_class_not_registered(self):
         """The intermediate binding class created by __class_getitem__ is never registered."""
@@ -676,8 +671,7 @@ class TestIntegration(unittest.TestCase):
         F = self._make_factory()
 
         class Base(FactoryTypeABC[F]):
-            @abstractmethod
-            def run(self): ...
+            def run(self): pass
 
         class Mid(Base):
             def run(self): pass
@@ -686,7 +680,7 @@ class TestIntegration(unittest.TestCase):
             pass
 
         registered = F.get_registered_types()
-        self.assertNotIn('Base', registered)
+        self.assertIn('Base', registered)
         self.assertIn('Mid', registered)
         self.assertIn('Leaf', registered)
 
@@ -707,8 +701,8 @@ class TestIntegration(unittest.TestCase):
             def extra(self): pass
 
         registered = F.get_registered_types()
-        self.assertNotIn('Root', registered)
-        self.assertNotIn('AbstractMid', registered)
+        self.assertIn('Root', registered)
+        self.assertIn('AbstractMid', registered)
         self.assertIn('Concrete', registered)
 
     def test_multiple_concrete_subclasses_same_factory(self):
@@ -729,7 +723,8 @@ class TestIntegration(unittest.TestCase):
             def run(self): pass
 
         registered = F.get_registered_types()
-        self.assertEqual(len(registered), 3)
+        self.assertEqual(len(registered), 4)
+        self.assertIn('Base', registered)
         self.assertIn('Task1', registered)
         self.assertIn('Task2', registered)
         self.assertIn('Task3', registered)

@@ -235,8 +235,7 @@ class FactoryTypeABC(
             return
         if getattr(factory, '_base_type', None) is None:
             factory._base_type = cls
-        if not _is_abstract(cls):
-            factory.register_type(cls)
+        factory.register_type(cls)
 
     @classmethod
     def __class_getitem__(cls, item):
