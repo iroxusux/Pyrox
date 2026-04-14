@@ -1,14 +1,8 @@
 """Protocols module for PLC interfaces."""
-from abc import ABCMeta
 from typing import (
     Any,
     Protocol,
 )
-
-
-class IFactoryMixinProtocolMeta(ABCMeta):
-    """Metaclass for factory mixin protocols."""
-    ...
 
 
 class IConfigurable(Protocol):

@@ -199,27 +199,6 @@ class MetaFactory:
         cls._registered_types[type_class.__name__] = type_class
 
 
-def _is_abstract(cls: type) -> bool:
-    """Return True if cls has any unresolved abstract methods.
-
-    Called inside __init_subclass__, which fires before ABCMeta has had a
-    chance to populate __abstractmethods__, so we replicate the check manually.
-    """
-    # Abstract methods declared directly on this class
-    abstracts = {
-        name for name, val in cls.__dict__.items()
-        if getattr(val, '__isabstractmethod__', False)
-    }
-    # From each base: keep any inherited abstract method that cls hasn't
-    # overridden with a concrete implementation
-    for base in cls.__bases__:
-        for name in getattr(base, '__abstractmethods__', frozenset()):
-            val = cls.__dict__.get(name)
-            if val is None or getattr(val, '__isabstractmethod__', False):
-                abstracts.add(name)
-    return bool(abstracts)
-
-
 class FactoryTypeABC(
         ABC,
         Generic[T],
