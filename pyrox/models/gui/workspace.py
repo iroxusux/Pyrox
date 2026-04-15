@@ -11,10 +11,12 @@ This module provides a workspace widget that mimics the VSCode interface with:
 from typing import Callable, Any
 
 from PyQt6.QtCore import Qt, QTimer, QSize
+from PyQt6.QtGui import QAction
 
 from PyQt6.QtWidgets import (
     QDialog,
     QFrame,
+    QMenu,
     QPushButton,
     QSizePolicy,
     QSplitter,
@@ -32,7 +34,7 @@ from PyQt6.QtWidgets import (
 
 from pyrox.models.gui.commandbar import CommandButton
 from pyrox.models.gui import LogFrame, TaskFrame
-from pyrox.services import GuiStateService, LoggingManager
+from pyrox.services import GuiStateService, LoggingManager, MenuRegistry
 
 # ---- Display map to help visualize what the layout should look like ----
 # +-----------------------------------------------------+
@@ -206,6 +208,10 @@ class Workspace(QWidget):
         self._mounted_widgets: dict[str, QWidget] = {}
         self._sidebar_tabs: dict[str, str] = {}       # widget_id -> tab_id
         self._workspace_frames: dict[str, TaskFrame] = {}
+
+        # Active-window menu
+        self._windows_menu: QMenu | None = None
+        self._frame_menu_actions: dict[str, QAction] = {}
 
         # Event callbacks
         self.on_sidebar_toggle: Callable[[bool], None] | None = None
@@ -437,11 +443,20 @@ class Workspace(QWidget):
 
     # -------- Frames management --------
 
+    def set_windows_menu(self, menu: QMenu) -> None:
+        """Set the QMenu used to list active workspace frames.
+
+        Each time a frame is registered the workspace appends an action to this
+        menu; clicking the action raises that frame.  Pass this in from the
+        Application after the View menu has been created.
+        """
+        self._windows_menu = menu
+
     def _unregister_frame_from_view_menu(self, frame: TaskFrame) -> None:
-        # Qt applications own their menus separately.
-        # The host application should connect to on_task_frame_unmounted to
-        # update its View menu when a frame is removed.
-        pass
+        action = self._frame_menu_actions.pop(frame.name, None)
+        if action is not None and self._windows_menu is not None:
+            self._windows_menu.removeAction(action)
+        MenuRegistry.unregister_item(f'window.{frame.name}')
 
     def _unregister_workspace_frame(self, frame: TaskFrame) -> None:
         if frame.shown:
@@ -513,10 +528,19 @@ class Workspace(QWidget):
                 return
 
     def _register_frame_to_view_menu(self, frame: TaskFrame) -> None:
-        # Qt applications own their menus separately.
-        # The host application should connect to on_task_frame_mounted to
-        # update its View menu when a new frame is registered.
-        pass
+        if self._windows_menu is None:
+            return
+        action: QAction = self._windows_menu.addAction(frame.name)
+        action.triggered.connect(lambda: self.raise_frame(frame))
+        self._frame_menu_actions[frame.name] = action
+        MenuRegistry.register_item(
+            menu_id=f'window.{frame.name}',
+            menu_path=f'View/Windows/{frame.name}',
+            menu_widget=self._windows_menu,
+            menu_index=len(self._frame_menu_actions),
+            owner='Workspace',
+            action=action,
+        )
 
     def _register_workspace_frame(
         self,

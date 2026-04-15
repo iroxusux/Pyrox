@@ -2,6 +2,8 @@
 import sys
 from typing import Any
 
+from PyQt6.QtWidgets import QMenu
+
 from pyrox.interfaces import (
     EnvironmentKeys,
     IApplication,
@@ -98,6 +100,12 @@ class Application(
         # Build default tasks
         _splash.set_status('Loading tasks')
         ApplicationTaskFactory.build_tasks(self)
+
+        # Wire up a "Windows" submenu so registered task frames appear in View
+        _windows_menu = QMenu()
+        _windows_menu.setTitle('Windows')
+        self.view_menu.addMenu(_windows_menu)
+        self._workspace.set_windows_menu(_windows_menu)
 
         # Reveal main window and dismiss splash
         _splash.close_splash()

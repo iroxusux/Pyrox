@@ -20,6 +20,7 @@ class TestApplicationInitialization(unittest.TestCase):
         self.workspace_patcher = patch('pyrox.application.Workspace')
         self.platform_dir_patcher = patch('pyrox.models.services.PlatformDirectoryService')
         self.splash_screen_patcher = patch('pyrox.application.SplashScreen')
+        self.qmenu_patcher = patch('pyrox.application.QMenu')
 
         self.mock_gui_manager = self.gui_manager_patcher.start()
         self.mock_task_factory = self.task_factory_patcher.start()
@@ -28,6 +29,7 @@ class TestApplicationInitialization(unittest.TestCase):
         self.mock_workspace = self.workspace_patcher.start()
         self.mock_platform_dir = self.platform_dir_patcher.start()
         self.mock_splash_screen = self.splash_screen_patcher.start()
+        self.qmenu_patcher.start()
 
         self.mock_task_factory.build_tasks = MagicMock()
 
@@ -44,6 +46,7 @@ class TestApplicationInitialization(unittest.TestCase):
         self.workspace_patcher.stop()
         self.platform_dir_patcher.stop()
         self.splash_screen_patcher.stop()
+        self.qmenu_patcher.stop()
 
     def test_application_initializes_with_default_parameters(self):
         """Test Application initializes with proper defaults."""
@@ -125,6 +128,7 @@ class TestApplicationProperties(unittest.TestCase):
         self.workspace_patcher = patch('pyrox.application.Workspace')
         self.platform_dir_patcher = patch('pyrox.models.services.PlatformDirectoryService')
         self.splash_screen_patcher = patch('pyrox.application.SplashScreen')
+        self.qmenu_patcher = patch('pyrox.application.QMenu')
 
         self.gui_manager_patcher.start()
         self.mock_task_factory = self.task_factory_patcher.start()
@@ -133,6 +137,7 @@ class TestApplicationProperties(unittest.TestCase):
         self.mock_workspace = self.workspace_patcher.start()
         self.mock_platform_dir = self.platform_dir_patcher.start()
         self.splash_screen_patcher.start()
+        self.qmenu_patcher.start()
 
         self.mock_task_factory.build_tasks = MagicMock()
 
@@ -150,6 +155,7 @@ class TestApplicationProperties(unittest.TestCase):
         self.workspace_patcher.stop()
         self.platform_dir_patcher.stop()
         self.splash_screen_patcher.stop()
+        self.qmenu_patcher.stop()
 
     def test_env_property_returns_env_manager_class(self):
         """Test that env property returns EnvManager class."""
@@ -200,6 +206,7 @@ class TestApplicationMethods(unittest.TestCase):
         self.platform_dir_patcher = patch('pyrox.models.services.PlatformDirectoryService')
         self.log_patcher = patch('pyrox.models.services.LoggingManager')
         self.splash_screen_patcher = patch('pyrox.application.SplashScreen')
+        self.qmenu_patcher = patch('pyrox.application.QMenu')
 
         self.mock_gui_manager = self.gui_manager_patcher.start()
         self.mock_task_factory = self.task_factory_patcher.start()
@@ -209,6 +216,7 @@ class TestApplicationMethods(unittest.TestCase):
         self.mock_platform_dir = self.platform_dir_patcher.start()
         self.mock_log = self.log_patcher.start()
         self.splash_screen_patcher.start()
+        self.qmenu_patcher.start()
 
         self.mock_task_factory.build_tasks = MagicMock()
         self.mock_log_stream = MagicMock(spec=TextIOWrapper)
@@ -230,6 +238,7 @@ class TestApplicationMethods(unittest.TestCase):
         self.platform_dir_patcher.stop()
         self.log_patcher.stop()
         self.splash_screen_patcher.stop()
+        self.qmenu_patcher.stop()
 
     def test_get_author_returns_author_from_environment(self):
         """Test that get_author returns author from environment."""
@@ -319,6 +328,7 @@ class TestApplicationIntegration(unittest.TestCase):
         self.workspace_patcher = patch('pyrox.application.Workspace')
         self.platform_dir_patcher = patch('pyrox.models.services.PlatformDirectoryService')
         self.splash_screen_patcher = patch('pyrox.application.SplashScreen')
+        self.qmenu_patcher = patch('pyrox.application.QMenu')
 
         self.mock_gui_manager = self.gui_manager_patcher.start()
         self.mock_task_factory = self.task_factory_patcher.start()
@@ -327,6 +337,7 @@ class TestApplicationIntegration(unittest.TestCase):
         self.mock_workspace_class = self.workspace_patcher.start()
         self.mock_platform_dir = self.platform_dir_patcher.start()
         self.splash_screen_patcher.start()
+        self.qmenu_patcher.start()
 
         self.mock_task_factory.build_tasks = MagicMock()
         self.mock_log_stream = MagicMock(spec=TextIOWrapper)
@@ -344,6 +355,7 @@ class TestApplicationIntegration(unittest.TestCase):
         self.workspace_patcher.stop()
         self.platform_dir_patcher.stop()
         self.splash_screen_patcher.stop()
+        self.qmenu_patcher.stop()
 
     def test_application_full_lifecycle(self):
         """Test complete application lifecycle: init -> run -> close."""
