@@ -6,8 +6,9 @@ rendering.
 """
 
 import unittest
+from pathlib import Path
 from unittest.mock import Mock, patch
-from pyrox.interfaces import ISceneObject, IPhysicsBody2D
+from pyrox.interfaces import ICompositeSceneObject, ISceneObject, IPhysicsBody2D
 from pyrox.services.scene import (
     SceneRunnerService,
     SceneEventBus,
@@ -31,6 +32,7 @@ class TestSceneRunnerService(unittest.TestCase):
         self.mock_scene.get_scene_objects = Mock(return_value={})
         self.mock_scene.on_scene_object_added = []
         self.mock_scene.on_scene_object_removed = []
+        self.mock_scene.on_scene_updated = []
 
         # Patch GuiManager to return the mock backend
         self.gui_manager_patcher = patch('pyrox.services.scene.GuiManager')
@@ -45,6 +47,7 @@ class TestSceneRunnerService(unittest.TestCase):
         SceneRunnerService._physics_engine = None
         SceneRunnerService._event_id = None
         SceneRunnerService._update_interval_ms = 16
+        SceneRunnerService._scene_filepath = None
 
         # Clear event bus subscriptions
         SceneEventBus.clear()
@@ -62,6 +65,7 @@ class TestSceneRunnerService(unittest.TestCase):
         SceneRunnerService._environment = None
         SceneRunnerService._physics_engine = None
         SceneRunnerService._event_id = None
+        SceneRunnerService._scene_filepath = None
 
         # Clear event bus subscriptions
         SceneEventBus.clear()
@@ -397,6 +401,46 @@ class TestSceneRunnerService(unittest.TestCase):
         # Should not raise error
         SceneRunnerService.add_physics_body(body)
 
+    def test_add_scene_object(self):
+        """Test adding a scene object dynamically."""
+        SceneRunnerService.initialize(
+            scene=self.mock_scene,
+            enable_physics=True
+        )
+        body = Mock(spec=IPhysicsBody2D)
+        body.get_bounds = Mock(return_value=(0.0, 0.0, 10.0, 10.0))
+        scene_object = Mock(spec=ISceneObject)
+        scene_object.physics_body = body
+        SceneRunnerService._enable_physics = False
+
+        # Should not raise error
+        SceneRunnerService.add_physics_body(scene_object)
+
+    def test_add_composite_physics_body(self):
+        """Test adding a composite physics body dynamically."""
+        SceneRunnerService.initialize(
+            scene=self.mock_scene,
+            enable_physics=True
+        )
+
+        bodyA = Mock(spec=IPhysicsBody2D)
+        bodyA.get_bounds = Mock(return_value=(0.0, 0.0, 10.0, 10.0))
+        bodyB = Mock(spec=IPhysicsBody2D)
+        bodyB.get_bounds = Mock(return_value=(0.0, 0.0, 5.0, 5.0))
+        scene_objectA = Mock(spec=ISceneObject)
+        scene_objectA.physics_body = bodyA
+        scene_objectB = Mock(spec=ISceneObject)
+        scene_objectB.physics_body = bodyB
+        composite = Mock(spec=ICompositeSceneObject)
+        composite.get_components = Mock(return_value={
+            'compA': scene_objectA,
+            'compB': scene_objectB
+        })
+        SceneRunnerService._enable_physics = False
+
+        # Should not raise error
+        SceneRunnerService.add_physics_body(composite)
+
     def test_remove_physics_body(self):
         """Test removing a physics body dynamically."""
         SceneRunnerService.initialize(
@@ -414,6 +458,47 @@ class TestSceneRunnerService(unittest.TestCase):
 
         # Should not raise error
         SceneRunnerService.remove_physics_body(body)
+
+    def test_remove_scene_object(self):
+        """Test removing a scene object dynamically."""
+        SceneRunnerService.initialize(
+            scene=self.mock_scene,
+            enable_physics=True
+        )
+
+        body = Mock(spec=IPhysicsBody2D)
+        body.get_bounds = Mock(return_value=(0.0, 0.0, 10.0, 10.0))
+        scene_object = Mock(spec=ISceneObject)
+        scene_object.physics_body = body
+        SceneRunnerService._enable_physics = False
+
+        # Should not raise error
+        SceneRunnerService.remove_physics_body(scene_object)
+
+    def test_remove_composite_physics_body(self):
+        """Test removing a composite physics body dynamically."""
+        SceneRunnerService.initialize(
+            scene=self.mock_scene,
+            enable_physics=True
+        )
+
+        bodyA = Mock(spec=IPhysicsBody2D)
+        bodyA.get_bounds = Mock(return_value=(0.0, 0.0, 10.0, 10.0))
+        bodyB = Mock(spec=IPhysicsBody2D)
+        bodyB.get_bounds = Mock(return_value=(0.0, 0.0, 5.0, 5.0))
+        scene_objectA = Mock(spec=ISceneObject)
+        scene_objectA.physics_body = bodyA
+        scene_objectB = Mock(spec=ISceneObject)
+        scene_objectB.physics_body = bodyB
+        composite = Mock(spec=ICompositeSceneObject)
+        composite.get_components = Mock(return_value={
+            'compA': scene_objectA,
+            'compB': scene_objectB
+        })
+        SceneRunnerService._enable_physics = False
+
+        # Should not raise error
+        SceneRunnerService.remove_physics_body(composite)
 
     def test_get_physics_stats_with_physics(self):
         """Test getting physics stats when physics is enabled."""
@@ -663,6 +748,452 @@ class TestSceneRunnerService(unittest.TestCase):
         self.assertEqual(SceneEventBus.get_subscriber_count(SceneEventType.SCENE_LOADED), 0)
         self.assertEqual(SceneEventBus.get_subscriber_count(SceneEventType.SCENE_UNLOADED), 0)
         self.assertEqual(SceneEventBus.get_subscriber_count(SceneEventType.SCENE_STARTED), 0)
+
+
+class TestSceneRunnerServiceFilepath(unittest.TestCase):
+    """Tests for persistent filepath tracking in SceneRunnerService."""
+
+    def setUp(self):
+        self.mock_scene = Mock()
+        self.mock_scene.get_scene_objects = Mock(return_value={})
+        self.mock_scene.on_scene_object_added = []
+        self.mock_scene.on_scene_object_removed = []
+        self.mock_scene.to_dict = Mock(return_value={"name": "Test", "scene_objects": [], "connections": []})
+
+        self.gui_manager_patcher = patch('pyrox.services.scene.GuiManager')
+        self.mock_gui_manager_class = self.gui_manager_patcher.start()
+        self.mock_gui_manager_class.schedule_event.return_value = "event_id_123"
+
+        SceneRunnerService._running = False
+        SceneRunnerService._enable_physics = False
+        SceneRunnerService._scene = None
+        SceneRunnerService._environment = None
+        SceneRunnerService._physics_engine = None
+        SceneRunnerService._event_id = None
+        SceneRunnerService._update_interval_ms = 16
+        SceneRunnerService._scene_filepath = None
+
+        SceneEventBus.clear()
+
+    def tearDown(self):
+        if SceneRunnerService._running:
+            SceneRunnerService.stop()
+        SceneRunnerService._running = False
+        SceneRunnerService._scene = None
+        SceneRunnerService._scene_filepath = None
+        SceneEventBus.clear()
+        self.gui_manager_patcher.stop()
+
+    def test_filepath_none_initially(self):
+        """get_scene_filepath returns None before any load or save."""
+        SceneRunnerService.initialize(scene=None, enable_physics=False)
+        self.assertIsNone(SceneRunnerService.get_scene_filepath())
+
+    def test_load_scene_stores_filepath(self):
+        """load_scene persists the filepath after loading."""
+        import json
+        import tempfile
+        import os
+        scene_data = {"version": "1.0", "scene": {"name": "Test", "scene_objects": [], "connections": []}, "bridge": {}}
+
+        with tempfile.NamedTemporaryFile(
+            mode='w', suffix='.cr2d', delete=False
+        ) as f:
+            json.dump(scene_data, f)
+            tmp_path = f.name
+
+        try:
+            SceneRunnerService.initialize(scene=None, enable_physics=False)
+            SceneRunnerService.load_scene(tmp_path)
+            self.assertEqual(SceneRunnerService.get_scene_filepath(), Path(tmp_path))
+        finally:
+            os.unlink(tmp_path)
+
+    def test_save_scene_stores_filepath(self):
+        """save_scene persists the filepath after saving."""
+        import tempfile
+        import os
+
+        SceneRunnerService.initialize(scene=self.mock_scene, enable_physics=False)
+
+        with tempfile.NamedTemporaryFile(
+            suffix='.cr2d', delete=False
+        ) as f:
+            tmp_path = f.name
+
+        try:
+            SceneRunnerService.save_scene(tmp_path)
+            self.assertEqual(SceneRunnerService.get_scene_filepath(), Path(tmp_path))
+        finally:
+            os.unlink(tmp_path)
+
+    def test_save_scene_quick_save_uses_stored_filepath(self):
+        """save_scene() without argument reuses the last known filepath."""
+        import tempfile
+        import os
+
+        SceneRunnerService.initialize(scene=self.mock_scene, enable_physics=False)
+
+        with tempfile.NamedTemporaryFile(
+            suffix='.cr2d', delete=False
+        ) as f:
+            tmp_path = f.name
+
+        try:
+            # First explicit save sets filepath
+            SceneRunnerService.save_scene(tmp_path)
+            self.assertEqual(SceneRunnerService.get_scene_filepath(), Path(tmp_path))
+
+            # Quick-save (no arg) should write to the same file without a dialog
+            with patch('pyrox.services.scene.get_save_file') as mock_dialog:
+                SceneRunnerService.save_scene()
+                mock_dialog.assert_not_called()
+
+            self.assertTrue(os.path.exists(tmp_path))
+        finally:
+            os.unlink(tmp_path)
+
+    def test_save_scene_without_filepath_opens_dialog_when_unknown(self):
+        """save_scene() opens a dialog when no filepath is known."""
+        SceneRunnerService.initialize(scene=self.mock_scene, enable_physics=False)
+
+        with patch('pyrox.services.scene.get_save_file', return_value=None) as mock_dialog:
+            SceneRunnerService.save_scene()  # no arg, no stored filepath
+            mock_dialog.assert_called_once()
+
+        # Nothing was saved, filepath remains None
+        self.assertIsNone(SceneRunnerService.get_scene_filepath())
+
+    def test_new_scene_clears_filepath(self):
+        """new_scene() resets the stored filepath to None."""
+        import tempfile
+        import os
+
+        SceneRunnerService.initialize(scene=self.mock_scene, enable_physics=False)
+
+        with tempfile.NamedTemporaryFile(
+            suffix='.cr2d', delete=False
+        ) as f:
+            tmp_path = f.name
+
+        try:
+            SceneRunnerService.save_scene(tmp_path)
+            self.assertIsNotNone(SceneRunnerService.get_scene_filepath())
+
+            SceneRunnerService.new_scene()
+            self.assertIsNone(SceneRunnerService.get_scene_filepath())
+        finally:
+            if os.path.exists(tmp_path):
+                os.unlink(tmp_path)
+
+    def test_scene_loaded_event_carries_filepath(self):
+        """SCENE_LOADED event data contains the filepath after load_scene."""
+        import json
+        import tempfile
+        import os
+
+        scene_data = {"version": "1.0", "scene": {"name": "Test", "scene_objects": [], "connections": []}, "bridge": {}}
+        with tempfile.NamedTemporaryFile(
+            mode='w', suffix='.cr2d', delete=False
+        ) as f:
+            json.dump(scene_data, f)
+            tmp_path = f.name
+
+        events_received = []
+        SceneEventBus.subscribe(
+            SceneEventType.SCENE_LOADED,
+            lambda e: events_received.append(e)
+        )
+
+        try:
+            SceneRunnerService.initialize(scene=None, enable_physics=False)
+            SceneRunnerService.load_scene(tmp_path)
+
+            self.assertTrue(events_received)
+            self.assertEqual(
+                events_received[-1].data.get("filepath"),
+                Path(tmp_path)
+            )
+        finally:
+            os.unlink(tmp_path)
+
+    def test_scene_saved_event_carries_filepath(self):
+        """SCENE_SAVED event data contains the filepath."""
+        import tempfile
+        import os
+
+        SceneRunnerService.initialize(scene=self.mock_scene, enable_physics=False)
+
+        events_received = []
+        SceneEventBus.subscribe(
+            SceneEventType.SCENE_SAVED,
+            lambda e: events_received.append(e)
+        )
+
+        with tempfile.NamedTemporaryFile(
+            suffix='.cr2d', delete=False
+        ) as f:
+            tmp_path = f.name
+
+        try:
+            SceneRunnerService.save_scene(tmp_path)
+            self.assertTrue(events_received)
+            self.assertEqual(
+                events_received[0].data.get("filepath"),
+                Path(tmp_path)
+            )
+        finally:
+            os.unlink(tmp_path)
+
+
+class TestViewportStatusServiceLifecycle(unittest.TestCase):
+    """Tests for ViewportStatusService subscription lifecycle.
+
+    Verifies that destroy() correctly cleans up ViewportEventBus subscriptions
+    so that repeated open/close cycles do not leave stale bound-method
+    references that fire against deleted QLabel C++ objects.
+    """
+
+    def setUp(self):
+        from pyrox.services.viewport import ViewportEventBus
+        ViewportEventBus.clear()
+
+    def tearDown(self):
+        from pyrox.services.viewport import ViewportEventBus
+        ViewportEventBus.clear()
+
+    def test_subscribes_to_all_three_event_types_on_init(self):
+        """ViewportStatusService subscribes to GRID, PAN, and ZOOM on creation."""
+        from pyrox.services.viewport import ViewportStatusService, ViewportEventBus, ViewportEventType
+        _ = ViewportStatusService()
+        self.assertEqual(ViewportEventBus.get_subscriber_count(ViewportEventType.GRID), 1)
+        self.assertEqual(ViewportEventBus.get_subscriber_count(ViewportEventType.PAN), 1)
+        self.assertEqual(ViewportEventBus.get_subscriber_count(ViewportEventType.ZOOM), 1)
+
+    def test_destroy_unsubscribes_from_all_event_types(self):
+        """destroy() removes all three ViewportEventBus subscriptions."""
+        from pyrox.services.viewport import ViewportStatusService, ViewportEventBus, ViewportEventType
+        svc = ViewportStatusService()
+        svc.destroy()
+        self.assertEqual(ViewportEventBus.get_subscriber_count(ViewportEventType.GRID), 0)
+        self.assertEqual(ViewportEventBus.get_subscriber_count(ViewportEventType.PAN), 0)
+        self.assertEqual(ViewportEventBus.get_subscriber_count(ViewportEventType.ZOOM), 0)
+
+    def test_create_destroy_multiple_times_leaves_no_subscribers(self):
+        """Simulates opening and closing a scene viewer multiple times.
+
+        Each cycle creates a new ViewportStatusService (as SceneViewerFrame does)
+        and then destroys it.  After all cycles the bus must be empty.
+        """
+        from pyrox.services.viewport import ViewportStatusService, ViewportEventBus, ViewportEventType
+        for _ in range(5):
+            svc = ViewportStatusService()
+            svc.destroy()
+
+        self.assertEqual(ViewportEventBus.get_subscriber_count(ViewportEventType.GRID), 0)
+        self.assertEqual(ViewportEventBus.get_subscriber_count(ViewportEventType.PAN), 0)
+        self.assertEqual(ViewportEventBus.get_subscriber_count(ViewportEventType.ZOOM), 0)
+
+    def test_destroy_is_safe_to_call_twice(self):
+        """Calling destroy() a second time must not raise."""
+        from pyrox.services.viewport import ViewportStatusService
+        svc = ViewportStatusService()
+        svc.destroy()
+        # Second call should be a no-op, not an exception
+        try:
+            svc.destroy()
+        except Exception as exc:
+            self.fail(f"Second destroy() raised unexpectedly: {exc}")
+
+    def test_without_destroy_stale_subscriber_remains(self):
+        """Confirms the bug: without destroy(), a leaked subscriber persists.
+
+        This is the regression guard – if destroy() is NOT called the
+        subscriber count rises, demonstrating the leak.
+        """
+        from pyrox.services.viewport import ViewportStatusService, ViewportEventBus, ViewportEventType
+        # Create two services, destroy only the second; first is leaked
+        svc1 = ViewportStatusService()
+        svc2 = ViewportStatusService()
+        svc2.destroy()
+
+        # svc1 is still subscribed
+        self.assertEqual(ViewportEventBus.get_subscriber_count(ViewportEventType.PAN), 1)
+
+        # Cleanup for tearDown
+        svc1.destroy()
+
+
+class TestViewportHostingServiceLifecycle(unittest.TestCase):
+    """Tests for ViewportHostingService subscription lifecycle.
+
+    ViewportHostingService owns a ViewportStatusService and also subscribes
+    itself to the bus.  destroy() must clean up both layers of subscriptions.
+    """
+
+    def setUp(self):
+        from pyrox.services.viewport import ViewportEventBus
+        ViewportEventBus.clear()
+
+    def tearDown(self):
+        from pyrox.services.viewport import ViewportEventBus
+        ViewportEventBus.clear()
+
+    def _make_hosting_service(self):
+        """Create a ViewportHostingService with build() mocked out."""
+        from unittest.mock import patch
+        from pyrox.services.viewport import ViewportHostingService
+        with patch('pyrox.services.viewport.ViewportStatusService.build', return_value=None):
+            svc = ViewportHostingService(canvas=None, canvas_parent=None)
+        return svc
+
+    def test_hosting_service_registers_subscriptions_on_init(self):
+        """ViewportHostingService adds its own 3 subs on top of the status service's 3."""
+        from pyrox.services.viewport import ViewportEventBus, ViewportEventType
+        _ = self._make_hosting_service()
+        # Hosting service: 3 (self.update_viewport for GRID/PAN/ZOOM)
+        # Status service:  3 (GRID/PAN/ZOOM handlers)
+        # Total per event type: 2
+        self.assertEqual(ViewportEventBus.get_subscriber_count(ViewportEventType.PAN), 2)
+        self.assertEqual(ViewportEventBus.get_subscriber_count(ViewportEventType.ZOOM), 2)
+        self.assertEqual(ViewportEventBus.get_subscriber_count(ViewportEventType.GRID), 2)
+
+    def test_destroy_removes_all_subscriptions(self):
+        """destroy() on ViewportHostingService removes all 6 subscriptions (self + status)."""
+        from pyrox.services.viewport import ViewportEventBus, ViewportEventType
+        svc = self._make_hosting_service()
+        svc.destroy()
+        self.assertEqual(ViewportEventBus.get_subscriber_count(ViewportEventType.PAN), 0)
+        self.assertEqual(ViewportEventBus.get_subscriber_count(ViewportEventType.ZOOM), 0)
+        self.assertEqual(ViewportEventBus.get_subscriber_count(ViewportEventType.GRID), 0)
+
+    def test_repeated_open_close_no_accumulation(self):
+        """Simulates creating and destroying a ViewportHostingService multiple times."""
+        from pyrox.services.viewport import ViewportEventBus, ViewportEventType
+        for _ in range(4):
+            svc = self._make_hosting_service()
+            svc.destroy()
+
+        self.assertEqual(ViewportEventBus.get_subscriber_count(ViewportEventType.PAN), 0)
+        self.assertEqual(ViewportEventBus.get_subscriber_count(ViewportEventType.ZOOM), 0)
+        self.assertEqual(ViewportEventBus.get_subscriber_count(ViewportEventType.GRID), 0)
+
+
+class TestSceneBridgeServiceLifecycle(unittest.TestCase):
+    """Tests that SceneBridgeService does not accumulate SceneEventBus
+    subscriptions across multiple initialize() / reset() cycles.
+    """
+
+    def setUp(self):
+        SceneEventBus.clear()
+        from pyrox.services.scene import SceneBridgeService
+        SceneBridgeService.reset()
+
+    def tearDown(self):
+        from pyrox.services.scene import SceneBridgeService
+        SceneBridgeService.reset()
+        SceneEventBus.clear()
+
+    def test_initialize_adds_exactly_two_subscriptions(self):
+        """initialize() registers exactly SCENE_LOADED + SCENE_UNLOADED."""
+        from pyrox.services.scene import SceneBridgeService
+        SceneBridgeService.initialize()
+        self.assertEqual(SceneEventBus.get_subscriber_count(SceneEventType.SCENE_LOADED), 1)
+        self.assertEqual(SceneEventBus.get_subscriber_count(SceneEventType.SCENE_UNLOADED), 1)
+
+    def test_repeated_initialize_does_not_grow_subscriptions(self):
+        """initialize() is idempotent – calling it many times must not accumulate."""
+        from pyrox.services.scene import SceneBridgeService
+        for _ in range(5):
+            SceneBridgeService.initialize()
+        self.assertEqual(SceneEventBus.get_subscriber_count(SceneEventType.SCENE_LOADED), 1)
+        self.assertEqual(SceneEventBus.get_subscriber_count(SceneEventType.SCENE_UNLOADED), 1)
+
+    def test_reset_removes_subscriptions(self):
+        """reset() removes all SceneBridgeService subscriptions from the bus."""
+        from pyrox.services.scene import SceneBridgeService
+        SceneBridgeService.initialize()
+        SceneBridgeService.reset()
+        self.assertEqual(SceneEventBus.get_subscriber_count(SceneEventType.SCENE_LOADED), 0)
+        self.assertEqual(SceneEventBus.get_subscriber_count(SceneEventType.SCENE_UNLOADED), 0)
+
+    def test_initialize_after_reset_adds_exactly_two_subscriptions(self):
+        """reset() + initialize() cycle restores exactly one subscription per event."""
+        from pyrox.services.scene import SceneBridgeService
+        for _ in range(3):
+            SceneBridgeService.initialize()
+            SceneBridgeService.reset()
+        SceneBridgeService.initialize()
+        self.assertEqual(SceneEventBus.get_subscriber_count(SceneEventType.SCENE_LOADED), 1)
+        self.assertEqual(SceneEventBus.get_subscriber_count(SceneEventType.SCENE_UNLOADED), 1)
+
+
+class TestMenuItemDescriptorSetCommand(unittest.TestCase):
+    """Tests for MenuItemDescriptor.set_command().
+
+    Covers the PyQt6 TypeError that is raised when signal.disconnect()
+    is called and there are no existing connections.
+    """
+
+    def _make_descriptor(self, action=None):
+        from pyrox.services.menu_registry import MenuItemDescriptor
+        return MenuItemDescriptor(
+            menu_id='test.menu.item',
+            menu_path='Test/Menu/Item',
+            menu_widget=None,
+            menu_index=0,
+            owner='TestOwner',
+            action=action,
+        )
+
+    def test_set_command_with_no_action_does_not_raise(self):
+        """set_command on a descriptor with no action must not raise."""
+        desc = self._make_descriptor(action=None)
+        try:
+            desc.set_command(lambda: None)
+        except Exception as exc:
+            self.fail(f"set_command raised unexpectedly: {exc}")
+
+    def test_set_command_with_mock_action_no_connections_does_not_log_warning(self):
+        """set_command with a mock action that has no connections must not warn.
+
+        Simulates PyQt6's TypeError raised by signal.disconnect() when there
+        are no existing connections – the fix should catch it silently and
+        still apply the new command.
+        """
+        from unittest.mock import MagicMock
+        mock_action = MagicMock()
+        mock_action.triggered.disconnect.side_effect = TypeError(
+            "disconnect() failed between 'triggered' and all its connections"
+        )
+        desc = self._make_descriptor(action=mock_action)
+        def new_cmd(): return None
+        # Before the fix this TypeError propagated to the outer except block
+        # and was logged as a WARNING.  After the fix the inner except catches
+        # it and set_command completes without any exception.
+        desc.set_command(new_cmd)
+        # The command must have been stored despite the disconnect error
+        self.assertIs(desc.command, new_cmd)
+
+    def test_set_command_with_mock_action_runtime_error_does_not_log_warning(self):
+        """set_command also handles RuntimeError from disconnect() silently."""
+        from unittest.mock import MagicMock
+        mock_action = MagicMock()
+        mock_action.triggered.disconnect.side_effect = RuntimeError("No connections")
+        desc = self._make_descriptor(action=mock_action)
+        def new_cmd(): return None
+        desc.set_command(new_cmd)
+        self.assertIs(desc.command, new_cmd)
+
+    def test_set_command_none_clears_callback(self):
+        """set_command(None) clears the stored command."""
+        from unittest.mock import MagicMock
+        mock_action = MagicMock()
+        mock_action.triggered.disconnect.side_effect = TypeError("no connections")
+        desc = self._make_descriptor(action=mock_action)
+        desc.set_command(lambda: None)
+        desc.set_command(None)
+        self.assertIsNone(desc.command)
 
 
 if __name__ == '__main__':

@@ -149,13 +149,6 @@ class TestCrateBody(unittest.TestCase):
 
         self.assertFalse(crate.sleeping)
 
-    def test_automatic_tags(self):
-        """Test crate automatically has crate and type tags."""
-        crate = CrateBody(crate_type="metal")
-
-        self.assertTrue(crate.has_tag("crate"))
-        self.assertTrue(crate.has_tag("metal"))
-
     def test_inheritance_from_base_physics_body(self):
         """Test that CrateBody inherits from BasePhysicsBody."""
         crate = CrateBody()

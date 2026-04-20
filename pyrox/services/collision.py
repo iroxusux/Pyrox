@@ -317,12 +317,16 @@ class CollisionService:
         j = -(1 + e) * vel_along_normal
         j /= (inv_mass_a + inv_mass_b)
 
-        # Apply impulse
+        # Apply impulse only to DYNAMIC bodies.  KINEMATIC bodies maintain
+        # their programmed (animation-driven) velocity and must not be
+        # deflected by collision responses.
         impulse_x = j * normal_x
         impulse_y = j * normal_y
 
-        body_a.apply_impulse(-impulse_x, -impulse_y)
-        body_b.apply_impulse(impulse_x, impulse_y)
+        if type_a == BodyType.DYNAMIC:
+            body_a.apply_impulse(-impulse_x, -impulse_y)
+        if type_b == BodyType.DYNAMIC:
+            body_b.apply_impulse(impulse_x, impulse_y)
 
         # Position correction to prevent sinking
         self._correct_positions(collision, inv_mass_a, inv_mass_b)

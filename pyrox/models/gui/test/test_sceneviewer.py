@@ -69,7 +69,6 @@ class TestSceneManagement(unittest.TestCase):
         """Test creating scene objects."""
         obj = SceneObject(
             name="Test Object",
-            scene_object_type="rectangle",
             properties={"shape": "rectangle"},
             physics_body=BasePhysicsBody(x=10, y=20)
         )
@@ -82,9 +81,9 @@ class TestSceneManagement(unittest.TestCase):
     def test_scene_add_remove_objects(self):
         """Test adding and removing objects from scene."""
         scene = Scene(name="Test Scene")
-        obj1 = SceneObject(name="Object 1", scene_object_type="rect", properties={},
+        obj1 = SceneObject(name="Object 1", properties={},
                            physics_body=BasePhysicsBody())
-        obj2 = SceneObject(name="Object 2", scene_object_type="circle", properties={},
+        obj2 = SceneObject(name="Object 2", properties={},
                            physics_body=BasePhysicsBody())
 
         scene.add_scene_object(obj1)

@@ -28,8 +28,8 @@ class MenuItemDescriptor:
             if self.action is not None:
                 try:
                     self.action.triggered.disconnect()
-                except RuntimeError:
-                    pass  # No connections to disconnect
+                except (RuntimeError, TypeError):
+                    pass  # No connections to disconnect (PyQt6 raises TypeError when none exist)
                 if command is not None:
                     self.action.triggered.connect(command)
             self.command = command

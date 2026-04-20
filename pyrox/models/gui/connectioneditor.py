@@ -126,13 +126,14 @@ class ConnectionEditor(QWidget):
         self,
         parent: Optional[QWidget] = None,
         scene: Optional[IScene] = None,
-        connection_registry: Optional[ConnectionRegistry] = None,
     ) -> None:
         super().__init__(parent)
 
         # Domain state
-        self._scene: Optional[IScene] = scene
-        self._registry: Optional[ConnectionRegistry] = connection_registry
+        if not scene:
+            raise ValueError("ConnectionEditor requires a scene to function")
+
+        self._scene: IScene = scene
         self._nodes: Dict[str, VisualNode] = {}
         self._connection_lines: Dict[Tuple[str, str, str, str], Any] = {}  # -> QGraphicsPathItem
 
@@ -157,7 +158,7 @@ class ConnectionEditor(QWidget):
         self._build_ui()
 
         if self._scene:
-            self.load_scene(self._scene, self._registry)
+            self.load_scene(self._scene)
 
     # ------------------------------------------------------------------
     # UI construction
@@ -204,7 +205,6 @@ class ConnectionEditor(QWidget):
 
         for text, slot in (
             ("✓ Test All", self.test_all_connections),
-            ("💾 Save",    self.save_connections),
         ):
             btn = QPushButton(text)
             btn.clicked.connect(slot)
@@ -247,7 +247,6 @@ class ConnectionEditor(QWidget):
     def load_scene(
         self,
         scene: IScene,
-        connection_registry: Optional[ConnectionRegistry] = None,
     ) -> None:
         """Load a scene into the editor.
 
@@ -256,10 +255,6 @@ class ConnectionEditor(QWidget):
             connection_registry: Optional connection registry to use
         """
         self._scene = scene
-        if connection_registry:
-            self._registry = connection_registry
-        elif not self._registry:
-            self._registry = ConnectionRegistry()
 
         self._gscene.clear()
         self._nodes.clear()
@@ -268,9 +263,6 @@ class ConnectionEditor(QWidget):
         x, y = 50.0, 50.0
         for obj_id, scene_obj in scene.scene_objects.items():
             self._create_node(obj_id, scene_obj, x, y)
-
-            if self._registry and obj_id not in self._registry._objects:
-                self._registry.register_object(obj_id, scene_obj.physics_body)
 
             x += 250
             if x > 800:
@@ -405,9 +397,10 @@ class ConnectionEditor(QWidget):
 
     def _draw_existing_connections(self) -> None:
         """Draw all existing connections from the registry."""
-        if not self._registry:
+        if not self._scene:
             return
-        for conn in self._registry._connections:
+
+        for conn in self._scene.connection_registry.connections:
             self._draw_connection(
                 conn.source_id, conn.source_output,
                 conn.target_id, conn.target_input,
@@ -658,20 +651,19 @@ class ConnectionEditor(QWidget):
             self._set_status("⚠️ Connection already exists!")
             return
 
-        if self._registry:
-            try:
-                self._registry.connect(source_id, source_port, target_id, target_port)
-                success = self._draw_connection(source_id, source_port, target_id, target_port)
-                if success:
-                    self._set_status(
-                        f"✓ Connected {source_id}.{source_port} → {target_id}.{target_port}"
-                    )
-                else:
-                    self._set_status("❌ Failed to draw connection - check console for details")
-            except Exception as e:
-                self._set_status(f"❌ Error: {str(e)}")
-                import traceback
-                traceback.print_exc()
+        try:
+            self._scene.connection_registry.connect(source_id, source_port, target_id, target_port)
+            success = self._draw_connection(source_id, source_port, target_id, target_port)
+            if success:
+                self._set_status(
+                    f"✓ Connected {source_id}.{source_port} → {target_id}.{target_port}"
+                )
+            else:
+                self._set_status("❌ Failed to draw connection - check console for details")
+        except Exception as e:
+            self._set_status(f"❌ Error: {str(e)}")
+            import traceback
+            traceback.print_exc()
 
     def _redraw_node_connections(self, obj_id: str) -> None:
         """Redraw all connections that involve a given node (called after drag).
@@ -693,14 +685,13 @@ class ConnectionEditor(QWidget):
         """
         source_id, source_port, target_id, target_port = conn_key
 
-        if self._registry:
-            for _, conn in enumerate(self._registry._connections):
-                if (conn.source_id == source_id
-                        and conn.source_output == source_port
-                        and conn.target_id == target_id
-                        and conn.target_input == target_port):
-                    self._registry.disconnect(source_id, source_port, target_id, target_port)
-                    break
+        for _, conn in enumerate(self._scene.connection_registry.connections):
+            if (conn.source_id == source_id
+                    and conn.source_output == source_port
+                    and conn.target_id == target_id
+                    and conn.target_input == target_port):
+                self._scene.connection_registry.disconnect(source_id, source_port, target_id, target_port)
+                break
 
         item = self._connection_lines.pop(conn_key, None)
         if item:
@@ -717,19 +708,18 @@ class ConnectionEditor(QWidget):
             conn_key: (source_id, source_port, target_id, target_port)
         """
         source_id, source_port, _, _ = conn_key
-        if self._registry:
-            src_obj = self._registry._objects.get(source_id)
-            if src_obj:
-                cb_list = getattr(src_obj, source_port, [])
-                if cb_list:
-                    for cb in cb_list:
-                        try:
-                            cb()
-                            self._set_status("✓ Tested connection - callback executed successfully")
-                        except Exception as e:
-                            self._set_status(f"❌ Test failed: {str(e)}")
-                else:
-                    self._set_status(f"⚠️ No callbacks found for {source_port}")
+        src_obj = self._scene.connection_registry.objects.get(source_id)
+        if src_obj:
+            cb_list = getattr(src_obj, source_port, [])
+            if cb_list:
+                for cb in cb_list:
+                    try:
+                        cb()
+                        self._set_status("✓ Tested connection - callback executed successfully")
+                    except Exception as e:
+                        self._set_status(f"❌ Test failed: {str(e)}")
+            else:
+                self._set_status(f"⚠️ No callbacks found for {source_port}")
 
     # ------------------------------------------------------------------
     # Toolbar actions
@@ -738,7 +728,7 @@ class ConnectionEditor(QWidget):
     def reload_scene(self) -> None:
         """Reload the current scene."""
         if self._scene:
-            self.load_scene(self._scene, self._registry)
+            self.load_scene(self._scene)
 
     def auto_layout(self) -> None:
         """Automatically arrange nodes in a grid."""
@@ -783,16 +773,15 @@ class ConnectionEditor(QWidget):
         ) != QMessageBox.StandardButton.Yes:
             return
 
-        if self._registry:
-            for conn in list(self._registry._connections):
-                src_obj = self._registry._objects.get(conn.source_id)
-                tgt_obj = self._registry._objects.get(conn.target_id)
-                if src_obj and tgt_obj:
-                    cb_list = getattr(src_obj, conn.source_output, [])
-                    tgt_method = getattr(tgt_obj, conn.target_input, None)
-                    if tgt_method and tgt_method in cb_list:
-                        cb_list.remove(tgt_method)
-            self._registry._connections.clear()
+        for conn in list(self._scene.connection_registry.connections):
+            src_obj = self._scene.connection_registry.objects.get(conn.source_id)
+            tgt_obj = self._scene.connection_registry.objects.get(conn.target_id)
+            if src_obj and tgt_obj:
+                cb_list = getattr(src_obj, conn.source_output, [])
+                tgt_method = getattr(tgt_obj, conn.target_input, None)
+                if tgt_method and tgt_method in cb_list:
+                    cb_list.remove(tgt_method)
+        self._scene.connection_registry.connections.clear()
 
         for item in self._connection_lines.values():
             self._gscene.removeItem(item)
@@ -802,14 +791,14 @@ class ConnectionEditor(QWidget):
 
     def test_all_connections(self) -> None:
         """Validate all connections and display a results dialog."""
-        if not self._registry or not self._registry._connections:
+        if not self._scene.connection_registry.connections:
             QMessageBox.information(self, "Test Connections", "No connections to test")
             return
 
         results = []
-        for conn in self._registry._connections:
-            src_obj = self._registry._objects.get(conn.source_id)
-            tgt_obj = self._registry._objects.get(conn.target_id)
+        for conn in self._scene.connection_registry.connections:
+            src_obj = self._scene.connection_registry.objects.get(conn.source_id)
+            tgt_obj = self._scene.connection_registry.objects.get(conn.target_id)
             tag = f"{conn.source_id}.{conn.source_output} → {conn.target_id}.{conn.target_input}"
 
             if src_obj and tgt_obj:
@@ -823,14 +812,6 @@ class ConnectionEditor(QWidget):
                 results.append(f"❌ (object missing) {tag}")
 
         QMessageBox.information(self, "Connection Test Results", "\n".join(results))
-
-    def save_connections(self) -> None:
-        """Save connections back to the scene."""
-        if self._registry and self._scene:
-            self._scene.set_connection_registry(self._registry)
-            self._set_status("✓ Connections saved to scene")
-        else:
-            self._set_status("❌ No scene or registry to save")
 
     def zoom_in(self) -> None:
         """Zoom in the canvas."""
@@ -876,7 +857,7 @@ def create_demo_window() -> QMainWindow:
     window = QMainWindow()
     window.setWindowTitle("Pyrox Connection Editor Demo")
     window.resize(1200, 800)
-    window.setCentralWidget(ConnectionEditor(scene=scene, connection_registry=registry))
+    window.setCentralWidget(ConnectionEditor(scene=scene))  # type: ignore
     return window
 
 

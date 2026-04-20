@@ -4,7 +4,6 @@ SceneGroup: user-assembled group of scene objects (Type 1 grouping).
 All members remain independently registered in the scene.  The group itself
 is also registered as a scene object and acts as a bounding anchor.
 """
-from __future__ import annotations
 
 import copy
 from typing import (
@@ -12,6 +11,7 @@ from typing import (
     List,
     Optional,
 )
+import uuid
 
 from pyrox.interfaces import (
     IBasePhysicsBody,
@@ -19,6 +19,7 @@ from pyrox.interfaces import (
 )
 from pyrox.interfaces.scene.scenegroup import ISceneGroup
 from pyrox.models.scene.sceneobject import SceneObject
+from pyrox.models.scene.factory import SceneObjectFactory, SceneObjectTemplate
 
 SCENE_OBJECT_TYPE_GROUP = "group"
 
@@ -46,20 +47,25 @@ class SceneGroup(SceneObject, ISceneGroup):
         scene.remove_scene_object(group.id)
     """
 
+    _scene_object_type = 'group'
+    _template_name = 'SceneGroup'
+
     def __init__(
         self,
         name: str,
         physics_body: IBasePhysicsBody,
         description: str = "",
+        id: str | None = None,
         properties: Optional[Dict] = None,
         parent: Optional[SceneObject] = None,
         layer: int = 0,
     ):
-        super().__init__(
+        SceneObject.__init__(
+            self=self,
             name=name,
-            scene_object_type=SCENE_OBJECT_TYPE_GROUP,
             physics_body=physics_body,
             description=description,
+            id=id or f'{SCENE_OBJECT_TYPE_GROUP}_{uuid.uuid4()}',
             properties=properties,
             parent=parent,
             layer=layer,
@@ -205,6 +211,7 @@ class SceneGroup(SceneObject, ISceneGroup):
         group = cls(
             name=data["name"],
             physics_body=body,
+            id=data.get("id", None),
             description=data.get("description", ""),
             properties=data.get("properties", {}),
             layer=data.get("layer", 0),
@@ -221,3 +228,18 @@ class SceneGroup(SceneObject, ISceneGroup):
         """Update all members."""
         for obj in self._members.values():
             obj.update(dt)
+
+
+# ---------------------------------------------------------------------------
+# Factory registration — done once at import time so SceneObject.from_dict
+# can dispatch to SceneGroup when it sees template_name / scene_object_type
+# equal to SCENE_OBJECT_TYPE_GROUP ("group").
+# ---------------------------------------------------------------------------
+SceneObjectFactory.register_template(
+    SceneObjectTemplate(
+        name=SceneGroup._template_name,
+        scene_object_class=SceneGroup,
+        description="User-assembled group of independently registered scene objects.",
+        category="Groups",
+    ),
+)

@@ -13,14 +13,7 @@ Example::
     panel.add_component("run_btn",  run_btn_obj, offset_x=10,  offset_y=60)
     scene.add_scene_object(panel)
 """
-from __future__ import annotations
-
-from typing import (
-    Dict,
-    List,
-    Optional,
-    Tuple,
-)
+import uuid
 
 from pyrox.interfaces import (
     IBasePhysicsBody,
@@ -28,8 +21,8 @@ from pyrox.interfaces import (
 )
 from pyrox.interfaces.scene.compositesceneobject import ICompositeSceneObject
 from pyrox.models.scene.sceneobject import SceneObject
-
-SCENE_OBJECT_TYPE_COMPOSITE = "composite"
+from pyrox.models.scene.factory import SceneObjectFactory, SceneObjectTemplate
+from pyrox.models.physics.factory import PhysicsSceneFactory
 
 
 class CompositeSceneObject(SceneObject, ICompositeSceneObject):
@@ -45,93 +38,56 @@ class CompositeSceneObject(SceneObject, ICompositeSceneObject):
     Events (clicks, updates) are routed through the composite to components.
     """
 
+    _scene_object_type: str = "composite"
+    _template_name: str = "CompositeSceneObject"
+
     def __init__(
         self,
         name: str,
         physics_body: IBasePhysicsBody,
         description: str = "",
-        scene_object_type: str = SCENE_OBJECT_TYPE_COMPOSITE,
-        properties: Optional[Dict] = None,
-        parent: Optional[SceneObject] = None,
+        id: str | None = None,
+        group_id: str | None = None,
+        properties: dict | None = None,
+        parent: SceneObject | None = None,
         layer: int = 0,
+        tags: list[str] | None = None,
+        components: list[dict] | dict | None = None,
+        direction=None,
     ):
         super().__init__(
             name=name,
-            scene_object_type=scene_object_type,
             physics_body=physics_body,
             description=description,
+            id=id or f'{self._scene_object_type}_{uuid.uuid4()}',
+            group_id=group_id,
             properties=properties,
             parent=parent,
             layer=layer,
+            tags=tags,
         )
-        # name -> (scene_object, offset_x, offset_y)
-        self._components: Dict[str, Tuple[ISceneObject, float, float]] = {}
 
-    # ------------------------------------------------------------------
-    # ICompositeSceneObject — component management
-    # ------------------------------------------------------------------
+        # _components must be initialised before set_direction is called, because
+        # set_direction → rotate_components iterates self._components.
+        if isinstance(components, list):
+            # Convert list of dicts to internal dict format
+            self._components: dict[str, ISceneObject] = {}
+            for comp in components:
+                comp_name = comp["name"]
+                obj_data = comp["object"]
+                obj = SceneObject.from_dict(obj_data)
+                self._components[comp_name] = obj
+        elif isinstance(components, dict):
+            # Assume already in internal dict format
+            self._components = components
+        else:
+            self._components: dict[str, ISceneObject] = {}
 
-    def add_component(
-        self,
-        name: str,
-        obj: ISceneObject,
-        offset_x: float = 0.0,
-        offset_y: float = 0.0,
-    ) -> None:
-        """Register a child component at a relative offset."""
-        if name in self._components:
-            raise ValueError(
-                f"A component named '{name}' already exists in '{self.name}'."
-            )
-        self._components[name] = (obj, offset_x, offset_y)
+        if direction is not None:
+            self.set_direction(direction)
 
-    def remove_component(self, name: str) -> None:
-        """Remove a component by logical name."""
-        if name in self._components:
-            del self._components[name]
-
-    def get_component(self, name: str) -> Optional[ISceneObject]:
-        entry = self._components.get(name)
-        return entry[0] if entry else None
-
-    def get_components(self) -> Dict[str, Tuple[ISceneObject, float, float]]:
-        return dict(self._components)
-
-    def get_component_names(self) -> List[str]:
-        return list(self._components.keys())
-
-    def has_component(self, name: str) -> bool:
-        return name in self._components
-
-    def get_component_world_position(
-        self, name: str
-    ) -> Optional[Tuple[float, float]]:
-        """Return the world-space position of the named component."""
-        entry = self._components.get(name)
-        if not entry:
-            return None
-        _, offset_x, offset_y = entry
-        return (self.x + offset_x, self.y + offset_y)
-
-    def get_component_at_point(
-        self, x: float, y: float
-    ) -> Optional[ISceneObject]:
-        """Find the topmost component whose bounds contain the given point.
-
-        Components are checked in descending layer order (foreground first).
-        """
-        # Sort by component layer descending for foreground-first hit-testing
-        candidates = sorted(
-            self._components.values(),
-            key=lambda entry: entry[0].get_layer(),
-            reverse=True,
-        )
-        for obj, offset_x, offset_y in candidates:
-            wx = self.x + offset_x
-            wy = self.y + offset_y
-            if wx <= x <= wx + obj.width and wy <= y <= wy + obj.height:
-                return obj
-        return None
+        # Tracking for velocity-based position updates (e.g. physics body)
+        self._component_world_position_cache = {}
 
     # ------------------------------------------------------------------
     # Event routing
@@ -141,9 +97,9 @@ class CompositeSceneObject(SceneObject, ICompositeSceneObject):
         """True if the point is within the composite bounds OR any component."""
         if super().contains_point(x, y):
             return True
-        for obj, offset_x, offset_y in self._components.values():
-            wx = self.x + offset_x
-            wy = self.y + offset_y
+        for obj in self._components.values():
+            wx = self.x + obj._parent_offset_x
+            wy = self.y + obj._parent_offset_y
             if wx <= x <= wx + obj.width and wy <= y <= wy + obj.height:
                 return True
         return False
@@ -162,9 +118,17 @@ class CompositeSceneObject(SceneObject, ICompositeSceneObject):
     # ------------------------------------------------------------------
 
     def update(self, dt: float) -> None:
-        """Update the composite and all its components."""
+        """Update the composite and all its components.
+
+        Each component's physics body position is synchronised to its world
+        position (composite origin + component offset) before the component
+        is ticked, so the collision/spatial systems always see correct bounds.
+        """
         super().update(dt)
-        for obj, _, _ in self._components.values():
+        for obj in self._components.values():
+            ox, oy = obj.parent_offset
+            obj.x = self.x + ox
+            obj.y = self.y + oy
             obj.update(dt)
 
     # ------------------------------------------------------------------
@@ -174,11 +138,9 @@ class CompositeSceneObject(SceneObject, ICompositeSceneObject):
     def to_dict(self) -> dict:
         base = super().to_dict()
         components_data = []
-        for name, (obj, offset_x, offset_y) in self._components.items():
+        for name, obj in self._components.items():
             components_data.append({
                 "name": name,
-                "offset_x": offset_x,
-                "offset_y": offset_y,
                 "object": obj.to_dict(),
             })
         base["components"] = components_data
@@ -187,8 +149,6 @@ class CompositeSceneObject(SceneObject, ICompositeSceneObject):
     @classmethod
     def from_dict(cls, data: dict) -> "CompositeSceneObject":
         """Reconstruct a CompositeSceneObject from a serialized dictionary."""
-        from pyrox.models.physics.factory import PhysicsSceneFactory
-        from pyrox.models.scene.sceneobject import SceneObject
 
         body_data: dict = data.get("body", {})
         body_template = PhysicsSceneFactory.get_template(
@@ -201,22 +161,24 @@ class CompositeSceneObject(SceneObject, ICompositeSceneObject):
             )
         body = body_template.body_class.from_dict(body_data)
 
-        composite = cls(
+        return cls(
             name=data["name"],
             physics_body=body,
             description=data.get("description", ""),
-            scene_object_type=data.get("scene_object_type", SCENE_OBJECT_TYPE_COMPOSITE),
+            id=data.get("id", None),
+            group_id=data.get("group_id", None),
             properties=data.get("properties", {}),
             layer=data.get("layer", 0),
+            tags=data.get("tags", []),
+            components=data.get("components", None),
         )
 
-        for comp_data in data.get("components", []):
-            child_obj = SceneObject.from_dict(comp_data["object"])
-            composite.add_component(
-                name=comp_data["name"],
-                obj=child_obj,
-                offset_x=comp_data.get("offset_x", 0.0),
-                offset_y=comp_data.get("offset_y", 0.0),
-            )
 
-        return composite
+SceneObjectFactory.register_template(
+    SceneObjectTemplate(
+        name=CompositeSceneObject._template_name,
+        scene_object_class=CompositeSceneObject,
+        description="Design-locked composite that owns child components at relative offsets.",
+        category="Groups",
+    ),
+)

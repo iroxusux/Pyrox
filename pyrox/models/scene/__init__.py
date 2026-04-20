@@ -1,4 +1,6 @@
 from .sceneobject import SceneObject
+from .scenegroup import SceneGroup
+from .factory import SceneObjectFactory, SceneObjectTemplate
 from .scene import Scene
 from .scenebridge import (
     BindingDirection,
@@ -6,15 +8,24 @@ from .scenebridge import (
     SceneBridge,
 )
 from .sceneboundlayer import SceneBoundLayer
-from .scenegroup import SceneGroup
 from .compositesceneobject import CompositeSceneObject
 from .sources import KeyboardSource
-from . import sources
+from .animation import (
+    AnimationClip,
+    AnimationEasing,
+    AnimationMode,
+    AnimationTrack,
+    Keyframe,
+    SceneAnimator,
+)
+from . import assets, sources
 
 
 __all__ = [
     "SceneObject",
     "Scene",
+    "SceneObjectFactory",
+    "SceneObjectTemplate",
     "BindingDirection",
     "SceneBinding",
     "SceneBridge",
@@ -22,5 +33,12 @@ __all__ = [
     "SceneGroup",
     "CompositeSceneObject",
     "KeyboardSource",
+    "AnimationClip",
+    "AnimationEasing",
+    "AnimationMode",
+    "AnimationTrack",
+    "Keyframe",
+    "SceneAnimator",
+    "assets",
     "sources",
 ]

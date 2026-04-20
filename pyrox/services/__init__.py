@@ -19,9 +19,6 @@ from .logging import (
     LoggingManager
 )
 
-# Id imports
-from .id import IdGeneratorService
-
 # Theme imports
 from .theme import ThemeManager
 
@@ -40,6 +37,7 @@ from .menu_registry import (
 
 # GUI imports
 from .gui import GuiManager
+from .gui_state import GuiStateService
 
 # File imports
 from .file import (
@@ -59,6 +57,13 @@ from .collision import (
 
 # Environment imports
 from .environment import EnvironmentService
+
+# Status imports
+from .status import (
+    StatusUpdateEventType,
+    StatusUpdateEvent,
+    StatusUpdateEventBus
+)
 
 # Physics imports
 from .physics import PhysicsEngineService
@@ -88,19 +93,18 @@ from .timer import TimerService
 # Other service imports
 from . import (
     archive,
-    bit,
     byte,
     collision,
     decorate,
     dict,
     environment,
     logic,
-    notify_services,
     object,
     physics,
     progress,
     scene,
     search,
+    status,
     stream,
     timer,
     xml,
@@ -124,12 +128,11 @@ __all__ = (
     'EventType',
     'Event',
     'EventBus',
-    # Id imports
-    'IdGeneratorService',
     # Theme imports
     'ThemeManager',
     # GUI imports
     'GuiManager',
+    'GuiStateService',
     # File imports
     'get_open_file',
     'get_save_file',
@@ -141,6 +144,10 @@ __all__ = (
     'SpatialGrid',
     # Environment imports
     'EnvironmentService',
+    # Status imports
+    'StatusUpdateEventType',
+    'StatusUpdateEvent',
+    'StatusUpdateEventBus',
     # Physics imports
     'PhysicsEngineService',
     # Scene imports
@@ -162,14 +169,13 @@ __all__ = (
     'TimerService',
     # Other service imports
     'archive',
-    'bit',
     'byte',
     'collision',
     'decorate',
     'dict',
     'environment',
     'logic',
-    'notify_services',
+    'status',
     'object',
     'physics',
     'progress',

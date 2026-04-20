@@ -12,16 +12,20 @@ class TestApplicationTaskFactory(unittest.TestCase):
     def setUp(self):
         """Set up test fixtures."""
         ApplicationTaskFactory._registered_types = {}
+        ApplicationTaskFactory._tasks = {}
 
     def tearDown(self):
         """Clean up registered types after each test."""
         ApplicationTaskFactory._registered_types = {}
+        ApplicationTaskFactory._tasks = {}
 
     def test_build_tasks_calls_each_task_with_application(self):
         """Test that build_tasks instantiates each registered task type with the application."""
         mock_application = MagicMock()
         mock_task_cls_a = MagicMock()
+        mock_task_cls_a.__name__ = 'TaskA'
         mock_task_cls_b = MagicMock()
+        mock_task_cls_b.__name__ = 'TaskB'
 
         ApplicationTaskFactory._registered_types = {
             'TaskA': mock_task_cls_a,
@@ -32,6 +36,10 @@ class TestApplicationTaskFactory(unittest.TestCase):
 
         mock_task_cls_a.assert_called_once_with(application=mock_application)
         mock_task_cls_b.assert_called_once_with(application=mock_application)
+        self.assertIn('TaskA', ApplicationTaskFactory._tasks)
+        self.assertIn('TaskB', ApplicationTaskFactory._tasks)
+        self.assertIs(ApplicationTaskFactory._tasks['TaskA'], mock_task_cls_a.return_value)
+        self.assertIs(ApplicationTaskFactory._tasks['TaskB'], mock_task_cls_b.return_value)
 
     def test_build_tasks_empty_registry(self):
         """Test that build_tasks handles an empty registry without errors."""
@@ -45,6 +53,7 @@ class TestApplicationTaskFactory(unittest.TestCase):
         """Test that build_tasks logs the number of tasks being built."""
         mock_application = MagicMock()
         mock_task_cls = MagicMock()
+        mock_task_cls.__name__ = 'Task'
         ApplicationTaskFactory._registered_types = {'Task': mock_task_cls}
 
         with patch('pyrox.models.task.log') as mock_log:
@@ -336,7 +345,7 @@ class TestApplicationTask(unittest.TestCase):
         task = ApplicationTask(application=mock_app)
 
         mock_frame = MagicMock()
-        mock_frame.root.winfo_exists.return_value = True
+        mock_frame.root.isVisible.return_value = True
 
         with patch.object(task, 'create_task_frame', return_value=mock_frame):
             task.create_or_raise_frame()
@@ -349,7 +358,7 @@ class TestApplicationTask(unittest.TestCase):
         task = ApplicationTask(application=mock_app)
 
         mock_frame = MagicMock()
-        mock_frame.root.winfo_exists.return_value = True
+        mock_frame.root.isVisible.return_value = True
 
         with patch.object(task, 'create_task_frame', return_value=mock_frame):
             task.create_or_raise_frame()
@@ -362,7 +371,7 @@ class TestApplicationTask(unittest.TestCase):
         task = ApplicationTask(application=mock_app)
 
         mock_frame = MagicMock()
-        mock_frame.root.winfo_exists.return_value = True
+        mock_frame.root.isVisible.return_value = True
 
         with patch.object(task, 'create_task_frame', return_value=mock_frame):
             task.create_or_raise_frame()
@@ -375,7 +384,7 @@ class TestApplicationTask(unittest.TestCase):
         task = ApplicationTask(application=mock_app)
 
         alive_frame = MagicMock()
-        alive_frame.root.winfo_exists.return_value = True
+        alive_frame.root.isVisible.return_value = True
         task._task_frame = alive_frame
 
         with patch.object(task, 'create_task_frame') as mock_create:

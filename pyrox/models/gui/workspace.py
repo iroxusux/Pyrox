@@ -8,18 +8,22 @@ This module provides a workspace widget that mimics the VSCode interface with:
 - Dynamic widget mounting and management
 - Configurable sidebar visibility and positioning
 """
-from __future__ import annotations
+from typing import Callable, Any
 
-from typing import Optional, Callable, Any
+from PyQt6.QtCore import Qt, QTimer, QSize
+from PyQt6.QtGui import QAction
 
-from PyQt6.QtCore import Qt, QTimer
 from PyQt6.QtWidgets import (
     QDialog,
     QFrame,
+    QMenu,
     QPushButton,
     QSizePolicy,
     QSplitter,
     QStatusBar,
+    QStyle,
+    QStyleOptionTab,
+    QStylePainter,
     QTabBar,
     QTabWidget,
     QToolBar,
@@ -28,10 +32,9 @@ from PyQt6.QtWidgets import (
     QWidget,
 )
 
-from pyrox.interfaces import EnvironmentKeys
 from pyrox.models.gui.commandbar import CommandButton
 from pyrox.models.gui import LogFrame, TaskFrame
-from pyrox.services import EnvManager, LoggingManager
+from pyrox.services import GuiStateService, LoggingManager, MenuRegistry
 
 # ---- Display map to help visualize what the layout should look like ----
 # +-----------------------------------------------------+
@@ -47,22 +50,50 @@ from pyrox.services import EnvManager, LoggingManager
 # +-----------------------------------------------------+
 
 
+class _VerticalTabBar(QTabBar):
+    """A QTabBar that renders tab labels rotated 90° for a VSCode-style vertical sidebar."""
+
+    TAB_WIDTH = 55
+    TAB_HEIGHT = 55
+
+    def tabSizeHint(self, index: int) -> QSize:
+        return QSize(self.TAB_WIDTH, self.TAB_HEIGHT)
+
+    def minimumTabSizeHint(self, index: int) -> QSize:
+        return QSize(self.TAB_WIDTH, self.TAB_HEIGHT)
+
+    def paintEvent(self, event) -> None:  # type: ignore[override]
+        painter = QStylePainter(self)
+        opt = QStyleOptionTab()
+        for i in range(self.count()):
+            self.initStyleOption(opt, i)
+            painter.drawControl(QStyle.ControlElement.CE_TabBarTabShape, opt)
+            painter.drawText(
+                self.tabRect(i),
+                Qt.AlignmentFlag.AlignCenter,
+                self.tabText(i),
+            )
+
+
 class _SidebarTabWidget(QTabWidget):
     """Internal QTabWidget used as the sidebar organizer.
 
     Provides a thin wrapper around QTabWidget that mirrors the callback-driven
     API of the Pyrox PyroxNotebook used in the tkinter workspace.
+    Tabs are displayed vertically on the left edge, VSCode-style.
     """
 
-    def __init__(self, parent: Optional[QWidget] = None) -> None:
+    def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
-        self.setTabsClosable(True)
+        self.setTabBar(_VerticalTabBar(self))
+        self.setTabPosition(QTabWidget.TabPosition.West)
+        self.setTabsClosable(False)
         self.setMovable(True)
-        self.setDocumentMode(True)
+        self.setDocumentMode(False)
 
-        self.on_tab_selected: Optional[Callable[[str, QWidget], None]] = None
-        self.on_tab_added: Optional[Callable[[str, QWidget], None]] = None
-        self.on_tab_removed: Optional[Callable[[str], None]] = None
+        self.on_tab_selected: Callable[[str, QWidget], None] | None = None
+        self.on_tab_added: Callable[[str, QWidget], None] | None = None
+        self.on_tab_removed: Callable[[str], None] | None = None
 
         self.currentChanged.connect(self._on_current_changed)
         self.tabCloseRequested.connect(self._on_tab_close_requested)
@@ -109,7 +140,7 @@ class _SidebarTabWidget(QTabWidget):
                 return True
         return False
 
-    def get_tab_frame(self, tab_id: str) -> Optional[QWidget]:
+    def get_tab_frame(self, tab_id: str) -> QWidget | None:
         """Return the container widget for *tab_id*, or None if not found."""
         for i in range(self.count()):
             widget = self.widget(i)
@@ -160,17 +191,17 @@ class Workspace(QWidget):
 
     def __init__(
         self,
-        parent: Optional[QWidget] = None,
+        parent: QWidget | None = None,
     ) -> None:
         QWidget.__init__(self, parent)
 
-        self._main_splitter: Optional[QSplitter] = None
-        self._log_splitter: Optional[QSplitter] = None
-        self._sidebar_organizer: Optional[_SidebarTabWidget] = None
-        self._workspace_area: Optional[QFrame] = None
-        self._workspace_layout: Optional[QVBoxLayout] = None
-        self._status_bar: Optional[QStatusBar] = None
-        self._toolbar: Optional[QToolBar] = None
+        self._main_splitter: QSplitter | None = None
+        self._log_splitter: QSplitter | None = None
+        self._sidebar_organizer: _SidebarTabWidget | None = None
+        self._workspace_area: QFrame | None = None
+        self._workspace_layout: QVBoxLayout | None = None
+        self._status_bar: QStatusBar | None = None
+        self._toolbar: QToolBar | None = None
         self._sidebar_visible: bool = True
 
         # Widget tracking
@@ -178,13 +209,17 @@ class Workspace(QWidget):
         self._sidebar_tabs: dict[str, str] = {}       # widget_id -> tab_id
         self._workspace_frames: dict[str, TaskFrame] = {}
 
+        # Active-window menu
+        self._windows_menu: QMenu | None = None
+        self._frame_menu_actions: dict[str, QAction] = {}
+
         # Event callbacks
-        self.on_sidebar_toggle: Optional[Callable[[bool], None]] = None
-        self.on_task_frame_mounted: Optional[Callable[[TaskFrame, str], None]] = None
-        self.on_task_frame_unmounted: Optional[Callable[[TaskFrame], None]] = None
-        self.on_sidebar_widget_mounted: Optional[Callable[[QWidget, str], None]] = None
-        self.on_sidebar_widget_unmounted: Optional[Callable[[str], None]] = None
-        self.on_workspace_changed: Optional[Callable[[str], None]] = None
+        self.on_sidebar_toggle: Callable[[bool], None] | None = None
+        self.on_task_frame_mounted: Callable[[TaskFrame, str], None] | None = None
+        self.on_task_frame_unmounted: Callable[[TaskFrame], None] | None = None
+        self.on_sidebar_widget_mounted: Callable[[QWidget, str], None] | None = None
+        self.on_sidebar_widget_unmounted: Callable[[str], None] | None = None
+        self.on_workspace_changed: Callable[[str], None] | None = None
 
         # Status text
         self._status_text: str = ""
@@ -303,14 +338,17 @@ class Workspace(QWidget):
     # -------- Geometry management --------
 
     def _store_workspace_geometry(self) -> None:
-        """Persist the current splitter positions to the environment store."""
+        """Persist the current splitter positions to the GUI state cache."""
         sidebar_width = self.get_sidebar_width()
         log_height = self.get_log_window_height()
 
-        if sidebar_width is not None and self._sidebar_visible:
-            EnvManager.set(EnvironmentKeys.ui.UI_SIDEBAR_WIDTH, str(sidebar_width))
+        state = GuiStateService.get_geometry_state()
+        if sidebar_width is not None and sidebar_width > 0 and self._sidebar_visible:
+            state['sidebar_width'] = sidebar_width
         if log_height is not None:
-            EnvManager.set(EnvironmentKeys.ui.UI_LOG_WINDOW_HEIGHT, str(log_height))
+            state['log_height'] = log_height
+        GuiStateService.capture_geometry_state(state)
+        GuiStateService.save()
 
     def save_workspace_geometry(self) -> None:
         """Debounce-triggered save of workspace geometry."""
@@ -395,21 +433,30 @@ class Workspace(QWidget):
         """
         self._sash_callbacks.append(callback)
 
-    def get_workspace_area(self) -> Optional[QFrame]:
+    def get_workspace_area(self) -> QFrame | None:
         """Return the main workspace content frame."""
         return self._workspace_area
 
-    def get_workspace_paned_window(self) -> Optional[QSplitter]:
+    def get_workspace_paned_window(self) -> QSplitter | None:
         """Return the log-area QSplitter (vertical, containing workspace + log)."""
         return self._log_splitter
 
     # -------- Frames management --------
 
+    def set_windows_menu(self, menu: QMenu) -> None:
+        """Set the QMenu used to list active workspace frames.
+
+        Each time a frame is registered the workspace appends an action to this
+        menu; clicking the action raises that frame.  Pass this in from the
+        Application after the View menu has been created.
+        """
+        self._windows_menu = menu
+
     def _unregister_frame_from_view_menu(self, frame: TaskFrame) -> None:
-        # Qt applications own their menus separately.
-        # The host application should connect to on_task_frame_unmounted to
-        # update its View menu when a frame is removed.
-        pass
+        action = self._frame_menu_actions.pop(frame.name, None)
+        if action is not None and self._windows_menu is not None:
+            self._windows_menu.removeAction(action)
+        MenuRegistry.unregister_item(f'window.{frame.name}')
 
     def _unregister_workspace_frame(self, frame: TaskFrame) -> None:
         if frame.shown:
@@ -481,10 +528,19 @@ class Workspace(QWidget):
                 return
 
     def _register_frame_to_view_menu(self, frame: TaskFrame) -> None:
-        # Qt applications own their menus separately.
-        # The host application should connect to on_task_frame_mounted to
-        # update its View menu when a new frame is registered.
-        pass
+        if self._windows_menu is None:
+            return
+        action: QAction = self._windows_menu.addAction(frame.name)
+        action.triggered.connect(lambda: self.raise_frame(frame))
+        self._frame_menu_actions[frame.name] = action
+        MenuRegistry.register_item(
+            menu_id=f'window.{frame.name}',
+            menu_path=f'View/Windows/{frame.name}',
+            menu_widget=self._windows_menu,
+            menu_index=len(self._frame_menu_actions),
+            owner='Workspace',
+            action=action,
+        )
 
     def _register_workspace_frame(
         self,
@@ -522,7 +578,7 @@ class Workspace(QWidget):
         self._unset_frames_selected()
         frame.set_shown(True)
 
-    def _get_shown_frame(self) -> Optional[TaskFrame]:
+    def _get_shown_frame(self) -> TaskFrame | None:
         for frame in self._workspace_frames.values():
             if frame.shown:
                 return frame
@@ -545,7 +601,7 @@ class Workspace(QWidget):
             raise ValueError("Only ITaskFrame instances can be unregistered from the workspace")
         self._unregister_workspace_frame(frame)
 
-    def get_frame(self, frame_name: str) -> Optional[TaskFrame]:
+    def get_frame(self, frame_name: str) -> TaskFrame | None:
         """Return the registered frame with name *frame_name*, or None."""
         return self._workspace_frames.get(frame_name)
 
@@ -595,10 +651,10 @@ class Workspace(QWidget):
 
     def _set_initial_sidebar_width(self) -> None:
         self._log().debug("Setting initial sidebar width")
-        width = EnvManager.get(EnvironmentKeys.ui.UI_SIDEBAR_WIDTH, 0.33, float)
+        width = float(GuiStateService.get_geometry_state().get('sidebar_width', 0.33))
         self.set_sidebar_width(width)
 
-    def get_sidebar_width(self) -> Optional[float]:
+    def get_sidebar_width(self) -> float | None:
         """Return the sidebar width as a fraction of the total workspace width."""
         if not self._main_splitter:
             return None
@@ -617,7 +673,10 @@ class Workspace(QWidget):
             return
         sidebar_px = int(total * perc_of_window)
         self._main_splitter.setSizes([sidebar_px, total - sidebar_px])
-        EnvManager.set(EnvironmentKeys.ui.UI_SIDEBAR_WIDTH, str(perc_of_window))
+        state = GuiStateService.get_geometry_state()
+        state['sidebar_width'] = perc_of_window
+        GuiStateService.capture_geometry_state(state)
+        GuiStateService.save()
 
     def _on_main_sash_moved(self, pos: int, index: int) -> None:
         width = self.get_sidebar_width()
@@ -628,7 +687,7 @@ class Workspace(QWidget):
         """Public hook for the main splitter sash movement."""
         self._on_main_sash_moved(0, 0)
 
-    def get_sidebar_organizer(self) -> Optional[_SidebarTabWidget]:
+    def get_sidebar_organizer(self) -> _SidebarTabWidget | None:
         """Return the sidebar QTabWidget."""
         return self._sidebar_organizer
 
@@ -636,12 +695,15 @@ class Workspace(QWidget):
 
     def show_sidebar(self) -> None:
         """Show the sidebar panel."""
-        if self._sidebar_visible or not self._main_splitter or not self._sidebar_organizer:
+        # TODO: There is a bug where storing and retrieving the sidebar will start to shrink the bar.
+        # Need to look at this later.
+        if self._main_splitter is None or self._sidebar_organizer is None:
             return
-        original_width = EnvManager.get(EnvironmentKeys.ui.UI_SIDEBAR_WIDTH, 0.33, float)
+        self._sidebar_visible = True
+        original_width = max(float(GuiStateService.get_geometry_state().get('sidebar_width', 0.33)), 0.10)
         self._sidebar_organizer.setVisible(True)
         self._sidebar_visible = True
-        self.set_sidebar_width(original_width)
+        QTimer.singleShot(0, lambda: self.set_sidebar_width(original_width))
         self.set_status("Sidebar shown")
         if self.on_sidebar_toggle:
             try:
@@ -651,12 +713,16 @@ class Workspace(QWidget):
 
     def hide_sidebar(self) -> None:
         """Hide the sidebar panel."""
-        if not self._sidebar_visible or not self._main_splitter:
+        if not self._main_splitter:
             return
+        self._sidebar_visible = False
         # Persist current width before hiding so it can be restored accurately.
         sidebar_width = self.get_sidebar_width()
         if sidebar_width is not None:
-            EnvManager.set(EnvironmentKeys.ui.UI_SIDEBAR_WIDTH, str(sidebar_width))
+            state = GuiStateService.get_geometry_state()
+            state['sidebar_width'] = sidebar_width
+            GuiStateService.capture_geometry_state(state)
+            GuiStateService.save()
         if self._sidebar_organizer is not None:
             self._sidebar_organizer.setVisible(False)
         self._sidebar_visible = False
@@ -734,8 +800,8 @@ class Workspace(QWidget):
         self,
         widget: QWidget,
         tab_name: str,
-        widget_id: Optional[str] = None,
-        icon: Optional[str] = None,
+        widget_id: str | None = None,
+        icon: str | None = None,
         closeable: bool = True,
     ) -> str:
         """Add *widget* to the sidebar as a new tab.
@@ -847,7 +913,7 @@ class Workspace(QWidget):
 
         return removed
 
-    def get_widget(self, widget_id: str) -> Optional[QWidget | TaskFrame]:
+    def get_widget(self, widget_id: str) -> QWidget | TaskFrame | None:
         """Return the widget or task frame for *widget_id*, or None."""
         return self._mounted_widgets.get(widget_id) or self._workspace_frames.get(widget_id)
 
@@ -862,10 +928,10 @@ class Workspace(QWidget):
 
     def _set_initial_log_window_height(self) -> None:
         self._log().debug("Setting initial log window height")
-        height = EnvManager.get(EnvironmentKeys.ui.UI_LOG_WINDOW_HEIGHT, 0.33, float)
+        height = float(GuiStateService.get_geometry_state().get('log_height', 0.33))
         self.set_log_window_height(height)
 
-    def get_log_window_height(self) -> Optional[float]:
+    def get_log_window_height(self) -> float | None:
         """Return the log window height as a fraction of the total splitter height."""
         if not self._log_splitter:
             return None
@@ -884,7 +950,10 @@ class Workspace(QWidget):
             return
         log_px = int(total * perc_of_window)
         self._log_splitter.setSizes([total - log_px, log_px])
-        EnvManager.set(EnvironmentKeys.ui.UI_LOG_WINDOW_HEIGHT, str(perc_of_window))
+        state = GuiStateService.get_geometry_state()
+        state['log_height'] = perc_of_window
+        GuiStateService.capture_geometry_state(state)
+        GuiStateService.save()
 
     def _on_log_sash_moved(self, pos: int, index: int) -> None:
         height = self.get_log_window_height()
@@ -939,7 +1008,7 @@ class Workspace(QWidget):
         self._toolbar.addSeparator()
         return len(self._toolbar.actions())
 
-    def get_toolbar(self) -> Optional[QToolBar]:
+    def get_toolbar(self) -> QToolBar | None:
         """Return the underlying QToolBar, or None if not yet initialized."""
         return self._toolbar
 

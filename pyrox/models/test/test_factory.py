@@ -6,9 +6,8 @@ from abc import abstractmethod
 from typing import Generic, TypeVar
 from unittest.mock import MagicMock, patch
 
-from pyrox.interfaces.protocols.meta import IFactoryMixinProtocolMeta
 from pyrox.models.factory import (
-    FactoryTypeMeta,
+    FactoryTypeABC,
     MetaFactory,
 )
 
@@ -447,8 +446,8 @@ class TestMetaFactory(unittest.TestCase):
         self.assertIn('Anything', self.TestFactory._registered_types)
 
 
-class TestFactoryTypeMeta(unittest.TestCase):
-    """Test cases for FactoryTypeMeta class."""
+class TestFactoryTypeABC(unittest.TestCase):
+    """Test cases for FactoryTypeABC class."""
 
     def setUp(self):
         class TestFactory(MetaFactory):
@@ -462,81 +461,93 @@ class TestFactoryTypeMeta(unittest.TestCase):
             del self.TestFactory._base_type
 
     # ------------------------------------------------------------------
-    # Metaclass structure
+    # Structure
     # ------------------------------------------------------------------
-
-    def test_inherits_from_IFactoryMixinProtocolMeta(self):
-        """FactoryTypeMeta must be a subclass of IFactoryMixinProtocolMeta to
-        resolve the Protocol / ABCMeta diamond when bases use Protocol."""
-        self.assertTrue(issubclass(FactoryTypeMeta, IFactoryMixinProtocolMeta))
 
     def test_bound_factory_is_none_by_default(self):
-        """Bare FactoryTypeMeta carries no factory binding."""
-        self.assertIsNone(FactoryTypeMeta._bound_factory)
+        """Bare FactoryTypeABC carries no factory binding."""
+        self.assertIsNone(FactoryTypeABC._bound_factory)
+
+    def test_is_abstract_base_class(self):
+        """FactoryTypeABC is an ABC — cannot be instantiated directly."""
+        # FactoryTypeABC itself has no abstract methods, but subclasses that
+        # add @abstractmethod should be uninstantiable.
+        class AbstractSub(FactoryTypeABC[self.TestFactory]):
+            @abstractmethod
+            def run(self): ...
+
+        with self.assertRaises(TypeError):
+            AbstractSub()  # type: ignore
 
     # ------------------------------------------------------------------
-    # __class_getitem__
+    # __class_getitem__ — factory binding
     # ------------------------------------------------------------------
 
-    def test_class_getitem_returns_metaclass_subclass(self):
-        """FactoryTypeMeta[F] returns a subclass of FactoryTypeMeta."""
-        BoundMeta = FactoryTypeMeta[self.TestFactory]
-        self.assertTrue(issubclass(BoundMeta, FactoryTypeMeta))
+    def test_class_getitem_returns_subclass_of_factory_type_abc(self):
+        """FactoryTypeABC[F] returns a subclass of FactoryTypeABC."""
+        Bound = FactoryTypeABC[self.TestFactory]
+        self.assertTrue(issubclass(Bound, FactoryTypeABC))
 
     def test_class_getitem_binds_factory(self):
-        """The returned metaclass carries the specified factory."""
-        BoundMeta = FactoryTypeMeta[self.TestFactory]
-        self.assertIs(BoundMeta._bound_factory, self.TestFactory)
+        """The bound subclass carries the specified factory."""
+        Bound = FactoryTypeABC[self.TestFactory]
+        self.assertIs(Bound._bound_factory, self.TestFactory)
 
-    def test_class_getitem_rejects_non_type(self):
+    def test_class_getitem_rejects_non_meta_factory(self):
+        """Parameterising with a non-MetaFactory type raises TypeError."""
         with self.assertRaises(TypeError):
-            FactoryTypeMeta['not_a_type']  # type: ignore
+            FactoryTypeABC[int]  # type: ignore
+
+    def test_class_getitem_rejects_plain_string(self):
+        """Parameterising with a string raises TypeError."""
+        with self.assertRaises(TypeError):
+            FactoryTypeABC['not_a_factory']  # type: ignore
+
+    def test_class_getitem_with_typevar_delegates_to_generic(self):
+        """FactoryTypeABC[TypeVar] behaves as a normal Generic subscription."""
+        T = TypeVar('T')
+        result = FactoryTypeABC[T]
+        # Generic[T] subscriptions return a _GenericAlias, not a plain type
+        import typing
+        self.assertIsInstance(result, typing._GenericAlias)  # type: ignore
 
     def test_each_parameterisation_is_independent(self):
-        """Two FactoryTypeMeta[F] calls with different factories are independent."""
+        """Two FactoryTypeABC[F] calls with different factories are independent."""
         class Factory1(MetaFactory):
             pass
 
         class Factory2(MetaFactory):
             pass
 
-        Meta1 = FactoryTypeMeta[Factory1]
-        Meta2 = FactoryTypeMeta[Factory2]
+        Bound1 = FactoryTypeABC[Factory1]
+        Bound2 = FactoryTypeABC[Factory2]
 
-        self.assertIs(Meta1._bound_factory, Factory1)
-        self.assertIs(Meta2._bound_factory, Factory2)
+        self.assertIs(Bound1._bound_factory, Factory1)
+        self.assertIs(Bound2._bound_factory, Factory2)
+        self.assertIsNot(Bound1, Bound2)
 
     # ------------------------------------------------------------------
     # No bound factory → nothing registered
     # ------------------------------------------------------------------
 
-    def test_no_bound_factory_class_not_registered(self):
-        """A class using bare FactoryTypeMeta is not added to any factory."""
-        class UnboundType(metaclass=FactoryTypeMeta):
+    def test_unbound_subclass_not_registered(self):
+        """A class inheriting directly from FactoryTypeABC (no factory) is not registered."""
+        class UnboundType(FactoryTypeABC):  # type: ignore
             pass
 
         self.assertEqual(len(self.TestFactory.get_registered_types()), 0)
 
-    # ------------------------------------------------------------------
-    # Abstract vs concrete registration
-    # ------------------------------------------------------------------
+    def test_base_registered_and_anchors_base_type(self):
+        """The first subclass sets _base_type and is itself registered."""
+        class AbstractBase(FactoryTypeABC[self.TestFactory]):
+            def run(self): pass
 
-    def test_abstract_base_not_registered_but_anchors_base_type(self):
-        """The abstract base sets _base_type but is not itself registered."""
-        BoundMeta = FactoryTypeMeta[self.TestFactory]
-
-        class AbstractBase(metaclass=BoundMeta):
-            @abstractmethod
-            def run(self): ...
-
-        self.assertNotIn('AbstractBase', self.TestFactory.get_registered_types())
+        self.assertIn('AbstractBase', self.TestFactory.get_registered_types())
         self.assertIs(self.TestFactory._base_type, AbstractBase)
 
     def test_concrete_subclass_auto_registered(self):
         """A concrete subclass is automatically registered on class definition."""
-        BoundMeta = FactoryTypeMeta[self.TestFactory]
-
-        class AbstractBase(metaclass=BoundMeta):
+        class AbstractBase(FactoryTypeABC[self.TestFactory]):
             @abstractmethod
             def run(self): ...
 
@@ -547,10 +558,8 @@ class TestFactoryTypeMeta(unittest.TestCase):
         self.assertIs(self.TestFactory.get_registered_types()['ConcreteImpl'], ConcreteImpl)
 
     def test_concrete_base_registered_and_anchors_base_type(self):
-        """A concrete first class is registered and anchors _base_type."""
-        BoundMeta = FactoryTypeMeta[self.TestFactory]
-
-        class ConcreteBase(metaclass=BoundMeta):
+        """A concrete first subclass is both registered and anchors _base_type."""
+        class ConcreteBase(FactoryTypeABC[self.TestFactory]):
             pass
 
         self.assertIn('ConcreteBase', self.TestFactory.get_registered_types())
@@ -558,26 +567,30 @@ class TestFactoryTypeMeta(unittest.TestCase):
 
     def test_multiple_concrete_subclasses_all_registered(self):
         """Every concrete subclass of the abstract base is registered."""
-        BoundMeta = FactoryTypeMeta[self.TestFactory]
-
-        class AbstractBase(metaclass=BoundMeta):
-            @abstractmethod
-            def run(self): ...
-
-        class Impl1(AbstractBase):
+        class Base(FactoryTypeABC[self.TestFactory]):
             def run(self): pass
 
-        class Impl2(AbstractBase):
+        class Impl1(Base):
             def run(self): pass
 
-        class Impl3(AbstractBase):
+        class Impl2(Base):
+            def run(self): pass
+
+        class Impl3(Base):
             def run(self): pass
 
         registered = self.TestFactory.get_registered_types()
+        self.assertIn('Base', registered)
         self.assertIn('Impl1', registered)
         self.assertIn('Impl2', registered)
         self.assertIn('Impl3', registered)
-        self.assertEqual(len(registered), 3)
+        self.assertEqual(len(registered), 4)
+
+    def test_binding_container_class_not_registered(self):
+        """The intermediate binding class created by __class_getitem__ is never registered."""
+        Bound = FactoryTypeABC[self.TestFactory]
+        # Only subclasses of Bound should appear, not the binding container itself
+        self.assertNotIn(Bound.__name__, self.TestFactory.get_registered_types())
 
     # ------------------------------------------------------------------
     # Type enforcement
@@ -585,9 +598,7 @@ class TestFactoryTypeMeta(unittest.TestCase):
 
     def test_unrelated_type_rejected_by_register_type(self):
         """Manually registering an unrelated type after _base_type is anchored raises TypeError."""
-        BoundMeta = FactoryTypeMeta[self.TestFactory]
-
-        class AbstractBase(metaclass=BoundMeta):
+        class AbstractBase(FactoryTypeABC[self.TestFactory]):
             @abstractmethod
             def run(self): ...
 
@@ -612,11 +623,10 @@ class TestIntegration(unittest.TestCase):
     # ------------------------------------------------------------------
 
     def test_complete_workflow(self):
-        """Registration → lookup → instantiation using a bound metaclass."""
+        """Registration → lookup → instantiation using FactoryTypeABC."""
         F = self._make_factory()
-        BoundMeta = FactoryTypeMeta[F]
 
-        class Widget(metaclass=BoundMeta):
+        class Widget(FactoryTypeABC[F]):
             @abstractmethod
             def render(self): ...
 
@@ -638,9 +648,8 @@ class TestIntegration(unittest.TestCase):
     def test_concrete_base_and_subclass_both_registered(self):
         """When the base is concrete, both it and its subclass register."""
         F = self._make_factory()
-        BoundMeta = FactoryTypeMeta[F]
 
-        class BaseWidget(metaclass=BoundMeta):
+        class BaseWidget(FactoryTypeABC[F]):
             def __init__(self, name: str):
                 self.name = name
 
@@ -660,11 +669,9 @@ class TestIntegration(unittest.TestCase):
     def test_deep_inheritance_chain(self):
         """Concrete classes at every level of a deep hierarchy are registered."""
         F = self._make_factory()
-        BoundMeta = FactoryTypeMeta[F]
 
-        class Base(metaclass=BoundMeta):
-            @abstractmethod
-            def run(self): ...
+        class Base(FactoryTypeABC[F]):
+            def run(self): pass
 
         class Mid(Base):
             def run(self): pass
@@ -673,16 +680,15 @@ class TestIntegration(unittest.TestCase):
             pass
 
         registered = F.get_registered_types()
-        self.assertNotIn('Base', registered)
+        self.assertIn('Base', registered)
         self.assertIn('Mid', registered)
         self.assertIn('Leaf', registered)
 
     def test_abstract_intermediate_not_registered(self):
         """An intermediate abstract class is skipped."""
         F = self._make_factory()
-        BoundMeta = FactoryTypeMeta[F]
 
-        class Root(metaclass=BoundMeta):
+        class Root(FactoryTypeABC[F]):
             @abstractmethod
             def run(self): ...
 
@@ -695,16 +701,15 @@ class TestIntegration(unittest.TestCase):
             def extra(self): pass
 
         registered = F.get_registered_types()
-        self.assertNotIn('Root', registered)
-        self.assertNotIn('AbstractMid', registered)
+        self.assertIn('Root', registered)
+        self.assertIn('AbstractMid', registered)
         self.assertIn('Concrete', registered)
 
     def test_multiple_concrete_subclasses_same_factory(self):
         """Multiple concrete subclasses all register into the same factory."""
         F = self._make_factory()
-        BoundMeta = FactoryTypeMeta[F]
 
-        class Base(metaclass=BoundMeta):
+        class Base(FactoryTypeABC[F]):
             @abstractmethod
             def run(self): ...
 
@@ -718,7 +723,8 @@ class TestIntegration(unittest.TestCase):
             def run(self): pass
 
         registered = F.get_registered_types()
-        self.assertEqual(len(registered), 3)
+        self.assertEqual(len(registered), 4)
+        self.assertIn('Base', registered)
         self.assertIn('Task1', registered)
         self.assertIn('Task2', registered)
         self.assertIn('Task3', registered)
@@ -731,17 +737,15 @@ class TestIntegration(unittest.TestCase):
         """Types wired to different factories are kept separate."""
         F1 = self._make_factory()
         F2 = self._make_factory()
-        Meta1 = FactoryTypeMeta[F1]
-        Meta2 = FactoryTypeMeta[F2]
 
-        class Base1(metaclass=Meta1):
+        class Base1(FactoryTypeABC[F1]):
             @abstractmethod
             def run(self): ...
 
         class Type1(Base1):
             def run(self): pass
 
-        class Base2(metaclass=Meta2):
+        class Base2(FactoryTypeABC[F2]):
             @abstractmethod
             def run(self): ...
 
@@ -763,9 +767,8 @@ class TestIntegration(unittest.TestCase):
     def test_unrelated_type_rejected_at_registration(self):
         """Manually registering a type unrelated to _base_type raises TypeError."""
         F = self._make_factory()
-        BoundMeta = FactoryTypeMeta[F]
 
-        class Base(metaclass=BoundMeta):
+        class Base(FactoryTypeABC[F]):
             @abstractmethod
             def run(self): ...
 
@@ -793,12 +796,11 @@ class TestIntegration(unittest.TestCase):
     def test_supporting_class_lookup(self):
         """Types can be retrieved by their supporting_class attribute."""
         F = self._make_factory()
-        BoundMeta = FactoryTypeMeta[F]
 
         class Controller:
             pass
 
-        class Base(metaclass=BoundMeta):
+        class Base(FactoryTypeABC[F]):
             @abstractmethod
             def run(self): ...
 
@@ -817,9 +819,8 @@ class TestIntegration(unittest.TestCase):
         """Generic[T] subclasses integrate transparently with the factory."""
         T = TypeVar('T')
         F = self._make_factory()
-        BoundMeta = FactoryTypeMeta[F]
 
-        class Base(metaclass=BoundMeta):
+        class Base(FactoryTypeABC[F]):
             @abstractmethod
             def process(self): ...
 

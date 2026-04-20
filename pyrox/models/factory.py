@@ -1,15 +1,18 @@
 """Factory metas for Pyrox framework base classes and utilities.
 """
+from abc import ABC
 import importlib
 import sys
-from typing import Any, Type
+from typing import Any, Type, TypeVar, Generic
 
-from pyrox.interfaces.protocols.meta import IFactoryMixinProtocolMeta
 from pyrox.services.logging import log
 
 
+T = TypeVar('T')
+
+
 __all__ = (
-    'FactoryTypeMeta',
+    'FactoryTypeABC',
     'MetaFactory'
 )
 
@@ -196,38 +199,34 @@ class MetaFactory:
         cls._registered_types[type_class.__name__] = type_class
 
 
-class FactoryTypeMeta(IFactoryMixinProtocolMeta):
-    """Meta class for types that are used in factory patterns.
-    """
-    _bound_factory = None  # unannotated: prevents leaking into Protocol __annotations__ via metaclass MRO
+class FactoryTypeABC(
+        ABC,
+        Generic[T],
+):
+    _bound_factory: 'type[MetaFactory] | None' = None
 
-    def __new__(
-        mcs,
-        name,
-        bases,
-        namespace,
-        **kwargs
-    ) -> Type:
-        cls = super().__new__(mcs, name, bases, namespace, **kwargs)
-        factory = getattr(mcs, '_bound_factory', None)
+    def __init_subclass__(cls, **kwargs) -> None:
+        super().__init_subclass__(**kwargs)
+        if cls.__dict__.get('_is_factory_binding'):
+            return
+        factory = getattr(cls, '_bound_factory', None)
         if factory is None:
-            return cls  # No factory bound, just return the class
-
-        # First class through the door (the abstract base) anchors the allowed type
+            return
         if getattr(factory, '_base_type', None) is None:
             factory._base_type = cls
+        factory.register_type(cls)
 
-        # No abstract methods means this is a concrete class that should be registered
-        if not cls.__abstractmethods__:
-            factory.register_type(cls)
-
-        return cls
-
-    def __class_getitem__(cls, factory):
-        """Returns a parameterized metaclass with the factory pre-bound.
-
-        e.g. metaclass=FactoryTypeMeta[ApplicationTaskFactory]
-        """
-        if not isinstance(factory, type):
-            raise TypeError(f'Expected a factory type, got {factory!r}')
-        return type(cls.__name__, (cls,), {'_bound_factory': factory})
+    @classmethod
+    def __class_getitem__(cls, item):
+        if isinstance(item, TypeVar):
+            # TypeVar parameterisation — used for Generic[T] type annotations only.
+            return super().__class_getitem__(item)  # type: ignore
+        if not (isinstance(item, type) and issubclass(item, MetaFactory)):
+            raise TypeError(f'Expected a MetaFactory subclass, got {item!r}')
+        # Return a binding-container subclass carrying the factory.  Any class
+        # that inherits from it picks up _bound_factory via __init_subclass__.
+        return type(
+            f'{cls.__name__}[{item.__name__}]',
+            (cls,),
+            {'_bound_factory': item, '_is_factory_binding': True},
+        )

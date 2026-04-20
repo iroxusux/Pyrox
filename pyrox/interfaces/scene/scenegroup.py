@@ -19,8 +19,7 @@ from typing import (
 from pyrox.interfaces.scene.sceneobject import ISceneObject
 
 
-@runtime_checkable
-class ISceneGroup(ISceneObject, Protocol):
+class ISceneGroup(ISceneObject):
     """Coordinator for a user-assembled collection of scene objects.
 
     Members are independently registered in the parent Scene.

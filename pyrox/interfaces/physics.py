@@ -1,13 +1,8 @@
-from typing import Optional
-from pyrox.interfaces import INameable, IConnectable
+from typing import Any, Optional
 from pyrox.interfaces.protocols.physics import IPhysicsBody2D
 
 
-class IBasePhysicsBody(
-    INameable,
-    IConnectable,
-    IPhysicsBody2D
-):
+class IBasePhysicsBody(IPhysicsBody2D):
     """Interface class for custom physics bodies extending IPhysicsBody2D.
     Provides additional methods and properties for common physics body
     functionality.
@@ -15,49 +10,6 @@ class IBasePhysicsBody(
     Intended for use in a physics environment where bodies may need to
     interact, be tagged, and have common checks performed.
     """
-
-    def get_tags(self) -> list[str]:
-        """Get the list of tags associated with this body.
-
-        Returns:
-            List of tags
-        """
-        ...
-
-    def set_tags(self, tags: list[str]) -> None:
-        """Set the list of tags for this body.
-
-        Args:
-            tags: List of tags to set
-        """
-        ...
-
-    def has_tag(self, tag: str) -> bool:
-        """Check if this body has a specific tag.
-
-        Args:
-            tag: Tag to check for
-
-        Returns:
-            True if the body has the tag
-        """
-        ...
-
-    def add_tag(self, tag: str) -> None:
-        """Add a tag to this body.
-
-        Args:
-            tag: Tag to add
-        """
-        ...
-
-    def remove_tag(self, tag: str) -> None:
-        """Remove a tag from this body.
-
-        Args:
-            tag: Tag to remove
-        """
-        ...
 
     def get_template_name(self) -> Optional[str]:
         """Get the template name associated with this body, if any.
@@ -83,6 +35,22 @@ class IBasePhysicsBody(
         """
         raise NotImplementedError()
 
+    def get_inputs(self) -> dict[str, Any]:
+        """Describe the input connection endpoints this body exposes.
+
+        Returns:
+            Dictionary mapping input names to callables / methods
+        """
+        raise NotImplementedError()
+
+    def get_outputs(self) -> dict[str, Any]:
+        """Describe the output connection endpoints this body exposes.
+
+        Returns:
+            Dictionary mapping output names to callback lists / properties
+        """
+        raise NotImplementedError()
+
     @classmethod
     def from_dict(cls, data: dict) -> 'IBasePhysicsBody':
         """Create a physics body from a dictionary representation.
@@ -105,15 +73,6 @@ class IBasePhysicsBody(
             Dictionary with body properties
         """
         raise NotImplementedError()
-
-    @property
-    def tags(self) -> list[str]:
-        """Get the list of tags associated with this body.
-
-        Returns:
-            List of tags
-        """
-        return self.get_tags()
 
     @property
     def template_name(self) -> Optional[str]:

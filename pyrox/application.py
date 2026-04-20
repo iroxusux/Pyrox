@@ -1,9 +1,8 @@
 """Application ABC types for the Pyrox framework."""
-from __future__ import annotations
-
-from io import TextIOWrapper
 import sys
 from typing import Any
+
+from PyQt6.QtWidgets import QMenu
 
 from pyrox.interfaces import (
     EnvironmentKeys,
@@ -12,12 +11,17 @@ from pyrox.interfaces import (
     IWorkspace,
 )
 
+from pyrox.services import (
+    StatusUpdateEventBus,
+    StatusUpdateEventType
+)
+
 from pyrox.models import (
     ApplicationTaskFactory,
     ServicesRunnableMixin,
+    SplashScreen,
+    Workspace,
 )
-
-from pyrox.models.gui import Workspace
 
 __all__ = ('Application',)
 
@@ -61,8 +65,16 @@ class Application(
             'A Pyrox Application',
             str))
 
-        # Initialize GUI backend
-        self._root = self.gui.create_root()
+        # Initialize GUI backend (defer show until splash is dismissed)
+        self._root = self.gui.create_root(show=False)
+
+        # Show splash screen while loading
+        _splash = SplashScreen(
+            app_name=self.get_name(),
+            app_description=self.get_description(),
+        )
+
+        _splash.set_status('Configuring interface')
         self.gui.create_root_menu()
         self.gui.config_from_env()
         self.gui.subscribe_to_window_change_event(self.gui.save_root_geometry)
@@ -70,28 +82,34 @@ class Application(
         self.gui.subscribe_to_window_close_event(self.on_close)
 
         # Set up logging
-        self.logging.register_callback_to_captured_streams(self.log_stream.write)
+        _splash.set_status('Setting up logging')
+        self.logging.register_callback_to_captured_streams(self.directory.get_log_file_stream().write)
 
         # Initialize tasks list
         self._tasks: list[IApplicationTask] = []
 
         # Initialize workspace
+        _splash.set_status('Building workspace')
         self._workspace = Workspace(parent=self._root)
         self._root.setCentralWidget(self._workspace)
+        StatusUpdateEventBus.subscribe(
+            StatusUpdateEventType.UPDATE,
+            lambda event: self._workspace.set_status(event.status_message)
+        )
 
         # Build default tasks
+        _splash.set_status('Loading tasks')
         ApplicationTaskFactory.build_tasks(self)
 
-    @property
-    def log_stream(self) -> TextIOWrapper:
-        """The SimpleStream for this Application.
+        # Wire up a "Windows" submenu so registered task frames appear in View
+        _windows_menu = QMenu()
+        _windows_menu.setTitle('Windows')
+        self.view_menu.addMenu(_windows_menu)
+        self._workspace.set_windows_menu(_windows_menu)
 
-        This stream captures stdout and stderr and redirects them to the log file for this application.
-
-        Returns:
-            stream.SimpleStream: The SimpleStream instance.
-        """
-        return self.directory.get_log_file_stream()
+        # Reveal main window and dismiss splash
+        _splash.close_splash()
+        self._root.show()
 
     def get_author(self) -> str:
         """Get the application author.

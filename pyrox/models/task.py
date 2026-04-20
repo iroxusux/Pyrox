@@ -10,11 +10,12 @@ from pyrox.interfaces import IApplication, IApplicationTask
 from pyrox.models import ServicesRunnableMixin
 from pyrox.services import log, MenuRegistry, GuiManager
 from pyrox.models.gui.frame import TaskFrame
-from pyrox.models.factory import MetaFactory, FactoryTypeMeta
+from pyrox.models.factory import MetaFactory, FactoryTypeABC
 
 
 class ApplicationTaskFactory(MetaFactory):
     """Factory for creating Application Task instances."""
+    _tasks: dict[str, IApplicationTask] = {}
 
     @classmethod
     def build_tasks(
@@ -29,13 +30,39 @@ class ApplicationTaskFactory(MetaFactory):
         tasks = cls.get_registered_types().values()
         log(cls).debug(f'Building {len(tasks)} tasks for application {application.name}')
         for task in tasks:
-            task(application=application)
+            cls._tasks[task.__name__] = task(application=application)
+
+    @classmethod
+    def get_task(cls, task_name: str) -> IApplicationTask | None:
+        """Get a registered task by name.
+
+        Args:
+            task_name: The name of the task to retrieve.
+
+        Returns:
+            IApplicationTask | None: The task instance if found, otherwise None.
+        """
+        return cls._tasks.get(task_name)
+
+    @classmethod
+    def get_tasks(cls) -> dict[str, IApplicationTask]:
+        """Get all registered tasks.
+
+        Returns:
+            dict[str, IApplicationTask]: A dictionary of task names to task instances.
+        """
+        return cls._tasks
+
+    @classmethod
+    def clear_tasks(cls) -> None:
+        """Clear all registered tasks."""
+        cls._tasks.clear()
 
 
 class ApplicationTask(
     IApplicationTask,
     ServicesRunnableMixin,
-    metaclass=FactoryTypeMeta[ApplicationTaskFactory]
+    FactoryTypeABC[ApplicationTaskFactory]
 ):
     """Application task to add additional functionality to the application.
     Args:
@@ -153,6 +180,20 @@ class ApplicationTask(
         )
 
         return submenu
+
+    def get_submenu(self, registry_id: str) -> QMenu | None:
+        """Get a submenu by its registry ID.
+
+        Args:
+            registry_id: The registry ID of the submenu to retrieve.
+
+        Returns:
+            IGuiMenu | None: The submenu instance if found, otherwise None.
+        """
+        menu_item = MenuRegistry.get_item(registry_id)
+        if menu_item and isinstance(menu_item.menu_widget, QMenu):
+            return menu_item.menu_widget
+        return None
 
     # --------------------------------------------------------------
     # Getters and Setters

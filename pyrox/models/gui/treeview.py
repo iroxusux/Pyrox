@@ -61,6 +61,21 @@ _CONTAINER_TYPES = (list, tuple, dict)
 # Cap on how many list/tuple items are rendered before a "… N more" node
 _MAX_SEQUENCE_ITEMS = 100
 
+# Hard cap on the total number of tree nodes created in a single refresh.
+# Prevents the UI from hanging when introspecting very large/deep object graphs.
+_MAX_TOTAL_NODES = 5_000
+
+# Module name prefixes for types that should never be recursed into.
+# Accessing attributes of pandas or lxml objects can be extremely slow or
+# trigger unrelated deprecation warnings.
+_SKIP_TYPE_MODULES = ('pandas', 'lxml')
+
+
+def _is_heavy_type(value: Any) -> bool:
+    """Return True when *value*'s type lives in a known heavy module."""
+    module = getattr(type(value), '__module__', '') or ''
+    return module.startswith(_SKIP_TYPE_MODULES)
+
 # Stylesheet applied to the entire panel root so all child widgets inherit
 # the Pyrox dark theme without each widget needing its own style rule.
 _PANEL_STYLE = f"""
@@ -150,30 +165,55 @@ def _preview(value: Any, max_len: int = 60) -> str:
 # Tree population
 # ---------------------------------------------------------------------------
 
-def _populate_item(parent_item: QTreeWidgetItem, value: Any, depth: int = 0) -> None:
+def _populate_item(
+    parent_item: QTreeWidgetItem,
+    value: Any,
+    depth: int = 0,
+    _node_count: Optional[list] = None,
+) -> None:
     """Recursively populate *parent_item* with child nodes for *value*.
 
     For primitive types the parent item's columns are already set by the
     caller; this function only adds children for containers and objects.
 
     Args:
-        parent_item: The QTreeWidgetItem to add children to.
-        value:       The Python value to inspect.
-        depth:       Current recursion depth (prevents infinite loops on
-                     circular references).
+        parent_item:  The QTreeWidgetItem to add children to.
+        value:        The Python value to inspect.
+        depth:        Current recursion depth (prevents infinite loops on
+                      circular references).
+        _node_count:  Single-element list used as a mutable counter shared
+                      across the entire recursive call tree.  Callers should
+                      not pass this; it is initialised on the first call.
     """
+    if _node_count is None:
+        _node_count = [0]
+
     if depth > 20:
         _add_leaf(parent_item, '…', 'max depth reached', 'str')
         return
 
+    if _node_count[0] >= _MAX_TOTAL_NODES:
+        _add_leaf(parent_item, '…', f'node limit ({_MAX_TOTAL_NODES}) reached', 'str')
+        return
+
+    if _is_heavy_type(value):
+        _add_leaf(parent_item, '…', f'<{type(value).__name__}> skipped', 'str')
+        return
+
     if isinstance(value, dict):
-        for k, v in value.items():
+        for k, v in list(value.items()):
+            if _node_count[0] >= _MAX_TOTAL_NODES:
+                overflow = QTreeWidgetItem(parent_item)
+                overflow.setText(0, '…')
+                overflow.setText(2, f'node limit ({_MAX_TOTAL_NODES}) reached')
+                break
             child = QTreeWidgetItem(parent_item)
+            _node_count[0] += 1
             child.setText(0, str(k))
             child.setText(1, _type_label(v))
             child.setText(2, _preview(v))
             if not isinstance(v, _PRIMITIVE_TYPES):
-                _populate_item(child, v, depth + 1)
+                _populate_item(child, v, depth + 1, _node_count)
                 child.setChildIndicatorPolicy(
                     QTreeWidgetItem.ChildIndicatorPolicy.ShowIndicator
                 )
@@ -182,12 +222,18 @@ def _populate_item(parent_item: QTreeWidgetItem, value: Any, depth: int = 0) -> 
         items = list(value)
         render = items[:_MAX_SEQUENCE_ITEMS]
         for idx, v in enumerate(render):
+            if _node_count[0] >= _MAX_TOTAL_NODES:
+                overflow = QTreeWidgetItem(parent_item)
+                overflow.setText(0, '…')
+                overflow.setText(2, f'node limit ({_MAX_TOTAL_NODES}) reached')
+                break
             child = QTreeWidgetItem(parent_item)
+            _node_count[0] += 1
             child.setText(0, f'[{idx}]')
             child.setText(1, _type_label(v))
             child.setText(2, _preview(v))
             if not isinstance(v, _PRIMITIVE_TYPES):
-                _populate_item(child, v, depth + 1)
+                _populate_item(child, v, depth + 1, _node_count)
                 child.setChildIndicatorPolicy(
                     QTreeWidgetItem.ChildIndicatorPolicy.ShowIndicator
                 )
@@ -197,11 +243,11 @@ def _populate_item(parent_item: QTreeWidgetItem, value: Any, depth: int = 0) -> 
 
     else:
         # Generic object — show public attributes
-        _populate_object_attrs(parent_item, value, depth)
+        _populate_object_attrs(parent_item, value, depth, _node_count)
 
 
 def _populate_object_attrs(
-    parent_item: QTreeWidgetItem, obj: Any, depth: int
+    parent_item: QTreeWidgetItem, obj: Any, depth: int, _node_count: list
 ) -> None:
     """Add public attribute children of *obj* to *parent_item*."""
     try:
@@ -213,6 +259,12 @@ def _populate_object_attrs(
         return
 
     for name in attr_names:
+        if _node_count[0] >= _MAX_TOTAL_NODES:
+            overflow = QTreeWidgetItem(parent_item)
+            overflow.setText(0, '…')
+            overflow.setText(2, f'node limit ({_MAX_TOTAL_NODES}) reached')
+            break
+
         try:
             value = getattr(obj, name)
         except Exception as exc:
@@ -220,18 +272,23 @@ def _populate_object_attrs(
             child.setText(0, name)
             child.setText(1, 'error')
             child.setText(2, str(exc))
+            _node_count[0] += 1
             continue
 
         if not _is_public_attr(name, value):
             continue
 
+        if _is_heavy_type(value):
+            continue
+
         child = QTreeWidgetItem(parent_item)
+        _node_count[0] += 1
         child.setText(0, name)
         child.setText(1, _type_label(value))
         child.setText(2, _preview(value))
 
         if not isinstance(value, _PRIMITIVE_TYPES):
-            _populate_item(child, value, depth + 1)
+            _populate_item(child, value, depth + 1, _node_count)
             if child.childCount():
                 child.setChildIndicatorPolicy(
                     QTreeWidgetItem.ChildIndicatorPolicy.ShowIndicator

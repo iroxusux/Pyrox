@@ -29,9 +29,10 @@ Example Usage:
     ```
 """
 import sys
-from typing import Optional, Dict, Any, Callable
+from typing import Optional, Dict, Any, Callable, Mapping
 
 from PyQt6.QtCore import Qt
+from PyQt6.QtGui import QFont
 from PyQt6.QtWidgets import (
     QApplication,
     QCheckBox,
@@ -48,6 +49,7 @@ from PyQt6.QtWidgets import (
 )
 
 from pyrox.interfaces.protocols import IHasProperties
+from pyrox.services import log
 from pyrox.models.gui.frame import TaskFrame
 
 
@@ -96,6 +98,8 @@ class PropertyPanel(TaskFrame):
         self._list_widgets: Dict[str, QListWidget] = {}
         self._on_property_changed = on_property_changed
         self._readonly_properties: set[str] = set()
+        self._section_objects: Dict[str, Any] = {}
+        self._prop_to_object: Dict[str, Any] = {}
 
         self._build_ui()
 
@@ -141,8 +145,74 @@ class PropertyPanel(TaskFrame):
             readonly_properties: Set of property names that should be read-only
         """
         self._target_object = obj
+        self._sections: Optional[Dict[str, Dict[str, Any]]] = None
+        self._section_objects = {}
+        self._prop_to_object = {}
         self._readonly_properties = readonly_properties or set()
         self.refresh()
+
+    def set_sections(
+        self,
+        sections: Dict[str, Dict[str, Any]],
+        readonly_properties: Optional[set[str]] = None,
+        section_objects: Optional[Mapping[str, Any]] = None,
+    ) -> None:
+        """Display properties grouped into named sections with headers.
+
+        This replaces the current panel contents.  Pass an ordered dict so
+        sections appear in insertion order.
+
+        Args:
+            sections: Ordered mapping of section_title -> {prop_name: value}
+            readonly_properties: Property names that should be read-only
+            section_objects: Optional mapping of section_title -> IHasProperties
+                             object that owns each section's properties.  When
+                             supplied, edits are written back via set_property
+                             on the correct object instead of being lost.
+        """
+        self._sections = sections
+        self._target_object = None
+        self._section_objects: Dict[str, Any] = dict(section_objects) if section_objects else {}
+        self._readonly_properties = readonly_properties or set()
+        # Build prop_name -> object reverse map for O(1) writeback lookups
+        self._prop_to_object = {
+            prop_name: obj
+            for section_title, obj in self._section_objects.items()
+            if section_title in sections
+            for prop_name in sections[section_title]
+        }
+        self._refresh_sections()
+
+    def _refresh_sections(self) -> None:
+        """Rebuild the panel from the stored sections dict."""
+        self._clear_properties()
+        if not self._sections:
+            self._show_empty_state("No object selected")
+            return
+
+        all_keys = [
+            k for section in self._sections.values() for k in section
+        ]
+        field_length = max((len(k) for k in all_keys), default=10) + 2
+
+        for section_title, props in self._sections.items():
+            if not props:
+                continue
+            self._add_section_header(section_title)
+            for prop_name, prop_value in sorted(props.items()):
+                readonly = prop_name in self._readonly_properties
+                self._add_property_field(prop_name, prop_value, readonly, field_length)
+
+    def _add_section_header(self, title: str) -> None:
+        """Add a bold section header row to the properties layout."""
+        header = QLabel(title, self._properties_widget)
+        font = QFont()
+        font.setBold(True)
+        header.setFont(font)
+        header.setStyleSheet(
+            "background-color: #3a3a3a; color: #ffffff; padding: 3px 6px; border-radius: 2px;"
+        )
+        self._properties_layout.addWidget(header)
 
     def refresh(self) -> None:
         """Refresh the property panel display from the current object.
@@ -150,6 +220,11 @@ class PropertyPanel(TaskFrame):
         This performs a full rebuild of all widgets. Use update_values() instead
         for frequent updates to avoid flickering.
         """
+        # If populated via set_sections, delegate to that path
+        if getattr(self, '_sections', None) is not None:
+            self._refresh_sections()
+            return
+
         # Clear existing widgets
         self._clear_properties()
 
@@ -177,11 +252,17 @@ class PropertyPanel(TaskFrame):
         This is much more efficient than refresh() and doesn't cause flickering.
         Only updates values for properties that have changed.
         """
-        if not self._target_object:
+        if not self._target_object and not self._prop_to_object:
             return
 
         try:
-            properties = self._target_object.get_properties()
+            if self._target_object:
+                properties = self._target_object.get_properties()
+            else:
+                # Rebuild the merged properties dict from each section object
+                properties = {}
+                for section_title, obj in self._section_objects.items():
+                    properties.update(obj.get_properties())
         except Exception:
             return
 
@@ -497,8 +578,10 @@ class PropertyPanel(TaskFrame):
                 new_value = new_value_str
             self._on_value_changed(prop_name, new_value)
         except ValueError:
-            if self._target_object:
-                original_value = self._target_object.get_property(prop_name)
+            # Restore the original value from whichever object owns this property
+            owner = self._target_object or self._prop_to_object.get(prop_name)
+            if owner:
+                original_value = owner.get_property(prop_name)
                 widget.setText(self._format_value(original_value))
 
     def _on_value_changed(self, prop_name: str, new_value: Any) -> None:
@@ -508,16 +591,28 @@ class PropertyPanel(TaskFrame):
             prop_name: Property name
             new_value: New property value
         """
-        # Update the object if available
-        if self._target_object:
-            try:
-                self._target_object.set_property(prop_name, new_value)
-            except Exception as e:
-                print(f"Error setting property {prop_name}: {e}")
+        # Determine which object owns this property
+        owner: Optional[Any] = (
+            self._target_object or self._prop_to_object.get(prop_name)
+        )
 
-        # Call the callback if provided
-        if self._on_property_changed:
-            self._on_property_changed(prop_name, new_value)
+        if owner:
+            try:
+                owner.set_property(prop_name, new_value)
+            except Exception as e:
+                log(self).warning(f"Error setting property '{prop_name}': {e}")
+
+            # Keep the sections cache in sync so refresh() doesn't flicker back
+            if self._sections is not None:
+                for section in self._sections.values():
+                    if prop_name in section:
+                        section[prop_name] = new_value
+                        break
+
+            if self._on_property_changed:
+                self._on_property_changed(prop_name, new_value)
+        else:
+            log(self).warning(f"Property '{prop_name}' changed to {new_value!r} but no target object is set.")
 
     def get_property_value(self, prop_name: str) -> Optional[Any]:
         """Get the current value of a property from the widget.

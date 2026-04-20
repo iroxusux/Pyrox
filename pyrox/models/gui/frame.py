@@ -53,6 +53,9 @@ class TaskFrame:
         # Title bar
         self._title_bar = QWidget(self._root)
         self._title_bar.setFixedHeight(30)
+        self._title_bar.setStyleSheet(
+            'QWidget { background-color: #3c3f41; border-bottom: 1px solid #555555; }'
+        )
         title_layout = QHBoxLayout(self._title_bar)
         title_layout.setContentsMargins(5, 2, 5, 2)
 

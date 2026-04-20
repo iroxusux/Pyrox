@@ -24,7 +24,6 @@ class TestBasePhysicsBody(unittest.TestCase):
 
         self.custom_body = BasePhysicsBody(
             name="Test Body",
-            tags=["test", "physics"],
             x=100.0,
             y=200.0,
             width=50.0,
@@ -45,7 +44,6 @@ class TestBasePhysicsBody(unittest.TestCase):
         body = BasePhysicsBody()
 
         self.assertEqual(body.name, "")
-        self.assertEqual(body.tags, [])
         self.assertEqual(body.body_type, BodyType.DYNAMIC)
         self.assertEqual(body.x, 0.0)
         self.assertEqual(body.y, 0.0)
@@ -59,7 +57,6 @@ class TestBasePhysicsBody(unittest.TestCase):
         """Test initialization with custom parameters."""
         body = BasePhysicsBody(
             name="Custom Body",
-            tags=["custom", "test"],
             x=150.0,
             y=250.0,
             width=100.0,
@@ -71,7 +68,6 @@ class TestBasePhysicsBody(unittest.TestCase):
         )
 
         self.assertEqual(body.name, "Custom Body")
-        self.assertEqual(body.tags, ["custom", "test"])
         self.assertEqual(body.x, 150.0)
         self.assertEqual(body.y, 250.0)
         self.assertEqual(body.width, 100.0)
@@ -119,70 +115,6 @@ class TestBasePhysicsBody(unittest.TestCase):
 
         self.assertIsInstance(body, PhysicsBody2D)
         self.assertIsInstance(body, IPhysicsBody2D)
-
-    # ==================== Tag Management Tests ====================
-
-    def test_has_tag_with_existing_tag(self):
-        """Test has_tag returns True for existing tags."""
-        self.assertTrue(self.custom_body.has_tag("test"))
-        self.assertTrue(self.custom_body.has_tag("physics"))
-
-    def test_has_tag_with_nonexistent_tag(self):
-        """Test has_tag returns False for nonexistent tags."""
-        self.assertFalse(self.custom_body.has_tag("nonexistent"))
-        self.assertFalse(self.custom_body.has_tag(""))
-
-    def test_has_tag_on_empty_tags(self):
-        """Test has_tag on body with no tags."""
-        self.assertFalse(self.default_body.has_tag("any"))
-
-    def test_add_tag_new_tag(self):
-        """Test adding a new tag."""
-        self.default_body.add_tag("new_tag")
-
-        self.assertTrue(self.default_body.has_tag("new_tag"))
-        self.assertIn("new_tag", self.default_body.tags)
-
-    def test_add_tag_duplicate(self):
-        """Test adding duplicate tag doesn't create duplicates."""
-        self.custom_body.add_tag("test")
-
-        tag_count = self.custom_body.tags.count("test")
-        self.assertEqual(tag_count, 1)
-
-    def test_add_multiple_tags(self):
-        """Test adding multiple different tags."""
-        body = BasePhysicsBody()
-
-        body.add_tag("tag1")
-        body.add_tag("tag2")
-        body.add_tag("tag3")
-
-        self.assertEqual(len(body.tags), 3)
-        self.assertTrue(body.has_tag("tag1"))
-        self.assertTrue(body.has_tag("tag2"))
-        self.assertTrue(body.has_tag("tag3"))
-
-    def test_remove_tag_existing(self):
-        """Test removing an existing tag."""
-        self.custom_body.remove_tag("test")
-
-        self.assertFalse(self.custom_body.has_tag("test"))
-        self.assertNotIn("test", self.custom_body.tags)
-
-    def test_remove_tag_nonexistent(self):
-        """Test removing nonexistent tag doesn't raise error."""
-        try:
-            self.custom_body.remove_tag("nonexistent")
-        except Exception as e:
-            self.fail(f"remove_tag raised exception: {e}")
-
-    def test_remove_all_tags(self):
-        """Test removing all tags."""
-        self.custom_body.remove_tag("test")
-        self.custom_body.remove_tag("physics")
-
-        self.assertEqual(len(self.custom_body.tags), 0)
 
     # ==================== Spatial Query Tests ====================
 
@@ -398,42 +330,12 @@ class TestBasePhysicsBody(unittest.TestCase):
         self.assertEqual(body.x, 1_000_000.0)
         self.assertEqual(body.mass, 100_000.0)
 
-    def test_empty_tag_list(self):
-        """Test operations on empty tag list."""
-        body = BasePhysicsBody()
-
-        self.assertEqual(len(body.tags), 0)
-        self.assertFalse(body.has_tag("any"))
-
-        # Should not raise
-        body.remove_tag("nonexistent")
-
-    def test_many_tags(self):
-        """Test body with many tags."""
-        tags = [f"tag_{i}" for i in range(100)]
-        body = BasePhysicsBody(tags=tags)
-
-        self.assertEqual(len(body.tags), 100)
-        self.assertTrue(body.has_tag("tag_50"))
-
-        body.remove_tag("tag_50")
-        self.assertFalse(body.has_tag("tag_50"))
-        self.assertEqual(len(body.tags), 99)
-
     def test_special_characters_in_name(self):
         """Test name with special characters."""
         body = BasePhysicsBody(name="Body #1 (Test) - Special!")
 
         self.assertEqual(body.name, "Body #1 (Test) - Special!")
         self.assertIn("Body #1 (Test) - Special!", repr(body))
-
-    def test_unicode_in_tags(self):
-        """Test tags with unicode characters."""
-        body = BasePhysicsBody(tags=["测试", "тест", "🚀"])
-
-        self.assertTrue(body.has_tag("测试"))
-        self.assertTrue(body.has_tag("тест"))
-        self.assertTrue(body.has_tag("🚀"))
 
 
 class TestBasePhysicsBodyFactory(unittest.TestCase):

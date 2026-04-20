@@ -4,6 +4,7 @@ This module provides a PyQt6-based equivalent of TkGuiManager, wrapping a
 QApplication + QMainWindow pair with the same static-class interface.
 """
 from __future__ import annotations
+from pathlib import Path
 import sys
 from typing import Callable
 
@@ -19,60 +20,17 @@ from PyQt6.QtWidgets import (
 )
 
 from pyrox.services.env import EnvManager
+from pyrox.services.gui_state import GuiStateService
 from pyrox.services.menu_registry import MenuRegistry
 from pyrox.interfaces import EnvironmentKeys
+
+
+DEF_ICON = Path(__file__).resolve().parents[2] / "ui" / "icons" / "_def.ico"
 
 
 # ---------------------------------------------------------------------------
 # Key-binding helpers
 # ---------------------------------------------------------------------------
-
-_TK_MODIFIER_TO_QT: dict[str, str] = {
-    'Control': 'Ctrl',
-    'Alt': 'Alt',
-    'Shift': 'Shift',
-    'Meta': 'Meta',
-    'Win': 'Meta',
-    'Command': 'Meta',
-}
-
-
-def _tk_binding_to_qt_sequence(binding: str) -> str | None:
-    """Convert a Tkinter key binding to a Qt key-sequence string.
-
-    Examples::
-
-        '<Control-s>'       -> 'Ctrl+S'
-        '<Control-Shift-S>' -> 'Ctrl+Shift+S'
-        '<F1>'              -> 'F1'
-        '<Alt-F4>'          -> 'Alt+F4'
-
-    Returns None if the binding cannot be parsed.
-    """
-    if not binding or not binding.startswith('<') or not binding.endswith('>'):
-        return None
-
-    inner = binding[1:-1]
-    parts = inner.split('-')
-    modifiers: list[str] = []
-    key: str | None = None
-
-    for part in parts:
-        qt_mod = _TK_MODIFIER_TO_QT.get(part)
-        if qt_mod:
-            modifiers.append(qt_mod)
-        else:
-            key = part
-
-    if key is None:
-        return None
-
-    # Uppercase single alpha key for Qt convention
-    if len(key) == 1 and key.isalpha():
-        key = key.upper()
-
-    return '+'.join(modifiers + [key])
-
 
 def _filetypes_to_qt_filter(filetypes: list[tuple[str, str]] | None) -> str:
     """Convert Tk-style ``[(label, pattern), ...]`` to a Qt filter string."""
@@ -109,6 +67,13 @@ class _PyQt6MainWindow(QMainWindow):
         super().moveEvent(a0)
         for cb in self._configure_callbacks:
             cb()
+
+    def keyPressEvent(self, event) -> None:  # type: ignore[override]
+        from PyQt6.QtCore import Qt
+        if event is not None and event.key() == Qt.Key.Key_F11:
+            GuiManager.toggle_fullscreen()
+        else:
+            super().keyPressEvent(event)
 
 
 # ---------------------------------------------------------------------------
@@ -149,20 +114,18 @@ class GuiManager:
         cls,
         hotkey: str,
         callback: Callable,
-        **kwargs,
     ) -> None:
         """Bind a global hotkey to a callback function.
 
         Args:
-            hotkey: Tk-style (e.g. ``'<Control-s>'``) or Qt-style (``'Ctrl+S'``).
+            hotkey: Qt-style (``'Ctrl+S'``).
             callback: Function to invoke when the hotkey fires.
 
         Raises:
             RuntimeError: If the root window is not initialized.
         """
-        qt_seq = _tk_binding_to_qt_sequence(hotkey) if hotkey.startswith('<') else hotkey
-        if qt_seq:
-            shortcut = QShortcut(QKeySequence(qt_seq), cls.get_root())
+        if hotkey:
+            shortcut = QShortcut(QKeySequence(hotkey), cls.get_root())
             shortcut.activated.connect(callback)
 
     # --------------------------------------------------
@@ -233,15 +196,23 @@ class GuiManager:
                 default=kwargs.get('title', 'Pyrox Application'),
             )
         )
+        GuiStateService.load()
         cls.restore_root_geometry()
+        # Auto-save window geometry whenever the window is moved or resized.
+        cls.subscribe_to_window_change_event(cls.save_root_geometry)
         icon_path = cls.get_default_icon_path()
         if icon_path:
             cls.set_icon(icon_path)
 
     @classmethod
     def get_default_icon_path(cls) -> str | None:
-        """Return the default icon path from the environment."""
-        return EnvManager.get(EnvironmentKeys.core.APP_ICON, None, str)
+        """Return the default icon path from the environment, falling back to the bundled default."""
+        env_icon = EnvManager.get(EnvironmentKeys.core.APP_ICON, None, str)
+        if env_icon:
+            return env_icon
+        if DEF_ICON.exists():
+            return str(DEF_ICON)
+        return None
 
     @classmethod
     def set_icon(
@@ -281,8 +252,14 @@ class GuiManager:
     # --------------------------------------------------
 
     @classmethod
-    def create_root(cls, **kwargs) -> _PyQt6MainWindow:
-        """Create (or return existing) QApplication + root QMainWindow."""
+    def create_root(cls, show: bool = True, **kwargs) -> _PyQt6MainWindow:
+        """Create (or return existing) QApplication + root QMainWindow.
+
+        Args:
+            show: Whether to call ``show()`` on the root window immediately.
+                  Pass ``False`` when a splash screen will be displayed first
+                  and the caller will call ``show()`` manually later.
+        """
         if cls._root_window is not None:
             return cls._root_window
 
@@ -293,7 +270,8 @@ class GuiManager:
 
         cls._root_window = _PyQt6MainWindow()
         cls.config_from_env(**kwargs)
-        cls._root_window.show()
+        if show:
+            cls._root_window.show()
         return cls._root_window
 
     @classmethod
@@ -318,28 +296,10 @@ class GuiManager:
 
     @classmethod
     def _store_root_state(cls) -> None:
-        """Persist current window geometry and state to the environment."""
+        """Persist current window geometry and state via GuiStateService."""
         cls._after_id = None
-
-        w = cls.get_root().width()
-        h = cls.get_root().height()
-        EnvManager.set(EnvironmentKeys.ui.UI_WINDOW_SIZE, f'{w}x{h}')
-
-        pos = cls.get_root().x(), cls.get_root().y()
-        EnvManager.set(EnvironmentKeys.ui.UI_WINDOW_POSITION, str(pos))
-
-        if cls.get_root().isMaximized():
-            state = 'zoomed'
-        elif cls.get_root().isMinimized():
-            state = 'iconic'
-        else:
-            state = 'normal'
-        EnvManager.set(EnvironmentKeys.ui.UI_WINDOW_STATE, state)
-
-        EnvManager.set(
-            EnvironmentKeys.ui.UI_WINDOW_FULLSCREEN,
-            str(cls.get_root().isFullScreen()),
-        )
+        GuiStateService.capture_from_window(cls.get_root())
+        GuiStateService.save()
 
     @classmethod
     def save_root_geometry(cls) -> None:
@@ -350,49 +310,29 @@ class GuiManager:
 
     @classmethod
     def restore_root_geometry(cls) -> None:
-        """Restore window geometry and state from environment variables."""
-        full_screen = EnvManager.get(
-            key=EnvironmentKeys.ui.UI_WINDOW_FULLSCREEN,
-            default=False,
-            cast_type=bool,
-        )
-        if full_screen:
-            cls.get_root().showFullScreen()
-            return
+        """Restore window geometry and state from GuiStateService."""
+        GuiStateService.apply_to_window(cls.get_root())
 
-        window_size = EnvManager.get(
-            key=EnvironmentKeys.ui.UI_WINDOW_SIZE,
-            default=None,
-            cast_type=str,
-        )
-        if window_size:
-            parts = window_size.split('x')
-            if len(parts) == 2:
-                try:
-                    cls.get_root().resize(int(parts[0]), int(parts[1]))
-                except ValueError:
-                    pass
+    @classmethod
+    def toggle_fullscreen(cls) -> None:
+        """Toggle the root window between fullscreen and its previous state.
 
-        window_position = EnvManager.get(
-            key=EnvironmentKeys.ui.UI_WINDOW_POSITION,
-            default=None,
-            cast_type=tuple,
-        )
-        if window_position and len(window_position) == 2:
-            try:
-                cls.get_root().move(int(window_position[0]), int(window_position[1]))
-            except (ValueError, TypeError):
-                pass
-
-        window_state = EnvManager.get(
-            key=EnvironmentKeys.ui.UI_WINDOW_STATE,
-            default='normal',
-            cast_type=str,
-        )
-        if window_state == 'zoomed':
-            cls.get_root().showMaximized()
-        elif window_state in ('iconic', 'minimized'):
-            cls.get_root().showMinimized()
+        Pressing F11 calls this method.  When leaving fullscreen the window
+        is restored to its previous maximized-or-normal state as recorded in
+        :class:`GuiStateService`, and the updated state is saved to disk.
+        """
+        root = cls.get_root()
+        if root.isFullScreen():
+            GuiStateService.set_fullscreen(False)
+            # Restore to whichever state was active before going fullscreen.
+            if GuiStateService.get_window_state() == 'zoomed':
+                root.showMaximized()
+            else:
+                root.showNormal()
+        else:
+            GuiStateService.set_fullscreen(True)
+            root.showFullScreen()
+        GuiStateService.save()
 
     # --------------------------------------------------
     # Root Menu Management
@@ -540,7 +480,12 @@ class GuiManager:
 
     @classmethod
     def quit_application(cls) -> None:
-        """Quit the Qt application."""
+        """Flush window state to disk then quit the Qt application."""
+        # Cancel any pending debounce timer and do an immediate synchronous save
+        # so geometry is never lost even if the user closes the window quickly.
+        if cls._after_id:
+            cls.cancel_scheduled_event(cls._after_id)
+        cls._store_root_state()
         cls.get_app().quit()
 
     # --------------------------------------------------

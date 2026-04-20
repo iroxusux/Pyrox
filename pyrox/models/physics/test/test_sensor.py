@@ -322,7 +322,7 @@ class TestProximitySensorBody(unittest.TestCase):
         mock_object = Mock(spec=IPhysicsBody2D)
         sensor.on_collision_enter(mock_object)
 
-        callback.assert_called_once_with(sensor)
+        callback.assert_called_once_with(True)
 
     def test_on_deactivate_callback_fired(self):
         """Test deactivate callback is fired when sensor deactivates."""
@@ -334,7 +334,7 @@ class TestProximitySensorBody(unittest.TestCase):
         sensor.on_collision_enter(mock_object)
         sensor.on_collision_exit(mock_object)
 
-        callback.assert_called_once_with(sensor)
+        callback.assert_called_once_with(False)
 
     def test_on_object_enter_callback_fired(self):
         """Test object enter callback is fired for each entering object."""

@@ -1,9 +1,8 @@
 """Protocol for objects that support properties.
 """
-from typing import Protocol, runtime_checkable
+from typing import Protocol
 
 
-@runtime_checkable
 class IHasProperties(Protocol):
     """Protocol for objects that support properties.
     """

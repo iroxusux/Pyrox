@@ -7,7 +7,6 @@ from typing import (
     Callable,
     Protocol,
     TypeVar,
-    runtime_checkable
 )
 from pyrox.interfaces import (
     ICoreMixin,
@@ -23,19 +22,11 @@ from pyrox.interfaces.scene.scenegroup import ISceneGroup
 T = TypeVar("T", bound=ISceneObject | ICompositeSceneObject | ISceneGroup)
 
 
-@runtime_checkable
-class IScene(
-    ICoreMixin,
-    Protocol
-):
+class IScene(ICoreMixin):
     """
     Scene Interface for managing scene objects within a scene.
     """
 
-    def get_name(self) -> str: ...
-    def set_name(self, name: str) -> None: ...
-    def get_description(self) -> str: ...
-    def set_description(self, description: str) -> None: ...
     def get_scene_object(self, scene_object_id: str) -> ISceneObject | ICompositeSceneObject | ISceneGroup | None: ...
     def get_scene_objects(self) -> dict[str, ISceneObject | ICompositeSceneObject | ISceneGroup]: ...
     def set_scene_objects(self, scene_objects: dict[str, T]) -> None: ...
@@ -64,16 +55,21 @@ class IScene(
     # ------------------------------------------------------------------
     # Property accessors
     # ------------------------------------------------------------------
-    scene_objects = property()
-    on_scene_object_added = property()
-    on_scene_object_removed = property()
-    on_scene_updated = property()
-    connection_registry = property()
+    scene_objects = property(get_scene_objects, set_scene_objects)
+    on_scene_object_added = property(get_on_scene_object_added)
+    on_scene_object_removed = property(get_on_scene_object_removed)
+    on_scene_updated = property(get_on_scene_updated)
+
+    @property
+    def connection_registry(self) -> "IConnectionRegistry":
+        return self.get_connection_registry()
+
+    @connection_registry.setter
+    def connection_registry(self, registry: "IConnectionRegistry") -> None:
+        self.set_connection_registry(registry)
 
 
-class ISceneRunnerService(
-    Protocol
-):
+class ISceneRunnerService(Protocol):
     """ Service interface for running and managing scenes.
     """
 
@@ -99,21 +95,35 @@ class ISceneRunnerService(
 
     @classmethod
     @abstractmethod
-    def load_scene(cls, filepath: str | Path) -> None:
-        """Load a scene from a file.
+    def get_scene_filepath(cls) -> Path | None:
+        """Return the filepath of the currently loaded/saved scene, or None.
 
-        Args:
-            filepath (Union[str, Path]): The path to the scene file.
+        Set automatically by load_scene and save_scene; cleared by new_scene.
         """
         ...
 
     @classmethod
     @abstractmethod
-    def save_scene(cls, filepath: str | Path) -> None:
-        """Save the current scene to a file.
+    def load_scene(cls, filepath: str | Path | None = None) -> None:
+        """Load a scene from a file.
 
         Args:
-            filepath (Union[str, Path]): The path to save the scene file.
+            filepath: Path to the scene file.  When *None* a file-open dialog
+                      is presented to the user.
+        """
+        ...
+
+    @classmethod
+    @abstractmethod
+    def save_scene(cls, filepath: str | Path | None = None) -> None:
+        """Save the current scene to a file.
+
+        When *filepath* is *None* the service first tries the last known
+        filepath (enabling quick-save); only if that is also unknown is a
+        file-save dialog presented.
+
+        Args:
+            filepath: Destination path.  Omit for quick-save behaviour.
         """
         ...
 

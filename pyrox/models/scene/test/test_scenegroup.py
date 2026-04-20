@@ -48,7 +48,6 @@ def _make_obj(name: str = "Obj", x: float = 0.0, y: float = 0.0,
     """Create a plain SceneObject with the given geometry."""
     return SceneObject(
         name=name,
-        scene_object_type="test",
         physics_body=_TestPhysicsBody(name=name, x=x, y=y, width=width, height=height),
     )
 
@@ -345,7 +344,6 @@ class TestSceneGroupUpdate(unittest.TestCase):
 
         obj = TrackingObj(
             name="tracker",
-            scene_object_type="test",
             physics_body=_TestPhysicsBody(),
         )
         group.add_member(obj)

@@ -19,11 +19,8 @@ from .protocols import (
     # Coordinate components
     Coord2D,
     Area2D,
-    Coord3D,
-    Area3D,
     # Spacial components
     Spatial2D,
-    Spatial3D,
     Rotatable,
     Zoomable,
     # Physics components
@@ -45,8 +42,8 @@ from .list import (
 
 # Factory components
 from .factory import (
-    FactoryTypeMeta,
     MetaFactory,
+    FactoryTypeABC
 )
 
 # Concrete physics body implementations
@@ -62,6 +59,8 @@ from .physics import (
 from .gui import (
     LogFrame,
     SceneViewerFrame,
+    SplashScreen,
+    Workspace
 )
 
 
@@ -109,11 +108,8 @@ __all__ = [
     # Coordinate protocols
     'Coord2D',
     'Area2D',
-    'Coord3D',
-    'Area3D',
     # Spatial protocols
     'Spatial2D',
-    'Spatial3D',
     'Rotatable',
     'Zoomable',
 
@@ -121,8 +117,8 @@ __all__ = [
     'PyroxObject',
 
     # Factory components
-    'FactoryTypeMeta',
     'MetaFactory',
+    'FactoryTypeABC',
 
     # List components
     'HashList',
@@ -132,6 +128,8 @@ __all__ = [
     # GUI components
     'LogFrame',
     'SceneViewerFrame',
+    'SplashScreen',
+    'Workspace',
 
     # Services components
     'SupportsEnvServices',

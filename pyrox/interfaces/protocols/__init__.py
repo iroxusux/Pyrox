@@ -23,25 +23,21 @@ from .meta import (
 from .coord import (
     ICoord2D,
     IArea2D,
-    ICoord3D,
-    IArea3D,
 )
 
 # Spatial imports for protocols that support spatial objects.
 from .spatial import (
     ISpatial2D,
-    ISpatial3D,
     IRotatable,
+    IDirectional2D,
     IZoomable,
 )
 
 # Kinematic imports for protocols that support kinematic objects.
 from .kinematic import (
     IVelocity2D,
-    IVelocity3D,
     IAngularVelocity,
     IKinematic2D,
-    IKinematic3D,
 )
 
 # Physics imports for protocols that support physical objects.
@@ -51,10 +47,8 @@ from .physics import (
     CollisionLayer,
     IMaterial,
     ICollider2D,
-    ICollider3D,
     IPhysicsBody2D,
     IRigidBody2D,
-    IRigidBody3D,
     IPhysicsEngine,
 )
 
@@ -94,21 +88,17 @@ __all__ = [
     # Coordinate protocols
     "ICoord2D",
     "IArea2D",
-    "ICoord3D",
-    "IArea3D",
 
     # Spatial protocols
     "ISpatial2D",
-    "ISpatial3D",
     "IRotatable",
+    "IDirectional2D",
     "IZoomable",
 
     # Kinematic protocols
     "IVelocity2D",
-    "IVelocity3D",
     "IAngularVelocity",
     "IKinematic2D",
-    "IKinematic3D",
 
     # Physics protocols
     "BodyType",
@@ -116,9 +106,7 @@ __all__ = [
     "CollisionLayer",
     "IMaterial",
     "ICollider2D",
-    "ICollider3D",
     "IRigidBody2D",
-    "IRigidBody3D",
     "IPhysicsBody2D",
     "IPhysicsEngine",
 

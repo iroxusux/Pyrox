@@ -1,4 +1,7 @@
-from PyQt6.QtWidgets import QWidget, QHBoxLayout, QPushButton, QLabel, QFrame, QBoxLayout
+from PyQt6.QtCore import Qt
+from PyQt6.QtWidgets import QBoxLayout, QLabel, QWidget
+
+from pyrox.models.gui.toolbar import ToolBar, ToolBarButton
 
 
 class _SceneViewerToolbar:
@@ -15,17 +18,6 @@ class _SceneViewerToolbar:
         self.on_toggle_object_explorer = lambda: None
         self.on_toggle_entity_names = lambda: None
 
-    def _call_callback(self, callback):
-        if callable(callback):
-            callback()
-
-    @staticmethod
-    def _make_separator(parent: QWidget) -> QFrame:
-        sep = QFrame(parent)
-        sep.setFrameShape(QFrame.Shape.VLine)
-        sep.setFrameShadow(QFrame.Shadow.Sunken)
-        return sep
-
     def build_toolbar(self) -> '_SceneViewerToolbar':
         """Build the toolbar with viewer controls.
 
@@ -35,65 +27,68 @@ class _SceneViewerToolbar:
         if hasattr(self, '_widget') and self._widget is not None:
             self._widget.deleteLater()
 
-        self._widget = QWidget(self._parent)
-        layout = QHBoxLayout(self._widget)
-        layout.setContentsMargins(5, 3, 5, 3)
-        layout.setSpacing(2)
-
-        # Object Palette Toggle Button
-        self._object_palette_btn = QPushButton("🧰", self._widget)
-        self._object_palette_btn.setFixedWidth(32)
-        self._object_palette_btn.setToolTip("Toggle Object Palette")
-        self._object_palette_btn.clicked.connect(
-            lambda: self._call_callback(self.on_toggle_object_palette)
+        self._widget = ToolBar(
+            self._parent,
+            orientation=Qt.Orientation.Horizontal,
+            height=34,
         )
-        layout.addWidget(self._object_palette_btn)
 
-        # Properties Panel Toggle Button
-        self._properties_panel_btn = QPushButton("📋", self._widget)
-        self._properties_panel_btn.setFixedWidth(32)
-        self._properties_panel_btn.setToolTip("Toggle Properties Panel")
-        self._properties_panel_btn.clicked.connect(
-            lambda: self._call_callback(self.on_toggle_properties_panel)
-        )
-        layout.addWidget(self._properties_panel_btn)
+        self._widget.add_button(ToolBarButton(
+            id='object_palette',
+            text='Object Palette',
+            icon='🧰',
+            icon_only=True,
+            tooltip='Toggle Object Palette',
+            command=lambda: self.on_toggle_object_palette(),
+            width=32,
+        ))
+        self._widget.add_button(ToolBarButton(
+            id='properties_panel',
+            text='Properties Panel',
+            icon='📋',
+            icon_only=True,
+            tooltip='Toggle Properties Panel',
+            command=lambda: self.on_toggle_properties_panel(),
+            width=32,
+        ))
+        self._widget.add_button(ToolBarButton(
+            id='bridge_panel',
+            text='Scene Bridge Panel',
+            icon='🔗',
+            icon_only=True,
+            tooltip='Toggle Scene Bridge Panel',
+            command=lambda: self.on_toggle_bridge_panel(),
+            width=32,
+        ))
+        self._widget.add_button(ToolBarButton(
+            id='object_explorer',
+            text='Object Explorer',
+            icon='🗂️',
+            icon_only=True,
+            tooltip='Toggle Object Explorer',
+            command=lambda: self.on_toggle_object_explorer(),
+            width=32,
+        ))
 
-        # Scene Bridge Panel Toggle Button
-        self._bridge_panel_btn = QPushButton("🔗", self._widget)
-        self._bridge_panel_btn.setFixedWidth(32)
-        self._bridge_panel_btn.setToolTip("Toggle Scene Bridge Panel")
-        self._bridge_panel_btn.clicked.connect(
-            lambda: self._call_callback(self.on_toggle_bridge_panel)
-        )
-        layout.addWidget(self._bridge_panel_btn)
+        self._widget.add_separator()
 
-        # Object Explorer Toggle Button
-        self._object_explorer_btn = QPushButton("🗂️", self._widget)
-        self._object_explorer_btn.setFixedWidth(32)
-        self._object_explorer_btn.setToolTip("Toggle Object Explorer")
-        self._object_explorer_btn.clicked.connect(
-            lambda: self._call_callback(self.on_toggle_object_explorer)
-        )
-        layout.addWidget(self._object_explorer_btn)
+        self._widget.add_button(ToolBarButton(
+            id='entity_names',
+            text='Entity Names',
+            icon='🏷️',
+            icon_only=True,
+            tooltip='Toggle Entity Names',
+            command=lambda: self.on_toggle_entity_names(),
+            width=32,
+        ))
 
-        layout.addWidget(self._make_separator(self._widget))
+        self._widget.add_separator()
 
-        # Entity Names Toggle Button
-        self._entity_names_btn = QPushButton("🏷️", self._widget)
-        self._entity_names_btn.setFixedWidth(32)
-        self._entity_names_btn.setToolTip("Toggle Entity Names")
-        self._entity_names_btn.clicked.connect(
-            lambda: self._call_callback(self.on_toggle_entity_names)
-        )
-        layout.addWidget(self._entity_names_btn)
-
-        layout.addWidget(self._make_separator(self._widget))
-
-        # Selection info label
-        self._selection_label = QLabel("No selection", self._widget)
-        layout.addWidget(self._selection_label)
-
-        layout.addStretch()
+        # Selection info label — inserted before the trailing stretch
+        self._selection_label = QLabel('No selection', self._widget)
+        toolbar_layout = self._widget.layout()
+        if toolbar_layout is not None:
+            toolbar_layout.insertWidget(toolbar_layout.count() - 1, self._selection_label)
 
         # Insert the toolbar widget at the top of the parent's layout
         parent_layout = self._parent.layout()

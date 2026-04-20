@@ -6,7 +6,6 @@ import shutil
 from io import TextIOWrapper
 
 from .env import EnvManager
-from .gui import GuiManager
 from pyrox.interfaces import EnvironmentKeys
 
 
@@ -31,6 +30,11 @@ class PlatformDirectoryService:
         self,
     ) -> None:
         raise TypeError("PlatformDirectoryService is a static class and cannot be instantiated")
+
+    @classmethod
+    def initialize(cls) -> None:
+        """Initialize the PlatformDirectoryService by building necessary directories."""
+        cls.build_directory()
 
     @classmethod
     def all_directories(cls) -> dict:
@@ -239,6 +243,7 @@ def get_open_file(
     Returns:
         str | None: file location
     """
+    from pyrox.services.gui import GuiManager  # deferred to avoid circular import
     return GuiManager.prompt_user_open_file(title, filetypes)
 
 
@@ -254,6 +259,7 @@ def get_save_file(
     Returns:
         str | None: file location
     """
+    from pyrox.services.gui import GuiManager  # deferred to avoid circular import
     return GuiManager.prompt_user_save_file(title, filetypes)
 
 
@@ -265,6 +271,7 @@ def get_directory_location(title: str = "Select a Directory") -> str | None:
     Returns:
         str | None: directory
     """
+    from pyrox.services.gui import GuiManager  # deferred to avoid circular import
     return GuiManager.prompt_user_select_directory(title=title)
 
 
@@ -429,3 +436,6 @@ def transform_file_to_dict(
     if not os.path.isfile(file_path):
         raise FileNotFoundError(f'File not found: {file_path}')
     return transform_function(file_path)
+
+
+PlatformDirectoryService.initialize()

@@ -3,9 +3,9 @@
 Provides a static or kinematic conveyor belt that moves objects
 placed on top of it in a specified direction and speed.
 """
-from enum import Enum
 from typing import Any, Callable, List, Set
-from pyrox.interfaces.protocols.physics import (
+from pyrox.interfaces import (
+    CardinalDirection,
     BodyType,
     ColliderType,
     CollisionLayer,
@@ -16,54 +16,24 @@ from pyrox.models.protocols.physics import Material
 from .factory import PhysicsSceneTemplate, PhysicsSceneFactory
 
 
-class Direction(Enum):
-    """Cardinal directions for conveyor movement.
+def get_velocity_vector(direction: CardinalDirection, speed: float) -> tuple[float, float]:
+    """Get velocity vector for this direction.
 
-    Attributes:
-        NORTH: Upward movement (negative Y)
-        SOUTH: Downward movement (positive Y)
-        EAST: Rightward movement (positive X)
-        WEST: Leftward movement (negative X)
+    Args:
+        speed: Speed magnitude
+
+    Returns:
+        Tuple of (vx, vy)
     """
-    NORTH = "north"
-    SOUTH = "south"
-    EAST = "east"
-    WEST = "west"
-
-    @classmethod
-    def from_str(cls, value: str) -> 'Direction':
-        """Create Direction from string.
-
-        Args:
-            value: String representation (case-insensitive)
-
-        Returns:
-            Direction enum value
-        """
-        value_lower = value.lower()
-        for direction in cls:
-            if direction.value == value_lower:
-                return direction
-        raise ValueError(f"Invalid direction: {value}")
-
-    def get_velocity_vector(self, speed: float) -> tuple[float, float]:
-        """Get velocity vector for this direction.
-
-        Args:
-            speed: Speed magnitude
-
-        Returns:
-            Tuple of (vx, vy)
-        """
-        if self == Direction.NORTH:
-            return (0.0, -speed)
-        elif self == Direction.SOUTH:
-            return (0.0, speed)
-        elif self == Direction.EAST:
-            return (speed, 0.0)
-        elif self == Direction.WEST:
-            return (-speed, 0.0)
-        raise ValueError(f"Invalid direction: {self}")
+    if direction == CardinalDirection.UP:
+        return (0.0, -speed)
+    elif direction == CardinalDirection.DOWN:
+        return (0.0, speed)
+    elif direction == CardinalDirection.RIGHT:
+        return (speed, 0.0)
+    elif direction == CardinalDirection.LEFT:
+        return (-speed, 0.0)
+    raise ValueError(f"Invalid direction: {str(direction)}")
 
 
 class ConveyorBody(BasePhysicsBody):
@@ -88,7 +58,7 @@ class ConveyorBody(BasePhysicsBody):
         y: float = 0.0,
         width: float = 100.0,
         height: float = 20.0,
-        direction: Direction | str = Direction.EAST,
+        direction: CardinalDirection = CardinalDirection.RIGHT,
         belt_speed: float = 50.0,  # units per second
         is_active: bool = True,
         body_type: BodyType = BodyType.STATIC,
@@ -107,7 +77,7 @@ class ConveyorBody(BasePhysicsBody):
             y: Y position
             width: Width of the conveyor belt
             height: Height of the conveyor belt
-            direction: Direction of belt movement (NORTH, SOUTH, EAST, WEST)
+            direction: Direction of belt movement (UP, DOWN, LEFT, RIGHT)
             belt_speed: Speed of the belt in units/second
             is_active: Whether the conveyor starts active
             body_type: Usually STATIC or KINEMATIC
@@ -137,7 +107,6 @@ class ConveyorBody(BasePhysicsBody):
             name=name,
             id=id,
             template_name=template_name,
-            tags=["conveyor", "platform"],
             body_type=body_type,
             enabled=True,
             sleeping=False,
@@ -154,11 +123,7 @@ class ConveyorBody(BasePhysicsBody):
         )
 
         # Convert string to Direction enum if needed
-        if isinstance(direction, str):
-            self._direction = Direction.from_str(direction)
-        else:
-            self._direction = direction
-
+        self.direction = direction
         self.belt_speed = belt_speed
         self.is_active = is_active
         self._objects_on_belt: Set[IPhysicsBody2D] = set()
@@ -172,7 +137,7 @@ class ConveyorBody(BasePhysicsBody):
         """
         if not self.is_active:
             return (0.0, 0.0)
-        return self._direction.get_velocity_vector(self.belt_speed)
+        return get_velocity_vector(self.direction, self.belt_speed)
 
     @belt_velocity.setter
     def belt_velocity(self, velocity: tuple[float, float]) -> None:
@@ -185,60 +150,60 @@ class ConveyorBody(BasePhysicsBody):
         """
         vx, vy = velocity
         if vx > 0:
-            self._direction = Direction.EAST
+            self._direction = CardinalDirection.RIGHT
             self.belt_speed = vx
         elif vx < 0:
-            self._direction = Direction.WEST
+            self._direction = CardinalDirection.LEFT
             self.belt_speed = -vx
         elif vy > 0:
-            self._direction = Direction.SOUTH
+            self._direction = CardinalDirection.DOWN
             self.belt_speed = vy
         elif vy < 0:
-            self._direction = Direction.NORTH
+            self._direction = CardinalDirection.UP
             self.belt_speed = -vy
         else:
             # No movement, keep current direction but set speed to 0
             self.belt_speed = 0.0
 
     @property
-    def direction(self) -> Direction:
+    def direction(self) -> CardinalDirection:
         """Get the belt direction.
 
         Returns:
             Direction enum value
         """
-        return self._direction
+        return self.get_direction()
 
     @direction.setter
-    def direction(self, direction: Direction | str) -> None:
+    def direction(self, direction: CardinalDirection) -> None:
         """Set the belt direction.
 
         Args:
-            direction: Direction enum or string ("north", "south", "east", "west")
+            direction: Direction enum
         """
-        if isinstance(direction, str):
-            self._direction = Direction.from_str(direction)
-        else:
-            self._direction = direction
+        self.set_direction(direction)
 
-    def get_direction(self) -> str:
+    def get_direction(self) -> CardinalDirection:
         """Get the belt direction as a string.
 
         Returns:
             Direction name (north, south, east, west)
         """
-        return self._direction.value
+        if not isinstance(self._direction, CardinalDirection):
+            raise ValueError("Direction is not set")
+        return self._direction
 
-    def set_direction(self, direction: Direction | str) -> None:
+    def set_direction(self, direction: CardinalDirection) -> None:
         """Set the belt direction.
 
         Args:
-            direction: Direction enum or string ("north", "south", "east", "west")
+            direction: Direction enum, int or string ("north", "south", "east", "west")
         """
-        if isinstance(direction, str):
-            self._direction = Direction.from_str(direction)
-        else:
-            self._direction = direction
+        if not isinstance(direction, CardinalDirection):
+            direction = CardinalDirection.try_parse(direction)
+            if direction is None:
+                raise ValueError(f"Invalid direction: {direction}")
+        self._direction = direction
 
     def set_belt_speed(self, belt_speed: float) -> None:
         """Set the belt speed.
@@ -395,13 +360,12 @@ class ConveyorBody(BasePhysicsBody):
         # Handle direction field - it might be stored as string
         direction = data.get('direction', 'east')
         if isinstance(direction, str):
-            direction = Direction.from_str(direction)
+            direction = CardinalDirection.from_str(direction)
 
         return cls(
             name=data.get('name', 'Conveyor'),
             id=data.get('id', ''),
             template_name=data.get('template_name', 'Conveyor Belt'),
-            tags=data.get('tags', ['conveyor', 'platform']),
             body_type=BodyType.from_str(data.get('body_type', 'STATIC')),
             enabled=data.get('enabled', True),
             sleeping=data.get('sleeping', False),
@@ -425,7 +389,7 @@ class ConveyorBody(BasePhysicsBody):
             roll=data.get('roll', 0.0),
             pitch=data.get('pitch', 0.0),
             yaw=data.get('yaw', 0.0),
-            direction=direction,
+            direction=direction or CardinalDirection.RIGHT,  # Default to RIGHT if direction is invalid
             belt_speed=data.get('belt_speed', 50.0),
             is_active=data.get('is_active', True),
             material=Material.from_dict(data['material']) if data.get('material') else None,
@@ -442,7 +406,7 @@ class ConveyorBody(BasePhysicsBody):
 
         # Add conveyor-specific fields
         base_dict.update({
-            "direction": self._direction.value,  # Save as string
+            "direction": self.direction.value,  # Save as string
             "belt_speed": self.belt_speed,
             "is_active": self.is_active,
         })
@@ -453,12 +417,12 @@ class ConveyorBody(BasePhysicsBody):
         """String representation."""
         state = "ACTIVE" if self.is_active else "INACTIVE"
         dir_symbols = {
-            Direction.NORTH: "↑",
-            Direction.SOUTH: "↓",
-            Direction.EAST: "→",
-            Direction.WEST: "←",
+            CardinalDirection.UP: "↑",
+            CardinalDirection.DOWN: "↓",
+            CardinalDirection.RIGHT: "→",
+            CardinalDirection.LEFT: "←",
         }
-        dir_str = dir_symbols.get(self._direction, "?")
+        dir_str = dir_symbols.get(self.direction, "?")
         return (f"<ConveyorBody '{self.name}' {state} "
                 f"{dir_str} {self.belt_speed:.1f}u/s "
                 f"pos=({self.x:.1f}, {self.y:.1f}) "
@@ -475,7 +439,7 @@ PhysicsSceneFactory.register_template(
         default_kwargs={
             "width": 200.0,
             "height": 20.0,
-            "direction": Direction.EAST,
+            "direction": CardinalDirection.RIGHT,
             "belt_speed": 50.0,
             "is_active": True,
             "body_type": BodyType.STATIC,
@@ -496,7 +460,7 @@ PhysicsSceneFactory.register_template(
         default_kwargs={
             "width": 200.0,
             "height": 20.0,
-            "direction": Direction.NORTH,
+            "direction": CardinalDirection.UP,
             "belt_speed": 50.0,
             "is_active": True,
             "body_type": BodyType.STATIC,

@@ -132,26 +132,6 @@ class TestUIPanelBody(unittest.TestCase):
         self.assertFalse(self.default_panel.sleeping)
         self.assertFalse(self.custom_panel.sleeping)
 
-    # ==================== Tag Tests ====================
-
-    def test_has_ui_tag(self):
-        """Test that UI panel has 'ui' tag."""
-        self.assertTrue(self.default_panel.has_tag("ui"))
-        self.assertTrue(self.custom_panel.has_tag("ui"))
-
-    def test_has_panel_type_tag(self):
-        """Test that UI panel has panel_type tag."""
-        self.assertTrue(self.default_panel.has_tag("panel"))
-        self.assertTrue(self.custom_panel.has_tag("control"))
-        self.assertTrue(self.non_interactive_panel.has_tag("display"))
-
-    def test_tags_contain_both_ui_and_type(self):
-        """Test that tags contain both 'ui' and panel_type."""
-        tags = self.custom_panel.tags
-        self.assertIn("ui", tags)
-        self.assertIn("control", tags)
-        self.assertEqual(len(tags), 2)
-
     # ==================== Interactive Tests ====================
 
     def test_is_interactive_default(self):
@@ -305,11 +285,6 @@ class TestUIButtonBody(unittest.TestCase):
         self.assertEqual(self.default_button.panel_type, "button")
         self.assertEqual(self.custom_button.panel_type, "button")
         self.assertEqual(self.toggle_button.panel_type, "button")
-
-    def test_has_button_tag(self):
-        """Test that button has 'button' tag."""
-        self.assertTrue(self.default_button.has_tag("button"))
-        self.assertTrue(self.default_button.has_tag("ui"))
 
     # ==================== Pressed State Tests ====================
 

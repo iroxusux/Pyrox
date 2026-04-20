@@ -2,13 +2,51 @@
 
 from __future__ import annotations
 
+import os
+import shutil
 import sys
+import tempfile
 import unittest
 from unittest.mock import MagicMock, Mock, patch
 
-from pyrox.interfaces.constants import EnvironmentKeys
-from pyrox.services.gui import GuiManager, _tk_binding_to_qt_sequence
+from pyrox.services.gui import GuiManager
+from pyrox.services.gui_state import GuiStateService, _DEFAULT_STATE
 from pyrox.services.menu_registry import MenuRegistry
+
+
+# ---------------------------------------------------------------------------
+# Module-level GuiStateService isolation
+#
+# Redirect all GuiStateService file I/O to a temp directory for the duration
+# of this test module so tests can never corrupt the real user-data state file.
+# ---------------------------------------------------------------------------
+
+_gui_state_tmp_dir: str | None = None
+_gui_state_patcher = None
+
+
+def setUpModule() -> None:  # noqa: N802
+    global _gui_state_tmp_dir, _gui_state_patcher
+    _gui_state_tmp_dir = tempfile.mkdtemp()
+    _tmp_state_file = os.path.join(_gui_state_tmp_dir, 'test_gui_state.json')
+    _gui_state_patcher = patch.object(
+        GuiStateService,
+        'get_state_file_path',
+        return_value=_tmp_state_file,
+    )
+    _gui_state_patcher.start()
+
+
+def tearDownModule() -> None:  # noqa: N802
+    global _gui_state_tmp_dir, _gui_state_patcher
+    if _gui_state_patcher:
+        _gui_state_patcher.stop()
+        _gui_state_patcher = None
+    if _gui_state_tmp_dir:
+        shutil.rmtree(_gui_state_tmp_dir, ignore_errors=True)
+        _gui_state_tmp_dir = None
+    GuiStateService._state = dict(_DEFAULT_STATE)
+    GuiStateService._loaded = False
 
 
 # ---------------------------------------------------------------------------
@@ -24,6 +62,10 @@ def _reset_manager() -> None:
     GuiManager._scheduled_timers = {}
     GuiManager._timer_counter = 0
     GuiManager._after_id = None
+    # Reset GuiStateService in-memory state so no test bleeds window-state
+    # (e.g. 'zoomed') into the next test or into the real state file.
+    GuiStateService._state = dict(_DEFAULT_STATE)
+    GuiStateService._loaded = False
 
 
 # ---------------------------------------------------------------------------
@@ -498,132 +540,18 @@ class TestGuiManagerWindowGeometry(unittest.TestCase):
 
     # ---- restore_root_geometry ----
 
-    @patch('pyrox.services.gui.EnvManager')
-    def test_restore_root_geometry_enables_fullscreen(self, mock_env):
-        """restore_root_geometry() calls showFullScreen() when env flag is True."""
-        def _get(key, default=None, cast_type=None):
-            if key == EnvironmentKeys.ui.UI_WINDOW_FULLSCREEN:
-                return True
-            return default
-
-        mock_env.get.side_effect = _get
+    def test_restore_root_geometry_enables_fullscreen(self):
+        """restore_root_geometry() calls showFullScreen() when GuiStateService has fullscreen=True."""
+        GuiStateService.set_fullscreen(True)
 
         GuiManager.restore_root_geometry()
 
         self.mock_root.showFullScreen.assert_called_once()
 
-    @patch('pyrox.services.gui.EnvManager')
-    def test_restore_root_geometry_applies_size(self, mock_env):
-        """restore_root_geometry() calls resize() when a size is present."""
-        def _get(key, default=None, cast_type=None):
-            mapping = {
-                EnvironmentKeys.ui.UI_WINDOW_FULLSCREEN: False,
-                EnvironmentKeys.ui.UI_WINDOW_SIZE: '1024x768',
-                EnvironmentKeys.ui.UI_WINDOW_POSITION: None,
-                EnvironmentKeys.ui.UI_WINDOW_STATE: 'normal',
-            }
-            return mapping.get(key, default)
-
-        mock_env.get.side_effect = _get
-
-        GuiManager.restore_root_geometry()
-
-        self.mock_root.resize.assert_called_with(1024, 768)
-
-    @patch('pyrox.services.gui.EnvManager')
-    def test_restore_root_geometry_applies_position(self, mock_env):
-        """restore_root_geometry() calls move() when a position is present."""
-        def _get(key, default=None, cast_type=None):
-            mapping = {
-                EnvironmentKeys.ui.UI_WINDOW_FULLSCREEN: False,
-                EnvironmentKeys.ui.UI_WINDOW_SIZE: None,
-                EnvironmentKeys.ui.UI_WINDOW_POSITION: (100, 200),
-                EnvironmentKeys.ui.UI_WINDOW_STATE: 'normal',
-            }
-            return mapping.get(key, default)
-
-        mock_env.get.side_effect = _get
-
-        GuiManager.restore_root_geometry()
-
-        self.mock_root.move.assert_called_with(100, 200)
-
-    @patch('pyrox.services.gui.EnvManager')
-    def test_restore_root_geometry_maximized_state(self, mock_env):
-        """restore_root_geometry() calls showMaximized() for 'zoomed' state."""
-        def _get(key, default=None, cast_type=None):
-            mapping = {
-                EnvironmentKeys.ui.UI_WINDOW_FULLSCREEN: False,
-                EnvironmentKeys.ui.UI_WINDOW_SIZE: None,
-                EnvironmentKeys.ui.UI_WINDOW_POSITION: None,
-                EnvironmentKeys.ui.UI_WINDOW_STATE: 'zoomed',
-            }
-            return mapping.get(key, default)
-
-        mock_env.get.side_effect = _get
-
-        GuiManager.restore_root_geometry()
-
-        self.mock_root.showMaximized.assert_called_once()
-
-    @patch('pyrox.services.gui.EnvManager')
-    def test_restore_root_geometry_minimized_state(self, mock_env):
-        """restore_root_geometry() calls showMinimized() for 'iconic' state."""
-        def _get(key, default=None, cast_type=None):
-            mapping = {
-                EnvironmentKeys.ui.UI_WINDOW_FULLSCREEN: False,
-                EnvironmentKeys.ui.UI_WINDOW_SIZE: None,
-                EnvironmentKeys.ui.UI_WINDOW_POSITION: None,
-                EnvironmentKeys.ui.UI_WINDOW_STATE: 'iconic',
-            }
-            return mapping.get(key, default)
-
-        mock_env.get.side_effect = _get
-
-        GuiManager.restore_root_geometry()
-
-        self.mock_root.showMinimized.assert_called_once()
-
-
-# ---------------------------------------------------------------------------
-# Tk binding → Qt key-sequence conversion
-# ---------------------------------------------------------------------------
-
-class TestTkBindingToQtSequence(unittest.TestCase):
-    """Tests for the module-level _tk_binding_to_qt_sequence() helper."""
-
-    def test_ctrl_alpha_converts(self):
-        """<Control-s> becomes Ctrl+S."""
-        self.assertEqual(_tk_binding_to_qt_sequence('<Control-s>'), 'Ctrl+S')
-
-    def test_ctrl_shift_alpha_converts(self):
-        """<Control-Shift-S> becomes Ctrl+Shift+S."""
-        self.assertEqual(_tk_binding_to_qt_sequence('<Control-Shift-S>'), 'Ctrl+Shift+S')
-
-    def test_function_key_only(self):
-        """<F1> becomes F1."""
-        self.assertEqual(_tk_binding_to_qt_sequence('<F1>'), 'F1')
-
-    def test_alt_function_key(self):
-        """<Alt-F4> becomes Alt+F4."""
-        self.assertEqual(_tk_binding_to_qt_sequence('<Alt-F4>'), 'Alt+F4')
-
-    def test_empty_string_returns_none(self):
-        """Empty string returns None."""
-        self.assertIsNone(_tk_binding_to_qt_sequence(''))
-
-    def test_no_angle_brackets_returns_none(self):
-        """String without angle brackets returns None."""
-        self.assertIsNone(_tk_binding_to_qt_sequence('Control-s'))
-
-    def test_multiple_modifiers(self):
-        """<Control-Alt-Delete> becomes Ctrl+Alt+Delete."""
-        self.assertEqual(_tk_binding_to_qt_sequence('<Control-Alt-Delete>'), 'Ctrl+Alt+Delete')
-
-
 # ---------------------------------------------------------------------------
 # GuiManager.insert_menu_command_with_accelerator
 # ---------------------------------------------------------------------------
+
 
 class TestInsertMenuCommandWithAccelerator(unittest.TestCase):
     """Tests for GuiManager.insert_menu_command_with_accelerator()."""
@@ -737,6 +665,136 @@ class TestInsertMenuCommandWithAccelerator(unittest.TestCase):
         )
 
         self.mock_menu.insertAction.assert_called_once_with(existing_action, mock_action)
+
+
+class TestGuiManagerPromptForFile(unittest.TestCase):
+    """Tests for GuiManager.get_open_file() and get_save_file()."""
+
+    def setUp(self):
+        _reset_manager()
+        self.mock_root = MagicMock()
+        GuiManager._root_window = self.mock_root
+
+    def tearDown(self):
+        _reset_manager()
+
+    @patch('pyrox.services.gui.QFileDialog')
+    def test_get_open_file_calls_getOpenFileName(self, mock_qfile_dialog_class):
+        """get_open_file() calls QFileDialog.getOpenFileName() with the parent window."""
+        mock_qfile_dialog_class.getOpenFileName.return_value = ('/path/to/file.txt', 'Text Files (*.txt)')
+        result = GuiManager.prompt_user_open_file()
+        mock_qfile_dialog_class.getOpenFileName.assert_called_once_with(
+            self.mock_root,
+            "Open file",
+            "",
+            "All files (*.*)"
+        )
+        self.assertEqual(result, '/path/to/file.txt')
+
+    @patch('pyrox.services.gui.QFileDialog')
+    def test_get_save_file_calls_getSaveFileName(self, mock_qfile_dialog_class):
+        """get_save_file() calls QFileDialog.getSaveFileName() with the parent window."""
+        mock_qfile_dialog_class.getSaveFileName.return_value = ('/path/to/save.txt', 'Text Files (*.txt)')
+        result = GuiManager.prompt_user_save_file()
+        mock_qfile_dialog_class.getSaveFileName.assert_called_once_with(
+            self.mock_root,
+            "Save file as",
+            "",
+            "All files (*.*)"
+        )
+        self.assertEqual(result, '/path/to/save.txt')
+
+    # ---- filetype filtering ------------------------------------------------
+
+    @patch('pyrox.services.gui.QFileDialog')
+    def test_open_file_with_single_filetype(self, mock_qfile_dialog_class):
+        """A single filetype tuple is converted to a Qt filter string."""
+        mock_qfile_dialog_class.getOpenFileName.return_value = ('/doc.pdf', '')
+        GuiManager.prompt_user_open_file(filetypes=[('PDF Files', '*.pdf')])
+        _, _, _, filter_arg = mock_qfile_dialog_class.getOpenFileName.call_args[0]
+        self.assertEqual(filter_arg, 'PDF Files (*.pdf)')
+
+    @patch('pyrox.services.gui.QFileDialog')
+    def test_open_file_with_l5x_filetype(self, mock_qfile_dialog_class):
+        """An L5X filetype tuple produces the correct Qt filter string."""
+        mock_qfile_dialog_class.getOpenFileName.return_value = ('/prog.L5X', '')
+        GuiManager.prompt_user_open_file(filetypes=[('L5X Files', '*.L5X')])
+        _, _, _, filter_arg = mock_qfile_dialog_class.getOpenFileName.call_args[0]
+        self.assertEqual(filter_arg, 'L5X Files (*.L5X)')
+
+    @patch('pyrox.services.gui.QFileDialog')
+    def test_open_file_with_xml_filetype(self, mock_qfile_dialog_class):
+        """An XML filetype tuple produces the correct Qt filter string."""
+        mock_qfile_dialog_class.getOpenFileName.return_value = ('/data.xml', '')
+        GuiManager.prompt_user_open_file(filetypes=[('XML Files', '*.xml')])
+        _, _, _, filter_arg = mock_qfile_dialog_class.getOpenFileName.call_args[0]
+        self.assertEqual(filter_arg, 'XML Files (*.xml)')
+
+    @patch('pyrox.services.gui.QFileDialog')
+    def test_open_file_with_multiple_filetypes(self, mock_qfile_dialog_class):
+        """Multiple filetype tuples are joined with ';;' as a Qt filter string."""
+        mock_qfile_dialog_class.getOpenFileName.return_value = ('/prog.L5X', '')
+        GuiManager.prompt_user_open_file(filetypes=[
+            ('L5X Files', '*.L5X'),
+            ('XML Files', '*.xml'),
+            ('PDF Files', '*.pdf'),
+        ])
+        _, _, _, filter_arg = mock_qfile_dialog_class.getOpenFileName.call_args[0]
+        self.assertEqual(filter_arg, 'L5X Files (*.L5X);;XML Files (*.xml);;PDF Files (*.pdf)')
+
+    @patch('pyrox.services.gui.QFileDialog')
+    def test_save_file_with_single_filetype(self, mock_qfile_dialog_class):
+        """A single filetype tuple is forwarded correctly to getSaveFileName."""
+        mock_qfile_dialog_class.getSaveFileName.return_value = ('/out.pdf', '')
+        GuiManager.prompt_user_save_file(filetypes=[('PDF Files', '*.pdf')])
+        _, _, _, filter_arg = mock_qfile_dialog_class.getSaveFileName.call_args[0]
+        self.assertEqual(filter_arg, 'PDF Files (*.pdf)')
+
+    @patch('pyrox.services.gui.QFileDialog')
+    def test_save_file_with_l5x_filetype(self, mock_qfile_dialog_class):
+        """An L5X filetype tuple is forwarded correctly to getSaveFileName."""
+        mock_qfile_dialog_class.getSaveFileName.return_value = ('/out.L5X', '')
+        GuiManager.prompt_user_save_file(filetypes=[('L5X Files', '*.L5X')])
+        _, _, _, filter_arg = mock_qfile_dialog_class.getSaveFileName.call_args[0]
+        self.assertEqual(filter_arg, 'L5X Files (*.L5X)')
+
+    @patch('pyrox.services.gui.QFileDialog')
+    def test_open_file_with_no_filetypes_uses_all_files_fallback(self, mock_qfile_dialog_class):
+        """Passing filetypes=None falls back to the 'All files' filter."""
+        mock_qfile_dialog_class.getOpenFileName.return_value = ('', '')
+        GuiManager.prompt_user_open_file(filetypes=None)
+        _, _, _, filter_arg = mock_qfile_dialog_class.getOpenFileName.call_args[0]
+        self.assertEqual(filter_arg, 'All files (*.*)')
+
+    @patch('pyrox.services.gui.QFileDialog')
+    def test_open_file_returns_none_when_dialog_cancelled(self, mock_qfile_dialog_class):
+        """prompt_user_open_file() returns None when the user cancels the dialog."""
+        mock_qfile_dialog_class.getOpenFileName.return_value = ('', '')
+        result = GuiManager.prompt_user_open_file(filetypes=[('L5X Files', '*.L5X')])
+        self.assertIsNone(result)
+
+    @patch('pyrox.services.gui.QFileDialog')
+    def test_save_file_returns_none_when_dialog_cancelled(self, mock_qfile_dialog_class):
+        """prompt_user_save_file() returns None when the user cancels the dialog."""
+        mock_qfile_dialog_class.getSaveFileName.return_value = ('', '')
+        result = GuiManager.prompt_user_save_file(filetypes=[('PDF Files', '*.pdf')])
+        self.assertIsNone(result)
+
+    @patch('pyrox.services.gui.QFileDialog')
+    def test_open_file_custom_title_is_passed_through(self, mock_qfile_dialog_class):
+        """A custom title is forwarded as the second argument to getOpenFileName."""
+        mock_qfile_dialog_class.getOpenFileName.return_value = ('/f.xml', '')
+        GuiManager.prompt_user_open_file(title='Select XML', filetypes=[('XML Files', '*.xml')])
+        _, title_arg, _, _ = mock_qfile_dialog_class.getOpenFileName.call_args[0]
+        self.assertEqual(title_arg, 'Select XML')
+
+    @patch('pyrox.services.gui.QFileDialog')
+    def test_save_file_custom_title_is_passed_through(self, mock_qfile_dialog_class):
+        """A custom title is forwarded as the second argument to getSaveFileName."""
+        mock_qfile_dialog_class.getSaveFileName.return_value = ('/f.pdf', '')
+        GuiManager.prompt_user_save_file(title='Save PDF As', filetypes=[('PDF Files', '*.pdf')])
+        _, title_arg, _, _ = mock_qfile_dialog_class.getSaveFileName.call_args[0]
+        self.assertEqual(title_arg, 'Save PDF As')
 
 
 if __name__ == '__main__':

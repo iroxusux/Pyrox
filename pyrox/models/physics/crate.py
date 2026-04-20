@@ -78,7 +78,6 @@ class CrateBody(BasePhysicsBody):
             name=name,
             id=id,
             template_name=template_name,
-            tags=["crate", crate_type],
             body_type=BodyType.DYNAMIC,
             enabled=True,
             sleeping=False,

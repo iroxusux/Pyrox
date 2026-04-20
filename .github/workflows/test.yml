@@ -29,7 +29,7 @@ jobs:
     - name: Install system dependencies
       run: |
         sudo apt-get update
-        sudo apt-get install -y xvfb libegl1 libgl1
+        sudo apt-get install -y xvfb libegl1 libgl1 libglib2.0-0
     
     # Step 4: Install Python dependencies
     - name: Install dependencies

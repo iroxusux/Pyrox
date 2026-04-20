@@ -582,7 +582,7 @@ class TestHashList(unittest.TestCase):
         callback.reset_mock()
 
         # Insert obj2 at index 1
-        hash_list.insert(self.test_obj2, 1)
+        hash_list.insert(1, self.test_obj2)
 
         self.assertEqual(len(hash_list), 3)
         keys = list(hash_list.hashes.keys())

@@ -5,6 +5,7 @@ from typing import Any, Callable
 import json
 from pathlib import Path
 from pyrox.interfaces import (
+    ICompositeSceneObject,
     IPhysicsBody2D,
     IScene,
     ISceneBridge,
@@ -14,7 +15,14 @@ from pyrox.interfaces import (
 
 from pyrox.services import ServiceManager, GuiManager, log, physics
 from pyrox.services import environment as env
-from pyrox.services.bus import EventBus, Event, EventType
+from pyrox.services import (
+    EventBus,
+    Event,
+    EventType,
+    StatusUpdateEventBus,
+    StatusUpdateEvent,
+    StatusUpdateEventType
+)
 from pyrox.services.file import get_open_file, get_save_file
 
 
@@ -90,27 +98,35 @@ class SceneBridgeService:
     Subscribes to :class:`SceneEventBus` and reacts to scene lifecycle events:
 
     * **SCENE_LOADED** — creates a new bridge for the incoming scene and
-      attempts to restore binding configuration from a sidecar
-      ``<scene>.bridge.json`` file if one exists.
+      restores binding configuration from the ``bridge`` key embedded in the
+      scene file.  Falls back to a legacy ``<scene>.bridge.json`` sidecar if
+      the embedded key is absent (backward compatibility).
     * **SCENE_UNLOADED** — stops and discards the bridge.
-    * **SCENE_SAVED** — serialises the current bridge configuration to a
-      ``<scene>.bridge.json`` sidecar file alongside the scene file.
+    * **SCENE_SAVED** — no action needed; bridge config is embedded in the
+      scene file by :meth:`SceneRunnerService.save_scene`.
 
     This keeps all bridge lifecycle logic out of the GUI.  GUI components
     retrieve the active bridge via :meth:`get_bridge` and display it through
     :class:`~pyrox.models.gui.scenebridge.SceneBridgeDialog`, but they no
     longer own or create the bridge.
 
-    Sidecar convention::
+    Single-file convention::
 
-        my_scene.json          ← scene data
-        my_scene.bridge.json   ← bridge binding configuration (auto-managed)
+        my_scene.cr2d   ← combined scene + bridge data (versioned envelope)
+
+    File envelope format::
+
+        {
+            "version": "1.0",
+            "scene": { ...scene objects and connections... },
+            "bridge": { ...binding configuration... }
+        }
 
     Typical application startup::
 
         SceneBridgeService.initialize()   # subscribe to event bus
         SceneRunnerService.initialize(app)
-        SceneRunnerService.load_scene("my_scene.json")  # bridge auto-created
+        SceneRunnerService.load_scene("my_scene.cr2d")  # bridge auto-created
     """
 
     _bridge: ISceneBridge | None = None  # SceneBridge instance
@@ -141,9 +157,6 @@ class SceneBridgeService:
         if not SceneEventBus.subscribe(SceneEventType.SCENE_UNLOADED, cls._on_scene_unloaded):
             return False
 
-        if not SceneEventBus.subscribe(SceneEventType.SCENE_SAVED,    cls._on_scene_saved):
-            return False
-
         cls._initialized = True
         return True
 
@@ -152,7 +165,6 @@ class SceneBridgeService:
         """Unsubscribe from all events and clear internal state.  Useful for tests."""
         SceneEventBus.unsubscribe(SceneEventType.SCENE_LOADED,   cls._on_scene_loaded)
         SceneEventBus.unsubscribe(SceneEventType.SCENE_UNLOADED, cls._on_scene_unloaded)
-        SceneEventBus.unsubscribe(SceneEventType.SCENE_SAVED,    cls._on_scene_saved)
 
         if cls._bridge and cls._bridge.is_active():
             cls._bridge.stop()
@@ -277,7 +289,17 @@ class SceneBridgeService:
         cls._bridge.start()
         log(cls).debug("SceneBridgeService: bridge started for loaded scene")
 
-        # Attempt to restore binding config from sidecar file
+        # Restore binding config from the embedded bridge data (new single-file format)
+        bridge_data = (event.data or {}).get("bridge")
+        if bridge_data:
+            try:
+                cls._bridge.from_dict(bridge_data)
+                log(cls).debug("SceneBridgeService: restored bridge config from scene file")
+            except Exception as exc:
+                log(cls).error(f"SceneBridgeService: failed to restore bridge config: {exc}")
+            return
+
+        # Fall back to legacy sidecar file for backward compatibility
         filepath = (event.data or {}).get("filepath")
         if not filepath:
             return
@@ -287,9 +309,9 @@ class SceneBridgeService:
         try:
             with open(sidecar, 'r') as f:
                 cls._bridge.from_dict(json.load(f))
-            log(cls).debug(f"SceneBridgeService: restored bridge config from {sidecar}")
+            log(cls).debug(f"SceneBridgeService: restored bridge config from legacy sidecar {sidecar}")
         except Exception as exc:
-            log(cls).error(f"SceneBridgeService: failed to load bridge config from {sidecar}: {exc}")
+            log(cls).error(f"SceneBridgeService: failed to load legacy bridge config from {sidecar}: {exc}")
 
     @classmethod
     def _on_scene_unloaded(cls, event: SceneEvent) -> None:
@@ -299,24 +321,6 @@ class SceneBridgeService:
                 cls._bridge.stop()
             cls._bridge = None
             log(cls).debug("SceneBridgeService: bridge closed on scene unload")
-
-    @classmethod
-    def _on_scene_saved(cls, event: SceneEvent) -> None:
-        """Persist bridge binding config as a sidecar file alongside the scene."""
-        if not cls._bridge:
-            log(cls).warning("SceneBridgeService: no active bridge to save on scene save")
-            return
-        filepath = (event.data or {}).get("filepath")
-        if not filepath:
-            log(cls).warning("SceneBridgeService: SCENE_SAVED missing filepath — bridge config not saved")
-            return
-        sidecar = cls._sidecar_path(Path(filepath))
-        try:
-            with open(sidecar, 'w') as f:
-                json.dump(cls._bridge.to_dict(), f, indent=4)
-            log(cls).debug(f"SceneBridgeService: saved bridge config to {sidecar}")
-        except Exception as exc:
-            log(cls).error(f"SceneBridgeService: failed to save bridge config to {sidecar}: {exc}")
 
     # ------------------------------------------------------------------
     # Helpers
@@ -340,6 +344,9 @@ class SceneRunnerService(
     runtime environment with fixed timestep physics and frame-rate independent
     rendering.
     """
+    # Scene file extension
+    SCENE_FILE_EXTENSION = '.cr2d'  # ControlRox 2D scene file extension (example: my_scene.cr2d)
+
     # State
     _running: bool = False
     _enable_physics: bool = False
@@ -351,8 +358,8 @@ class SceneRunnerService(
     _environment: env.EnvironmentService | None = None
     _physics_engine: physics.PhysicsEngineService | None = None
 
-    # Scene file tracking (set by load_scene, consumed once by set_scene → SceneEventBus)
-    _last_scene_filepath: Path | None = None
+    # Persistent filepath of the currently loaded/saved scene (enables quick-save without a dialog)
+    _scene_filepath: Path | None = None
 
     # Events
     _event_id: str | None = None
@@ -421,12 +428,17 @@ class SceneRunnerService(
     @classmethod
     def set_scene(
         cls,
-        scene: IScene | None
+        scene: IScene | None,
+        _bridge_data: dict | None = None,
     ) -> None:
         """Set the scene to be managed.
 
         Args:
             scene: The new scene instance.
+            _bridge_data: Optional bridge binding config extracted from the
+                scene file.  Forwarded through the SCENE_LOADED event so that
+                :class:`SceneBridgeService` can restore bindings without
+                reading a separate file.  Not intended for direct callers.
         """
         cls._scene = scene
         if scene:
@@ -436,12 +448,27 @@ class SceneRunnerService(
         else:
             event_type = SceneEventType.SCENE_UNLOADED
 
+        event_data: dict = {}
+        if cls._scene_filepath:
+            event_data["filepath"] = cls._scene_filepath
+        if _bridge_data is not None:
+            event_data["bridge"] = _bridge_data
+
         SceneEventBus.publish(SceneEvent(
             event_type=event_type,
             scene=scene,
-            data={"filepath": cls._last_scene_filepath} if cls._last_scene_filepath else {},
+            data=event_data,
         ))
-        cls._last_scene_filepath = None
+
+    @classmethod
+    def get_scene_filepath(cls) -> Path | None:
+        """Return the filepath of the currently loaded/saved scene, or None.
+
+        This is set automatically by :meth:`load_scene` and :meth:`save_scene`
+        and cleared by :meth:`new_scene`, enabling a quick-save workflow where
+        :meth:`save_scene` can be called without supplying a path.
+        """
+        return cls._scene_filepath
 
     @classmethod
     def new_scene(cls) -> None:
@@ -449,6 +476,7 @@ class SceneRunnerService(
         """
         from pyrox.models.scene import Scene
         scene = Scene()
+        cls._scene_filepath = None
         cls.set_scene(scene)
 
     @classmethod
@@ -459,7 +487,7 @@ class SceneRunnerService(
         if not filepath:
             filepath = get_open_file(
                 title="Load Scene",
-                filetypes=[("JSON files", "*.json"), ("All files", "*.*")]
+                filetypes=[("ControlRox 2D files", f"*{cls.SCENE_FILE_EXTENSION}"), ("All files", "*.*")]
             )
             if not filepath:
                 log(cls).info("Scene load cancelled")
@@ -473,9 +501,28 @@ class SceneRunnerService(
         with open(filepath, 'r') as f:
             from pyrox.models.scene import Scene
             data = json.load(f)
-            scene = Scene.from_dict(data)
-            cls._last_scene_filepath = filepath
-            cls.set_scene(scene)
+
+        # Support three file formats (newest → oldest):
+        #   1. Versioned envelope: {"version": "1.0", "scene": {...}, "bridge": {...}}
+        #   2. Legacy wrapper:     {"scene": {...}}
+        #   3. Bare scene:         {"name": ..., "scene_objects": ..., "connections": ...}
+        bridge_data: dict | None = None
+        if "version" in data and "scene" in data:
+            scene_dict = data["scene"]
+            bridge_data = data.get("bridge") or None
+        elif "scene" in data:
+            scene_dict = data["scene"]
+        else:
+            scene_dict = data
+
+        scene = Scene.from_dict(scene_dict)
+        cls._scene_filepath = filepath
+        cls.set_scene(scene, _bridge_data=bridge_data)
+
+        StatusUpdateEventBus.publish(StatusUpdateEvent(
+            event_type=StatusUpdateEventType.UPDATE,
+            status_message=f"Scene loaded: {filepath.name}"
+        ))
 
     @classmethod
     def save_scene(
@@ -487,22 +534,34 @@ class SceneRunnerService(
             return
 
         if not filepath:
-            filepath = get_save_file(
-                filetypes=[("JSON files", "*.json"), ("All files", "*.*")]
+            filepath = cls._scene_filepath or get_save_file(
+                filetypes=[("ControlRox 2D files", f"*{cls.SCENE_FILE_EXTENSION}"), ("All files", "*.*")]
             )
             if not filepath:
                 log(cls).info("Scene save cancelled")
                 return
 
         filepath = Path(filepath)
-        data = cls._scene.to_dict()
+        if filepath.suffix.lower() != cls.SCENE_FILE_EXTENSION:
+            filepath = filepath.with_suffix(cls.SCENE_FILE_EXTENSION)
+        bridge = SceneBridgeService.get_bridge()
+        data = {
+            "version": "1.0",
+            "scene": cls._scene.to_dict(),
+            "bridge": bridge.to_dict() if bridge else {},
+        }
         with open(filepath, 'w') as f:
             json.dump(data, f, indent=4)
 
+        cls._scene_filepath = filepath
         SceneEventBus.publish(SceneEvent(
             event_type=SceneEventType.SCENE_SAVED,
             scene=cls._scene,
             data={"filepath": filepath},
+        ))
+        StatusUpdateEventBus.publish(StatusUpdateEvent(
+            event_type=StatusUpdateEventType.UPDATE,
+            status_message=f"Scene saved: {filepath.name}"
         ))
 
     @classmethod
@@ -575,6 +634,11 @@ class SceneRunnerService(
                 cls._physics_engine.register_body(scene_object.physics_body)
             else:
                 raise TypeError("Scene object physics body does not implement IPhysicsBody2D protocol")
+            # For composite objects, also register each component's physics body
+            if isinstance(scene_object, ICompositeSceneObject):
+                for comp_obj in scene_object.get_components().values():
+                    if isinstance(comp_obj.physics_body, IPhysicsBody2D):
+                        cls._physics_engine.register_body(comp_obj.physics_body)
 
     @classmethod
     def run(cls) -> int:
@@ -667,6 +731,17 @@ class SceneRunnerService(
         Args:
             body: Object implementing IPhysicsBody protocol
         """
+        if isinstance(body, ICompositeSceneObject):
+            # Register the composite's own body
+            if isinstance(body.physics_body, IPhysicsBody2D) and cls._physics_engine:
+                cls._physics_engine.register_body(body.physics_body)
+            # Register each component's physics body
+            if cls._physics_engine:
+                for comp_obj in body.get_components().values():
+                    if isinstance(comp_obj.physics_body, IPhysicsBody2D):
+                        cls._physics_engine.register_body(comp_obj.physics_body)
+            return
+
         if isinstance(body, ISceneObject):
             if not isinstance(body.physics_body, IPhysicsBody2D):
                 raise TypeError("SceneObject does not have a valid physics body")
@@ -682,8 +757,18 @@ class SceneRunnerService(
         Args:
             body: Object to remove
         """
-        if cls._physics_engine:
-            cls._physics_engine.unregister_body(body)
+        if not cls._physics_engine:
+            return
+
+        if isinstance(body, ICompositeSceneObject):
+            if isinstance(body.physics_body, IPhysicsBody2D):
+                cls._physics_engine.unregister_body(body.physics_body)
+            for comp_obj in body.get_components().values():
+                if isinstance(comp_obj.physics_body, IPhysicsBody2D):
+                    cls._physics_engine.unregister_body(comp_obj.physics_body)
+            return
+
+        cls._physics_engine.unregister_body(body)
 
     @classmethod
     def get_physics_stats(cls) -> dict:

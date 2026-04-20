@@ -12,13 +12,15 @@ from pyrox.interfaces import (
     ISceneObject,
     ICompositeSceneObject,
     ISceneGroup,
+    IScene
 )
 from pyrox.models.protocols import CoreMixin
 from pyrox.models.connection import ConnectionRegistry
 from pyrox.models.scene.sceneobject import SceneObject
+from pyrox.models.scene.scenegroup import SceneGroup
 
 
-class Scene(CoreMixin):
+class Scene(IScene, CoreMixin):
     """Class representing a scene containing scene_objects and tags.
     """
 
@@ -183,16 +185,15 @@ class Scene(CoreMixin):
         """Create scene from dictionary.
 
         Uses a 2-pass strategy:
-        * Pass 1 — create all plain SceneObjects, CompositeSceneObjects, and
-          SceneGroup *shells* (without member links).
-        * Pass 2 — link SceneGroup shells to their previously-created members.
+        * Pass 1 — deserialise every scene object via ``SceneObject.from_dict``.
+          That method dispatches to the correct subclass through
+          ``SceneObjectFactory`` (keyed by ``template_name``, with
+          ``scene_object_type`` as a backward-compatible fallback), so groups
+          and composites are restored as their proper types automatically.
+        * Pass 2 — link ``SceneGroup`` shells to their previously-created
+          members (required because members must exist before they can be added
+          to their group).
         """
-        # Import here to avoid circular imports at module level.
-        from pyrox.models.scene.scenegroup import SceneGroup, SCENE_OBJECT_TYPE_GROUP
-        from pyrox.models.scene.compositesceneobject import (
-            CompositeSceneObject,
-            SCENE_OBJECT_TYPE_COMPOSITE,
-        )
 
         scene = cls(
             name=data.get("name", "Untitled Scene"),
@@ -202,15 +203,12 @@ class Scene(CoreMixin):
         # ------ Pass 1: instantiate every scene object ------
         groups: list[SceneGroup] = []
         for scene_object_data in data.get("scene_objects", []):
-            sot = scene_object_data.get("scene_object_type", "")
+            assert isinstance(scene_object_data, dict), "Each scene object must be a dictionary"
 
-            if sot == SCENE_OBJECT_TYPE_GROUP:
-                obj = SceneGroup.from_dict(scene_object_data)
+            obj = SceneObject.from_dict(scene_object_data)
+
+            if isinstance(obj, SceneGroup):
                 groups.append(obj)
-            elif sot == SCENE_OBJECT_TYPE_COMPOSITE or scene_object_data.get("components"):
-                obj = CompositeSceneObject.from_dict(scene_object_data)
-            else:
-                obj = SceneObject.from_dict(scene_object_data)
 
             scene.add_scene_object(obj)
             scene._connection_registry.register_object(obj.id, obj)
@@ -236,12 +234,14 @@ class Scene(CoreMixin):
                     input_name=conn_data["input"],
                     enabled=conn_data.get("enabled", True),
                 )
-            except AttributeError:
-                # The loaded object type doesn't expose the expected callback
-                # interface (e.g. a base SceneObject loaded in place of a
-                # specialised subclass).  Store the Connection record so it
-                # round-trips faithfully even though the callback can't be wired
-                # right now.
+            except (AttributeError, KeyError) as exc:
+                log(cls).warning(
+                    f"Could not wire connection "
+                    f"{conn_data.get('source')}."
+                    f"{conn_data.get('output')} → "
+                    f"{conn_data.get('target')}."
+                    f"{conn_data.get('input')}: {exc}"
+                )
                 from pyrox.interfaces import Connection as _Connection
                 scene._connection_registry._connections.append(
                     _Connection(
@@ -398,4 +398,11 @@ class Scene(CoreMixin):
     on_scene_object_added = property(get_on_scene_object_added)
     on_scene_object_removed = property(get_on_scene_object_removed)
     on_scene_updated = property(get_on_scene_updated)
-    connection_registry = property(get_connection_registry, set_connection_registry)
+
+    @property
+    def connection_registry(self) -> "IConnectionRegistry":
+        return self.get_connection_registry()
+
+    @connection_registry.setter
+    def connection_registry(self, registry: "IConnectionRegistry") -> None:
+        self.set_connection_registry(registry)

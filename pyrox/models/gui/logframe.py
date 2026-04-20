@@ -2,13 +2,14 @@
 
 Captures both logging and stderr/stdout streams.
 """
-from __future__ import annotations
-
+from collections import deque
 import logging
-from typing import Callable, Optional, Union
+from typing import Callable
 
+from PyQt6.QtCore import QElapsedTimer, QEventLoop, QTimer
 from PyQt6.QtGui import QColor, QTextCharFormat, QTextCursor
 from PyQt6.QtWidgets import (
+    QApplication,
     QComboBox,
     QFrame,
     QHBoxLayout,
@@ -35,15 +36,20 @@ class LogFrame(QFrame):
     """
 
     TRIM_LENGTH = 1000  # Max number of lines to keep in the visual log
+    FLUSH_INTERVAL_MS = 100  # Min ms between event-loop pumps on the main thread
 
     def __init__(
         self,
-        parent: Optional[QWidget] = None,
+        parent: QWidget | None = None,
         name: str = 'logframe',
     ) -> None:
         super().__init__(parent)
         self.setObjectName(name)
         self.setFrameShape(QFrame.Shape.StyledPanel)
+
+        self._pending: deque[tuple[str, str]] = deque()
+        self._flush_elapsed = QElapsedTimer()
+        self._flush_elapsed.start()
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
@@ -52,6 +58,12 @@ class LogFrame(QFrame):
         self._setup_toolbar(layout)
         self._setup_separator(layout)
         self._setup_text_widget(layout)
+
+        self._flush_timer = QTimer(self)
+        self._flush_timer.setInterval(50)
+        self._flush_timer.timeout.connect(self._flush_pending)
+        self._flush_timer.start()
+
         self._fill_log_from_sys_streams()
         self._connect_to_logging_manager()
 
@@ -254,6 +266,15 @@ class LogFrame(QFrame):
     # Toolbar extension API  (mirrors the Tk LogFrame)
     # ------------------------------------------------------------------
 
+    def _flush_pending(self) -> None:
+        """Drain the pending-message queue and write to the text area in one batch."""
+        if not self._pending:
+            return
+        while self._pending:
+            msg, levelname = self._pending.popleft()
+            self._log(msg, levelname, skip_finalize=True)
+        self._finalize_msg_log()
+
     def add_toolbar_button(
         self,
         text: str,
@@ -272,7 +293,7 @@ class LogFrame(QFrame):
         self,
         options: list[str],
         command: Callable,
-        default_option: Optional[str] = None,
+        default_option: str | None = None,
     ) -> QComboBox:
         """Add a drop-down selector to the toolbar. Returns the ``QComboBox``."""
         if not options:
@@ -315,23 +336,27 @@ class LogFrame(QFrame):
 
     def log(
         self,
-        message: Union[str, list[str]],
+        message: str | list[str],
         **kwargs,
     ) -> None:
-        """Log *message* with automatic severity detection.
+        """Enqueue *message* for display.
+
+        Messages are written to the text area in batches. When this is called
+        from a long-running main-thread operation the event loop is blocked, so
+        we also pump ``processEvents`` (excluding user-input to avoid
+        reentrancy) at most every ``FLUSH_INTERVAL_MS`` milliseconds. This
+        keeps the window responsive and shows messages incrementally.
 
         Args:
             message: A single string or a list of strings to log.
             **kwargs: Optional ``levelname`` override (e.g. ``levelname='ERROR'``).
         """
-        if isinstance(message, str):
-            messages = [message]
-        else:
-            messages = message
-
+        messages = [message] if isinstance(message, str) else message
         for msg in messages:
-            self._log(
-                msg,
-                kwargs.get('levelname', self._get_msg_tag(msg)),
-                msg is not messages[-1],
-            )
+            levelname = kwargs.get('levelname', self._get_msg_tag(msg))
+            self._pending.append((msg, levelname))
+
+        if self._flush_elapsed.elapsed() >= self.FLUSH_INTERVAL_MS:
+            self._flush_pending()
+            QApplication.processEvents(QEventLoop.ProcessEventsFlag.ExcludeUserInputEvents)
+            self._flush_elapsed.restart()
