@@ -93,7 +93,6 @@ from .timer import TimerService
 # Other service imports
 from . import (
     archive,
-    bit,
     byte,
     collision,
     decorate,
@@ -129,8 +128,6 @@ __all__ = (
     'EventType',
     'Event',
     'EventBus',
-    # Id imports
-    'IdGeneratorService',
     # Theme imports
     'ThemeManager',
     # GUI imports
@@ -172,7 +169,6 @@ __all__ = (
     'TimerService',
     # Other service imports
     'archive',
-    'bit',
     'byte',
     'collision',
     'decorate',
