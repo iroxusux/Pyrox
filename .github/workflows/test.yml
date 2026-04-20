@@ -44,6 +44,8 @@ jobs:
       env:
         # Disable GUI initialization for headless testing
         UI_AUTO_INIT: false
+        # Use offscreen platform so PyQt6 does not need a physical display
+        QT_QPA_PLATFORM: offscreen
     
     # Step 6: Display summary
     - name: Test Summary
