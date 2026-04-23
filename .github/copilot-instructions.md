@@ -185,7 +185,11 @@ pyrox/
 ## Testing
 
 - Tests live in `services/test/`, `models/test/`, or adjacent `test/` dirs
-- Use pytest; log output controlled via `pytest.ini_options` in `pyproject.toml`
+- Use **pytest with fixtures** for all tests; configuration in `pytest.ini_options` in `pyproject.toml`
+- Write tests as plain functions or pytest-style classes — **never** `unittest.TestCase`
+- Use `pytest.fixture` (with appropriate `scope`) for shared setup and teardown
+- Use `monkeypatch` or `unittest.mock.patch` for isolation; prefer `monkeypatch` for simple attribute/env overrides
+- Assert with plain `assert` statements and `pytest.raises` — never `self.assert*` methods
 
 ## Dependencies
 
