@@ -493,6 +493,19 @@ class GuiManager:
     # --------------------------------------------------
 
     @classmethod
+    def show_exception_message(cls, exc_type, exc_value, exc_traceback) -> None:
+        """Route an exception to stderr and a Qt message box."""
+        import traceback
+        msg = "".join(traceback.format_exception(exc_type, exc_value, exc_traceback))
+        print(msg, file=sys.stderr)
+        box = QMessageBox()
+        box.setWindowTitle("Unhandled Exception")
+        box.setText(str(exc_value))
+        box.setDetailedText(msg)
+        box.setIcon(QMessageBox.Icon.Critical)
+        box.exec()
+
+    @classmethod
     def reroute_excepthook(cls, callback: Callable[..., None]) -> None:
         """Redirect unhandled exceptions to *callback* via ``sys.excepthook``.
 
