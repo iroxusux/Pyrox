@@ -5,46 +5,146 @@
 ![Development Status](https://img.shields.io/badge/status-beta-orange.svg)
 ![Version](https://img.shields.io/badge/version-3.4.43-blue.svg)
 
-**Pyrox** is a Python-based engine that provides common services, models, and abstractions for building different types of applications. Originally part of a comprehensive industrial automation suite, Pyrox has been refactored into a focused core library that serves as the foundation for specialized applications like [ControlRox](https://github.com/iroxusux/ControlRox).
+**Pyrox** is a Python back-end engine and application framework built on **PyQt6**. It provides a rich set of interfaces, models, services, and abstractions for building industrial automation and desktop applications. Pyrox is designed to be used as a foundation — downstream projects like [ControlRox](https://github.com/iroxusux/ControlRox) build their entire application layer on top of it.
 
 ## 🚀 Key Features
 
-### 🏗️ Core Application Framework
+### 🏗️ Interface-Driven Architecture
 
-- **Task-Based Architecture**: Modular application structure with extensible tasks and services
-- **Abstract Base Classes**: Well-defined interfaces for consistent application development
-- **Factory Pattern Implementation**: Extensible object creation patterns for different application types
-- **Model-View-Controller Support**: Clean separation of concerns for maintainable applications
+Pyrox enforces a strict separation of concerns through a dedicated interface layer (`pyrox/interfaces/`). Every major abstraction — applications, tasks, scenes, physics bodies, workspaces, services — is defined as a `Protocol` or `ABC` in the interface layer before any concrete implementation exists. This allows downstream consumers to depend on contracts, not implementations.
 
-### 🎨 GUI Framework & Components
+- **Structural Protocols** (`Protocol` + `@runtime_checkable`): `INameable`, `IDescribable`, `IRunnable`, `IConfigurable`, `IHasId`, `ISpatial2D`, `IKinematic2D`, `IPhysicsBody2D`, and more
+- **Application Interfaces**: `IApplication`, `IApplicationTask`, `IWorkspace`, `IViewport`
+- **Scene Interfaces**: `IScene`, `ISceneObject`, `ISceneGroup`, `ISceneBridge`, `ISceneBoundLayer`, `ICompositeSceneObject`
+- **Physics Interfaces**: `IBasePhysicsBody`, `ICollider2D`, `IRigidBody2D`, `IMaterial`, `IPhysicsEngine`
+- **Service Interfaces**: `IEnvironmentManager`, `ILoggingManager`, `ILogger`
 
-- **Modern Tkinter Interface**: Professional-grade user interface components and themes
-- **Reusable GUI Models**: Common GUI patterns like frames, notebooks, menus, and dialogs
-- **Workspace Management**: Multi-window support with dockable frames and layout management
-- **Legacy Support**: Backwards compatibility with existing GUI implementations
+### 🎨 PyQt6 GUI Framework
+
+Pyrox is built exclusively on **PyQt6**. All GUI components, the workspace layout, and the application shell are PyQt6-native. There is no tkinter dependency.
+
+- **VSCode-style Workspace**: Vertical icon sidebar (`QTabWidget`), central workspace area for `TaskFrame` panels, an integrated log window, and a status bar — all managed by `Workspace`
+- **TaskFrame System**: Custom widgets subclass `TaskFrame`, expose a `.root: QWidget` property, and are registered with the workspace for docking and visibility management
+- **CommandBar**: Composable toolbars built with `CommandButton` and `CommandDropdown` widgets
+- **AttributeTreeView**: Lazy object introspection tree for exploring any Python object at runtime
+- **ObjectExplorer**: Scene object list with add/remove and selection callbacks
+- **PropertyPanel**: Auto-generated property editor for objects implementing `IHasProperties`
+- **SceneViewer**: Full composited scene viewer including a canvas viewport, object explorer, property panel, scene bridge, and toolbar — all wired together
+- **YAML/Text Editors**: `PyroxYamlEditor` and `TextEditorFrame` for in-app editing
+- **Dark Theme**: `DefaultTheme` provides consistent color constants across all widgets
+
+### 🧩 Mixin-Based Service Composition
+
+The `ServicesRunnableMixin` composes focused sub-mixins to give any class clean, property-based access to all platform services:
+
+| Property | Service |
+|---|---|
+| `self.env` / `self.env_keys` | `EnvManager` + `EnvironmentKeys` |
+| `self.gui` | `GuiManager` (PyQt6 root, menus, geometry) |
+| `self.logging` / `self.log()` | `LoggingManager` |
+| `self.directory` | `PlatformDirectoryService` |
+| `self.root_window` / `self.file_menu` … | Convenience accessors on `GuiManager` |
+
+Static service classes (`EnvManager`, `GuiManager`, `LoggingManager`, `MenuRegistry`, `GuiStateService`) are never instantiated — they expose only class methods and properties.
+
+### 🏭 Task-Based Application Extension
+
+Applications are extended through `ApplicationTask` subclasses. Each task:
+
+1. Is **auto-registered** with `ApplicationTaskFactory` via the `FactoryTypeABC` metaclass — no manual wiring required
+2. Is **instantiated automatically** at application startup via `ApplicationTaskFactory.build_tasks(app)`
+3. Injects menu commands into the application's menu bar via `register_menu_command()`
+4. Creates and manages its own `TaskFrame` panel via `create_task_frame()` and `create_or_raise_frame()`
+
+```python
+from pyrox.models.task import ApplicationTask
+from pyrox.models.gui.frame import TaskFrame
+
+class MyTask(ApplicationTask):
+    def __init__(self, application):
+        super().__init__(application)
+        self.register_menu_command(
+            menu=self.file_menu,
+            registry_id='my_task.open',
+            registry_path='File/My Task',
+            index=0,
+            label='My Task...',
+            command=self.create_or_raise_frame,
+        )
+
+    def create_task_frame(self) -> TaskFrame:
+        return MyTaskFrame(self.application.workspace.workspace_area)
+```
+
+### 🎬 Scene & Emulation Environment
+
+Pyrox provides the foundational layer for building 2D scene-based emulation environments:
+
+- **Scene Graph**: `Scene` contains `SceneObject`, `SceneGroup`, and `CompositeSceneObject` instances; all implement interface contracts from `pyrox.interfaces`
+- **Physics Engine**: `PhysicsEngineService` drives a 2D physics simulation. Built-in body types include `ConveyorBody`, `CrateBody`, `FloorBody`, `SensorBody`, and `ActorBody`
+- **Collision Service**: `CollisionService` with a `SpatialGrid` for broad-phase collision detection
+- **Scene Runner**: `SceneRunnerService` and `SceneEventBus` manage scene lifecycle and broadcast scene events
+- **Scene Viewer Task**: `SceneviewerApplicationTask` wires together the full interactive scene viewer UI
+- **Scene Bridge**: `ISceneBridge` / `ISceneBoundLayer` contracts decouple the rendered canvas layer from the domain scene model
+
+### 📡 Event Bus System
+
+Typed, decoupled communication between components via `EventBus`:
+
+```python
+from pyrox.services.bus import EventBus, Event, EventType
+
+class MyEventType(EventType):
+    SOMETHING_HAPPENED = 'something_happened'
+
+class MyEvent(Event[MyEventType]):
+    data: str
+
+class MyEventBus(EventBus[MyEventType, MyEvent]):
+    pass
+
+MyEventBus.subscribe(MyEventType.SOMETHING_HAPPENED, my_callback)
+MyEventBus.publish(MyEvent(event_type=MyEventType.SOMETHING_HAPPENED, data='hello'))
+```
+
+Each `EventBus` subclass gets its own isolated subscriber registry — no cross-bus leakage.
+
+### 🏗️ Factory Patterns
+
+`MetaFactory` enables extensible type registries. `FactoryTypeABC` auto-registers subclasses with a target factory via `__init_subclass__`:
+
+```python
+from pyrox.models.factory import MetaFactory, FactoryTypeABC
+
+class MyFactory(MetaFactory):
+    pass  # gets its own _registered_types dict automatically
+
+class MyBase(FactoryTypeABC[MyFactory]):
+    pass  # auto-registers with MyFactory
+
+class MyConcrete(MyBase):
+    pass  # auto-registered as 'MyConcrete' in MyFactory._registered_types
+```
 
 ### 🔧 Common Services & Utilities
 
-- **File & Stream Processing**: Robust file handling, archiving, and data streaming utilities
-- **Environment Management**: Cross-platform configuration and environment variable handling
-- **Logging & Debugging**: Comprehensive logging framework with debug tools
-- **Data Manipulation**: XML processing, dictionary utilities, and object manipulation
-- **Timer & Notification Services**: Event scheduling and notification systems
-
-### 🧩 Extensible Models
-
-- **Application Models**: Base classes for building different types of applications
-- **GUI Component Models**: Reusable interface components for consistent user experiences
-- **Abstract Interfaces**: Well-defined contracts for extending functionality
-- **Configuration Management**: Flexible configuration handling for various application needs
+- **`EnvManager`**: `.env`-based configuration via `python-dotenv`; typed `get()` with defaults
+- **`GuiManager`**: Static PyQt6 root window, menu bar, and geometry management; event scheduling
+- **`LoggingManager`**: Named loggers, stream capture, and callback routing for log output
+- **`PlatformDirectoryService`**: Cross-platform user data, log, and config directories via `platformdirs`
+- **`GuiStateService`**: Persists GUI layout preferences (splitter ratios, sidebar widths, etc.) as JSON between sessions
+- **`MenuRegistry`**: Centralized registry for all menu items; supports `enable_item()` and `set_command()` from anywhere
+- **`SceneRunnerService`** / **`SceneEventBus`**: Scene lifecycle management and event broadcasting
+- **`CollisionService`** / **`SpatialGrid`**: 2D spatial indexing and collision detection
+- **`PhysicsEngineService`**: 2D physics simulation driver
+- **`StatusUpdateEventBus`**: Application-wide status bar messaging
 
 ## 📦 Installation
 
 ### Requirements
 
-- **Python 3.13+** (Required)
+- **Python 3.13.9+** (Required)
 - Cross-platform support (Windows, Linux, macOS)
-- Compatible with applications built on the Pyrox framework
 
 ### Quick Install
 
@@ -53,360 +153,296 @@
 git clone https://github.com/iroxusux/Pyrox.git
 cd Pyrox
 
-# Run the installation script (recommended)
+# Run the installation script (recommended — handles venv, deps, and git hooks)
 ./install.sh
 
 # Or install manually:
 pip install -e . --upgrade
-
-# Set up Git hooks (for README badge sync)
-python utils/setup_hooks.py
-
-# Manually sync README badges from pyproject.toml
-python utils/sync_readme.py
+python utils/setup_hooks.py  # Set up pre-commit hooks
 ```
 
 ### Dependencies
 
-Pyrox automatically installs the following key dependencies:
+Key runtime dependencies installed automatically:
 
-- **lxml** - XML processing capabilities
-- **pandas** - Data manipulation and analysis
-- **openpyxl** - Excel file processing
-- **Pillow** - Image processing support
-- **PyPDF2, pdfplumber, PyMuPDF** - PDF processing utilities
-- **platformdirs** - Cross-platform directory management
-- **pywin32** - Windows integration (Windows only)
+| Package | Purpose |
+|---|---|
+| `PyQt6` | GUI framework (required) |
+| `python-dotenv` | `.env` configuration loading |
+| `platformdirs` | Cross-platform directory resolution |
+| `pyyaml` | YAML file support |
+| `lxml` | XML processing |
+| `pandas` / `openpyxl` | Data and Excel processing |
+| `Pillow` | Image processing |
+| `pdfplumber` / `PyMuPDF` | PDF processing |
+| `pylogix` | Allen-Bradley PLC communication |
+| `tomli` | TOML parsing |
 
 ## 🏁 Quick Start
 
-### Basic Application Setup
+### Minimal Application
 
 ```python
-from pyrox.models.application import Application
-from pyrox.models.menu import Menu
+# myapp/__main__.py
+import pyrox
+from pyrox.application import Application
 
-# Create a basic application
-class MyApp(Application):
-    def __init__(self):
-        super().__init__(
-            app_name="My Application",
-            author_name="Your Name",
-            version="1.0.0"
-        )
-    
-    def initialize(self):
-        # Set up your application-specific logic
-        self.setup_gui()
-        self.load_tasks()
-
-# Initialize and run the application
-app = MyApp()
+app = Application()
 app.run()
 ```
 
-### Using Core Services
-
-```python
-from pyrox.services.file import FileService
-from pyrox.services.logging import get_logger
-from pyrox.services.env import EnvironmentService
-
-# File operations
-file_service = FileService()
-data = file_service.read_json("config.json")
-
-# Logging
-logger = get_logger(__name__)
-logger.info("Application started")
-
-# Environment management
-env_service = EnvironmentService()
-debug_mode = env_service.get_bool("DEBUG", default=False)
-```
-
-### Environment Configuration
+Configuration is read from `.env` at startup:
 
 ```bash
-# Copy environment template
-cp .env.example .env
+# .env
+APP_NAME=My Application
+APP_DESCRIPTION=Built on Pyrox
+APP_AUTHOR=Your Name
+```
 
-# Configure your settings
-PYROX_DEBUG=false
-PYROX_LOG_LEVEL=INFO
-PYROX_CONFIG_DIR=./config
+### Adding a Custom Task
+
+```python
+from pyrox.models.task import ApplicationTask
+from pyrox.models.gui.frame import TaskFrame
+from pyrox.interfaces import IApplication
+from PyQt6.QtWidgets import QLabel, QVBoxLayout, QWidget
+
+class MyTaskFrame(TaskFrame):
+    def __init__(self, parent: QWidget):
+        super().__init__()
+        layout = QVBoxLayout()
+        layout.addWidget(QLabel("Hello from MyTask!"))
+        self._root = QWidget(parent)
+        self._root.setLayout(layout)
+
+    @property
+    def root(self) -> QWidget:
+        return self._root
+
+
+class MyTask(ApplicationTask):
+    def __init__(self, application: IApplication) -> None:
+        super().__init__(application)
+        self.register_menu_command(
+            menu=self.file_menu,
+            registry_id='my_task.open',
+            registry_path='File/My Task',
+            index=0,
+            label='My Task...',
+            command=self.create_or_raise_frame,
+        )
+
+    def create_task_frame(self) -> TaskFrame:
+        return MyTaskFrame(self.application.workspace.workspace_area)
+```
+
+`MyTask` is automatically discovered and built at startup — no registration call needed.
+
+### Using the Logging Service
+
+```python
+from pyrox.services.logging import log
+
+class MyClass:
+    def do_work(self):
+        log(self).info('Starting work...')
+        log(self).debug('Detail message')
+```
+
+### Publishing a Status Update
+
+```python
+from pyrox.services.status import StatusUpdateEventBus, StatusUpdateEvent, StatusUpdateEventType
+
+StatusUpdateEventBus.publish(
+    StatusUpdateEvent(
+        event_type=StatusUpdateEventType.UPDATE,
+        status_message='Processing complete'
+    )
+)
 ```
 
 ## 🏗️ Architecture
 
-### Core Modules
+### Package Layout
 
 ```text
 pyrox/
-├── models/                  # Core data models and abstractions
-│   ├── application.py       # Base application framework
-│   ├── menu.py             # Menu system models
-│   ├── model.py            # Base model classes
-│   ├── task.py             # Task framework
-│   ├── abc/                # Abstract base classes
-│   │   ├── factory.py      # Factory pattern implementations
-│   │   ├── list.py         # List abstractions
-│   │   ├── meta.py         # Metaclass utilities
-│   │   ├── network.py      # Network abstractions
-│   │   ├── runtime.py      # Runtime abstractions
-│   │   ├── save.py         # Save/load abstractions
-│   │   └── stream.py       # Stream processing abstractions
-│   ├── gui/                # GUI component models
-│   │   ├── backend.py      # GUI backend abstractions
-│   │   ├── commandbar.py   # Command bar components
-│   │   ├── contextmenu.py  # Context menu models
-│   │   ├── frame.py        # Frame abstractions
-│   │   ├── listbox.py      # Listbox components
-│   │   ├── menu.py         # Menu components
-│   │   ├── notebook.py     # Notebook/tab components
-│   │   ├── treeview.py     # Tree view components
-│   │   └── workspace.py    # Workspace management
-│   └── test/               # Model unit tests
-├── services/               # Business logic and utilities
-│   ├── archive.py          # Archive and compression services
-│   ├── bit.py              # Bit manipulation utilities
-│   ├── byte.py             # Byte processing services
-│   ├── decorate.py         # Decorator utilities
-│   ├── dict.py             # Dictionary manipulation
-│   ├── env.py              # Environment management
-│   ├── factory.py          # Factory service implementations
-│   ├── file.py             # File handling utilities
-│   ├── gui.py              # GUI utility services
-│   ├── logging.py          # Logging framework
-│   ├── logic.py            # Common logic utilities
-│   ├── notify_services.py  # Notification services
-│   ├── object.py           # Object manipulation utilities
-│   ├── search.py           # Search and filtering services
-│   ├── stream.py           # Stream processing services
-│   ├── timer.py            # Timer and scheduling services
-│   ├── xml.py              # XML processing utilities
-│   └── test/               # Service unit tests
-├── tasks/                  # Task framework and built-in tasks
-│   ├── builtin/            # Built-in task implementations
-│   └── test/               # Task unit tests
-└── ui/                     # User interface assets
-    ├── icons/              # Application icons
-    └── splash/             # Splash screen assets
+├── interfaces/           # Abstract contracts only — no implementations
+│   ├── protocols/        # Structural Protocol definitions
+│   │   ├── meta.py       # INameable, IRunnable, IConfigurable, IHasId, …
+│   │   ├── coord.py      # ICoord2D, IArea2D
+│   │   ├── spatial.py    # ISpatial2D, IRotatable, IDirectional2D, IZoomable
+│   │   ├── kinematic.py  # IVelocity2D, IKinematic2D
+│   │   ├── physics.py    # IPhysicsBody2D, IRigidBody2D, IMaterial, ICollider2D
+│   │   ├── property.py   # IHasProperties
+│   │   ├── connection.py # IConnectable, Connection
+│   │   └── gui.py        # IHasCanvas
+│   ├── scene/            # IScene, ISceneObject, ISceneGroup, ISceneBridge, …
+│   ├── gui/              # IWorkspace, IViewport
+│   ├── physics.py        # IBasePhysicsBody
+│   ├── application.py    # IApplication, IApplicationTask
+│   ├── services.py       # IEnvironmentManager, ILoggingManager, ILogger
+│   └── constants.py      # EnvironmentKeys
+│
+├── models/               # Concrete implementations
+│   ├── factory.py        # MetaFactory, FactoryTypeABC
+│   ├── task.py           # ApplicationTask, ApplicationTaskFactory
+│   ├── services.py       # ServicesRunnableMixin (Supports* sub-mixins)
+│   ├── meta.py           # PyroxObject, SnowFlake, SliceableInt
+│   ├── list.py           # HashList, SafeList, TrackedList, Subscribable
+│   ├── runtime.py        # RuntimeDict
+│   ├── protocols/        # CoreMixin, Nameable, HasId, PhysicsBody2D, …
+│   ├── scene/            # Scene, SceneObject, SceneGroup, SceneBridge, …
+│   ├── physics/          # BasePhysicsBody, ConveyorBody, CrateBody, FloorBody, …
+│   └── gui/              # All PyQt6 widgets
+│       ├── frame.py      # TaskFrame base class
+│       ├── workspace.py  # Workspace (VSCode-style layout)
+│       ├── commandbar.py # CommandBar, CommandButton, CommandDropdown
+│       ├── treeview.py   # AttributeTreeView
+│       ├── objectexplorer.py   # ObjectExplorer
+│       ├── propertypanel.py    # PropertyPanel
+│       ├── logframe.py         # LogFrame
+│       ├── theme.py            # DefaultTheme
+│       ├── yamleditor.py       # PyroxYamlEditor
+│       ├── texteditor.py       # TextEditorFrame
+│       ├── contextmenu.py      # PyroxContextMenu
+│       └── sceneviewer/        # Full scene viewer composite widget
+│
+├── services/             # Static-class utilities
+│   ├── logging.py        # log(), LoggingManager, StreamCapture
+│   ├── env.py            # EnvManager
+│   ├── gui.py            # GuiManager (PyQt6)
+│   ├── gui_state.py      # GuiStateService
+│   ├── menu_registry.py  # MenuRegistry, MenuItemDescriptor
+│   ├── bus.py            # EventBus, Event, EventType
+│   ├── status.py         # StatusUpdateEventBus
+│   ├── scene.py          # SceneRunnerService, SceneEventBus, HasSceneMixin
+│   ├── file.py           # get_open_file, get_save_file, PlatformDirectoryService
+│   ├── theme.py          # ThemeManager
+│   ├── collision.py      # CollisionService, SpatialGrid
+│   └── physics.py        # PhysicsEngineService
+│
+├── tasks/                # Built-in ApplicationTask implementations
+│   ├── builtin.py        # FileTask, HelpTask, ToolsTask, ViewTask
+│   └── sceneviewer.py    # SceneviewerApplicationTask
+│
+├── application.py        # Application (concrete IApplication entry point)
+└── ui/                   # Icons and splash assets
 ```
 
-### Key Design Patterns
+### Architectural Layers
 
-- **Abstract Base Classes**: Consistent interfaces across all components
-- **Factory Pattern**: Flexible object creation for different application types  
-- **Task-Based Design**: Modular functionality through application tasks
-- **Observer Pattern**: Event-driven updates and notifications
-- **Model-View-Controller**: Clear separation of concerns for maintainable code
+```
+┌─────────────────────────────────────────────────────┐
+│              Downstream Application                 │
+│         (e.g. ControlRox, custom apps)              │
+├─────────────────────────────────────────────────────┤
+│                pyrox/tasks/                         │
+│        ApplicationTask subclasses (built-in)        │
+├─────────────────────────────────────────────────────┤
+│  pyrox/models/     │  pyrox/services/               │
+│  Concrete impls    │  Static service classes         │
+├─────────────────────────────────────────────────────┤
+│                pyrox/interfaces/                    │
+│     Protocols, ABCs — no implementation code        │
+└─────────────────────────────────────────────────────┘
+```
+
+### Core Design Patterns
+
+| Pattern | Where Used |
+|---|---|
+| **Interface Segregation** | `pyrox/interfaces/` — one interface per concern |
+| **Mixin Composition** | `ServicesRunnableMixin` composed of `Supports*` mixins |
+| **Factory + Auto-registration** | `MetaFactory` + `FactoryTypeABC.__init_subclass__` |
+| **Event Bus** | `EventBus[T, E]` with per-subclass subscriber isolation |
+| **RuntimeDict** | Dict with save/change callbacks for persistent state |
+| **Menu Registry** | `MenuRegistry` centralises all menu items across tasks |
 
 ## 🎯 Use Cases
 
-### Application Developers
+### Pyrox as a Back-End Engine
 
-- Build applications with consistent architecture and patterns
-- Leverage proven GUI components and frameworks
-- Utilize common services for file handling, logging, and configuration
-- Extend functionality through the task-based system
+Pyrox provides the scaffolding — interface contracts, service infrastructure, GUI shell, scene engine, and physics layer — so that application developers can focus exclusively on domain logic.
 
-### System Integrators
+- **[ControlRox](https://github.com/iroxusux/ControlRox)**: Industrial automation application built directly on Pyrox; uses `ApplicationTask`, `Scene`, `SceneObject`, and the PyQt6 workspace
+- **Custom desktop tools**: Any Python desktop application that needs a structured, extensible PyQt6 shell
+- **Emulation environments**: Applications that simulate physical processes using Pyrox's scene graph and physics engine
 
-- Create specialized applications using Pyrox as a foundation
-- Implement domain-specific functionality on top of core services
-- Maintain consistency across multiple related applications
-- Benefit from shared models and abstractions
+### Building on Pyrox
 
-### Framework Users
-
-- Industrial automation applications (like [ControlRox](https://github.com/iroxusux/ControlRox))
-- Desktop applications requiring robust GUI frameworks
-- Applications needing task-based architecture
-- Projects requiring consistent logging, configuration, and file handling
-
-### Library Developers
-
-- Extend Pyrox with domain-specific modules
-- Implement new task types and services
-- Create specialized GUI components
-- Build on proven architectural patterns
-
-## 🤖 Automated Badge Synchronization
-
-Pyrox automatically keeps README badges in sync with your `pyproject.toml` metadata:
-
-### What Gets Synced
-
-- **Python Version**: From `requires-python` field
-- **License**: Extracted from `classifiers`
-- **Development Status**: From development status classifiers
-- **Project Version**: From `version` field
-
-### How It Works
-
-- **Pre-commit Automation**: Handles both version checking and badge syncing before each commit
-  - Version Increment Check: Ensures version is bumped for code changes
-  - Badge Synchronization: Automatically syncs badges from `pyproject.toml`
-- **Manual Tools**:
-  - `python utils/sync_readme.py` - Sync badges anytime
-  - `python utils/check_version_increment.py` - Check version increment requirement
-
-### Supported Classifiers
-
-```toml
-[project]
-version = "1.5.0"
-requires-python = ">=3.13"
-classifiers = [
-    "Development Status :: 4 - Beta",
-    "License :: OSI Approved :: GNU General Public License v3 (GPLv3)",
-    "Programming Language :: Python :: 3.13",
-]
-```
-
-This ensures your README always reflects your actual project configuration!
-
-### Version Increment Enforcement
-
-The pre-commit hook automatically checks if code changes require a version bump:
-
-- **Smart Detection**: Distinguishes between code changes and documentation updates
-- **Flexible Rules**: Only enforces version increments for actual code changes
-- **Clear Guidance**: Provides helpful suggestions for version increments
-- **Bypass for Docs**: Allows commits that only change documentation/config files
-
-**Files that DON'T require version bumps:**
-
-- `README.md` and other `.md` files
-- Documentation in `docs/` directory  
-- `.gitignore`, `LICENSE`, `.yml/.yaml` files
-- Git hooks and utility scripts (`utils/sync_*.py`, `hooks/`)
-
-**Files that DO require version bumps:**
-
-- Python source code in `pyrox/`
-- `pyproject.toml` dependencies or configuration
-- Any other source code files
-
-## 🔧 Advanced Features
-
-### Custom Application Development
-
-```python
-from pyrox.models.application import Application
-from pyrox.models.task import Task
-
-class CustomTask(Task):
-    """Custom task implementation."""
-    
-    def execute(self):
-        # Implement your task logic
-        self.logger.info("Executing custom task")
-        return True
-
-class CustomApplication(Application):
-    """Custom application built on Pyrox."""
-    
-    def load_tasks(self):
-        # Register your custom tasks
-        self.register_task("custom", CustomTask)
-```
-
-### GUI Component Extension
-
-```python
-from pyrox.models.gui.frame import Frame
-from pyrox.services.gui import GuiService
-
-class CustomFrame(Frame):
-    """Custom GUI frame."""
-    
-    def setup_widgets(self):
-        # Implement your GUI layout
-        self.gui_service.create_button(
-            parent=self,
-            text="Custom Action",
-            command=self.handle_action
-        )
-```
-
-### Service Extension
-
-```python
-from pyrox.services.object import ObjectService
-from pyrox.services.logging import get_logger
-
-class CustomService(ObjectService):
-    """Custom service implementation."""
-    
-    def __init__(self):
-        self.logger = get_logger(__name__)
-    
-    def process_data(self, data):
-        # Implement your service logic
-        return self.transform(data)
-```
+1. **New application**: Subclass `Application` from `pyrox.application`
+2. **New feature/panel**: Subclass `ApplicationTask`; implement `create_task_frame()` and register menu commands in `__init__`
+3. **New GUI widget**: Subclass `TaskFrame`; expose `.root: QWidget` for workspace integration
+4. **New service**: Add a static class to `pyrox/services/`; expose via `pyrox/services/__init__.py`
+5. **New interface**: Add a `Protocol` or `ABC` to `pyrox/interfaces/` with no implementation
+6. **New event**: Subclass `EventType`, `Event`, and `EventBus` — one class per domain
+7. **New scene object type**: Subclass `SceneObject` and implement the `ISceneObject` interface
+8. **New physics body**: Subclass `BasePhysicsBody` and register with `PhysicsSceneFactory`
 
 ## 🛠️ Development
 
-### Project Structure
+### Setup
 
-```text
-Pyrox/
-├── pyrox/                    # Main package
-│   ├── models/              # Core models and abstractions
-│   ├── services/            # Business logic and utilities
-│   ├── tasks/               # Task framework
-│   └── ui/                  # User interface assets
-├── docs/                     # Documentation and examples
-├── build/                    # Build outputs
-├── logs/                     # Application logs
-├── .env.example              # Environment template
-├── pyproject.toml           # Project configuration
-├── build.sh                 # Build script
-└── install.sh               # Installation script
+```bash
+# Install with venv and git hooks (recommended)
+./install.sh
+
+# Or manually
+pip install -e . --upgrade
+python utils/setup_hooks.py
 ```
 
 ### Running Tests
 
 ```bash
-# Run all tests
-pytest
-
-# Run specific test modules
-pytest pyrox/models/test/
 pytest pyrox/services/test/
-
-# Run with coverage
-pytest --cov=pyrox
+pytest pyrox/models/test/
+pytest pyrox/tasks/test/
 ```
 
 ### Building Distribution
 
 ```bash
-# Build package
 ./build.sh
-
-# Install locally for development
-pip install -e . --upgrade
 ```
 
-## 📚 Documentation
+### Utility Scripts
 
-- **[API Documentation](docs/)** - Detailed API reference for all modules
-- **[Architecture Guide](docs/architecture.md)** - Deep dive into Pyrox architecture
-- **[Development Guide](docs/development.md)** - Contributing and extension guidelines
-- **[Environment Configuration](docs/environment.md)** - Complete environment setup guide
+| Script | Purpose |
+|---|---|
+| `utils/sync_readme.py` | Sync README version/status badges from `pyproject.toml` |
+| `utils/check_version_increment.py` | Verify a version bump exists for code changes |
+| `utils/setup_hooks.py` | Install pre-commit hooks |
+| `utils/extract_todos.py` | Generate `code_todos.md` from source TODOs |
+
+### Pre-commit Hooks
+
+The pre-commit hook automatically:
+
+1. **Checks for a version bump** when Python source files change
+2. **Syncs README badges** from `pyproject.toml` (`version`, `requires-python`, classifiers)
+
+Files that **do not** require a version bump: `README.md`, `.md` files, `docs/`, `.gitignore`, `LICENSE`, `.yml/.yaml`, `utils/`, `hooks/`
+
+Files that **do** require a version bump: `pyrox/**/*.py`, `pyproject.toml`
 
 ## 🏭 Related Projects
 
-- **[ControlRox](https://github.com/iroxusux/ControlRox)** - Industrial automation application built on Pyrox
-- Applications using Pyrox as their foundation benefit from shared models and services
+- **[ControlRox](https://github.com/iroxusux/ControlRox)** — Industrial automation application built on Pyrox
 
 ## 🤝 Contributing
 
-Pyrox is a foundational library for Python applications. Contributions are welcome!
+Contributions are welcome! Please maintain architectural consistency:
+
+- New interfaces go in `pyrox/interfaces/` with no implementation code
+- New concrete implementations go in `pyrox/models/`
+- New services go in `pyrox/services/` as static classes
+- All code must target **Python 3.13.9+** and use PyQt6 for any GUI work
+- Use built-in generic types (`list[str]`, `dict[str, int]`) — never `typing.List`, `typing.Dict`, etc.
+- Use `X | Y` unions — never `Optional[X]` or `Union[X, Y]`
 
 1. Fork the repository
 2. Create a feature branch (`git checkout -b feature/amazing-feature`)
@@ -414,11 +450,9 @@ Pyrox is a foundational library for Python applications. Contributions are welco
 4. Push to the branch (`git push origin feature/amazing-feature`)
 5. Open a Pull Request
 
-Please ensure your contributions maintain the architectural consistency and include appropriate tests.
-
 ## 📄 License
 
-This project is licensed under the GNU General Public License v3.0 - see the [LICENSE](LICENSE) file for details.
+This project is licensed under the GNU General Public License v3.0 — see the [LICENSE](LICENSE) file for details.
 
 ## 👨‍💻 Author
 
@@ -426,13 +460,6 @@ This project is licensed under the GNU General Public License v3.0 - see the [LI
 📧 [Brian.L.LaFond@gmail.com](mailto:Brian.L.LaFond@gmail.com)  
 🐙 [GitHub](https://github.com/iroxusux)
 
-## 🙏 Acknowledgments
-
-- The Python community for excellent libraries and frameworks
-- Contributors who have helped shape the architecture and design
-- Applications built on Pyrox that have driven feature development
-- The open-source community for inspiration and best practices
-
 ---
 
-**Pyrox** - *Python-based engine for services and common models across different types of applications*
+**Pyrox** — *PyQt6-based back-end engine providing interfaces, models, services, and a scene/emulation environment for building industrial automation and desktop applications*
