@@ -413,7 +413,7 @@ class HasMetaDictData(IHasDictMetaData):
         else:
             self._meta_data: dict[str, Any] = dict()
 
-    def get_metadata(self) -> dict[str, Any]:
+    def get_meta_data(self) -> dict[str, Any]:
         """Get the meta data of this object.
 
         Returns:
@@ -421,7 +421,7 @@ class HasMetaDictData(IHasDictMetaData):
         """
         return self._meta_data
 
-    def set_metadata(self, metadata: dict[str, Any]) -> None:
+    def set_meta_data(self, metadata: dict[str, Any]) -> None:
         """Set the meta data of this object.
 
         Args:
@@ -443,8 +443,8 @@ class SupportsItemAccess(HasMetaDictData):
         Args:
             key (str): The key of the item to delete.
         """
-        if key in self.metadata:
-            del self.metadata[key]
+        if key in self.meta_data:
+            del self.meta_data[key]
 
     def __getitem__(
         self,
@@ -459,7 +459,7 @@ class SupportsItemAccess(HasMetaDictData):
         Returns:
             Any: The item associated with the key.
         """
-        return self.metadata.get(key, default)
+        return self.meta_data.get(key, default)
 
     def __setitem__(
         self,
@@ -472,7 +472,7 @@ class SupportsItemAccess(HasMetaDictData):
             key (str): The key of the item to set.
             value (Any): The value to associate with the key.
         """
-        self.metadata[key] = value
+        self.meta_data[key] = value
 
 
 __all__ = (

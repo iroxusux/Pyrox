@@ -588,19 +588,19 @@ class TestHasMetaDictData(unittest.TestCase):
     def test_init_default_metadata(self):
         """Test initialization with default empty metadata."""
         obj = HasMetaDictData()
-        self.assertEqual(obj.get_metadata(), {})
+        self.assertEqual(obj.get_meta_data(), {})
 
     def test_init_with_metadata(self):
         """Test initialization with provided metadata."""
         metadata = {"key1": "value1", "key2": 42}
         obj = HasMetaDictData(meta_data=metadata)
-        self.assertEqual(obj.get_metadata(), metadata)
+        self.assertEqual(obj.get_meta_data(), metadata)
 
     def test_get_metadata(self):
         """Test getting the metadata."""
         metadata = {"setting": "value"}
         obj = HasMetaDictData(meta_data=metadata)
-        result = obj.get_metadata()
+        result = obj.get_meta_data()
         self.assertEqual(result, metadata)
         self.assertIsInstance(result, dict)
 
@@ -608,27 +608,27 @@ class TestHasMetaDictData(unittest.TestCase):
         """Test setting the metadata."""
         obj = HasMetaDictData()
         new_metadata = {"new_key": "new_value"}
-        obj.set_metadata(new_metadata)
-        self.assertEqual(obj.get_metadata(), new_metadata)
+        obj.set_meta_data(new_metadata)
+        self.assertEqual(obj.get_meta_data(), new_metadata)
 
     def test_set_metadata_updates_existing(self):
         """Test setting metadata updates existing value."""
         obj = HasMetaDictData(meta_data={"old": "data"})
         new_metadata = {"new": "data"}
-        obj.set_metadata(new_metadata)
-        self.assertEqual(obj.get_metadata(), new_metadata)
+        obj.set_meta_data(new_metadata)
+        self.assertEqual(obj.get_meta_data(), new_metadata)
 
     def test_metadata_property(self):
         """Test metadata property access."""
         metadata = {"test": "data"}
         obj = HasMetaDictData(meta_data=metadata)
-        self.assertEqual(obj.metadata, metadata)
+        self.assertEqual(obj.meta_data, metadata)
 
     def test_metadata_mutation(self):
         """Test that metadata dictionary can be mutated."""
         obj = HasMetaDictData()
-        obj.get_metadata()["new_key"] = "new_value"
-        self.assertEqual(obj.get_metadata()["new_key"], "new_value")
+        obj.get_meta_data()["new_key"] = "new_value"
+        self.assertEqual(obj.get_meta_data()["new_key"], "new_value")
 
 
 class TestSupportsItemAccess(unittest.TestCase):
@@ -637,13 +637,13 @@ class TestSupportsItemAccess(unittest.TestCase):
     def test_init_default_metadata(self):
         """Test initialization with default empty metadata."""
         obj = SupportsItemAccess()
-        self.assertEqual(obj.get_metadata(), {})
+        self.assertEqual(obj.get_meta_data(), {})
 
     def test_init_with_metadata(self):
         """Test initialization with provided metadata."""
         metadata = {"key1": "value1", "key2": 42}
         obj = SupportsItemAccess(meta_data=metadata)
-        self.assertEqual(obj.get_metadata(), metadata)
+        self.assertEqual(obj.get_meta_data(), metadata)
 
     def test_getitem(self):
         """Test getting item by key using indexing."""
@@ -657,7 +657,7 @@ class TestSupportsItemAccess(unittest.TestCase):
         obj = SupportsItemAccess()
         obj["key1"] = "value1"
         self.assertEqual(obj["key1"], "value1")
-        self.assertEqual(obj.metadata["key1"], "value1")
+        self.assertEqual(obj.meta_data["key1"], "value1")
 
     def test_setitem_updates_existing(self):
         """Test setting item updates existing value."""
@@ -671,8 +671,8 @@ class TestSupportsItemAccess(unittest.TestCase):
         obj = SupportsItemAccess(meta_data={"existing": "value"})
         obj["new_key"] = "new_value"
         self.assertEqual(obj["new_key"], "new_value")
-        self.assertIn("existing", obj.metadata)
-        self.assertIn("new_key", obj.metadata)
+        self.assertIn("existing", obj.meta_data)
+        self.assertIn("new_key", obj.meta_data)
 
     def test_mixed_item_access(self):
         """Test mixed get/set item access."""
@@ -701,8 +701,8 @@ class TestSupportsItemAccess(unittest.TestCase):
         """Test deleting an item by key."""
         obj = SupportsItemAccess(meta_data={"key1": "value1", "key2": "value2"})
         del obj["key1"]
-        self.assertNotIn("key1", obj.metadata)
-        self.assertIn("key2", obj.metadata)
+        self.assertNotIn("key1", obj.meta_data)
+        self.assertIn("key2", obj.meta_data)
 
 
 if __name__ == '__main__':
