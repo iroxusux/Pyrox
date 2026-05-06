@@ -421,13 +421,13 @@ class HasMetaDictData(IHasDictMetaData):
         """
         return self._meta_data
 
-    def set_meta_data(self, metadata: dict[str, Any]) -> None:
+    def set_meta_data(self, meta_data: dict[str, Any]) -> None:
         """Set the meta data of this object.
 
         Args:
             meta_data (dict[str, any]): The meta data to set.
         """
-        self._meta_data = metadata
+        self._meta_data = meta_data
 
 
 class SupportsItemAccess(HasMetaDictData):
