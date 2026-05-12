@@ -694,8 +694,8 @@ class TestSupportsItemAccess(unittest.TestCase):
         """Test that SupportsItemAccess inherits from HasMetaDictData."""
         obj = SupportsItemAccess()
         self.assertIsInstance(obj, HasMetaDictData)
-        self.assertTrue(hasattr(obj, 'get_metadata'))
-        self.assertTrue(hasattr(obj, 'set_metadata'))
+        self.assertTrue(hasattr(obj, 'get_meta_data'))
+        self.assertTrue(hasattr(obj, 'set_meta_data'))
 
     def test_delitem(self):
         """Test deleting an item by key."""
