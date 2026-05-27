@@ -1,0 +1,102 @@
+﻿<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<RSLogix5000Content SchemaRevision="1.0" SoftwareRevision="34.04" TargetName="Base"
+    TargetType="Controller" ContainsContext="false" ExportDate="Tue Apr 28 07:44:22 2026"
+    ExportOptions="NoRawData L5KData DecoratedData ForceProtectedEncoding AllProjDocTrans">
+    <Controller Use="Target" Name="Base" ProcessorType="1756-L83ES" MajorRev="34" MinorRev="15"
+        ProjectCreationDate="Tue Apr 28 07:37:19 2026" LastModifiedDate="Tue Apr 28 07:44:04 2026"
+        SFCExecutionControl="CurrentActive" SFCRestartPosition="MostRecent" SFCLastScan="DontScan"
+        ProjectSN="16#0135_1687"
+        MatchProjectToController="false" CanUseRPIFromProducer="false"
+        InhibitAutomaticFirmwareUpdate="0" PassThroughConfiguration="EnabledWithAppend"
+        DownloadProjectDocumentationAndExtendedProperties="true"
+        DownloadProjectCustomProperties="true" ReportMinorOverflow="false" AutoDiagsEnabled="true"
+        WebServerEnabled="true">
+        <RedundancyInfo Enabled="false" KeepTestEditsOnSwitchOver="false" />
+        <Security Code="0" ChangesToDetect="16#ffff_ffff_ffff_ffff" />
+        <SafetyInfo SafetyLocked="false" SignatureRunModeProtect="false"
+            ConfigureSafetyIOAlways="true" SafetyLevel="SIL2/PLd" />
+        <DataTypes>
+
+        </DataTypes>
+        <Modules>
+            <Module Name="Local" CatalogNumber="1756-L83ES" Vendor="1" ProductType="14"
+                ProductCode="213" Major="34" Minor="15" ParentModule="Local" ParentModPortId="1"
+                Inhibited="false" MajorFault="true"
+            >
+                <EKey State="Disabled" />
+                <Ports>
+                    <Port Id="1" Address="0" Type="ICP" Upstream="false"
+                        SafetyNetwork="16#0000_4d09_042e_8b3a">
+                        <Bus Size="4" />
+                    </Port>
+                    <Port Id="2" Type="Ethernet" Upstream="false"
+                        SafetyNetwork="16#0000_4d09_042e_8b3b">
+                        <Bus />
+                    </Port>
+                </Ports>
+            </Module>
+        </Modules>
+        <AddOnInstructionDefinitions>
+
+        </AddOnInstructionDefinitions>
+        <Tags />
+        <Programs>
+            <Program Name="StandardProgram" TestEdits="false" MainRoutineName="A000_Main"
+                Disabled="false" Class="Standard" UseAsFolder="false">
+                <Tags>
+
+                </Tags>
+                <Routines>
+                    <Routine Name="A000_Main" Type="RLL">
+                        <RLLContent>
+                            <Rung Number="0" Type="N">
+                                <Text>
+<![CDATA[NOP();]]>
+</Text>
+                            </Rung>
+                        </RLLContent>
+                    </Routine>
+                </Routines>
+            </Program>
+            <Program Name="s_SafetyProgram" TestEdits="false" MainRoutineName="s_A000_Main"
+                Disabled="false" Class="Safety" UseAsFolder="false">
+                <Tags>
+
+                </Tags>
+                <Routines>
+                    <Routine Name="s_A000_Main" Type="RLL">
+                        <RLLContent>
+                            <Rung Number="0" Type="N">
+                                <Text>
+<![CDATA[NOP();]]>
+</Text>
+                            </Rung>
+                        </RLLContent>
+                    </Routine>
+                </Routines>
+            </Program>
+        </Programs>
+        <Tasks>
+            <Task Name="MainTask" Type="CONTINUOUS" Priority="10" Watchdog="500"
+                DisableUpdateOutputs="false" InhibitTask="false" Class="Standard">
+                <ScheduledPrograms>
+                    <ScheduledProgram Name="StandardProgram" />
+                </ScheduledPrograms>
+            </Task>
+            <Task Name="SafetyTask" Type="PERIODIC" Rate="20" Priority="1" Watchdog="18"
+                DisableUpdateOutputs="false" InhibitTask="false" Class="Safety">
+                <ScheduledPrograms>
+                    <ScheduledProgram Name="s_SafetyProgram" />
+                </ScheduledPrograms>
+            </Task>
+        </Tasks>
+        <CST MasterID="0" />
+        <WallClockTime LocalTimeAdjustment="0" TimeZone="0" />
+        <Trends />
+        <DataLogs />
+        <TimeSynchronize Priority1="128" Priority2="128" PTPEnable="false" />
+        <EthernetPorts>
+            <EthernetPort Port="1" Label="1" PortEnabled="true" />
+        </EthernetPorts>
+    </Controller>
+</RSLogix5000Content>
