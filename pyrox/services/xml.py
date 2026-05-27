@@ -70,8 +70,8 @@ def xml_file_from_dict(
     root = lxml.etree.fromstring(xml_string.encode('utf-8'), parser)
 
     for elem in root.iter():
-        if elem.tag in keep_cdata_sections if keep_cdata_sections else []:
-            elem.text = lxml.etree.CDATA(elem.text or '')
+        if elem.tag in (keep_cdata_sections if keep_cdata_sections else []) and elem.text is not None:
+            elem.text = lxml.etree.CDATA(elem.text)
 
     output = lxml.etree.tostring(
         root,
