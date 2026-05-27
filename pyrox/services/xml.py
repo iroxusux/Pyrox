@@ -8,12 +8,13 @@ from typing import Optional
 import lxml.etree
 import xml.etree.ElementTree as ET
 import xmltodict
-
 import pandas as pd
+
+from pyrox.services.file import save_file
 
 
 def dict_from_xml_file(
-    file_location: str
+    file_location: Path | str
 ) -> Optional[dict]:
     """get a dictionary from a provided file location
 
@@ -51,8 +52,40 @@ def dict_from_xml_file(
     if not xml_str:
         return None
 
-    xml_str = xml_str.replace("<![CDATA[]]>", "<![CDATA[//]]>")
     return xmltodict.parse(xml_str)
+
+
+def xml_file_from_dict(
+    data: dict,
+    file_location: str,
+    extension: str = '.xml',
+    keep_cdata_sections: list[str] | None = None
+) -> None:
+    xml_string = xmltodict.unparse(data, pretty=True)
+
+    # Re-parse with lxml so we can apply CDATA sections natively.
+    # lxml.etree.CDATA() produces correct <![CDATA[...]]> output without any
+    # string-escaping hacks or post-processing regex.
+    parser = lxml.etree.XMLParser(remove_blank_text=True)
+    root = lxml.etree.fromstring(xml_string.encode('utf-8'), parser)
+
+    for elem in root.iter():
+        if elem.tag in keep_cdata_sections if keep_cdata_sections else []:
+            elem.text = lxml.etree.CDATA(elem.text or '')
+
+    output = lxml.etree.tostring(
+        root,
+        encoding='UTF-8',
+        xml_declaration=True,
+        pretty_print=True,
+    ).decode('utf-8')
+
+    save_file(
+        file_location,
+        extension,
+        'w',
+        output
+    )
 
 
 def parse_xml(file_location: str) -> dict[str, pd.DataFrame]:

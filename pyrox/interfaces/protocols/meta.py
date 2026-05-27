@@ -321,24 +321,24 @@ class IHasDictMetaData(Protocol):
     """Protocol for objects that support metadata."""
 
     @property
-    def metadata(self) -> dict[str, Any]:
+    def meta_data(self) -> dict[str, Any]:
         """Get the metadata of this object.
 
         Returns:
             dict: The metadata of this object.
         """
-        return self.get_metadata()
+        return self.get_meta_data()
 
-    @metadata.setter
-    def metadata(self, metadata: dict[str, Any]) -> None:
+    @meta_data.setter
+    def meta_data(self, meta_data: dict[str, Any]) -> None:
         """Set the metadata of this object.
 
         Args:
             metadata (dict): The metadata to set.
         """
-        self.set_metadata(metadata)
+        self.set_meta_data(meta_data)
 
-    def get_metadata(self) -> dict[str, Any]:
+    def get_meta_data(self) -> dict[str, Any]:
         """Get the metadata of this object.
 
         Returns:
@@ -346,7 +346,7 @@ class IHasDictMetaData(Protocol):
         """
         ...
 
-    def set_metadata(self, metadata: dict[str, Any]) -> None:
+    def set_meta_data(self, meta_data: dict[str, Any]) -> None:
         """Set the metadata of this object.
 
         Args:
