@@ -351,18 +351,21 @@ class TestXmlFileFromDict:
         assert '&lt;' not in content
         assert '&amp;' not in content
 
-    def test_cdata_empty_value_produces_empty_cdata(
+    def test_cdata_none_value_not_wrapped(
         self, tmp_path: pathlib.Path
     ) -> None:
-        """None element text with a CDATA-listed tag must write <![CDATA[]]>."""
-        out = tmp_path / 'empty_cdata.xml'
+        """A None element value in a CDATA-listed tag must NOT inject <![CDATA[]]>.
+        Mixed-content elements (e.g. Data Format='Message') have None text AND
+        child elements; adding empty CDATA before the children causes Studio 5000
+        to reject the file with 'Element value not expected for this element type.'"""
+        out = tmp_path / 'none_cdata.xml'
         xml_file_from_dict(
             {'root': {'Text': None}},
             str(out),
             keep_cdata_sections=['Text'],
         )
         content = out.read_text(encoding='utf-8')
-        assert '<![CDATA[]]>' in content
+        assert '<![CDATA[' not in content
 
     def test_cdata_round_trip_with_fixture(
         self,
