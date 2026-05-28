@@ -4,7 +4,7 @@ This module provides a PyQt6-based equivalent of TkGuiManager, wrapping a
 QApplication + QMainWindow pair with the same static-class interface.
 """
 from __future__ import annotations
-from pathlib import Path
+from importlib.resources import files
 import sys
 from typing import Callable
 
@@ -19,13 +19,10 @@ from PyQt6.QtWidgets import (
     QMessageBox,
 )
 
-from pyrox.services.env import EnvManager
 from pyrox.services.gui_state import GuiStateService
 from pyrox.services.menu_registry import MenuRegistry
-from pyrox.interfaces import EnvironmentKeys
 
-
-DEF_ICON = Path(__file__).resolve().parents[2] / "ui" / "icons" / "_def.ico"
+DEF_ICON = files('pyrox.ui.icons').joinpath('_def.ico')
 
 
 # ---------------------------------------------------------------------------
@@ -46,10 +43,20 @@ def _filetypes_to_qt_filter(filetypes: list[tuple[str, str]] | None) -> str:
 class _PyQt6MainWindow(QMainWindow):
     """QMainWindow with callback-based hooks for close and configure events."""
 
-    def __init__(self) -> None:
+    def __init__(
+        self,
+        title: str | None = None
+    ) -> None:
         super().__init__()
         self._close_callback: Callable | None = None
         self._configure_callbacks: list[Callable] = []
+
+        if title:
+            self.setWindowTitle(title)
+
+    # ---------------------------------------------------------------------------
+    # Event handlers that delegate to callbacks
+    # ---------------------------------------------------------------------------
 
     def closeEvent(self, event: QCloseEvent) -> None:  # type: ignore[override]
         if self._close_callback:
@@ -75,10 +82,69 @@ class _PyQt6MainWindow(QMainWindow):
         else:
             super().keyPressEvent(event)
 
+    # ---------------------------------------------------------------------------
+    # Public API for callback registration
+    # ---------------------------------------------------------------------------
+
+    def set_close_callback(self, callback: Callable | None) -> None:
+        """Set the callback to be invoked when the window is closed.
+
+        The callback is responsible for calling ``GuiManager.quit_application()``
+        to actually close the window after performing any necessary cleanup.
+
+        Args:
+            callback: Callable with no arguments to invoke on close or None to remove functionality.
+        """
+        self._close_callback = callback
+
+    def add_configure_callback(self, callback: Callable) -> None:
+        """Add a callback to be invoked on window resize or move events.
+
+        Multiple callbacks are supported and will all be called on each event.
+
+        Args:
+            callback: Callable with no arguments to invoke on configure events.
+        """
+        self._configure_callbacks.append(callback)
+
+    def remove_configure_callback(self, callback: Callable) -> None:
+        """Remove a previously added configure callback.
+
+        Args:
+            callback: The callback to remove.
+        """
+        if callback in self._configure_callbacks:
+            self._configure_callbacks.remove(callback)
+
+    # ---------------------------------------------------------------------------
+    # Public Properties
+    # ---------------------------------------------------------------------------
+
+    @property
+    def close_callback(self) -> Callable | None:
+        """The currently registered close callback, or None if not set."""
+        return self._close_callback
+
+    @close_callback.setter
+    def close_callback(self, callback: Callable | None) -> None:
+        """Set the close callback via property assignment."""
+        self.set_close_callback(callback)
+
+    @property
+    def configure_callbacks(self) -> list[Callable]:
+        """The list of currently registered configure callbacks."""
+        return self._configure_callbacks
+
+    @configure_callbacks.setter
+    def configure_callbacks(self, callbacks: list[Callable]) -> None:
+        """Set the list of configure callbacks via property assignment."""
+        self._configure_callbacks = callbacks
+
 
 # ---------------------------------------------------------------------------
 # PyQt6GuiManager
 # ---------------------------------------------------------------------------
+
 
 class GuiManager:
     """Static manager for PyQt6 GUI operations.
@@ -188,33 +254,6 @@ class GuiManager:
     # --------------------------------------------------
 
     @classmethod
-    def config_from_env(cls, **kwargs) -> None:
-        """Configure the root window from environment variables."""
-        cls.set_title(
-            EnvManager.get(
-                EnvironmentKeys.core.APP_WINDOW_TITLE,
-                default=kwargs.get('title', 'Pyrox Application'),
-            )
-        )
-        GuiStateService.load()
-        cls.restore_root_geometry()
-        # Auto-save window geometry whenever the window is moved or resized.
-        cls.subscribe_to_window_change_event(cls.save_root_geometry)
-        icon_path = cls.get_default_icon_path()
-        if icon_path:
-            cls.set_icon(icon_path)
-
-    @classmethod
-    def get_default_icon_path(cls) -> str | None:
-        """Return the default icon path from the environment, falling back to the bundled default."""
-        env_icon = EnvManager.get(EnvironmentKeys.core.APP_ICON, None, str)
-        if env_icon:
-            return env_icon
-        if DEF_ICON.exists():
-            return str(DEF_ICON)
-        return None
-
-    @classmethod
     def set_icon(
         cls,
         icon_path: str | None,
@@ -252,7 +291,20 @@ class GuiManager:
     # --------------------------------------------------
 
     @classmethod
-    def create_root(cls, show: bool = True, **kwargs) -> _PyQt6MainWindow:
+    def create_application(cls) -> None:
+        """Initialize the QApplication instance."""
+        if not QApplication.instance():
+            cls._app = QApplication(sys.argv)
+        else:
+            cls._app = QApplication.instance()  # type: ignore[assignment]
+            assert isinstance(cls._app, QApplication), "Existing QApplication instance is not of type QApplication"
+
+    @classmethod
+    def create_root_window(
+        cls,
+        title: str | None = None,
+        show: bool = True
+    ) -> _PyQt6MainWindow:
         """Create (or return existing) QApplication + root QMainWindow.
 
         Args:
@@ -263,13 +315,12 @@ class GuiManager:
         if cls._root_window is not None:
             return cls._root_window
 
-        if not QApplication.instance():
-            cls._app = QApplication(sys.argv)
-        else:
-            cls._app = QApplication.instance()  # type: ignore[assignment]
-
-        cls._root_window = _PyQt6MainWindow()
-        cls.config_from_env(**kwargs)
+        cls.create_application()
+        GuiStateService.load()
+        cls._root_window = _PyQt6MainWindow(title or 'Pyrox Application')
+        cls.restore_root_geometry()
+        cls.subscribe_to_window_change_event(cls.save_root_geometry)
+        cls.set_icon(str(DEF_ICON))
         if show:
             cls._root_window.show()
         return cls._root_window

@@ -112,54 +112,51 @@ class TestGuiManagerRootWindow(unittest.TestCase):
 
     # ---- create_root ----
 
-    @patch('pyrox.services.gui.EnvManager')
     @patch('pyrox.services.gui._PyQt6MainWindow')
     @patch('pyrox.services.gui.QApplication')
+    @patch('pyrox.services.gui.QIcon')
     def test_create_root_returns_main_window(
-        self, mock_qapp_class, mock_window_class, mock_env
+        self, mock_qicon_class, mock_qapp_class, mock_window_class
     ):
         """create_root() constructs and returns a _PyQt6MainWindow instance."""
         mock_qapp_class.instance.return_value = None
         mock_window = MagicMock()
         mock_window_class.return_value = mock_window
-        mock_env.get.side_effect = lambda key, default=None, cast_type=None: default
 
-        result = GuiManager.create_root()
+        result = GuiManager.create_root_window()
 
         mock_window_class.assert_called_once()
         self.assertIs(result, mock_window)
 
-    @patch('pyrox.services.gui.EnvManager')
     @patch('pyrox.services.gui._PyQt6MainWindow')
     @patch('pyrox.services.gui.QApplication')
+    @patch('pyrox.services.gui.QIcon')
     def test_create_root_is_idempotent(
-        self, mock_qapp_class, mock_window_class, mock_env
+        self, mock_qicon_class, mock_qapp_class, mock_window_class
     ):
         """create_root() returns the existing window on subsequent calls."""
         mock_qapp_class.instance.return_value = None
         mock_window = MagicMock()
         mock_window_class.return_value = mock_window
-        mock_env.get.side_effect = lambda key, default=None, cast_type=None: default
 
-        first = GuiManager.create_root()
-        second = GuiManager.create_root()
+        first = GuiManager.create_root_window()
+        second = GuiManager.create_root_window()
 
         mock_window_class.assert_called_once()
         self.assertIs(first, second)
 
-    @patch('pyrox.services.gui.EnvManager')
     @patch('pyrox.services.gui._PyQt6MainWindow')
     @patch('pyrox.services.gui.QApplication')
+    @patch('pyrox.services.gui.QIcon')
     def test_get_root_returns_created_window(
-        self, mock_qapp_class, mock_window_class, mock_env
+        self, mock_qicon_class, mock_qapp_class, mock_window_class
     ):
         """get_root() returns the window after create_root()."""
         mock_qapp_class.instance.return_value = None
         mock_window = MagicMock()
         mock_window_class.return_value = mock_window
-        mock_env.get.side_effect = lambda key, default=None, cast_type=None: default
 
-        GuiManager.create_root()
+        GuiManager.create_root_window()
         result = GuiManager.get_root()
 
         self.assertIs(result, mock_window)
