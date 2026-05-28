@@ -75,7 +75,7 @@ class TestApplicationInitialization(unittest.TestCase):
         """Test that Application creates root during initialization."""
         _ = Application()
 
-        self.mock_gui_manager.create_root.assert_called_once()
+        self.mock_gui_manager.create_root_window.assert_called_once()
 
     def test_application_config_from_env_on_init(self):
         """Test that Application config_from_env during initialization."""

@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "pyrox"
-version = "3.4.49"
+version = "3.5.0"
 authors = [
   { name="Brian LaFond", email="Brian.L.LaFond@gmail.com" },
 ]
@@ -50,6 +50,9 @@ dependencies = [
 
 license = {file = "LICENSE"}
 keywords = ["python", "tkinter", "api"]
+
+[tool.hatch.build.targets.wheel]
+include = ["pyrox/**"]
 
 [tool.pytest.ini_options]
 log_cli = true

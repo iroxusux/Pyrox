@@ -49,7 +49,7 @@ class Application(
         self,
     ) -> None:
         # Initialize base classes
-        ServicesRunnableMixin.__init__(self)
+        super().__init__()
 
         # Initialize application services
         sys.excepthook = self.except_hook
@@ -66,7 +66,7 @@ class Application(
             str))
 
         # Initialize GUI backend (defer show until splash is dismissed)
-        self._root = self.gui.create_root(show=False)
+        self._root = self.gui.create_root_window(show=False)
 
         # Show splash screen while loading
         _splash = SplashScreen(
@@ -76,7 +76,6 @@ class Application(
 
         _splash.set_status('Configuring interface')
         self.gui.create_root_menu()
-        self.gui.config_from_env()
         self.gui.subscribe_to_window_change_event(self.gui.save_root_geometry)
         self.gui.reroute_excepthook(self.except_hook)
         self.gui.subscribe_to_window_close_event(self.on_close)
@@ -103,13 +102,14 @@ class Application(
 
         # Wire up a "Windows" submenu so registered task frames appear in View
         _windows_menu = QMenu()
-        _windows_menu.setTitle('Windows')
+        _windows_menu.setTitle('Active Windows')
         self.view_menu.addMenu(_windows_menu)
         self._workspace.set_windows_menu(_windows_menu)
 
         # Reveal main window and dismiss splash
         _splash.close_splash()
         self._root.show()
+        self.workspace.set_status('Ready...')
 
     def get_author(self) -> str:
         """Get the application author.
