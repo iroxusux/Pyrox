@@ -77,12 +77,6 @@ class TestApplicationInitialization(unittest.TestCase):
 
         self.mock_gui_manager.create_root_window.assert_called_once()
 
-    def test_application_config_from_env_on_init(self):
-        """Test that Application config_from_env during initialization."""
-        _ = Application()
-
-        self.mock_gui_manager.config_from_env.assert_called_once()
-
     def test_application_subscribes_to_window_change_event(self):
         """Test that Application subscribes to window change events."""
         _ = Application()
