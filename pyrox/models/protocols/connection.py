@@ -1,6 +1,6 @@
 from typing import Any
 from pyrox.interfaces import IConnectable, Connection
-from pyrox.models.protocols.meta import HasId
+from pyrox.models.protocols.base import HasId
 
 
 class Connectable(

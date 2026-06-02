@@ -48,31 +48,6 @@ from .protocols import (
     IHasFileLocation,
     IHasDictMetaData,
 
-    # Coordinate imports for protocols that support points in a space.
-    ICoord2D,
-    IArea2D,
-
-    # Spatial imports for protocols that support spatial objects.
-    ISpatial2D,
-    IRotatable,
-    IDirectional2D,
-    IZoomable,
-
-    # Kinematic imports for protocols that support kinematic objects.
-    IVelocity2D,
-    IAngularVelocity,
-    IKinematic2D,
-
-    # Physics imports for protocols that support physical objects.
-    BodyType,
-    ColliderType,
-    CollisionLayer,
-    IMaterial,
-    ICollider2D,
-    IPhysicsBody2D,
-    IRigidBody2D,
-    IPhysicsEngine,
-
     # Property imports for protocols that support properties.
     IHasProperties,
 
@@ -83,9 +58,6 @@ from .protocols import (
     # GUI protocols
     IHasCanvas,
 )
-
-# Physics interfaces
-from .physics import IBasePhysicsBody
 
 # Service interfaces
 from .services import (
@@ -105,26 +77,11 @@ from .application import (
 # GUI interfaces
 from .gui import (
     IWorkspace,
-    IViewport,
 )
 
 # Connection interfaces
 from .connection import (
     IConnectionRegistry,
-)
-
-# Scene interfaces
-from .scene import (
-    IScene,
-    ISceneObject,
-    ISceneObjectFactory,
-    ISceneRunnerService,
-    BindingDirection,
-    ISceneBinding,
-    ISceneBridge,
-    ISceneBoundLayer,
-    ICompositeSceneObject,
-    ISceneGroup,
 )
 
 
@@ -151,27 +108,6 @@ __all__ = (
     'ICoreRunnableMixin',
     'IHasFileLocation',
     'IHasDictMetaData',
-    # Coordinate protocols
-    'ICoord2D',
-    'IArea2D',
-    # Spatial protocols
-    'ISpatial2D',
-    'IRotatable',
-    'IDirectional2D',
-    'IZoomable',
-    # Kinematic protocols
-    'IVelocity2D',
-    'IAngularVelocity',
-    'IKinematic2D',
-    # Physics protocols
-    'BodyType',
-    'ColliderType',
-    'CollisionLayer',
-    'IMaterial',
-    'ICollider2D',
-    'IPhysicsBody2D',
-    'IRigidBody2D',
-    'IPhysicsEngine',
     # Property protocols
     'IHasProperties',
     # Connectable protocols
@@ -180,12 +116,8 @@ __all__ = (
     # Gui Protocols
     'IHasCanvas',
 
-    # Physics Interfaces
-    'IBasePhysicsBody',
-
     # GUI Interfaces
     'IWorkspace',
-    'IViewport',
 
     # Service Interfaces
     'IEnvironmentManager',
@@ -200,16 +132,4 @@ __all__ = (
 
     # Connection Interfaces
     'IConnectionRegistry',
-
-    # Scene Interfaces
-    'IScene',
-    'ISceneObject',
-    'ISceneObjectFactory',
-    'ISceneRunnerService',
-    'BindingDirection',
-    'ISceneBinding',
-    'ISceneBridge',
-    'ISceneBoundLayer',
-    'ICompositeSceneObject',
-    'ISceneGroup',
 )

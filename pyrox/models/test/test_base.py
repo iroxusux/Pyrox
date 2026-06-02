@@ -3,7 +3,7 @@
 import pytest
 
 
-from pyrox.models.meta import (
+from pyrox.models.base import (
     PyroxObject,
     SnowFlake,
 )

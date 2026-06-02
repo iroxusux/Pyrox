@@ -45,8 +45,6 @@ from PyQt6.QtWidgets import (
     QVBoxLayout,
     QWidget,
 )
-
-from pyrox.interfaces import IScene, ISceneObject
 from pyrox.models.gui.frame import TaskFrame
 from pyrox.services.logging import log
 
@@ -90,7 +88,7 @@ class ObjectExplorer(TaskFrame):
         super().__init__(name=title, parent=parent)
         self.root.setMinimumWidth(width)
 
-        self._scene: Optional[IScene] = None
+        # self._scene: Optional[IScene] = None
         self._on_selection_changed = on_selection_changed
 
         self._build_ui()
@@ -99,14 +97,14 @@ class ObjectExplorer(TaskFrame):
     # Public API
     # ------------------------------------------------------------------
 
-    def set_scene(self, scene: Optional[IScene]) -> None:
-        """Bind the explorer to a new (or cleared) scene.
+    # def set_scene(self, scene: Optional[IScene]) -> None:
+    #     """Bind the explorer to a new (or cleared) scene.
 
-        Args:
-            scene: The scene to explore, or ``None`` to show an empty state.
-        """
-        self._scene = scene
-        self.refresh()
+    #     Args:
+    #         scene: The scene to explore, or ``None`` to show an empty state.
+    #     """
+    #     self._scene = scene
+    #     self.refresh()
 
     def refresh(self) -> None:
         """Re-populate the tree from the current scene.
@@ -116,11 +114,11 @@ class ObjectExplorer(TaskFrame):
         """
         self._tree.clear()
 
-        if self._scene is None:
-            self._status_label.setText("No scene loaded")
-            return
+        # if self._scene is None:
+        #     self._status_label.setText("No scene loaded")
+        #     return
 
-        objects: dict[str, ISceneObject] = self._scene.scene_objects  # type: ignore[assignment]
+        objects: dict[str, object] = self._scene.scene_objects  # type: ignore[assignment]
         if not objects:
             self._status_label.setText("Scene is empty")
             return
@@ -128,7 +126,7 @@ class ObjectExplorer(TaskFrame):
         filter_text = self._search_edit.text().lower().strip()
 
         # Group by type -------------------------------------------------------
-        groups: dict[str, list[ISceneObject]] = {}
+        groups: dict[str, list[object]] = {}
         for obj in objects.values():
             obj_type = getattr(obj, '_scene_object_type', 'Unknown')
             groups.setdefault(obj_type, []).append(obj)
