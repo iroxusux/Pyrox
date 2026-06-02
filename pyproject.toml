@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "pyrox"
-version = "3.6.0"
+version = "3.6.1"
 authors = [
   { name="Brian LaFond", email="Brian.L.LaFond@gmail.com" },
 ]
@@ -60,6 +60,31 @@ log_cli_level = "INFO"
 log_cli_format = "%(asctime)s | %(name)s | %(levelname)s | %(message)s"
 log_cli_date_format = "%m/%d/%Y, %H:%M:%S"
 
+[tool.pylint.main]
+jobs = 0
+py-version = "3.13.9"
+extension-pkg-allow-list = [
+    "lxml",
+]
+
+[tool.pylint.format]
+max-line-length = 120
+
+[tool.pylint.messages_control]
+disable = [
+    "missing-module-docstring",
+    "missing-class-docstring",
+    "missing-function-docstring",
+    "too-few-public-methods",
+    "line-too-long",
+]
+
+[tool.pylint.basic]
+good-names = ["i", "j", "k", "ex", "Run", "_", "id", "db", "pk"]
+
+[tool.pylint.reports]
+# Simplify console output by disabling the long text report summary
+reports = "no"
 [project.urls]
 Homepage = "https://github.com/iroxusux/Pyrox"
 Issues = "https://github.com/iroxusux/Pyrox/issues"

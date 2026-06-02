@@ -1,8 +1,28 @@
 """Service Manager for Pyrox framework.
 """
-from __future__ import annotations
-from typing import Type
-from pyrox.interfaces import IHasViewableServiceAttributes, ISupportsServiceStatus
+from typing import Any, Type
+from pyrox.interfaces import IHasViewableServiceAttributes, ISupportsServiceStatus, IStatusServiceMixin
+
+
+class StatusServiceMixin(IStatusServiceMixin):
+    """A mixin class that provides default implementations for service status and viewable attributes.
+
+    This class can be used as a base for services that want to support status reporting and have viewable attributes.
+    """
+
+    def __init__(self):
+        self._active = False
+        self._initialized = False
+        self._viewable_attributes = {}
+
+    def is_service_active(self) -> bool:
+        return self._active
+
+    def is_service_initialized(self) -> bool:
+        return self._initialized
+
+    def get_viewable_attributes(self) -> dict[str, Any]:
+        return self._viewable_attributes
 
 
 class ServiceManager:
