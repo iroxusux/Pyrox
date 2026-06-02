@@ -16,22 +16,10 @@ from .protocols import (
     Resettable,
     CoreMixin,
     CoreRunnableMixin,
-    # Coordinate components
-    Coord2D,
-    Area2D,
-    # Spacial components
-    Spatial2D,
-    Rotatable,
-    Zoomable,
-    # Physics components
-    Material,
-    Collider2D,
-    RigidBody2D,
-    PhysicsBody2D
 )
 
 # Base classes
-from .meta import PyroxObject
+from .base import PyroxObject
 
 # List components
 from .list import (
@@ -46,19 +34,9 @@ from .factory import (
     FactoryTypeABC
 )
 
-# Concrete physics body implementations
-from .physics import (
-    BasePhysicsBody,
-    ConveyorBody,
-    CrateBody,
-    PhysicsSceneFactory,
-    PhysicsSceneTemplate,
-)
-
 # GUI components
 from .gui import (
     LogFrame,
-    SceneViewerFrame,
     SplashScreen,
     Workspace
 )
@@ -79,15 +57,6 @@ from .task import (
     ApplicationTaskFactory
 )
 
-# Scene components
-from .scene import (
-    BindingDirection,
-    Scene,
-    SceneBinding,
-    SceneBridge,
-    SceneObject,
-)
-
 
 __all__ = [
     # ABCs and base classes
@@ -105,13 +74,6 @@ __all__ = [
     'Runnable',
     'CoreMixin',
     'CoreRunnableMixin',
-    # Coordinate protocols
-    'Coord2D',
-    'Area2D',
-    # Spatial protocols
-    'Spatial2D',
-    'Rotatable',
-    'Zoomable',
 
     # Base classes
     'PyroxObject',
@@ -127,7 +89,6 @@ __all__ = [
 
     # GUI components
     'LogFrame',
-    'SceneViewerFrame',
     'SplashScreen',
     'Workspace',
 
@@ -142,23 +103,4 @@ __all__ = [
     'ApplicationTask',
     'ApplicationTaskFactory',
 
-    # Scene components
-    'BindingDirection',
-    'Scene',
-    'SceneBinding',
-    'SceneBridge',
-    'SceneObject',
-
-    # Physics components
-    'Material',
-    'Collider2D',
-    'RigidBody2D',
-    'PhysicsBody2D',
-
-    # Concrete physics bodies
-    'BasePhysicsBody',
-    'ConveyorBody',
-    'CrateBody',
-    'PhysicsSceneFactory',
-    'PhysicsSceneTemplate',
 ]

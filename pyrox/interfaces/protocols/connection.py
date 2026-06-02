@@ -1,6 +1,6 @@
 from dataclasses import dataclass
 from typing import Any, Protocol
-from pyrox.interfaces.protocols.meta import IHasId
+from pyrox.interfaces.protocols.base import IHasId
 
 
 @dataclass

@@ -3,7 +3,7 @@ Defines the IWorkspace interface for GUI workspaces.
 """
 from abc import abstractmethod
 from typing import Callable
-from pyrox.interfaces.protocols.meta import ICoreRunnableMixin
+from pyrox.interfaces.protocols.base import ICoreRunnableMixin
 from pyrox.interfaces.gui.frame import ITaskFrame
 
 
