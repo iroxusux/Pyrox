@@ -1161,7 +1161,7 @@ class TestPlatformDirectoryService(unittest.TestCase):
         self.assertIn("static class", str(context.exception))
         self.assertIn("cannot be instantiated", str(context.exception))
 
-    @patch('pyrox.services.file.EnvManager.get')
+    @patch('pyrox.services.EnvManager.get')
     def test_app_name_property(self, mock_env_get):
         """Test app_name property returns correct value from environment."""
         mock_env_get.return_value = 'TestApp'
@@ -1170,7 +1170,7 @@ class TestPlatformDirectoryService(unittest.TestCase):
 
         self.assertEqual(result, 'TestApp')
 
-    @patch('pyrox.services.file.EnvManager.get')
+    @patch('pyrox.services.EnvManager.get')
     def test_app_name_property_default(self, mock_env_get):
         """Test app_name property returns default when not set."""
         mock_env_get.return_value = 'Pyrox Application'
@@ -1179,7 +1179,7 @@ class TestPlatformDirectoryService(unittest.TestCase):
 
         self.assertEqual(result, 'Pyrox Application')
 
-    @patch('pyrox.services.file.EnvManager.get')
+    @patch('pyrox.services.EnvManager.get')
     def test_author_name_property(self, mock_env_get):
         """Test author_name property returns correct value from environment."""
         mock_env_get.return_value = 'TestAuthor'
@@ -1189,7 +1189,7 @@ class TestPlatformDirectoryService(unittest.TestCase):
         self.assertEqual(result, 'TestAuthor')
         mock_env_get.assert_called_once()
 
-    @patch('pyrox.services.file.EnvManager.get')
+    @patch('pyrox.services.EnvManager.get')
     def test_author_name_property_default(self, mock_env_get):
         """Test author_name property returns default when not set."""
         mock_env_get.return_value = 'Pyrox Author'
@@ -1199,7 +1199,7 @@ class TestPlatformDirectoryService(unittest.TestCase):
         self.assertEqual(result, 'Pyrox Author')
 
     @patch('pyrox.services.file.platformdirs.user_cache_dir')
-    @patch('pyrox.services.file.EnvManager.get')
+    @patch('pyrox.services.EnvManager.get')
     def test_user_cache_property(self, mock_env_get, mock_cache_dir):
         """Test user_cache property returns correct path."""
         mock_env_get.side_effect = ['TestApp', 'TestAuthor']
@@ -1211,7 +1211,7 @@ class TestPlatformDirectoryService(unittest.TestCase):
         mock_cache_dir.assert_called_once_with('TestApp', 'TestAuthor', ensure_exists=True)
 
     @patch('pyrox.services.file.platformdirs.user_config_dir')
-    @patch('pyrox.services.file.EnvManager.get')
+    @patch('pyrox.services.EnvManager.get')
     def test_user_config_property(self, mock_env_get, mock_config_dir):
         """Test user_config property returns correct path."""
         mock_env_get.side_effect = ['TestApp', 'TestAuthor']
@@ -1223,7 +1223,7 @@ class TestPlatformDirectoryService(unittest.TestCase):
         mock_config_dir.assert_called_once_with('TestApp', 'TestAuthor', ensure_exists=True)
 
     @patch('pyrox.services.file.platformdirs.user_data_dir')
-    @patch('pyrox.services.file.EnvManager.get')
+    @patch('pyrox.services.EnvManager.get')
     def test_user_data_property(self, mock_env_get, mock_data_dir):
         """Test user_data property returns correct path."""
         mock_env_get.side_effect = ['TestApp', 'TestAuthor']
@@ -1255,7 +1255,7 @@ class TestPlatformDirectoryService(unittest.TestCase):
         mock_downloads_dir.assert_called_once()
 
     @patch('pyrox.services.file.platformdirs.user_log_dir')
-    @patch('pyrox.services.file.EnvManager.get')
+    @patch('pyrox.services.EnvManager.get')
     def test_user_log_property(self, mock_env_get, mock_log_dir):
         """Test user_log property returns correct path."""
         mock_env_get.side_effect = ['TestApp', 'TestAuthor']
@@ -1267,7 +1267,7 @@ class TestPlatformDirectoryService(unittest.TestCase):
         mock_log_dir.assert_called_once_with('TestApp', 'TestAuthor')
 
     @patch('pyrox.services.file.platformdirs.user_log_dir')
-    @patch('pyrox.services.file.EnvManager.get')
+    @patch('pyrox.services.EnvManager.get')
     def test_user_log_file_property(self, mock_env_get, mock_log_dir):
         """Test user_log_file property returns correct log file path."""
         mock_env_get.side_effect = ['TestApp', 'TestAuthor', 'TestApp']
@@ -1279,7 +1279,7 @@ class TestPlatformDirectoryService(unittest.TestCase):
         self.assertEqual(result, expected_path)
 
     @patch('pyrox.services.file.platformdirs.user_data_dir')
-    @patch('pyrox.services.file.EnvManager.get')
+    @patch('pyrox.services.EnvManager.get')
     def test_app_runtime_info_file_property(self, mock_env_get, mock_data_dir):
         """Test app_runtime_info_file property returns correct path."""
         mock_env_get.side_effect = ['TestApp', 'TestAuthor', 'TestApp']
@@ -1405,7 +1405,7 @@ class TestPlatformDirectoryService(unittest.TestCase):
     @patch('pyrox.services.file.platformdirs.user_config_dir')
     @patch('pyrox.services.file.platformdirs.user_data_dir')
     @patch('pyrox.services.file.platformdirs.user_log_dir')
-    @patch('pyrox.services.file.EnvManager.get')
+    @patch('pyrox.services.EnvManager.get')
     def test_all_properties_integration(self, mock_env, mock_log, mock_data, mock_config, mock_cache):
         """Integration test for all directory properties."""
         mock_env.side_effect = ['MyApp', 'MyAuthor'] * 10  # Enough for all calls

@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "pyrox"
-version = "3.6.1"
+version = "3.6.2"
 authors = [
   { name="Brian LaFond", email="Brian.L.LaFond@gmail.com" },
 ]
@@ -85,6 +85,7 @@ good-names = ["i", "j", "k", "ex", "Run", "_", "id", "db", "pk"]
 [tool.pylint.reports]
 # Simplify console output by disabling the long text report summary
 reports = "no"
+
 [project.urls]
 Homepage = "https://github.com/iroxusux/Pyrox"
 Issues = "https://github.com/iroxusux/Pyrox/issues"
