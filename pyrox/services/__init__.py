@@ -3,6 +3,14 @@
 # Service imports
 from .service import ServiceManager
 
+# File imports
+from .file import (
+    get_open_file,
+    get_save_file,
+    is_file_readable,
+    PlatformDirectoryService
+)
+
 # Environment imports
 from .env import (
     EnvManager,
@@ -39,12 +47,6 @@ from .menu_registry import (
 from .gui import GuiManager
 from .gui_state import GuiStateService
 
-# File imports
-from .file import (
-    get_open_file,
-    get_save_file,
-    PlatformDirectoryService
-)
 
 # Process imports
 from .process import execute_file_as_subprocess
@@ -79,6 +81,11 @@ from . import (
 __all__ = (
     # Service imports
     'ServiceManager',
+    # File imports
+    'get_open_file',
+    'get_save_file',
+    'is_file_readable',
+    'PlatformDirectoryService',
     # Environment imports
     'EnvManager',
     'get_env',
@@ -98,10 +105,6 @@ __all__ = (
     # GUI imports
     'GuiManager',
     'GuiStateService',
-    # File imports
-    'get_open_file',
-    'get_save_file',
-    'PlatformDirectoryService',
     # Process imports
     'execute_file_as_subprocess',
     # Status imports

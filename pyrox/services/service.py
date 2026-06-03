@@ -1,8 +1,6 @@
 """Service Manager for Pyrox framework.
 """
-from __future__ import annotations
-from typing import Type
-from pyrox.interfaces import IHasViewableServiceAttributes, ISupportsServiceStatus
+from pyrox.interfaces import IStatusServiceMixin
 
 
 class ServiceManager:
@@ -11,13 +9,13 @@ class ServiceManager:
     Services can register with this manager class to allow for centralized access and management.
     This class is designed to be static and should not be instantiated.
     """
-    _services: dict[str, object] = {}
+    _services: dict[str, type[IStatusServiceMixin] | IStatusServiceMixin] = {}
 
     def __init__(self):
         raise RuntimeError("ServiceManager is a static class and cannot be instantiated.")
 
     @classmethod
-    def register_service(cls, name: str, service: object) -> bool:
+    def register_service(cls, name: str, service: type[IStatusServiceMixin] | IStatusServiceMixin) -> bool:
         """Register a service with the manager.
 
         Args:
@@ -27,8 +25,16 @@ class ServiceManager:
         Returns:
             bool: True if registration was successful, False if a service with the same name already exists.
         """
+        if isinstance(service, type):
+            if not issubclass(service, IStatusServiceMixin):
+                raise ValueError(f"Service class '{service.__name__}' must inherit from IStatusServiceMixin.")
+        else:
+            if not isinstance(service, IStatusServiceMixin):
+                raise ValueError(f"Service instance of type '{type(service).__name__}' must implement IStatusServiceMixin.")
+
         if name in cls._services:
-            return False  # Service with this name already exists
+            return False
+
         cls._services[name] = service
         return True
 
@@ -60,7 +66,7 @@ class ServiceManager:
         return name in cls._services
 
     @classmethod
-    def get_service(cls, name: str) -> object | None:
+    def get_service(cls, name: str) -> IStatusServiceMixin | None:
         """Retrieve a registered service by name.
 
         Args:
@@ -72,19 +78,7 @@ class ServiceManager:
         return cls._services.get(name)
 
     @classmethod
-    def get_service_of_type(cls, service_type: Type) -> list[object]:
-        """Retrieve all registered services that are instances of the given type.
-
-        Args:
-            service_type: The type (class) to filter services by.
-
-        Returns:
-            list[object]: A list of service instances matching the given type.
-        """
-        return [s for s in cls._services.values() if isinstance(s, service_type)]
-
-    @classmethod
-    def get_all_services(cls) -> dict[str, object]:
+    def get_all_services(cls) -> dict[str, IStatusServiceMixin]:
         """Get a shallow copy of all registered services.
 
         Returns:
@@ -117,29 +111,3 @@ class ServiceManager:
         Intended for use in tests or application teardown.
         """
         cls._services.clear()
-
-    @classmethod
-    def get_services_with_status(cls) -> list[dict[str, ISupportsServiceStatus]]:
-        """Get a list of registered services that support status reporting.
-
-        Returns:
-            list[dict[str, ISupportsServiceStatus]]: A list of dictionaries containing service names and their status objects.
-        """
-        services_with_status = []
-        for name, service in cls._services.items():
-            if isinstance(service, ISupportsServiceStatus):
-                services_with_status.append({name: service})
-        return services_with_status
-
-    @classmethod
-    def get_services_with_viewable_attributes(cls) -> list[dict[str, IHasViewableServiceAttributes]]:
-        """Get a list of registered services that have viewable attributes.
-
-        Returns:
-            list[dict[str, IHasViewableServiceAttributes]]: A list of dictionaries containing service names and their attribute objects.
-        """
-        services_with_attributes = []
-        for name, service in cls._services.items():
-            if isinstance(service, IHasViewableServiceAttributes):
-                services_with_attributes.append({name: service})
-        return services_with_attributes

@@ -3,28 +3,27 @@
 This module provides functionality to load and manage environment variables
 from .env files and system environment.
 """
-
-from __future__ import annotations
 from enum import Enum
 import os
 import re
 from pathlib import Path
-from typing import Any, Dict, Optional, Union
+from typing import Any
 from dotenv import load_dotenv, set_key
 
-from pyrox.interfaces import EnvironmentKeys
+from pyrox.interfaces import EnvironmentKeys, IStatusServiceMixin
 from pyrox.services import ServiceManager
+from pyrox.services.file import is_file_readable
 
 
-class EnvManager:
+class EnvManager(IStatusServiceMixin):
     """Static manager for environment variables and .env files."""
 
     # Class-level storage for environment variables
-    _env_vars: Dict[str, str] = {}
-    _env_file: Optional[str] = None
+    _env_vars: dict[str, str] = {}
+    _env_file: str | None = None
     _loaded: bool = False
 
-    def __init__(self):
+    def __init__(self):  # pylint: disable=super-init-not-called
         """Prevent instantiation of static class."""
         raise TypeError("EnvManager is a static class and cannot be instantiated")
 
@@ -36,105 +35,32 @@ class EnvManager:
     def __setitem__(cls, key: str, value: Any) -> None:
         cls.set(key, value)
 
-    @classmethod
-    def load(
-        cls,
-        env_file: Optional[Union[Path, str]] = None
-    ) -> bool:
-        """Load environment variables from .env file.
+    # ----------------------------------------------------------------------------------
+    # IStatusServiceMixin implementation
+    # ----------------------------------------------------------------------------------
 
-        Args:
-            env_file: Path to .env file. If None, uses class default or searches
+    def is_service_active(self) -> bool:
+        """Check if the environment service is active (i.e., .env file loaded)."""
+        return self._loaded
 
-        Returns:
-            True if file was loaded successfully
-        """
-        if isinstance(env_file, Path):
-            env_file = str(env_file)
+    def is_service_initialized(self) -> bool:
+        """Check if the environment service has been initialized (i.e., .env file loaded)."""
+        return self._loaded
 
-        if env_file:
-            cls._env_file = env_file
+    def get_viewable_attributes(self) -> dict[str, Any]:
+        """Get viewable attributes for the environment service."""
+        return {
+            'env_file': self._env_file,
+            'loaded': self._loaded,
+            'env_vars_count': len(self._env_vars)
+        }
 
-        if not cls._env_file:
-            cls._env_file = cls._find_env_file()
-
-        if not cls._env_file:
-            print(".env file not found.")
-            return False
-
-        print(f"Loading .env file from: {cls._env_file}")
-
-        if not cls._is_file_readable(cls._env_file):
-            print(f".env file '{cls._env_file}' is not readable.")
-            return False
-
-        # Retry logic for handling spurious interrupts (e.g., from Git Bash terminal)
-        max_retries = 3
-        retry_delay = 0.1
-
-        for attempt in range(max_retries):
-            try:
-                cls._load_from_file(cls._env_file)
-                cls._loaded = True
-                print(f".env file '{cls._env_file}' loaded successfully.")
-                return True
-
-            except KeyboardInterrupt:
-                # Catch spurious interrupts from terminal initialization
-                if attempt < max_retries - 1:
-                    import time
-                    print(f"Caught interrupt during .env load, retrying... (attempt {attempt + 1}/{max_retries})")
-                    time.sleep(retry_delay)
-                    retry_delay *= 2  # Exponential backoff
-                else:
-                    print(f"Warning: Could not load .env file after {max_retries} attempts due to interrupts.")
-                    cls._loaded = True  # Mark as loaded to prevent infinite retries
-                    return False
-
-            except Exception as e:
-                print(f"Error loading .env file '{cls._env_file}': {e}")
-                return False
-
-        return False
+    # ----------------------------------------------------------------------------------
+    # Private methods
+    # ----------------------------------------------------------------------------------
 
     @classmethod
-    def _is_file_readable(cls, file_path: str) -> bool:
-        """Check if file exists and is readable.
-
-        Args:
-            file_path: Path to the file to check
-
-        Returns:
-            True if file exists and is readable, False otherwise
-        """
-        try:
-            # Check if file exists
-            if not os.path.exists(file_path):
-                return False
-
-            # Check if it's actually a file (not a directory)
-            if not os.path.isfile(file_path):
-                return False
-
-            # Check read permissions using os.access
-            if not os.access(file_path, os.R_OK):
-                return False
-
-            # Try to actually open and read a small portion to verify readability
-            try:
-                with open(file_path, 'r', encoding='utf-8') as f:
-                    f.read(1)  # Try to read just one character
-                return True
-            except (IOError, OSError, PermissionError, UnicodeDecodeError):
-                print(f"File '{file_path}' exists but is not readable.")
-                return False
-
-        except Exception as e:
-            print(f"Error checking file '{file_path}': {e}")
-            return False
-
-    @classmethod
-    def _find_env_file(cls) -> Optional[str]:
+    def _find_env_file(cls) -> Path | str | None:
         """Search for .env file in common locations."""
         search_paths = [
             os.getcwd(),  # Current working directory
@@ -144,7 +70,7 @@ class EnvManager:
 
         for search_path in search_paths:
             env_path = os.path.join(search_path, '.env')
-            if cls._is_file_readable(env_path):
+            if is_file_readable(env_path):
                 return env_path
 
         return None
@@ -154,7 +80,7 @@ class EnvManager:
         """Load variables from .env file."""
 
         with open(file_path, 'r', encoding='utf-8') as f:
-            for line_num, line in enumerate(f, 1):
+            for _, line in enumerate(f, 1):
                 line = line.strip()
 
                 # Skip empty lines and comments
@@ -165,7 +91,7 @@ class EnvManager:
                 if '=' not in line:
                     continue
 
-                key, value = cls._parse_line(line, line_num, file_path)
+                key, value = cls._parse_line(line)
                 if key:
                     cls._env_vars[key] = value
                     # Also set in os.environ if not already set
@@ -173,28 +99,19 @@ class EnvManager:
                         os.environ[key] = value
 
     @classmethod
-    def _parse_line(
-        cls,
-        line: str,
-        line_num: int,
-        file_path: str
-    ) -> tuple[str, str]:
+    def _parse_line(cls, line: str) -> tuple[str, str]:
         """Parse a single line from .env file."""
-        try:
-            # Handle different quote styles and escaping
-            match = re.match(r'^([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(.*)$', line)
-            if not match:
-                return "", ""
-
-            key, value = match.groups()
-
-            # Handle quoted values
-            value = cls._process_value(value)
-
-            return key, value
-
-        except Exception:
+        # Handle different quote styles and escaping
+        match = re.match(r'^([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(.*)$', line)
+        if not match:
             return "", ""
+
+        key, value = match.groups()
+
+        # Handle quoted values
+        value = cls._process_value(value)
+
+        return key, value
 
     @classmethod
     def _process_value(cls, value: str) -> str:
@@ -239,10 +156,19 @@ class EnvManager:
 
         return value
 
+    # ----------------------------------------------------------------------------------
+    # Public API
+    # ----------------------------------------------------------------------------------
+
+    @classmethod
+    def count(cls) -> int:
+        """Get count of loaded environment variables."""
+        return len(cls._env_vars)
+
     @classmethod
     def get(
         cls,
-        key: Union[str, Enum],
+        key: str | Enum,
         default=None,
         cast_type: type = str
     ) -> Any:
@@ -303,7 +229,7 @@ class EnvManager:
     @classmethod
     def set(
         cls,
-        key: Union[str, Enum],
+        key: str | Enum,
         value: str,
         env_file: str = '.env'
     ) -> None:
@@ -316,23 +242,6 @@ class EnvManager:
 
         # Update .env file using python-dotenv
         set_key(env_file, key, value)
-
-    @classmethod
-    def get_all(cls, prefix: Optional[str] = None) -> Dict[str, str]:
-        """Get all environment variables, optionally filtered by prefix.
-
-        Args:
-            prefix: Optional prefix to filter variables
-
-        Returns:
-            Dictionary of environment variables
-        """
-        all_vars = {**cls._env_vars, **dict(os.environ)}
-
-        if prefix:
-            return {k: v for k, v in all_vars.items() if k.startswith(prefix)}
-
-        return all_vars
 
     @classmethod
     def create_env_template(cls, file_path: str = '.env.template') -> None:
@@ -390,6 +299,54 @@ ENCRYPTION_ALGORITHM=AES256
             raise
 
     @classmethod
+    def get_all(cls, prefix: str | None = None) -> dict[str, str]:
+        """Get all environment variables, optionally filtered by prefix.
+
+        Args:
+            prefix: Optional prefix to filter variables
+
+        Returns:
+            Dictionary of environment variables
+        """
+        all_vars = {**cls._env_vars, **dict(os.environ)}
+
+        if prefix:
+            return {k: v for k, v in all_vars.items() if k.startswith(prefix)}
+
+        return all_vars
+
+    @classmethod
+    def load(
+        cls,
+        env_file: Path | str | None = None
+    ) -> bool:
+        """Load environment variables from .env file.
+
+        Args:
+            env_file: Path to .env file. If None, uses class default or searches
+
+        Returns:
+            True if file was loaded successfully
+        """
+        if env_file:
+            cls._env_file = str(env_file)
+
+        if not cls._env_file:
+            cls._env_file = str(cls._find_env_file())
+
+        if not cls._env_file:
+            print("No .env file found in common locations!")
+            return False
+
+        if not is_file_readable(cls._env_file):
+            print(f"Cannot read .env file at '{cls._env_file}'!")
+            return False
+
+        cls._load_from_file(cls._env_file)
+        cls._loaded = True
+        return True
+
+    @classmethod
     def is_loaded(cls) -> bool:
         """Check if .env file has been loaded."""
         return cls._loaded
@@ -401,11 +358,18 @@ ENCRYPTION_ALGORITHM=AES256
         cls._loaded = False
         return cls.load()
 
+    @classmethod
+    def reset(cls) -> None:
+        """Reset the environment manager to its initial state."""
+        cls._env_vars.clear()
+        cls._env_file = None
+        cls._loaded = False
+
 
 EnvManager.load()
 
 
-def load_env(env_file: Optional[str] = None) -> bool:
+def load_env(env_file: str | None = None) -> bool:
     """Load environment variables from .env file.
 
     Args:
@@ -418,7 +382,7 @@ def load_env(env_file: Optional[str] = None) -> bool:
 
 
 def get_env(
-    key: Union[str, Enum],
+    key: str | Enum,
     default: Any = None,
     cast_type: type = str
 ) -> Any:
@@ -435,7 +399,7 @@ def get_env(
     return EnvManager.get(key, default, cast_type)
 
 
-def set_env(key: Union[str, Enum], value: str) -> None:
+def set_env(key: str | Enum, value: str) -> None:
     """Set environment variable.
 
     Args:

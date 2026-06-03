@@ -4,8 +4,6 @@ import os
 import platformdirs
 import shutil
 from io import TextIOWrapper
-
-from .env import EnvManager
 from pyrox.interfaces import EnvironmentKeys
 
 
@@ -70,6 +68,7 @@ class PlatformDirectoryService:
         Returns:
             str: The name of the application.
         """
+        from pyrox.services.env import EnvManager  # deferred to avoid circular import
         return EnvManager.get(
             EnvironmentKeys.core.APP_NAME,
             'Pyrox Application',
@@ -94,6 +93,7 @@ class PlatformDirectoryService:
         Returns:
             str: The name of the author.
         """
+        from pyrox.services.env import EnvManager  # deferred to avoid circular import
         return EnvManager.get(
             EnvironmentKeys.core.APP_AUTHOR,
             'Pyrox Author',
@@ -307,8 +307,7 @@ def is_file_readable(
         except (IOError, OSError, PermissionError, UnicodeDecodeError) as e:
             print(e)
             return False
-
-    except Exception as e:
+    except (IOError, OSError, TypeError, PermissionError, UnicodeDecodeError) as e:
         print(e)
         return False
 

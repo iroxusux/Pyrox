@@ -61,11 +61,9 @@ from .protocols import (
 
 # Service interfaces
 from .services import (
-    IEnvironmentManager,
-    ILogger,
-    ILoggingManager,
     IHasViewableServiceAttributes,
     ISupportsServiceStatus,
+    IStatusServiceMixin,
 )
 
 # Application interfaces
@@ -120,11 +118,9 @@ __all__ = (
     'IWorkspace',
 
     # Service Interfaces
-    'IEnvironmentManager',
-    'ILogger',
-    'ILoggingManager',
     'IHasViewableServiceAttributes',
     'ISupportsServiceStatus',
+    'IStatusServiceMixin',
 
     # Application Interfaces
     'IApplication',

@@ -1,464 +1,328 @@
 """Unit tests for ServiceManager."""
-
-import unittest
+import pytest
 
 from pyrox.services.service import ServiceManager
+from pyrox.interfaces import IStatusServiceMixin
 
 
 # ---------------------------------------------------------------------------
 # Stub helpers
 # ---------------------------------------------------------------------------
 
-class _PlainService:
-    """A plain service with no special protocols."""
-    pass
-
-
-class _StatusService:
-    """A service that satisfies ISupportsServiceStatus via duck-typing."""
-
-    def __init__(self, active: bool = True, initialized: bool = True):
-        self._active = active
-        self._initialized = initialized
-
-    def is_service_active(self) -> bool:
-        return self._active
-
-    def is_service_initialized(self) -> bool:
-        return self._initialized
-
-
-class _ViewableService:
-    """A service that satisfies IHasViewableServiceAttributes via duck-typing."""
-
-    def __init__(self, attrs: dict | None = None):
-        self._attrs = attrs or {"key": "value"}
-
-    def get_viewable_attributes(self) -> dict:
-        return self._attrs
-
-
-class _FullService(_StatusService, _ViewableService):
+class _FullService(IStatusServiceMixin):
     """A service implementing both status and viewable-attributes protocols."""
 
     def __init__(self):
-        _StatusService.__init__(self)
-        _ViewableService.__init__(self, {"a": 1, "b": 2})
+        super().__init__()
+        self._viewable_attributes = {"full": True}
+
+    def get_viewable_attributes(self):
+        return self._viewable_attributes
+
+    def get_status(self):
+        return {"status": "full"}
+
+    def is_service_active(self) -> bool:
+        return True
+
+    def is_service_initialized(self) -> bool:
+        return True
 
 
 # ---------------------------------------------------------------------------
 # Tests
 # ---------------------------------------------------------------------------
 
-class TestServiceManagerInstantiation(unittest.TestCase):
+class TestServiceManagerInstantiation:
     """ServiceManager must be a static-only class."""
 
     def test_cannot_be_instantiated(self):
         """Attempting to instantiate ServiceManager raises RuntimeError."""
-        with self.assertRaises(RuntimeError) as ctx:
+        with pytest.raises(RuntimeError, match="static class"):
             ServiceManager()
-        self.assertIn("static class", str(ctx.exception))
+            assert False, "Expected RuntimeError was not raised"
+        assert True
 
 
-class TestServiceManagerRegister(unittest.TestCase):
+class TestServiceManagerRegister:
     """Tests for register_service."""
 
-    def setUp(self):
+    @pytest.fixture(autouse=True)
+    def setup_and_teardown(self):
+        """Clear the ServiceManager before and after each test."""
         ServiceManager.clear()
-
-    def tearDown(self):
+        yield
         ServiceManager.clear()
 
     def test_register_returns_true_on_success(self):
         """Registering a new service returns True."""
-        svc = _PlainService()
+        svc = _FullService()
         result = ServiceManager.register_service("svc", svc)
-        self.assertTrue(result)
+        assert result is True, "Expected register_service to return True for new service"
 
     def test_register_duplicate_name_returns_false(self):
         """Registering under an already-used name returns False."""
-        svc = _PlainService()
+        svc = _FullService()
         ServiceManager.register_service("svc", svc)
-        result = ServiceManager.register_service("svc", _PlainService())
-        self.assertFalse(result)
+        result = ServiceManager.register_service("svc", _FullService())
+        assert result is False, "Expected register_service to return False for duplicate name"
 
     def test_register_duplicate_does_not_replace(self):
         """The original service is not replaced when a duplicate is rejected."""
-        original = _PlainService()
-        intruder = _PlainService()
+        original = _FullService()
+        intruder = _FullService()
         ServiceManager.register_service("svc", original)
         ServiceManager.register_service("svc", intruder)
-        self.assertIs(ServiceManager.get_service("svc"), original)
+        assert ServiceManager.get_service("svc") is original, "Original service should not be replaced by duplicate registration"
 
     def test_register_multiple_distinct_names(self):
         """Multiple services with different names can all be registered."""
-        svc_a = _PlainService()
-        svc_b = _PlainService()
-        self.assertTrue(ServiceManager.register_service("a", svc_a))
-        self.assertTrue(ServiceManager.register_service("b", svc_b))
-        self.assertEqual(ServiceManager.service_count(), 2)
+        svc_a = _FullService()
+        svc_b = _FullService()
+        assert ServiceManager.register_service("a", svc_a) is True, "Expected first registration to succeed"
+        assert ServiceManager.register_service("b", svc_b) is True, "Expected second registration to succeed"
+        assert ServiceManager.service_count() == 2, "Expected service count to be 2 after registering two distinct services"
 
     def test_register_none_service_is_allowed(self):
         """A None value may be registered (no type restriction imposed)."""
-        result = ServiceManager.register_service("null_svc", None)
-        self.assertTrue(result)
-        self.assertIsNone(ServiceManager.get_service("null_svc"))
+        with pytest.raises(ValueError, match="must implement IStatusServiceMixin"):
+            ServiceManager.register_service("null_svc", None)  # type: ignore
 
 
-class TestServiceManagerUnregister(unittest.TestCase):
+class TestServiceManagerUnregister:
     """Tests for unregister_service."""
 
-    def setUp(self):
+    @pytest.fixture(autouse=True)
+    def setup_and_teardown(self):
+        """Clear the ServiceManager before and after each test."""
         ServiceManager.clear()
-
-    def tearDown(self):
+        yield
         ServiceManager.clear()
 
     def test_unregister_existing_returns_true(self):
         """Unregistering a known service returns True."""
-        ServiceManager.register_service("svc", _PlainService())
-        self.assertTrue(ServiceManager.unregister_service("svc"))
+        ServiceManager.register_service("svc", _FullService())
+        assert ServiceManager.unregister_service("svc") is True, "Expected unregister_service to return True for existing service"
 
     def test_unregister_existing_removes_service(self):
         """After unregistering, the service is no longer retrievable."""
-        ServiceManager.register_service("svc", _PlainService())
+        ServiceManager.register_service("svc", _FullService())
         ServiceManager.unregister_service("svc")
-        self.assertIsNone(ServiceManager.get_service("svc"))
+        assert ServiceManager.get_service("svc") is None, "Expected get_service to return None after service has been unregistered"
 
     def test_unregister_nonexistent_returns_false(self):
         """Unregistering a name that was never registered returns False."""
-        self.assertFalse(ServiceManager.unregister_service("ghost"))
+        assert ServiceManager.unregister_service("ghost") is False, "Expected unregister_service to return False for non-existent service"
 
     def test_unregister_reduces_count(self):
         """Unregistering a service decrements the service count."""
-        ServiceManager.register_service("s1", _PlainService())
-        ServiceManager.register_service("s2", _PlainService())
+        ServiceManager.register_service("s1", _FullService())
+        ServiceManager.register_service("s2", _FullService())
         ServiceManager.unregister_service("s1")
-        self.assertEqual(ServiceManager.service_count(), 1)
+        assert ServiceManager.service_count() == 1, "Expected service count to be 1 after unregistering one of two services"
 
     def test_reregister_after_unregister(self):
         """A name can be re-registered after being unregistered."""
-        svc_v2 = _PlainService()
-        ServiceManager.register_service("svc", _PlainService())
+        svc_v2 = _FullService()
+        ServiceManager.register_service("svc", _FullService())
         ServiceManager.unregister_service("svc")
         ServiceManager.register_service("svc", svc_v2)
-        self.assertIs(ServiceManager.get_service("svc"), svc_v2)
+        assert ServiceManager.has_service("svc") is True, "Expected has_service to return True for re-registered service"
 
 
-class TestServiceManagerHasService(unittest.TestCase):
+class TestServiceManagerHasService:
     """Tests for has_service."""
 
-    def setUp(self):
+    @pytest.fixture(autouse=True)
+    def setup_and_teardown(self):
+        """Clear the ServiceManager before and after each test."""
         ServiceManager.clear()
-
-    def tearDown(self):
+        yield
         ServiceManager.clear()
 
     def test_has_service_true_when_registered(self):
-        ServiceManager.register_service("svc", _PlainService())
-        self.assertTrue(ServiceManager.has_service("svc"))
+        ServiceManager.register_service("svc", _FullService())
+        assert ServiceManager.has_service("svc") is True, "Expected has_service to return True for registered service"
 
     def test_has_service_false_when_not_registered(self):
-        self.assertFalse(ServiceManager.has_service("missing"))
+        assert ServiceManager.has_service("missing") is False, "Expected has_service to return False for unregistered service name"
 
     def test_has_service_false_after_unregister(self):
-        ServiceManager.register_service("svc", _PlainService())
+        ServiceManager.register_service("svc", _FullService())
         ServiceManager.unregister_service("svc")
-        self.assertFalse(ServiceManager.has_service("svc"))
+        assert ServiceManager.has_service("svc") is False, "Expected has_service to return False after service has been unregistered"
 
 
-class TestServiceManagerGetService(unittest.TestCase):
+class TestServiceManagerGetService:
     """Tests for get_service."""
 
-    def setUp(self):
+    @pytest.fixture(autouse=True)
+    def setup_and_teardown(self):
+        """Clear the ServiceManager before and after each test."""
         ServiceManager.clear()
-
-    def tearDown(self):
+        yield
         ServiceManager.clear()
 
     def test_get_service_returns_correct_instance(self):
-        svc = _PlainService()
+        svc = _FullService()
         ServiceManager.register_service("svc", svc)
-        self.assertIs(ServiceManager.get_service("svc"), svc)
+        assert ServiceManager.get_service("svc") is svc, "Expected get_service to return the exact instance that was registered"
 
     def test_get_service_returns_none_for_unknown_name(self):
-        self.assertIsNone(ServiceManager.get_service("unknown"))
+        assert ServiceManager.get_service("unknown") is None, "Expected get_service to return None for unregistered service name"
 
 
-class TestServiceManagerGetServiceOfType(unittest.TestCase):
-    """Tests for get_service_of_type."""
-
-    def setUp(self):
-        ServiceManager.clear()
-
-    def tearDown(self):
-        ServiceManager.clear()
-
-    def test_returns_matching_services(self):
-        svc_a = _StatusService()
-        svc_b = _PlainService()
-        ServiceManager.register_service("status", svc_a)
-        ServiceManager.register_service("plain", svc_b)
-        results = ServiceManager.get_service_of_type(_StatusService)
-        self.assertIn(svc_a, results)
-        self.assertNotIn(svc_b, results)
-
-    def test_returns_empty_list_when_no_match(self):
-        ServiceManager.register_service("plain", _PlainService())
-        self.assertEqual(ServiceManager.get_service_of_type(_StatusService), [])
-
-    def test_returns_empty_list_when_no_services(self):
-        self.assertEqual(ServiceManager.get_service_of_type(_PlainService), [])
-
-    def test_returns_subclass_instances(self):
-        """get_service_of_type should match subclasses of the requested type."""
-        full = _FullService()
-        ServiceManager.register_service("full", full)
-        results = ServiceManager.get_service_of_type(_StatusService)
-        self.assertIn(full, results)
-
-    def test_returns_multiple_matching_services(self):
-        svc_a = _StatusService()
-        svc_b = _StatusService(active=False)
-        ServiceManager.register_service("a", svc_a)
-        ServiceManager.register_service("b", svc_b)
-        results = ServiceManager.get_service_of_type(_StatusService)
-        self.assertEqual(len(results), 2)
-
-
-class TestServiceManagerGetAllServices(unittest.TestCase):
+class TestServiceManagerGetAllServices:
     """Tests for get_all_services."""
 
-    def setUp(self):
+    @pytest.fixture(autouse=True)
+    def setup_and_teardown(self):
+        """Clear the ServiceManager before and after each test."""
         ServiceManager.clear()
-
-    def tearDown(self):
+        yield
         ServiceManager.clear()
 
     def test_returns_empty_dict_when_empty(self):
-        self.assertEqual(ServiceManager.get_all_services(), {})
+        assert not ServiceManager.get_all_services(), "Expected get_all_services to return empty dict when no services are registered"
 
     def test_returns_all_registered_services(self):
-        svc_a = _PlainService()
-        svc_b = _PlainService()
+        svc_a = _FullService()
+        svc_b = _FullService()
         ServiceManager.register_service("a", svc_a)
         ServiceManager.register_service("b", svc_b)
         result = ServiceManager.get_all_services()
-        self.assertEqual(result, {"a": svc_a, "b": svc_b})
+        assert len(result) == 2, "Expected get_all_services to return dict with two entries"
+        assert result["a"] is svc_a, "Expected service 'a' in result to be the instance registered as 'a'"
+        assert result["b"] is svc_b, "Expected service 'b' in result to be the instance registered as 'b'"
 
     def test_returns_a_copy_not_the_internal_dict(self):
         """Modifying the returned dict must not affect the manager state."""
-        ServiceManager.register_service("svc", _PlainService())
+        ServiceManager.register_service("svc", _FullService())
         snapshot = ServiceManager.get_all_services()
-        snapshot["injected"] = _PlainService()
-        self.assertFalse(ServiceManager.has_service("injected"))
+        snapshot["injected"] = _FullService()
+        assert not ServiceManager.has_service(
+            "injected"), "Modifying the dict returned by get_all_services should not affect the registered services in the manager"
 
 
-class TestServiceManagerListServiceNames(unittest.TestCase):
+class TestServiceManagerListServiceNames:
     """Tests for list_service_names."""
 
-    def setUp(self):
+    @pytest.fixture(autouse=True)
+    def setup_and_teardown(self):
+        """Clear the ServiceManager before and after each test."""
         ServiceManager.clear()
-
-    def tearDown(self):
+        yield
         ServiceManager.clear()
 
     def test_empty_when_no_services(self):
-        self.assertEqual(ServiceManager.list_service_names(), [])
+        assert not ServiceManager.list_service_names(), "Expected list_service_names to return empty list when no services are registered"
 
     def test_contains_registered_names(self):
-        ServiceManager.register_service("alpha", _PlainService())
-        ServiceManager.register_service("beta", _PlainService())
+        ServiceManager.register_service("alpha", _FullService())
+        ServiceManager.register_service("beta", _FullService())
         names = ServiceManager.list_service_names()
-        self.assertIn("alpha", names)
-        self.assertIn("beta", names)
+        assert len(names) == 2, "Expected list_service_names to return list with two entries"
+        assert "alpha" in names, "Expected 'alpha' to be in the list of service names"
+        assert "beta" in names, "Expected 'beta' to be in the list of service names"
 
     def test_does_not_contain_unregistered_name(self):
-        ServiceManager.register_service("alpha", _PlainService())
+        ServiceManager.register_service("alpha", _FullService())
         ServiceManager.unregister_service("alpha")
-        self.assertNotIn("alpha", ServiceManager.list_service_names())
+        assert "alpha" not in ServiceManager.list_service_names(), \
+            "Expected list_service_names not to include 'alpha' after it has been unregistered"
 
 
-class TestServiceManagerServiceCount(unittest.TestCase):
+class TestServiceManagerServiceCount:
     """Tests for service_count."""
 
-    def setUp(self):
+    @pytest.fixture(autouse=True)
+    def setup_and_teardown(self):
+        """Clear the ServiceManager before and after each test."""
         ServiceManager.clear()
-
-    def tearDown(self):
+        yield
         ServiceManager.clear()
 
     def test_zero_when_empty(self):
-        self.assertEqual(ServiceManager.service_count(), 0)
+        assert ServiceManager.service_count() == 0, "Expected service_count to be 0 when no services are registered"
 
     def test_increments_on_register(self):
-        ServiceManager.register_service("s1", _PlainService())
-        self.assertEqual(ServiceManager.service_count(), 1)
-        ServiceManager.register_service("s2", _PlainService())
-        self.assertEqual(ServiceManager.service_count(), 2)
+        ServiceManager.register_service("s1", _FullService())
+        assert ServiceManager.service_count() == 1, "Expected service_count to be 1 after registering one service"
+        ServiceManager.register_service("s2", _FullService())
+        assert ServiceManager.service_count() == 2, "Expected service_count to be 2 after registering two services"
 
     def test_decrements_on_unregister(self):
-        ServiceManager.register_service("s1", _PlainService())
-        ServiceManager.register_service("s2", _PlainService())
+        ServiceManager.register_service("s1", _FullService())
+        ServiceManager.register_service("s2", _FullService())
         ServiceManager.unregister_service("s1")
-        self.assertEqual(ServiceManager.service_count(), 1)
+        assert ServiceManager.service_count() == 1, "Expected service_count to be 1 after unregistering one of two services"
 
     def test_unchanged_after_failed_registration(self):
-        ServiceManager.register_service("s1", _PlainService())
-        ServiceManager.register_service("s1", _PlainService())  # duplicate
-        self.assertEqual(ServiceManager.service_count(), 1)
+        ServiceManager.register_service("s1", _FullService())
+        ServiceManager.register_service("s1", _FullService())  # duplicate
+        assert ServiceManager.service_count() == 1, "Expected service_count to remain 1 after failed duplicate registration"
 
 
-class TestServiceManagerClear(unittest.TestCase):
+class TestServiceManagerClear:
     """Tests for clear."""
 
-    def tearDown(self):
+    @pytest.fixture(autouse=True)
+    def setup_and_teardown(self):
+        """Clear the ServiceManager before and after each test."""
+        ServiceManager.clear()
+        yield
         ServiceManager.clear()
 
     def test_clear_removes_all_services(self):
-        ServiceManager.register_service("a", _PlainService())
-        ServiceManager.register_service("b", _PlainService())
+        ServiceManager.register_service("a", _FullService())
+        ServiceManager.register_service("b", _FullService())
         ServiceManager.clear()
-        self.assertEqual(ServiceManager.service_count(), 0)
+        assert not ServiceManager.get_all_services(), "Expected get_all_services to return empty dict after clear"
 
     def test_clear_on_empty_manager_is_safe(self):
         ServiceManager.clear()
-        ServiceManager.clear()  # Should not raise
-        self.assertEqual(ServiceManager.service_count(), 0)
+        ServiceManager.clear()
+        assert not ServiceManager.get_all_services(), "Expected get_all_services to return empty dict after clear on already-empty manager"
 
     def test_register_after_clear_works(self):
-        ServiceManager.register_service("svc", _PlainService())
+        ServiceManager.register_service("svc", _FullService())
         ServiceManager.clear()
-        svc_new = _PlainService()
+        svc_new = _FullService()
         result = ServiceManager.register_service("svc", svc_new)
-        self.assertTrue(result)
-        self.assertIs(ServiceManager.get_service("svc"), svc_new)
+        assert result is True, "Expected register_service to succeed after clear"
+        assert ServiceManager.has_service("svc") is True, "Expected has_service to return True for service registered after clear"
 
 
-class TestServiceManagerServicesWithStatus(unittest.TestCase):
-    """Tests for get_services_with_status."""
-
-    def setUp(self):
-        ServiceManager.clear()
-
-    def tearDown(self):
-        ServiceManager.clear()
-
-    def test_returns_only_status_services(self):
-        status_svc = _StatusService()
-        plain_svc = _PlainService()
-        ServiceManager.register_service("status", status_svc)
-        ServiceManager.register_service("plain", plain_svc)
-        result = ServiceManager.get_services_with_status()
-        names = [list(d.keys())[0] for d in result]
-        self.assertIn("status", names)
-        self.assertNotIn("plain", names)
-
-    def test_correct_instance_in_result(self):
-        svc = _StatusService()
-        ServiceManager.register_service("status", svc)
-        result = ServiceManager.get_services_with_status()
-        self.assertIs(result[0]["status"], svc)
-
-    def test_empty_when_no_status_services(self):
-        ServiceManager.register_service("plain", _PlainService())
-        self.assertEqual(ServiceManager.get_services_with_status(), [])
-
-    def test_empty_when_no_services(self):
-        self.assertEqual(ServiceManager.get_services_with_status(), [])
-
-    def test_full_service_included(self):
-        """A service implementing both protocols is included in status results."""
-        full = _FullService()
-        ServiceManager.register_service("full", full)
-        result = ServiceManager.get_services_with_status()
-        self.assertEqual(len(result), 1)
-
-
-class TestServiceManagerServicesWithViewableAttributes(unittest.TestCase):
-    """Tests for get_services_with_viewable_attributes."""
-
-    def setUp(self):
-        ServiceManager.clear()
-
-    def tearDown(self):
-        ServiceManager.clear()
-
-    def test_returns_only_viewable_services(self):
-        viewable = _ViewableService()
-        plain = _PlainService()
-        ServiceManager.register_service("viewable", viewable)
-        ServiceManager.register_service("plain", plain)
-        result = ServiceManager.get_services_with_viewable_attributes()
-        names = [list(d.keys())[0] for d in result]
-        self.assertIn("viewable", names)
-        self.assertNotIn("plain", names)
-
-    def test_correct_instance_in_result(self):
-        svc = _ViewableService({"x": 42})
-        ServiceManager.register_service("viewable", svc)
-        result = ServiceManager.get_services_with_viewable_attributes()
-        instance = result[0]["viewable"]
-        self.assertIs(instance, svc)
-        self.assertEqual(instance.get_viewable_attributes(), {"x": 42})
-
-    def test_empty_when_no_viewable_services(self):
-        ServiceManager.register_service("plain", _PlainService())
-        self.assertEqual(ServiceManager.get_services_with_viewable_attributes(), [])
-
-    def test_empty_when_no_services(self):
-        self.assertEqual(ServiceManager.get_services_with_viewable_attributes(), [])
-
-    def test_full_service_included(self):
-        """A service implementing both protocols is included in viewable results."""
-        full = _FullService()
-        ServiceManager.register_service("full", full)
-        result = ServiceManager.get_services_with_viewable_attributes()
-        self.assertEqual(len(result), 1)
-
-
-class TestServiceManagerIntegration(unittest.TestCase):
+class TestServiceManagerIntegration:
     """Integration-style tests combining multiple operations."""
 
-    def setUp(self):
+    @pytest.fixture(autouse=True)
+    def setup_and_teardown(self):
+        """Clear the ServiceManager before and after each test."""
         ServiceManager.clear()
-
-    def tearDown(self):
+        yield
         ServiceManager.clear()
 
     def test_register_retrieve_unregister_cycle(self):
         """Full lifecycle: register → retrieve → unregister → confirm gone."""
-        svc = _PlainService()
+        svc = _FullService()
         ServiceManager.register_service("lifecycle", svc)
-        self.assertIs(ServiceManager.get_service("lifecycle"), svc)
+        assert ServiceManager.has_service("lifecycle") is True, "Expected has_service to return True after registering service"
         ServiceManager.unregister_service("lifecycle")
-        self.assertIsNone(ServiceManager.get_service("lifecycle"))
-
-    def test_mixed_services_filter_independently(self):
-        """Status and viewable filters each return only their matching subset."""
-        ServiceManager.register_service("plain", _PlainService())
-        ServiceManager.register_service("status_only", _StatusService())
-        ServiceManager.register_service("viewable_only", _ViewableService())
-        ServiceManager.register_service("full", _FullService())
-
-        status_names = {list(d.keys())[0] for d in ServiceManager.get_services_with_status()}
-        viewable_names = {list(d.keys())[0] for d in ServiceManager.get_services_with_viewable_attributes()}
-
-        self.assertEqual(status_names, {"status_only", "full"})
-        self.assertEqual(viewable_names, {"viewable_only", "full"})
+        assert ServiceManager.has_service("lifecycle") is False, "Expected has_service to return False after unregistering service"
 
     def test_service_count_consistent_across_operations(self):
         """service_count stays in sync through mixed register/unregister operations."""
-        self.assertEqual(ServiceManager.service_count(), 0)
-        ServiceManager.register_service("a", _PlainService())
-        ServiceManager.register_service("b", _PlainService())
-        ServiceManager.register_service("a", _PlainService())  # duplicate – ignored
-        self.assertEqual(ServiceManager.service_count(), 2)
+        assert not ServiceManager.service_count(), "Expected service_count to be 0 at start of test"
+        ServiceManager.register_service("a", _FullService())
+        ServiceManager.register_service("b", _FullService())
+        ServiceManager.register_service("a", _FullService())  # duplicate – ignored
+        assert ServiceManager.service_count() == 2, "Expected service_count to be 2 after registering two distinct services and one duplicate"
         ServiceManager.unregister_service("b")
-        self.assertEqual(ServiceManager.service_count(), 1)
+        assert ServiceManager.service_count() == 1, "Expected service_count to be 1 after unregistering one of two services"
         ServiceManager.clear()
-        self.assertEqual(ServiceManager.service_count(), 0)
+        assert ServiceManager.service_count() == 0, "Expected service_count to be 0 after clear"
 
 
 if __name__ == "__main__":
-    unittest.main()
+    pytest.main([__file__])

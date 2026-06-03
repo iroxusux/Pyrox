@@ -1,11 +1,10 @@
 """Logging module for pyrox applications.
 """
-from __future__ import annotations
 import logging
 import sys
 import io
-from typing import Optional, TextIO
-from pyrox.interfaces import EnvironmentKeys
+from typing import Any, TextIO
+from pyrox.interfaces import EnvironmentKeys, IStatusServiceMixin
 from pyrox.services import EnvManager, get_default_date_format, get_default_formatter
 from pyrox.services import ServiceManager
 
@@ -79,7 +78,7 @@ class PyroxHandler(logging.StreamHandler):
 class StreamCapture(io.StringIO):
     """A StringIO subclass that captures stream output and maintains readability."""
 
-    def __init__(self, original_stream: Optional[TextIO] = None):
+    def __init__(self, original_stream: TextIO | None = None):
         super().__init__()
         self.original_stream = original_stream
         self._lines = []
@@ -157,21 +156,40 @@ class StreamCapture(io.StringIO):
             yield line
 
 
-class LoggingManager:
+class LoggingManager(IStatusServiceMixin):
     """A Logging manager for the pyrox application environment."""
 
     curr_logging_level = logging.DEBUG
     _curr_loggers = {}
 
     # Stream capture attributes
-    _original_stdout: Optional[TextIO] = None
-    _original_stderr: Optional[TextIO] = None
-    _captured_stdout: Optional[StreamCapture] = None
-    _captured_stderr: Optional[StreamCapture] = None
+    _original_stdout: TextIO | None = None
+    _original_stderr: TextIO | None = None
+    _captured_stdout: StreamCapture | None = None
+    _captured_stderr: StreamCapture | None = None
     _streams_captured = False
 
+    # ----------------------------------------------------------------------------------
+    # IStatusServiceMixin implementation
+    # ----------------------------------------------------------------------------------
+
+    def is_service_active(self) -> bool:
+        """Check if the environment service is active (i.e., .env file loaded)."""
+        return self._streams_captured
+
+    def is_service_initialized(self) -> bool:
+        """Check if the environment service has been initialized (i.e., .env file loaded)."""
+        return self._streams_captured
+
+    def get_viewable_attributes(self) -> dict[str, Any]:
+        """Get viewable attributes for the environment service."""
+        return {
+            'curr_logging_level': self.curr_logging_level,
+            'streams_captured': self._streams_captured,
+        }
+
     @classmethod
-    def capture_system_streams(cls) -> tuple[Optional[StreamCapture], Optional[StreamCapture]]:
+    def capture_system_streams(cls) -> tuple[StreamCapture | None, StreamCapture | None]:
         """Capture sys.stdout and sys.stderr at application boot.
 
         Returns:
@@ -210,12 +228,12 @@ class LoggingManager:
         cls._streams_captured = False
 
     @classmethod
-    def get_captured_stdout(cls) -> Optional[StreamCapture]:
+    def get_captured_stdout(cls) -> StreamCapture | None:
         """Get the captured stdout stream."""
         return cls._captured_stdout
 
     @classmethod
-    def get_captured_stderr(cls) -> Optional[StreamCapture]:
+    def get_captured_stderr(cls) -> StreamCapture | None:
         """Get the captured stderr stream."""
         return cls._captured_stderr
 
@@ -227,7 +245,7 @@ class LoggingManager:
         return cls._captured_stderr
 
     @classmethod
-    def get_captured_streams(cls) -> list[Optional[StreamCapture]]:
+    def get_captured_streams(cls) -> list[StreamCapture | None]:
         """Get both captured stdout and stderr streams."""
         return [cls._captured_stdout, cls._captured_stderr]
 
@@ -312,7 +330,6 @@ class LoggingManager:
     @classmethod
     def initialize_logging_level_from_env(cls):
         """Initialize logging level from environment variable."""
-        from pyrox.services.env import EnvManager
         log_level = EnvManager.get(
             EnvironmentKeys.logging.LOG_LEVEL,
             None
@@ -353,7 +370,7 @@ class LoggingManager:
             cls._captured_stderr.register_callback(callback)
 
     @classmethod
-    def _create_logger(cls, name: Optional[str] = None) -> logging.Logger:
+    def _create_logger(cls, name: str | None = None) -> logging.Logger:
         """Create a logger that outputs to the captured stderr."""
         name = name or __name__
         cls._curr_loggers[name] = cls._setup_standard_logger(name=name)
@@ -414,7 +431,7 @@ class LoggingManager:
         return handler
 
     @classmethod
-    def _setup_standard_logger(cls, name: Optional[str] = None) -> logging.Logger:
+    def _setup_standard_logger(cls, name: str | None = None) -> logging.Logger:
         """Get a standard logger with the specified name.
 
         Args:
@@ -479,7 +496,7 @@ class LoggingManager:
     @classmethod
     def log(
         cls,
-        caller: Optional[object] = None,
+        caller: object | None = None,
     ) -> logging.Logger:
         """Get a logger for the specified caller.
 
@@ -524,7 +541,7 @@ class LoggingManager:
         print(f"Logging level set to {log_level}")
 
 
-def log(caller: Optional[object] = None) -> logging.Logger:
+def log(caller: object | None = None) -> logging.Logger:
     """Get a logger for the specified caller.
 
     Args:
