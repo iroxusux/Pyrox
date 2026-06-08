@@ -27,6 +27,7 @@ _DEFAULT_STATE: dict[str, Any] = {
     'y': None,
     'window_state': 'normal',   # 'normal' | 'zoomed' | 'iconic'
     'fullscreen': False,
+    'geometry': {},  # Optional additional geometry state (e.g. sidebar visibility)
 }
 
 

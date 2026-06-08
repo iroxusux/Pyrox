@@ -83,13 +83,13 @@ class ApplicationTask(
     # Public Methods
     # --------------------------------------------------------------
 
-    def create_task_frame(self) -> TaskFrame:
+    def create_task_frame(self) -> TaskFrame | None:
         """Create the task's frame.
 
         Returns:
             PyQt6TaskFrame: The created task frame instance.
         """
-        raise NotImplementedError("create_task_frame method must be implemented by subclass.")
+        return None
 
     def create_or_raise_frame(self):
         """Create the task's frame if it doesn't exist, or raise it if it does.

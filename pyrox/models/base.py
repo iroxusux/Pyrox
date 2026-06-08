@@ -12,6 +12,7 @@ from pyrox.interfaces import (
     IBuildable,
     IRunnable,
     IHasDictMetaData,
+    IHasFileLocation,
 )
 
 
@@ -266,7 +267,6 @@ class Refreshable(IRefreshable):
         This method should be overridden by subclasses to implement
         specific refresh behavior.
         """
-        ...
 
 
 class Resettable(IResettable):
@@ -282,7 +282,6 @@ class Resettable(IResettable):
         This method should be overridden by subclasses to implement
         specific reset behavior.
         """
-        ...
 
 
 class Buildable(IBuildable):
@@ -404,17 +403,21 @@ class CoreRunnableMixin(
 
     def __init__(
         self,
+        id_: str = "",
         name: str = "",
-        description: str = ""
+        description: str = "",
+        **kwargs
     ):
 
         super().__init__(
+            id_=id_,
             name=name,
-            description=description
+            description=description,
+            **kwargs
         )
 
 
-class HasFileLocation:  # TODO: Note, this is a proper implimentation, not a protocol. Use as reference for protocol implementation.
+class HasFileLocation(IHasFileLocation):
     """Denotes object supports file location access.
 
     This class provides a foundation for objects that have an associated
@@ -471,14 +474,14 @@ class HasMetaDictData(IHasDictMetaData):
 
     def __init__(
         self,
-        meta_data: dict[str, object] | None = None
+        meta_data: dict | None = None
     ):
         if meta_data is not None:
-            self._meta_data: dict[str, object] = meta_data
+            self._meta_data: dict = meta_data
         else:
-            self._meta_data: dict[str, object] = {}
+            self._meta_data: dict = {}
 
-    def get_meta_data(self) -> dict[str, object]:
+    def get_meta_data(self) -> dict:
         """Get the meta data of this object.
 
         Returns:
@@ -486,7 +489,7 @@ class HasMetaDictData(IHasDictMetaData):
         """
         return self._meta_data
 
-    def set_meta_data(self, meta_data: dict[str, object]) -> None:
+    def set_meta_data(self, meta_data: dict) -> None:
         """Set the meta data of this object.
 
         Args:
@@ -495,12 +498,12 @@ class HasMetaDictData(IHasDictMetaData):
         self._meta_data = meta_data
 
     @property
-    def meta_data(self) -> dict[str, object]:
+    def meta_data(self) -> dict:
         """Get the meta data of this object."""
         return self.get_meta_data()
 
     @meta_data.setter
-    def meta_data(self, meta_data: dict[str, object]) -> None:
+    def meta_data(self, meta_data: dict) -> None:
         """Set the meta data of this object."""
         self.set_meta_data(meta_data)
 

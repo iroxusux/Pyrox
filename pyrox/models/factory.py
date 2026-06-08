@@ -141,12 +141,12 @@ class MetaFactory:
             raise ValueError('supporting_class must be a string, type, or an object instance.')
         if isinstance(supporting_class, type):
             compare = supporting_class.__name__
-        elif isinstance(supporting_class, object) and not isinstance(supporting_class, str):
-            compare = supporting_class.__class__.__name__
-        elif isinstance(supporting_class, type):
-            compare = supporting_class.__name__
         elif isinstance(supporting_class, str):
             compare = supporting_class
+        elif isinstance(supporting_class, type):
+            compare = supporting_class.__name__
+        elif isinstance(supporting_class, object):
+            compare = supporting_class.__class__.__name__
         else:
             raise RuntimeError('Unreachable code reached in get_registered_type_by_supporting_class.')
 

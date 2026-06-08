@@ -12,6 +12,7 @@ from .base import (
     IAuthored,
     IVersioned,
 )
+from .gui import IWorkspace, ITaskFrame
 
 
 class IApplicationTask(
@@ -44,6 +45,9 @@ class IApplicationTask(
         self,
         application: 'IApplication'
     ) -> None: ...
+
+    @abstractmethod
+    def create_task_frame(self) -> ITaskFrame | None: ...
 
 
 class IApplication(
@@ -90,6 +94,22 @@ class IApplication(
     @property
     @abstractmethod
     def tasks(self) -> list[IApplicationTask]: ...
+
+    # ----------------------------------------------------------------------------------
+    # Workspace
+    # ----------------------------------------------------------------------------------
+
+    @abstractmethod
+    def get_workspace(self) -> IWorkspace: ...
+
+    @abstractmethod
+    def set_workspace(
+        self,
+        workspace: IWorkspace
+    ) -> None: ...
+
+    @property
+    def workspace(self) -> IWorkspace: ...
 
     # ----------------------------------------------------------------------------------
     # Delegation
