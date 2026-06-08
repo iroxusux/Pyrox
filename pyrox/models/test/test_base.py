@@ -146,7 +146,7 @@ class TestHasId:
 
     def test_id_property(self):
         obj = HasId(id_="property-id")
-        assert obj.id == "property-id"
+        assert obj.id_ == "property-id"
 
 
 class TestNameable:
@@ -369,7 +369,7 @@ class TestCoreMixin:
 
     def test_properties_access(self):
         obj = CoreMixin(id_="prop-id", name="Prop Name", description="Prop Desc")
-        assert obj.id == "prop-id"
+        assert obj.id_ == "prop-id"
         assert obj.name == "Prop Name"
         assert obj.description == "Prop Desc"
 

@@ -165,7 +165,7 @@ class HasId(IHasId):
         self._id = id_
 
     @property
-    def id(self) -> str:
+    def id_(self) -> str:
         """Get the ID of this object."""
         return self.get_id()
 
