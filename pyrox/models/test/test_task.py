@@ -376,7 +376,7 @@ class TestApplicationTask(unittest.TestCase):
         with patch.object(task, 'create_task_frame', return_value=mock_frame):
             task.create_or_raise_frame()
 
-        mock_frame.on_destroy().append.assert_called_once_with(task._frame_destroy_callback)
+        mock_frame.on_teardown().append.assert_called_once_with(task._frame_destroy_callback)
 
     def test_create_or_raise_frame_raises_alive_frame(self):
         """create_or_raise_frame raises an existing alive frame instead of creating a new one."""

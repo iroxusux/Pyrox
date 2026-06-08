@@ -558,8 +558,8 @@ class Workspace(QWidget):
         def _destroy_func(f: TaskFrame) -> None:
             self._unregister_workspace_frame(f)
 
-        if _destroy_func not in frame.on_destroy():
-            frame.on_destroy().append(lambda f: _destroy_func(f))
+        if _destroy_func not in frame.on_teardown():
+            frame.on_teardown().append(lambda f: _destroy_func(f))
 
         self._register_frame_to_view_menu(frame)
 
@@ -900,7 +900,7 @@ class Workspace(QWidget):
 
         elif widget_id in self._workspace_frames:
             frame = self._workspace_frames.pop(widget_id)
-            frame.destroy()
+            frame.teardown()
             removed = True
 
         if removed:
@@ -1052,7 +1052,7 @@ class Workspace(QWidget):
     @property
     def sidebar_organizer(self) -> _SidebarTabWidget:
         """The sidebar QTabWidget."""
-        if not self._sidebar_organizer:
+        if self._sidebar_organizer is None:
             raise RuntimeError("Sidebar organizer not initialized")
         return self._sidebar_organizer
 
@@ -1192,13 +1192,13 @@ def create_demo_window():  # -> QMainWindow
         def set_shown(self, value: bool) -> None:
             self._shown = value
 
-        def on_destroy(self) -> list:
+        def on_teardown(self) -> list:
             return self._on_destroy
 
         def build(self) -> None:
             pass
 
-        def destroy(self) -> None:
+        def teardown(self) -> None:
             self._root.deleteLater()
 
     # ------------------------------------------------------------------ #

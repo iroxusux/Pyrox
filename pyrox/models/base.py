@@ -1,6 +1,5 @@
 """Protocol implementations for common object behaviors.
 """
-from typing import Any, Optional
 from pyrox.interfaces import (
     IConfigurable,
     IAuthored,
@@ -12,8 +11,6 @@ from pyrox.interfaces import (
     IResettable,
     IBuildable,
     IRunnable,
-    ICoreMixin,
-    ICoreRunnableMixin,
     IHasDictMetaData,
 )
 
@@ -27,17 +24,19 @@ class Configurable(IConfigurable):
 
     def __init__(
         self,
-        config: Optional[dict[str, Any]] = None
+        config: dict[str, object] | None = None,
+        **kwargs
     ):
         if config is not None:
-            self._config: dict[str, Any] = config
+            self._config: dict[str, object] = config
         else:
-            self._config: dict[str, Any] = dict()
+            self._config: dict[str, object] = dict()
+        super().__init__(**kwargs)
 
     def configure(self, config: dict) -> None:
         pass
 
-    def get_config(self) -> dict[str, Any]:
+    def get_config(self) -> dict[str, object]:
         """Get the configuration of this object.
 
         Returns:
@@ -45,13 +44,18 @@ class Configurable(IConfigurable):
         """
         return self._config
 
-    def set_config(self, config: dict[str, Any]) -> None:
+    def set_config(self, config: dict[str, object]) -> None:
         """Set the configuration of this object.
 
         Args:
             config (dict): The configuration to set.
         """
         self._config = config
+
+    @property
+    def config(self) -> dict:
+        """Get the configuration of this object."""
+        return self.get_config()
 
 
 class Authored(IAuthored):
@@ -63,9 +67,11 @@ class Authored(IAuthored):
 
     def __init__(
         self,
-        author: str = ""
+        author: str = "",
+        **kwargs
     ) -> None:
         self._author: str = author
+        super().__init__(**kwargs)
 
     def get_author(self) -> str:
         """Get the author of this object.
@@ -83,6 +89,11 @@ class Authored(IAuthored):
         """
         self._author = author
 
+    @property
+    def author(self) -> str:
+        """Get the author of this object."""
+        return self.get_author()
+
 
 class Versioned(IVersioned):
     """Denotes object is 'versioned' and supports getting version information.
@@ -93,9 +104,11 @@ class Versioned(IVersioned):
 
     def __init__(
         self,
-        version: str = ""
+        version: str = "",
+        **kwargs
     ) -> None:
         self._version: str = version
+        super().__init__(**kwargs)
 
     def get_version(self) -> str:
         """Get the version of this object.
@@ -113,6 +126,11 @@ class Versioned(IVersioned):
         """
         self._version = version
 
+    @property
+    def version(self) -> str:
+        """Get the version of this object."""
+        return self.get_version()
+
 
 class HasId(IHasId):
     """Denotes object has an identifier.
@@ -123,9 +141,11 @@ class HasId(IHasId):
 
     def __init__(
         self,
-        id: str = ""
+        id_: str = "",
+        **kwargs
     ):
-        self._id: str = id
+        self._id: str = id_
+        super().__init__(**kwargs)
 
     def get_id(self) -> str:
         """Get the ID of this object.
@@ -135,13 +155,18 @@ class HasId(IHasId):
         """
         return self._id
 
-    def set_id(self, id: str) -> None:
+    def set_id(self, id_: str) -> None:
         """Set the ID of this object.
 
         Args:
             id (str): The ID to set.
         """
-        self._id = id
+        self._id = id_
+
+    @property
+    def id(self) -> str:
+        """Get the ID of this object."""
+        return self.get_id()
 
 
 class Nameable(INameable):
@@ -153,9 +178,11 @@ class Nameable(INameable):
 
     def __init__(
         self,
-        name: str = ""
+        name: str = "",
+        **kwargs
     ):
         self._name: str = name
+        super().__init__(**kwargs)
 
     def get_name(self) -> str:
         """Get the name of this object.
@@ -173,6 +200,16 @@ class Nameable(INameable):
         """
         self._name = name
 
+    @property
+    def name(self) -> str:
+        """Get the name of this object."""
+        return self.get_name()
+
+    @name.setter
+    def name(self, name: str) -> None:
+        """Set the name of this object."""
+        self.set_name(name)
+
 
 class Describable(IDescribable):
     """Denotes object is 'describable' and supports getting and setting description.
@@ -183,9 +220,11 @@ class Describable(IDescribable):
 
     def __init__(
         self,
-        description: str = ""
+        description: str = "",
+        **kwargs
     ):
         self._description: str = description
+        super().__init__(**kwargs)
 
     def get_description(self) -> str:
         """Get the description of this object.
@@ -202,6 +241,16 @@ class Describable(IDescribable):
             description (str): The description to set.
         """
         self._description = description
+
+    @property
+    def description(self) -> str:
+        """Get the description of this object."""
+        return self.get_description()
+
+    @description.setter
+    def description(self, description: str) -> None:
+        """Set the description of this object."""
+        self.set_description(description)
 
 
 class Refreshable(IRefreshable):
@@ -247,8 +296,9 @@ class Buildable(IBuildable):
         built: Whether the object has previously been built.
     """
 
-    def __init__(self):
+    def __init__(self, **kwargs):
         self._built: bool = False
+        super().__init__(**kwargs)
 
     def build(self) -> None:
         """Build this object."""
@@ -264,7 +314,6 @@ class Buildable(IBuildable):
         This method should be overridden by subclasses to implement
         specific refresh behavior.
         """
-        ...
 
     def is_built(self) -> bool:
         """Check if the object is built.
@@ -273,6 +322,11 @@ class Buildable(IBuildable):
             bool: True if built, False otherwise.
         """
         return self._built
+
+    @property
+    def built(self) -> bool:
+        """Get whether the object is built."""
+        return self.is_built()
 
 
 class Runnable(IRunnable):
@@ -286,13 +340,18 @@ class Runnable(IRunnable):
         running: Whether the object is currently in a running state.
     """
 
-    def __init__(self):
+    def __init__(self, **kwargs):
         self._running: bool = False
+        super().__init__(**kwargs)
 
     def run(self) -> int:
         """Start this object."""
         self._running = True
         return 0
+
+    def quit(self, exit_code: int = 0) -> None:
+        """Quit this object."""
+        self.stop(exit_code)
 
     def stop(self, stop_code: int = 0) -> None:
         """Stop this object."""
@@ -306,9 +365,13 @@ class Runnable(IRunnable):
         """
         return self._running
 
+    @property
+    def running(self) -> bool:
+        """Get whether the object is running."""
+        return self.is_running()
+
 
 class CoreMixin(
-    ICoreMixin,
     HasId,
     Nameable,
     Describable,
@@ -318,19 +381,21 @@ class CoreMixin(
 
     def __init__(
         self,
-        id: str = "",
+        id_: str = "",
         name: str = "",
-        description: str = ""
+        description: str = "",
+        **kwargs
     ):
-        HasId.__init__(self, id)
-        Nameable.__init__(self, name)
-        Describable.__init__(self, description)
+        super().__init__(
+            id_=id_,
+            name=name,
+            description=description,
+            **kwargs
+        )
 
 
 class CoreRunnableMixin(
-    ICoreRunnableMixin,
-    Nameable,
-    Describable,
+    CoreMixin,
     Runnable,
     Buildable,
 ):
@@ -343,10 +408,10 @@ class CoreRunnableMixin(
         description: str = ""
     ):
 
-        Nameable.__init__(self, name)
-        Describable.__init__(self, description)
-        Runnable.__init__(self)
-        Buildable.__init__(self)
+        super().__init__(
+            name=name,
+            description=description
+        )
 
 
 class HasFileLocation:  # TODO: Note, this is a proper implimentation, not a protocol. Use as reference for protocol implementation.
@@ -406,14 +471,14 @@ class HasMetaDictData(IHasDictMetaData):
 
     def __init__(
         self,
-        meta_data: Optional[dict[str, Any]] = None
+        meta_data: dict[str, object] | None = None
     ):
         if meta_data is not None:
-            self._meta_data: dict[str, Any] = meta_data
+            self._meta_data: dict[str, object] = meta_data
         else:
-            self._meta_data: dict[str, Any] = dict()
+            self._meta_data: dict[str, object] = {}
 
-    def get_meta_data(self) -> dict[str, Any]:
+    def get_meta_data(self) -> dict[str, object]:
         """Get the meta data of this object.
 
         Returns:
@@ -421,13 +486,23 @@ class HasMetaDictData(IHasDictMetaData):
         """
         return self._meta_data
 
-    def set_meta_data(self, meta_data: dict[str, Any]) -> None:
+    def set_meta_data(self, meta_data: dict[str, object]) -> None:
         """Set the meta data of this object.
 
         Args:
             meta_data (dict[str, any]): The meta data to set.
         """
         self._meta_data = meta_data
+
+    @property
+    def meta_data(self) -> dict[str, object]:
+        """Get the meta data of this object."""
+        return self.get_meta_data()
+
+    @meta_data.setter
+    def meta_data(self, meta_data: dict[str, object]) -> None:
+        """Set the meta data of this object."""
+        self.set_meta_data(meta_data)
 
 
 class SupportsItemAccess(HasMetaDictData):
@@ -450,7 +525,7 @@ class SupportsItemAccess(HasMetaDictData):
         self,
         key: str,
         default=None
-    ) -> Any:
+    ) -> object:
         """Get an item by key.
 
         Args:
@@ -464,7 +539,7 @@ class SupportsItemAccess(HasMetaDictData):
     def __setitem__(
         self,
         key: str,
-        value: Any
+        value: object
     ) -> None:
         """Set an item by key.
 

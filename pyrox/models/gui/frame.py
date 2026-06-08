@@ -4,8 +4,6 @@ This module provides frame implementations for the Pyrox GUI framework,
 including abstract base classes and concrete implementations for task frames
 and other specialized frame types.
 """
-from __future__ import annotations
-from typing import Callable
 from PyQt6.QtWidgets import (
     QWidget,
     QPushButton,
@@ -13,10 +11,17 @@ from PyQt6.QtWidgets import (
     QHBoxLayout,
     QVBoxLayout,
 )
+from pyrox.interfaces.gui import ITaskFrame
 from pyrox.services import log
+from pyrox.models.base import Nameable, Describable, Buildable
 
 
-class TaskFrame:
+class TaskFrame(
+    ITaskFrame,
+    Nameable,
+    Describable,
+    Buildable,
+):
     """A PyQt6 frame for tasks in the application with title bar and close button.
 
     This frame provides a standardized interface for task windows with
@@ -37,7 +42,12 @@ class TaskFrame:
         self,
         name: str,
         parent: QWidget,
+        description: str = ''
     ):
+        super().__init__(
+            name=name,
+            description=description
+        )
         self._name = name or 'Task Frame'
         self._parent = parent
 
@@ -65,7 +75,7 @@ class TaskFrame:
 
         self._close_button = QPushButton('X', self._title_bar)
         self._close_button.setFixedSize(24, 20)
-        self._close_button.clicked.connect(self.destroy)
+        self._close_button.clicked.connect(self.teardown)
         title_layout.addWidget(self._close_button)
 
         outer_layout.addWidget(self._title_bar)
@@ -75,7 +85,11 @@ class TaskFrame:
         QVBoxLayout(self._content_frame).setContentsMargins(0, 0, 0, 0)
         outer_layout.addWidget(self._content_frame, 1)
 
-        self._on_destroy: list[Callable] = []
+        self._on_destroy: list = []
+
+    # ----------------------------------------------------------------------------------
+    # INameable
+    # ----------------------------------------------------------------------------------
 
     @property
     def content_frame(self) -> QWidget:
@@ -101,7 +115,6 @@ class TaskFrame:
         This method can be overridden by subclasses to populate
         the content frame with widgets.
         """
-        pass
 
     def set_shown(self, value: bool) -> None:
         """Set the shown state of the task frame.
@@ -112,13 +125,13 @@ class TaskFrame:
         self._shown = value
         self._root.setVisible(value)
 
-    def destroy(self) -> None:
+    def teardown(self) -> None:
         """Destroy the task frame and execute all registered callbacks.
 
         Calls all functions in the on_destroy list before destroying the frame.
         Non-callable items in the list generate warning messages.
         """
-        for callback in self.on_destroy():
+        for callback in self.on_teardown():
             if callable(callback):
                 try:
                     callback(self)
@@ -128,10 +141,10 @@ class TaskFrame:
             else:
                 log(self).warning(f'Callback {callback} is not callable.')
 
-        self.on_destroy().clear()
+        self.on_teardown().clear()
         self._root.deleteLater()
 
-    def on_destroy(self) -> list[Callable]:
+    def on_teardown(self) -> list:
         """Get the list of destroy callbacks.
 
         Returns:

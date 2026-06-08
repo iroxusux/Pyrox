@@ -99,7 +99,7 @@ class ApplicationTask(
             self._task_frame = self.create_task_frame()
             assert self._task_frame is not None, "create_task_frame must return a TaskFrame instance"
             self.application.workspace.register_frame(self._task_frame)
-            self._task_frame.on_destroy().append(self._frame_destroy_callback)
+            self._task_frame.on_teardown().append(self._frame_destroy_callback)
 
         self.application.workspace.raise_frame(self._task_frame)
 
@@ -217,6 +217,16 @@ class ApplicationTask(
             application: The application instance to set.
         """
         self._application = application
+
+    @property
+    def application(self) -> IApplication:
+        """Get the parent application of this task."""
+        return self.get_application()
+
+    @application.setter
+    def application(self, application: IApplication) -> None:
+        """Set the parent application for this task."""
+        self.set_application(application)
 
     # --------------------------------------------------------------
     # Private Methods

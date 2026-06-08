@@ -6,7 +6,7 @@ in other classes, supporting both generic file operations and JSON-specific oper
 import json
 from pathlib import Path
 from typing import Any, Optional, Union
-from pyrox.models.protocols import HasFileLocation
+from pyrox.models.base import HasFileLocation
 
 __all__ = (
     'SupportsLoading',

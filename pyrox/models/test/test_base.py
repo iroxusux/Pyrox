@@ -2,7 +2,7 @@
 
 import unittest
 
-from pyrox.models.protocols.base import (
+from pyrox.models.base import (
     Configurable,
     Authored,
     Versioned,
@@ -156,12 +156,12 @@ class TestHasId(unittest.TestCase):
 
     def test_init_with_id(self):
         """Test initialization with provided id."""
-        obj = HasId(id="test-id-123")
+        obj = HasId(id_="test-id-123")
         self.assertEqual(obj.get_id(), "test-id-123")
 
     def test_get_id(self):
         """Test getting the id."""
-        obj = HasId(id="unique-id")
+        obj = HasId(id_="unique-id")
         result = obj.get_id()
         self.assertEqual(result, "unique-id")
         self.assertIsInstance(result, str)
@@ -174,13 +174,13 @@ class TestHasId(unittest.TestCase):
 
     def test_set_id_updates_existing(self):
         """Test setting id updates existing value."""
-        obj = HasId(id="old-id")
+        obj = HasId(id_="old-id")
         obj.set_id("new-id")
         self.assertEqual(obj.get_id(), "new-id")
 
     def test_id_property(self):
         """Test id property access."""
-        obj = HasId(id="property-id")
+        obj = HasId(id_="property-id")
         self.assertEqual(obj.id, "property-id")
 
 
@@ -435,7 +435,7 @@ class TestCoreMixin(unittest.TestCase):
     def test_init_with_all_values(self):
         """Test initialization with all values provided."""
         obj = CoreMixin(
-            id="test-id",
+            id_="test-id",
             name="Test Name",
             description="Test Description"
         )
@@ -463,7 +463,7 @@ class TestCoreMixin(unittest.TestCase):
     def test_properties_access(self):
         """Test property access."""
         obj = CoreMixin(
-            id="prop-id",
+            id_="prop-id",
             name="Prop Name",
             description="Prop Desc"
         )

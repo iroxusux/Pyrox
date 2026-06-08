@@ -1,7 +1,7 @@
 """models for pyrox"""
 
 # ABCs, protocols and base classes
-from .protocols import (
+from .base import (
     # Protocol components
     Configurable,
     Authored,
@@ -13,6 +13,8 @@ from .protocols import (
     Runnable,
     Refreshable,
     Resettable,
+    HasFileLocation,
+    HasMetaDictData,
     CoreMixin,
     CoreRunnableMixin,
 )
@@ -56,6 +58,8 @@ from .task import (
     ApplicationTaskFactory
 )
 
+from .connection import ConnectionRegistry
+
 
 __all__ = [
     # ABCs and base classes
@@ -71,6 +75,8 @@ __all__ = [
     'Refreshable',
     'Resettable',
     'Runnable',
+    'HasFileLocation',
+    'HasMetaDictData',
     'CoreMixin',
     'CoreRunnableMixin',
 
@@ -101,5 +107,8 @@ __all__ = [
     # Task components
     'ApplicationTask',
     'ApplicationTaskFactory',
+
+    # Connection components
+    'ConnectionRegistry',
 
 ]
