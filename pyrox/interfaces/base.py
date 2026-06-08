@@ -53,7 +53,7 @@ class IHasId(ABC):
 
     @property
     @abstractmethod
-    def id(self) -> str: ...
+    def id_(self) -> str: ...
 
 
 class INameable(ABC):

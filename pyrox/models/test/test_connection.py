@@ -8,18 +8,18 @@ from pyrox.interfaces import Connection, IConnectable
 class _Sensor(IConnectable):
     def __init__(self, id_: str):
         super().__init__()
-        self.id_ = id_
+        self._id = id_
         self.on_activate_callbacks: list = []
         self.on_deactivate_callbacks: list = []
 
     def get_id(self) -> str:
-        return self.id_
+        return self._id
 
     def set_id(self, id_: str) -> None:
-        self.id_ = id_
+        self._id = id_
 
     @property
-    def id(self) -> str:
+    def id_(self) -> str:
         return self.get_id()
 
     def get_inputs(self) -> dict[str, Any]:
@@ -35,19 +35,19 @@ class _Sensor(IConnectable):
 class _Motor(IConnectable):
     def __init__(self, id_: str):
         super().__init__()
-        self.id_ = id_
+        self._id = id_
         self.speed = 0.0
         self.start_called = False
         self.stop_called = False
 
     def get_id(self) -> str:
-        return self.id_
+        return self._id
 
     def set_id(self, id_: str) -> None:
-        self.id_ = id_
+        self._id = id_
 
     @property
-    def id(self) -> str:
+    def id_(self) -> str:
         return self.get_id()
 
     def start(self):
@@ -881,7 +881,7 @@ class TestConnectable:
     def test_initialization_with_id(self):
         """Test initialization with ID."""
         obj = Connectable(id_="test_obj_1")
-        assert obj.id == "test_obj_1"
+        assert obj.id_ == "test_obj_1"
 
     def test_inherits_from_hasid(self):
         """Test that Connectable inherits from HasId."""
