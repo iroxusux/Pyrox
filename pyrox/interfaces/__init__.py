@@ -12,13 +12,6 @@ Key Design Principles:
     - Pure abstractions with minimal external dependencies
     - Forward-compatible design for future enhancements
     - Properties used and implimented for attribute access where appropriate
-
-Interface Categories:
-    - GUI: Backend, window, menu, and component abstractions
-    - Services: Environment, logging, configuration, and utility interfaces
-    - Application: Task, factory, and application lifecycle interfaces
-    - Configuration: Settings, environment, and state management interfaces
-    - Events: Observer patterns, subscriptions, and notification interfaces
 """
 
 # TODO: refactor inerfaces to properly be structural contracts without any implementation details,
@@ -30,9 +23,8 @@ from .constants import EnvironmentKeys
 # Enums
 from .enums import CardinalDirection
 
-# Protocols
-from .protocols import (
-    # Meta imports to describe the base of everything
+# Base ABCs
+from .base import (
     IConfigurable,
     IAuthored,
     IVersioned,
@@ -43,20 +35,9 @@ from .protocols import (
     IResettable,
     IBuildable,
     IRunnable,
-    ICoreMixin,
-    ICoreRunnableMixin,
     IHasFileLocation,
     IHasDictMetaData,
-
-    # Property imports for protocols that support properties.
     IHasProperties,
-
-    # Connectable protocols
-    IConnectable,
-    Connection,
-
-    # GUI protocols
-    IHasCanvas,
 )
 
 # Service interfaces
@@ -74,11 +55,14 @@ from .application import (
 
 # GUI interfaces
 from .gui import (
+    IHasCanvas,
     IWorkspace,
 )
 
 # Connection interfaces
 from .connection import (
+    Connection,
+    IConnectable,
     IConnectionRegistry,
 )
 
@@ -102,20 +86,14 @@ __all__ = (
     'IRefreshable',
     'IResettable',
     'IRunnable',
-    'ICoreMixin',
-    'ICoreRunnableMixin',
     'IHasFileLocation',
     'IHasDictMetaData',
     # Property protocols
     'IHasProperties',
-    # Connectable protocols
-    'IConnectable',
-    'Connection',
-    # Gui Protocols
-    'IHasCanvas',
 
     # GUI Interfaces
     'IWorkspace',
+    'IHasCanvas',
 
     # Service Interfaces
     'IHasViewableServiceAttributes',
@@ -127,5 +105,7 @@ __all__ = (
     'IApplicationTask',
 
     # Connection Interfaces
+    'Connection',
+    'IConnectable',
     'IConnectionRegistry',
 )

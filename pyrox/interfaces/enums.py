@@ -1,5 +1,4 @@
-"""Enumerations for Pyrox interfaces.
-"""
+"""Enumerations for Pyrox interfaces."""
 from enum import Enum, auto
 from typing import Self
 

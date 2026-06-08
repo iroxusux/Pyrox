@@ -1,9 +1,8 @@
 """models for pyrox"""
 
 # ABCs, protocols and base classes
-from .protocols import (
+from .base import (
     # Protocol components
-    # Meta components
     Configurable,
     Authored,
     Versioned,
@@ -14,12 +13,14 @@ from .protocols import (
     Runnable,
     Refreshable,
     Resettable,
+    HasFileLocation,
+    HasMetaDictData,
     CoreMixin,
     CoreRunnableMixin,
 )
 
 # Base classes
-from .base import PyroxObject
+from .snowflake import SnowFlake
 
 # List components
 from .list import (
@@ -57,6 +58,8 @@ from .task import (
     ApplicationTaskFactory
 )
 
+from .connection import ConnectionRegistry
+
 
 __all__ = [
     # ABCs and base classes
@@ -72,11 +75,13 @@ __all__ = [
     'Refreshable',
     'Resettable',
     'Runnable',
+    'HasFileLocation',
+    'HasMetaDictData',
     'CoreMixin',
     'CoreRunnableMixin',
 
     # Base classes
-    'PyroxObject',
+    'SnowFlake',
 
     # Factory components
     'MetaFactory',
@@ -102,5 +107,8 @@ __all__ = [
     # Task components
     'ApplicationTask',
     'ApplicationTaskFactory',
+
+    # Connection components
+    'ConnectionRegistry',
 
 ]

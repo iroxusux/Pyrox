@@ -21,6 +21,8 @@ from pyrox.models import (
     ServicesRunnableMixin,
     SplashScreen,
     Workspace,
+    Authored,
+    Versioned
 )
 
 __all__ = ('Application',)
@@ -29,6 +31,8 @@ __all__ = ('Application',)
 class Application(
     IApplication,
     ServicesRunnableMixin,
+    Authored,
+    Versioned
 ):
     """A main Application class to manage running application data and services.
 
@@ -147,6 +151,11 @@ class Application(
         """
         self._workspace = workspace
 
+    @property
+    def workspace(self) -> IWorkspace:
+        """Get the application workspace object."""
+        return self.get_workspace()
+
     def except_hook(
         self,
         exc_type: type,
@@ -235,6 +244,11 @@ class Application(
     def clear_tasks(self) -> None:
         """Clear all registered application tasks."""
         self._tasks.clear()
+
+    @property
+    def tasks(self) -> list[IApplicationTask]:
+        """Get the list of registered application tasks."""
+        return self.get_tasks()
 
     def set_app_state_busy(self) -> None:
         """Set the application state to busy.

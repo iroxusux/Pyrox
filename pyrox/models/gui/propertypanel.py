@@ -48,7 +48,7 @@ from PyQt6.QtWidgets import (
     QWidget,
 )
 
-from pyrox.interfaces.protocols import IHasProperties
+from pyrox.interfaces.base import IHasProperties
 from pyrox.services import log
 from pyrox.models.gui.frame import TaskFrame
 

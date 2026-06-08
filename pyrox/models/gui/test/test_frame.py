@@ -32,7 +32,7 @@ class TestTaskFrame(unittest.TestCase):
         """Test that the frame initializes with the correct name and default values."""
         self.assertEqual(self.frame.name, "Test Frame")
         self.assertFalse(self.frame.get_shown())
-        self.assertEqual(self.frame.on_destroy(), [])
+        self.assertEqual(self.frame.on_teardown(), [])
 
     def test_is_itaskframe(self):
         """Test that TaskFrame implements ITaskFrame."""
@@ -86,30 +86,30 @@ class TestTaskFrame(unittest.TestCase):
     def test_destroy_callbacks(self):
         """Test that destroy callbacks are called with the frame as argument."""
         callback = Mock()
-        self.frame.on_destroy().append(callback)
-        self.frame.destroy()
+        self.frame.on_teardown().append(callback)
+        self.frame.teardown()
         callback.assert_called_once_with(self.frame)
 
     def test_destroy_clears_callbacks(self):
         """Test that destroy clears all registered callbacks after execution."""
-        self.frame.on_destroy().append(Mock())
-        self.frame.destroy()
-        self.assertEqual(self.frame.on_destroy(), [])
+        self.frame.on_teardown().append(Mock())
+        self.frame.teardown()
+        self.assertEqual(self.frame.on_teardown(), [])
 
     def test_destroy_calls_delete_later(self):
         """Test that destroy calls deleteLater on the root widget."""
-        self.frame.destroy()
+        self.frame.teardown()
         self.frame._root.deleteLater.assert_called_once()
 
     def test_destroy_non_callable_warns(self):
         """Test that a non-callable item in on_destroy generates a warning."""
-        self.frame.on_destroy().append('not_a_callable')
+        self.frame.on_teardown().append('not_a_callable')
         with patch('pyrox.models.gui.frame.log') as mock_log:
-            self.frame.destroy()
+            self.frame.teardown()
             mock_log.return_value.warning.assert_called_once()
 
     def test_close_button_connected_to_destroy(self):
         """Test that the close button clicked signal is connected to destroy."""
         self.MockQPushButton.return_value.clicked.connect.assert_called_once_with(
-            self.frame.destroy
+            self.frame.teardown
         )

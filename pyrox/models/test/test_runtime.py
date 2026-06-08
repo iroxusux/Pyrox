@@ -3,7 +3,7 @@
 import unittest
 from unittest.mock import MagicMock
 
-from pyrox.models.protocols import Buildable, Runnable
+from pyrox.models.base import Buildable, Runnable
 from pyrox.models.runtime import RuntimeDict
 
 

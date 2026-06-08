@@ -1,7 +1,5 @@
-"""Service interface abstractions for Pyrox framework.
-"""
+"""Service interface abstractions for Pyrox framework."""
 from abc import ABC, abstractmethod
-from typing import Any
 
 
 class ISupportsServiceStatus(ABC):
@@ -28,11 +26,11 @@ class IHasViewableServiceAttributes(ABC):
     """Protocol for services that have viewable attributes."""
 
     @abstractmethod
-    def get_viewable_attributes(self) -> dict[str, Any]:
+    def get_viewable_attributes(self) -> dict[str, object]:
         """Get a dictionary of viewable attributes for the service.
 
         Returns:
-            dict[str, Any]: A dictionary of attribute names and their values.
+            dict[str, object]: A dictionary of attribute names and their values.
         """
 
 

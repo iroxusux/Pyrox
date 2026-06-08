@@ -1,5 +1,4 @@
-"""Constants for ControlRox Applications.
-"""
+"""Constants for ControlRox Applications."""
 from enum import Enum
 
 

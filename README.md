@@ -3,7 +3,7 @@
 [![Python Version](https://img.shields.io/badge/python-3.13+-blue.svg)](https://www.python.org/downloads/)
 [![License](https://img.shields.io/badge/license-GPL--3.0-green.svg)](LICENSE)
 ![Development Status](https://img.shields.io/badge/status-beta-orange.svg)
-![Version](https://img.shields.io/badge/version-3.6.2-blue.svg)
+![Version](https://img.shields.io/badge/version-3.6.6-blue.svg)
 
 **Pyrox** is a Python back-end engine and application framework built on **PyQt6**. It provides a rich set of interfaces, models, services, and abstractions for building industrial automation and desktop applications. Pyrox is designed to be used as a foundation — downstream projects like [ControlRox](https://github.com/iroxusux/ControlRox) build their entire application layer on top of it.
 

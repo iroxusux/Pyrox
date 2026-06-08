@@ -4,10 +4,8 @@ build-backend = "hatchling.build"
 
 [project]
 name = "pyrox"
-version = "3.6.2"
-authors = [
-  { name="Brian LaFond", email="Brian.L.LaFond@gmail.com" },
-]
+version = "3.6.6"
+authors = [{ name = "Brian LaFond", email = "Brian.L.LaFond@gmail.com" }]
 description = "Python based irox engine."
 readme = "README.md"
 requires-python = ">=3.13.9"
@@ -48,7 +46,7 @@ dependencies = [
   "xmltodict",
 ]
 
-license = {file = "LICENSE"}
+license = { file = "LICENSE" }
 keywords = ["python", "tkinter", "api"]
 
 [tool.hatch.build.targets.wheel]
@@ -63,20 +61,19 @@ log_cli_date_format = "%m/%d/%Y, %H:%M:%S"
 [tool.pylint.main]
 jobs = 0
 py-version = "3.13.9"
-extension-pkg-allow-list = [
-    "lxml",
-]
+extension-pkg-allow-list = ["lxml"]
+extension-pkg-whitelist = ["PyQt6"]
 
 [tool.pylint.format]
 max-line-length = 120
 
 [tool.pylint.messages_control]
 disable = [
-    "missing-module-docstring",
-    "missing-class-docstring",
-    "missing-function-docstring",
-    "too-few-public-methods",
-    "line-too-long",
+  "missing-module-docstring",
+  "missing-class-docstring",
+  "missing-function-docstring",
+  "too-few-public-methods",
+  "line-too-long",
 ]
 
 [tool.pylint.basic]
