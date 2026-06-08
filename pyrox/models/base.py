@@ -24,19 +24,19 @@ class Configurable(IConfigurable):
 
     def __init__(
         self,
-        config: dict[str, object] | None = None,
+        config: dict | None = None,
         **kwargs
     ):
         if config is not None:
-            self._config: dict[str, object] = config
+            self._config: dict = config
         else:
-            self._config: dict[str, object] = dict()
+            self._config: dict = {}
         super().__init__(**kwargs)
 
     def configure(self, config: dict) -> None:
         pass
 
-    def get_config(self) -> dict[str, object]:
+    def get_config(self) -> dict:
         """Get the configuration of this object.
 
         Returns:
@@ -44,7 +44,7 @@ class Configurable(IConfigurable):
         """
         return self._config
 
-    def set_config(self, config: dict[str, object]) -> None:
+    def set_config(self, config: dict) -> None:
         """Set the configuration of this object.
 
         Args:

@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "pyrox"
-version = "3.6.4"
+version = "3.6.5"
 authors = [{ name = "Brian LaFond", email = "Brian.L.LaFond@gmail.com" }]
 description = "Python based irox engine."
 readme = "README.md"
@@ -62,6 +62,7 @@ log_cli_date_format = "%m/%d/%Y, %H:%M:%S"
 jobs = 0
 py-version = "3.13.9"
 extension-pkg-allow-list = ["lxml"]
+extension-pkg-whitelist = ["PyQt6"]
 
 [tool.pylint.format]
 max-line-length = 120
