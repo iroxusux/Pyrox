@@ -2,11 +2,7 @@
 
 import pytest
 
-
-from pyrox.models.base import (
-    PyroxObject,
-    SnowFlake,
-)
+from pyrox.models.snowflake import SnowFlake
 
 
 class TestSnowFlake:
@@ -44,23 +40,6 @@ class TestSnowFlake:
         """Test SnowFlake string representation."""
         sf = SnowFlake()
         assert str(sf) == str(sf.id)
-
-
-class TestPyroxObject:
-    """Test the PyroxObject class."""
-
-    def test_inheritance(self):
-        """Test PyroxObject inheritance."""
-        obj = PyroxObject()
-
-        # Should inherit from SnowFlake
-        assert hasattr(obj, 'id')
-        assert obj.id is not None
-
-    def test_repr(self):
-        """Test PyroxObject string representation."""
-        obj = PyroxObject()
-        assert repr(obj) == "PyroxObject"
 
 
 if __name__ == '__main__':

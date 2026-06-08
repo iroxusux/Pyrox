@@ -3,7 +3,6 @@
 # ABCs, protocols and base classes
 from .protocols import (
     # Protocol components
-    # Meta components
     Configurable,
     Authored,
     Versioned,
@@ -19,7 +18,7 @@ from .protocols import (
 )
 
 # Base classes
-from .base import PyroxObject
+from .snowflake import SnowFlake
 
 # List components
 from .list import (
@@ -76,7 +75,7 @@ __all__ = [
     'CoreRunnableMixin',
 
     # Base classes
-    'PyroxObject',
+    'SnowFlake',
 
     # Factory components
     'MetaFactory',

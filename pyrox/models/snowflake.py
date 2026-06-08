@@ -1,19 +1,15 @@
-"""Meta module for Pyrox framework base classes."""
-from pathlib import Path
+"""Snowflake class for unique identifiers.
+"""
 import uuid
 
 
 __all__ = (
-    'DEF_ICON',
-    'PyroxObject',
     'SnowFlake',
 )
 
-DEF_ICON = Path(__file__).resolve().parents[2] / "ui" / "icons" / "_def.ico"
-
 
 class SnowFlake:
-    """A meta class for all classes to derive from to obtain unique IDs.
+    """A base class for all classes to derive from to obtain unique IDs.
 
     Attributes:
         id: Unique identifier for this object.
@@ -45,17 +41,3 @@ class SnowFlake:
             int: The unique ID.
         """
         return self._id.int
-
-
-class PyroxObject(SnowFlake):
-    """A base class for all Pyrox objects."""
-    __slots__ = ()
-
-    def __init__(
-        self,
-        **kwargs
-    ) -> None:
-        super().__init__(**kwargs)
-
-    def __repr__(self) -> str:
-        return self.__class__.__name__
