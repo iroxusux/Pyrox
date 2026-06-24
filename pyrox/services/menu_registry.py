@@ -284,6 +284,20 @@ class MenuRegistry:
         log(cls).debug("Cleared menu registry")
 
     @classmethod
+    def clear_by_owner(cls, owner: str) -> None:
+        """Clear the registry of a specific owner's items.
+        Useful for testing.
+        """
+        if owner not in cls._owner_index:
+            return
+
+        for _, item in cls._registry.copy().items():
+            if item.owner == owner:
+                del cls._registry
+
+        del cls._owner_index[owner]
+
+    @classmethod
     def get_all_items(cls) -> Dict[str, MenuItemDescriptor]:
         """Get all registered menu items.
 

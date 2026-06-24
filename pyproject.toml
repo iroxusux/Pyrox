@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "pyrox"
-version = "3.6.7"
+version = "3.6.8"
 authors = [{ name = "Brian LaFond", email = "Brian.L.LaFond@gmail.com" }]
 description = "Python based irox engine."
 readme = "README.md"
@@ -47,7 +47,7 @@ dependencies = [
 ]
 
 license = { file = "LICENSE" }
-keywords = ["python", "tkinter", "api"]
+keywords = ["python", "pyqt6", "api"]
 
 [tool.hatch.build.targets.wheel]
 include = ["pyrox/**"]
