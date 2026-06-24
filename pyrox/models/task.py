@@ -137,7 +137,7 @@ class ApplicationTask(
             menu_path=registry_path,
             menu_widget=menu,
             menu_index=index,
-            owner=self.__class__.__name__,
+            owner=type(self).__name__,
             action=action,
             command=command,
             category=category,
