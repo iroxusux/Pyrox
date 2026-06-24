@@ -293,7 +293,7 @@ class MenuRegistry:
 
         for _, item in cls._registry.copy().items():
             if item.owner == owner:
-                del cls._registry
+                del cls._registry[item.menu_id]
 
         del cls._owner_index[owner]
 
