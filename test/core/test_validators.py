@@ -33,3 +33,10 @@ class TestUnsafeAssertIsType:
         with pytest.raises(ValueError) as context:
             unsafe_assert_is_type('string', int)
         assert context.exconly() == f'ValueError: Expected type {str(int)}, but got {str(str)}!'
+
+    def test_pass_when_tuple_is_correct(self):
+        unsafe_assert_is_type(1, (int, float))
+
+    def test_fail_when_tuple_is_not_correct(self):
+        with pytest.raises(ValueError):
+            unsafe_assert_is_type('string', (int, float))

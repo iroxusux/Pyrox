@@ -1,7 +1,7 @@
 from typing import Any
 
 
-def unsafe_assert_is_type(value: Any, type_check: type) -> None:
+def unsafe_assert_is_type(value: Any, type_check: type | tuple[type, ...]) -> None:
     """Common use type check assertion.
     Useful for single line, compact type checking to raise a common message to the user.
     Doesn't return anything, as it is unsafe and will stop execution in place.
