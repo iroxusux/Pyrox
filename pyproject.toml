@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "pyrox"
-version = "3.6.13"
+version = "3.6.14"
 authors = [{ name = "Brian LaFond", email = "Brian.L.LaFond@gmail.com" }]
 description = "Python based irox engine."
 readme = "README.md"
